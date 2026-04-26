@@ -1,0 +1,47 @@
+# Secrets & local env
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Databases & local data
+*.db
+*.sqlite3
+
+# Generated / test artifacts (optional — remove lines if you want these in repo)
+backend/payroll_audit*.xlsx
+backend/e2e_test_report.txt
+
+# Logs
+*.log
