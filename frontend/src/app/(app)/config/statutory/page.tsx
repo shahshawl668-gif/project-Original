@@ -530,7 +530,7 @@ export default function StatutoryConfigPage() {
         <div className="flex flex-wrap gap-3 mb-5">
           {[
             { label: "Emp rate", val: pct(cfg.pf.rates.employee_rate) },
-            { label: "Emp'r rate", val: pct(cfg.pf.rates.employer_rate) },
+            { label: "Emp&apos;r rate", val: pct(cfg.pf.rates.employer_rate) },
             { label: "EPS", val: pct(cfg.pf.rates.eps_rate) },
             { label: "Ceiling", val: `₹${parseInt(cfg.pf.wage.wage_ceiling).toLocaleString("en-IN")}` },
             { label: "Restricted", val: cfg.pf.wage.restrict_to_ceiling ? "Yes" : "No" },
@@ -549,7 +549,7 @@ export default function StatutoryConfigPage() {
         <div className="flex flex-wrap gap-3 mb-5">
           {[
             { label: "Emp rate", val: pct(cfg.esic.rates.employee_rate) },
-            { label: "Emp'r rate", val: pct(cfg.esic.rates.employer_rate) },
+            { label: "Emp&apos;r rate", val: pct(cfg.esic.rates.employer_rate) },
             { label: "Ceiling", val: `₹${parseInt(cfg.esic.wage.wage_ceiling).toLocaleString("en-IN")}` },
             { label: "Rounding", val: cfg.esic.rounding.mode },
           ].map(s => (
