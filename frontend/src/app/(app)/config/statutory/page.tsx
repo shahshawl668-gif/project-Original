@@ -520,7 +520,7 @@ export default function StatutoryConfigPage() {
         <p>
           All changes here take effect on the <strong>next validation run</strong>.
           Expressions are evaluated using a safe sandbox — no imports or shell access.
-          Each tenant's config is fully isolated.
+          Each tenant&apos;s config is fully isolated.
         </p>
       </div>
 
