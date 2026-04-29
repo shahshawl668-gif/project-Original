@@ -1,4 +1,5 @@
-# PayrollCheck — User Manual  
+# PayrollCheck — User Manual
+
 **India Payroll Intelligence & Compliance OS**
 
 This guide explains how to use the full product: **Next.js** web app (sidebar navigation) and **FastAPI** backend with **PostgreSQL** or **SQLite** (local dev).
@@ -19,13 +20,15 @@ There is **no login** in the current build: a single **system user** owns all da
 
 ## 2. Architecture (for operators)
 
-| Layer | Technology |
-|--------|------------|
-| Frontend | Next.js (App Router), React, Tailwind |
-| Backend | FastAPI, Pydantic |
-| Database | PostgreSQL (recommended) or SQLite |
-| Statutory config | JSON in DB (**Config-Driven Statutory Engine**) |
-| PT / LWF | Tenant **SlabRule** rows + optional reference seeds |
+
+| Layer            | Technology                                          |
+| ---------------- | --------------------------------------------------- |
+| Frontend         | Next.js (App Router), React, Tailwind               |
+| Backend          | FastAPI, Pydantic                                   |
+| Database         | PostgreSQL (recommended) or SQLite                  |
+| Statutory config | JSON in DB (**Config-Driven Statutory Engine**)     |
+| PT / LWF         | Tenant **SlabRule** rows + optional reference seeds |
+
 
 **API base URL** (default local): `http://localhost:8000/api`
 
@@ -56,8 +59,8 @@ Define every earning column that appears in registers and CTC files. For each co
 
 If these lists are **empty**, the engine may **not** compute PT/LWF for rows, which leads to **net pay mismatches** (register has PT/LWF but system expects zero).
 
-- **`pt_states`:** States where you operate and need **Professional Tax** slabs.
-- **`lwf_states`:** States where **Labour Welfare Fund** applies.
+- `**pt_states`:** States where you operate and need **Professional Tax** slabs.
+- `**lwf_states`:** States where **Labour Welfare Fund** applies.
 
 Per-row **state** comes from the upload column `state` (aliases: `work_state`, `state_pt`, `location_state`). The row’s state must appear in the corresponding list, or the tenant **default** (first list entry) is used.
 
@@ -66,13 +69,13 @@ Per-row **state** comes from the upload column `state` (aliases: `work_state`, `
 **UI:** Rule Engine → **PT / LWF Slabs**
 
 - Import **defaults** per state (catalog from the product).
-- Edit slabs: `min_salary`, `max_salary`, `deduction_amount`, `frequency`, `gender`, `applicable_months` (e.g. February PT top-up in Maharashtra), and for LWF **`employer_amount`** where applicable.
+- Edit slabs: `min_salary`, `max_salary`, `deduction_amount`, `frequency`, `gender`, `applicable_months` (e.g. February PT top-up in Maharashtra), and for LWF `**employer_amount`** where applicable.
 
 ### 3.4 Statutory Engine (PF / ESIC — config-driven)
 
 **UI:** Configuration → **Statutory Engine**
 
-This edits **`/api/config/statutory`** (JSON): PF wage rules, rates, ceiling, voluntary PF, ESIC ceiling, rounding, eligibility exemptions (e.g. `contractor`), and **component mapping** for wage calculation.
+This edits `**/api/config/statutory`** (JSON): PF wage rules, rates, ceiling, voluntary PF, ESIC ceiling, rounding, eligibility exemptions (e.g. `contractor`), and **component mapping** for wage calculation.
 
 - **Test expression** (if exposed in UI or via API): safe arithmetic/boolean checks for custom logic.
 - After changes, run a small test payroll to confirm PF/ESIC match your payroll software.
@@ -126,8 +129,8 @@ Create expressions (e.g. HRA = 50% of Basic) for documentation or future rule ho
 **Attendance / LOP**
 
 - `paid_days`, `lop_days` (or `lop`)
-- **`total_days`** / **`month_days`** / **`days_in_month`** / **`working_days`** — **payroll denominator** for your company (e.g. **26** for fixed working-day month).  
-  If omitted, the system uses **calendar days** for that month, which can trigger **LOP proration (LOP-002)** findings when your sheet uses full monthly amounts with `paid_days = 26`.
+- `**total_days`** / `**month_days**` / `**days_in_month**` / `**working_days**` — **payroll denominator** for your company (e.g. **26** for fixed working-day month).  
+If omitted, the system uses **calendar days** for that month, which can trigger **LOP proration (LOP-002)** findings when your sheet uses full monthly amounts with `paid_days = 26`.
 
 **Location**
 
@@ -161,7 +164,7 @@ Each employee gets a **0–100** score:
 
 ### 4.6 Excel export
 
-From the API: **`POST /api/payroll/validate/export-excel`** with the same JSON body as validate.  
+From the API: `**POST /api/payroll/validate/export-excel`** with the same JSON body as validate.  
 Produces **Summary**, **Findings**, **Risk Scores** sheets.
 
 ---
@@ -170,18 +173,20 @@ Produces **Summary**, **Findings**, **Risk Scores** sheets.
 
 Rules are grouped in layers (data quality → structure → aggregates → statutory → LOP → MoM → advanced). Examples:
 
-| Rule ID | Theme |
-|--------|--------|
-| DATA-* | Missing ID, negatives, duplicates |
-| COMP-* | Unmapped columns, missing PF wage columns |
-| STRUCT-* | Low Basic % of gross (PF avoidance), allowance-heavy |
-| AGG-* | Gross vs sum of earnings; net vs gross minus statutory deductions |
-| STAT-001 … | PF / ESIC / PT / LWF mismatches; bonus eligibility (STAT-012/013); gratuity cap (STAT-014); TDS risk hint (STAT-011) |
-| LOP-* | paid_days + lop_days vs denominator; proration vs CTC monthly × paid/total |
-| MOM-* | New joiner, component spike/drop vs prior month, new components, increment arrear vs CTC |
-| ADV-* | Salary spikes/drops vs prior gross |
 
-**Increment / arrear run:** Use **`increment_arrear`** when pay structure legitimately changes with arrears so **MOM-002** (spike) is not raised incorrectly.
+| Rule ID    | Theme                                                                                                                |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| DATA-*     | Missing ID, negatives, duplicates                                                                                    |
+| COMP-*     | Unmapped columns, missing PF wage columns                                                                            |
+| STRUCT-*   | Low Basic % of gross (PF avoidance), allowance-heavy                                                                 |
+| AGG-*      | Gross vs sum of earnings; net vs gross minus statutory deductions                                                    |
+| STAT-001 … | PF / ESIC / PT / LWF mismatches; bonus eligibility (STAT-012/013); gratuity cap (STAT-014); TDS risk hint (STAT-011) |
+| LOP-*      | paid_days + lop_days vs denominator; proration vs CTC monthly × paid/total                                           |
+| MOM-*      | New joiner, component spike/drop vs prior month, new components, increment arrear vs CTC                             |
+| ADV-*      | Salary spikes/drops vs prior gross                                                                                   |
+
+
+**Increment / arrear run:** Use `**increment_arrear`** when pay structure legitimately changes with arrears so **MOM-002** (spike) is not raised incorrectly.
 
 For the **full rule list and field meanings**, refer to in-app help or `backend/app/services/rule_engine_v2.py` (docstring and `build_findings`).
 
@@ -206,34 +211,38 @@ Shows setup progress, recent activity, and charts driven by last runs/registers.
 
 ## 8. API quick reference
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET/POST | `/api/components` | List / create salary components |
-| GET/PUT | `/api/settings/statutory` | Legacy statutory settings + **pt_states**, **lwf_states** |
-| GET/PUT | `/api/config/statutory` | Config-driven PF/ESIC/mapping |
-| POST | `/api/ctc/upload`, `/api/ctc/commit` | Parse / store CTC |
-| POST | `/api/payroll/upload` | Parse payroll; may persist register |
-| POST | `/api/payroll/validate` | Run full validation |
-| POST | `/api/payroll/validate/export-excel` | Excel audit |
-| GET | `/api/payroll/registers`, `/api/payroll/registers/{id}` | History |
-| GET/POST | `/api/rule-engine/slabs`, import-defaults | PT/LWF |
-| POST | `/api/rule-engine/formula` | Custom formulas |
 
-Health: **`GET /api/health`**
+| Method   | Path                                                    | Purpose                                                   |
+| -------- | ------------------------------------------------------- | --------------------------------------------------------- |
+| GET/POST | `/api/components`                                       | List / create salary components                           |
+| GET/PUT  | `/api/settings/statutory`                               | Legacy statutory settings + **pt_states**, **lwf_states** |
+| GET/PUT  | `/api/config/statutory`                                 | Config-driven PF/ESIC/mapping                             |
+| POST     | `/api/ctc/upload`, `/api/ctc/commit`                    | Parse / store CTC                                         |
+| POST     | `/api/payroll/upload`                                   | Parse payroll; may persist register                       |
+| POST     | `/api/payroll/validate`                                 | Run full validation                                       |
+| POST     | `/api/payroll/validate/export-excel`                    | Excel audit                                               |
+| GET      | `/api/payroll/registers`, `/api/payroll/registers/{id}` | History                                                   |
+| GET/POST | `/api/rule-engine/slabs`, import-defaults               | PT/LWF                                                    |
+| POST     | `/api/rule-engine/formula`                              | Custom formulas                                           |
+
+
+Health: `**GET /api/health`**
 
 ---
 
 ## 9. Troubleshooting
 
-| Symptom | Likely cause | What to do |
-|--------|----------------|------------|
-| PT always zero | `pt_states` empty or row `state` not in list | Set **PT states** in **Settings → Statutory** (API: `/api/settings/statutory`) |
-| LWF always zero | Same for `lwf_states` | Configure **LWF states** and import slabs |
-| Net pay mismatch (AGG-002) | PT/LWF not computed, or wrong PF/ESIC | Fix settings; align register columns with engine |
-| Many LOP-002 warnings | Calendar days vs 26-day payroll | Add **`total_days: 26`** (or your standard) on each row |
-| “PF component missing” for arrears | Old data / naming | Name arrear columns with **“arrear”**; refresh components |
-| MoM noise | Prior month register missing | Upload previous month’s register for the same period chain |
-| ESIC mismatch on contractors | Exemption not applied | Set `employment_type` / check **exempt_employment_types** in statutory config |
+
+| Symptom                            | Likely cause                                 | What to do                                                                     |
+| ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------ |
+| PT always zero                     | `pt_states` empty or row `state` not in list | Set **PT states** in **Settings → Statutory** (API: `/api/settings/statutory`) |
+| LWF always zero                    | Same for `lwf_states`                        | Configure **LWF states** and import slabs                                      |
+| Net pay mismatch (AGG-002)         | PT/LWF not computed, or wrong PF/ESIC        | Fix settings; align register columns with engine                               |
+| Many LOP-002 warnings              | Calendar days vs 26-day payroll              | Add `**total_days: 26`** (or your standard) on each row                        |
+| “PF component missing” for arrears | Old data / naming                            | Name arrear columns with **“arrear”**; refresh components                      |
+| MoM noise                          | Prior month register missing                 | Upload previous month’s register for the same period chain                     |
+| ESIC mismatch on contractors       | Exemption not applied                        | Set `employment_type` / check **exempt_employment_types** in statutory config  |
+
 
 ---
 
@@ -249,9 +258,9 @@ Health: **`GET /api/health`**
 
 ## 11. Support files in the repo
 
-- **`backend/e2e_full_test.py`** — End-to-end scenario script (components, slabs, CTC, March + April registers, validation).
-- **`backend/payroll_audit_april2025.xlsx`** — Example export (after running tests).
-- **`backend/e2e_test_report.txt`** — Text report from the e2e script.
+- `**backend/e2e_full_test.py`** — End-to-end scenario script (components, slabs, CTC, March + April registers, validation).
+- `**backend/payroll_audit_april2025.xlsx**` — Example export (after running tests).
+- `**backend/e2e_test_report.txt**` — Text report from the e2e script.
 
 ---
 
