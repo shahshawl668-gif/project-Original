@@ -1,6 +1,6 @@
 "use client";
 
-import { apiJson } from "@/lib/api";
+import { apiJson, getApiTargetDescription } from "@/lib/api";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -82,19 +82,27 @@ export default function DashboardPage() {
   >([]);
   const [sessionRisk, setSessionRisk] = useState<{ risk_level: string; risk_score: number }[]>([]);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const results = useQueries({
     queries: [
       {
         queryKey: ["payroll", "dashboard-stats"],
         queryFn: () => apiJson<DashboardStats>("/api/payroll/dashboard-stats"),
+        enabled: mounted,
       },
       {
         queryKey: ["payroll", "runs", 5],
         queryFn: () => apiJson<PayrollRun[]>("/api/payroll/runs?limit=5"),
+        enabled: mounted,
       },
       {
         queryKey: ["payroll", "registers"],
         queryFn: () => apiJson<Register[]>("/api/payroll/registers"),
+        enabled: mounted,
       },
     ],
   });
@@ -188,11 +196,21 @@ export default function DashboardPage() {
 
       {apiError ? (
         <AlertBanner variant="error" title="Could not reach the API">
-          {apiError}. Confirm the backend is running and{" "}
-          <code className="rounded-md bg-white/70 px-1.5 py-0.5 text-xs font-medium text-red-950">
-            NEXT_PUBLIC_API_URL
-          </code>{" "}
-          is set correctly for this deployment.
+          <span className="block">{apiError}</span>
+          <span className="mt-2 block text-sm">
+            Effective target in this browser:{" "}
+            <code className="rounded-md bg-white/70 px-1.5 py-0.5 text-xs font-medium text-red-950">
+              {getApiTargetDescription()}
+            </code>
+            . Ensure the API is up (e.g.{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">https://api.peopleopslab.in/api/health</code>
+            ), CORS allows this site, and you use HTTPS→HTTPS. For Vercel + a separate API host, set{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">NEXT_PUBLIC_API_URL</code> at build time, or enable
+            same-origin relay:{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">NEXT_PUBLIC_USE_API_RELAY=1</code> and{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">RELAY_BACKEND_ORIGIN=https://api.peopleopslab.in</code>{" "}
+            (see README).
+          </span>
         </AlertBanner>
       ) : null}
 

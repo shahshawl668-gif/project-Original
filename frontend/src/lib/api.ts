@@ -1,4 +1,53 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+/** Same-origin relay to backend (needs next.config rewrite + RELAY_BACKEND_ORIGIN at build time). */
+function isApiRelayEnabled(): boolean {
+  return (
+    process.env.NEXT_PUBLIC_USE_API_RELAY === "true" || process.env.NEXT_PUBLIC_USE_API_RELAY === "1"
+  );
+}
+
+/**
+ * Public API absolute URL for a backend path (path must start with `/api/…`).
+ * - Relay mode: `/api-relay/api/…` → proxied to RELAY_BACKEND_ORIGIN (see next.config).
+ * - Otherwise: `{origin}{path}` — uses NEXT_PUBLIC_API_URL if set; on peopleopslab.in in the browser
+ *   infers https://api.peopleopslab.in so production survives a missing bake-time env var.
+ */
+export function apiAbsoluteUrl(apiPath: string): string {
+  const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
+  if (isApiRelayEnabled()) {
+    return `/api-relay${path}`;
+  }
+  const base = resolvedApiOrigin();
+  return `${base}${path}`;
+}
+
+function resolvedApiOrigin(): string {
+  const env = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (env) return env.replace(/\/$/, "");
+
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h === "peopleopslab.in" || h === "www.peopleopslab.in") {
+      return "https://api.peopleopslab.in";
+    }
+  }
+  return "http://localhost:8000";
+}
+
+/** Human-readable hint for dashboards (browser only resolves infer; SSR may omit infer). */
+export function getApiTargetDescription(): string {
+  if (isApiRelayEnabled()) {
+    return "same-origin proxy /api-relay (set RELAY_BACKEND_ORIGIN when building)";
+  }
+  const env = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (env) return env.replace(/\/$/, "");
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h === "peopleopslab.in" || h === "www.peopleopslab.in") {
+      return "https://api.peopleopslab.in (inferred — set NEXT_PUBLIC_API_URL explicitly for SSR/build)";
+    }
+  }
+  return "http://localhost:8000";
+}
 
 export const ACCESS_TOKEN_KEY = "payroll_saas_access_token";
 export const REFRESH_TOKEN_KEY = "payroll_saas_refresh_token";
@@ -35,9 +84,9 @@ function authHeader(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
-/** Endpoints where a 401 must not trigger refresh-token rotation */
-function shouldNeverRefresh401(path: string): boolean {
-  const p = path.split("?")[0];
+/** Logical path `/api/...` passed to apiFetch — used after URL resolution. */
+function shouldNeverRefresh401(logicalPath: string): boolean {
+  const p = logicalPath.split("?")[0];
   return (
     p.endsWith("/api/auth/refresh") ||
     p.endsWith("/api/auth/login") ||
@@ -61,7 +110,7 @@ export async function refreshSession(): Promise<boolean> {
   if (!refreshMutex) {
     refreshMutex = (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+        const res = await fetch(apiAbsoluteUrl("/api/auth/refresh"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: rt }),
@@ -103,7 +152,18 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
     headers.set("Authorization", a.Authorization);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(apiAbsoluteUrl(path), { ...init, headers });
+  } catch (e) {
+    if (typeof window !== "undefined" && e instanceof TypeError) {
+      const hint = getApiTargetDescription();
+      throw new Error(
+        `Failed to fetch (${e.message}). API target: ${hint}. If the API runs on another host, set NEXT_PUBLIC_API_URL at build time or use NEXT_PUBLIC_USE_API_RELAY=1 with RELAY_BACKEND_ORIGIN.`,
+      );
+    }
+    throw e;
+  }
 
   if (
     res.status === 401 &&

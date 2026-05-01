@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Shield, Loader2 } from "lucide-react";
@@ -13,10 +14,13 @@ export default function AdminUsersPage() {
   const { user, refreshUser } = useAuth();
   const qc = useQueryClient();
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const q = useQuery({
     queryKey: ["admin-users"],
     queryFn: listAdminUsers,
-    enabled: user?.role === "admin",
+    enabled: mounted && user?.role === "admin",
   });
 
   const mut = useMutation({

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { apiJson } from "@/lib/api";
@@ -12,10 +12,13 @@ type Pref = { rule_id: string; suppressed: boolean };
 export default function RulePreferencesPage() {
   const qc = useQueryClient();
   const [ruleId, setRuleId] = useState("");
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const list = useQuery({
     queryKey: ["rule-preferences"],
     queryFn: () => apiJson<Pref[]>("/api/rule-preferences"),
+    enabled: mounted,
   });
 
   const upsert = useMutation({

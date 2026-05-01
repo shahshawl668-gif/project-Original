@@ -12,7 +12,7 @@ import { toast } from "sonner";
 
 import {
   ACCESS_TOKEN_KEY,
-  API_BASE,
+  apiAbsoluteUrl,
   apiFetch,
   clearTokens,
   getAccessToken,
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
+    const res = await fetch(apiAbsoluteUrl("/api/auth/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -120,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = useCallback(
     async (email: string, password: string, company_name?: string | null) => {
-      const res = await fetch(`${API_BASE}/api/auth/signup`, {
+      const res = await fetch(apiAbsoluteUrl("/api/auth/signup"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, company_name }),
@@ -149,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     if (refresh) {
       try {
-        await fetch(`${API_BASE}/api/auth/logout`, {
+        await fetch(apiAbsoluteUrl("/api/auth/logout"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refresh }),

@@ -11,9 +11,22 @@ This project is set up for a **split origin** in production:
 | **Web app (Next.js)** | `https://peopleopslab.in` and `https://www.peopleopslab.in` | Vercel, Render Web, etc. |
 | **API (FastAPI)** | `https://api.peopleopslab.in` | Render, Fly.io, VM + reverse proxy, etc. |
 
-The browser loads the app from **peopleopslab.in**; all API calls go to **`NEXT_PUBLIC_API_URL` = `https://api.peopleopslab.in`**. CORS on the API must allow the app origins above (defaults in `backend/app/config.py` already include apex + `www`).
+The browser loads the app from **peopleopslab.in**; API calls use one of the strategies below.
 
-If you later serve the app from another hostname (for example `https://app.peopleopslab.in`), add that origin to `CORS_ORIGINS` on the API.
+### How the frontend picks the API URL
+
+1. **`NEXT_PUBLIC_USE_API_RELAY=1`** (+ **`RELAY_BACKEND_ORIGIN=https://api.peopleopslab.in`** at **build** time for `next.config` rewrites): the browser only calls **same-origin** paths like `/api-relay/api/...`, and Next.js proxies to the real API. Avoids CORS and “wrong URL” mistakes.
+2. **`NEXT_PUBLIC_API_URL=https://api.peopleopslab.in`**: direct cross-origin requests (CORS on the API must allow `https://peopleopslab.in`).
+3. **No env on the web app**: when the page is opened on **`peopleopslab.in`** or **`www.peopleopslab.in`**, the client **infers** **`https://api.peopleopslab.in`**. (Prefer still setting `NEXT_PUBLIC_API_URL` or relay for clarity.)
+
+If you serve the app from another hostname (for example `https://app.peopleopslab.in`), add that origin to **`CORS_ORIGINS`** on the API and set **`NEXT_PUBLIC_API_URL`** or relay explicitly.
+
+### Troubleshooting “Could not reach the API” / Failed to fetch
+
+- Open **`https://api.peopleopslab.in/api/health`** in the browser; expect JSON `success: true`.
+- **HTTPS page cannot call HTTP API** (mixed content): use `https://` for the API URL.
+- **`NEXT_PUBLIC_*` is inlined at build time** on Vercel: change the var, then **redeploy**.
+- If the API is down, DNS is wrong, or a firewall blocks egress from the browser, you will see a network error — fix hosting first.
 
 ## Local development
 
@@ -38,7 +51,7 @@ copy .env.example .env.local
 npm run dev
 ```
 
-`.env.local` should keep **`NEXT_PUBLIC_API_URL=http://localhost:8000`** for local API. Open [http://localhost:3000](http://localhost:3000).
+`.env.local` should keep **`NEXT_PUBLIC_API_URL=http://localhost:8000`** for local API (and do **not** set `NEXT_PUBLIC_USE_API_RELAY` unless you also set `RELAY_BACKEND_ORIGIN=http://127.0.0.1:8000` when testing relay). Open [http://localhost:3000](http://localhost:3000).
 
 ## Deploying on GitHub
 
@@ -57,11 +70,12 @@ npm run dev
 | `CORS_ORIGINS` | At minimum `https://peopleopslab.in,https://www.peopleopslab.in` (comma-separated). Keep `http://localhost:3000` if you sometimes hit prod API from local Next. |
 | `ALLOW_ANONYMOUS_API` | `false` |
 
-**Frontend (peopleopslab.in build & runtime)**
+**Frontend (peopleopslab.in) — pick one approach**
 
-| Variable | Value |
-|----------|--------|
-| `NEXT_PUBLIC_API_URL` | **`https://api.peopleopslab.in`** (no path, no trailing slash) |
+| Approach | Variables |
+|----------|-----------|
+| Direct API (common) | **`NEXT_PUBLIC_API_URL=https://api.peopleopslab.in`** (build + runtime) |
+| Same-origin relay (optional) | **`NEXT_PUBLIC_USE_API_RELAY=1`**, **`RELAY_BACKEND_ORIGIN=https://api.peopleopslab.in`** (used in **`next.config.mjs` rewrites** — must be present at **build**) |
 
 ## DNS
 
@@ -73,7 +87,7 @@ npm run dev
 
 1. Open `https://peopleopslab.in`, sign up or log in.
 2. Payroll upload → validate → on Results use **Excel audit**.
-3. In DevTools **Network**, requests should target `https://api.peopleopslab.in` (or whatever you set) and return `200`.
+3. In DevTools **Network**, confirm requests succeed (either `https://api.peopleopslab.in/api/...` or `/api-relay/api/...`).
 
 ## Security reminders
 
