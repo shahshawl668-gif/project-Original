@@ -13,22 +13,28 @@ from app.seed import seed_reference_data
 
 app = FastAPI(title="India Payroll Validation API", version="1.0.0")
 
+# ✅ FIXED CORS CONFIG (IMPORTANT)
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://peopleopslab.in",
+    "https://www.peopleopslab.in",
+    "https://project-original.vercel.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ------------------ EXCEPTION HANDLING ------------------
 
 @app.exception_handler(HTTPException)
 async def http_exception_envelope(_, exc: HTTPException):
     detail = exc.detail
-    if isinstance(detail, list):
-        body = err_payload(detail)
-    else:
-        body = err_payload(detail)
+    body = err_payload(detail)
     return JSONResponse(
         status_code=exc.status_code,
         content={"success": False, "data": None, "error": body},
@@ -46,9 +52,9 @@ async def validation_exception_envelope(_, exc: RequestValidationError):
         },
     )
 
+# ------------------ STARTUP ------------------
 
 def _ensure_system_user(db) -> None:
-    """Create the built-in system user if it doesn't exist yet."""
     existing = db.query(User).filter(User.email == SYSTEM_USER_EMAIL).first()
     if existing:
         if getattr(existing, "role", None) != "system":
@@ -56,6 +62,7 @@ def _ensure_system_user(db) -> None:
             db.add(existing)
             db.commit()
         return
+
     user = User(
         email=SYSTEM_USER_EMAIL,
         password_hash="__no_auth__",
@@ -77,12 +84,13 @@ def on_startup():
     finally:
         db.close()
 
+# ------------------ HEALTH ------------------
 
 @app.get("/api/health")
 def health():
     from app.envelope import ok
-
     return ok({"status": "ok"})
 
+# ------------------ ROUTES ------------------
 
 app.include_router(api_router, prefix="/api")
