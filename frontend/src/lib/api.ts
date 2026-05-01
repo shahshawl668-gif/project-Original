@@ -43,6 +43,10 @@ function resolvedApiOrigin(): string {
   return "http://localhost:8000";
 }
 
+function directApiUrl(path: string): string {
+  return `${resolvedApiOrigin()}${path}`;
+}
+
 /** Human-readable hint for dashboards. */
 export function getApiTargetDescription(): string {
   if (usesServerSideProxy()) {
@@ -108,6 +112,17 @@ function shouldNeverRefresh401(logicalPath: string): boolean {
 
 let refreshMutex: Promise<boolean> | null = null;
 
+async function shouldFallbackToDirect(res: Response): Promise<boolean> {
+  if (res.status !== 502) return false;
+  try {
+    const body = (await res.clone().json()) as ApiEnvelope<unknown>;
+    const code = body?.error?.code;
+    return code === "proxy_misconfigured" || code === "upstream_unreachable";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Ask the backend for a new access+refresh pair. Returns false if refresh_token is invalid.
  * Updates localStorage when successful.
@@ -162,9 +177,11 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
     headers.set("Authorization", a.Authorization);
   }
 
+  const requestInit: RequestInit = { ...init, headers };
+  const usingProxy = usesServerSideProxy();
   let res: Response;
   try {
-    res = await fetch(apiAbsoluteUrl(path), { ...init, headers });
+    res = await fetch(apiAbsoluteUrl(path), requestInit);
   } catch (e) {
     if (typeof window !== "undefined" && e instanceof TypeError) {
       const hint = getApiTargetDescription();
@@ -173,6 +190,18 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
       );
     }
     throw e;
+  }
+
+  if (usingProxy && (await shouldFallbackToDirect(res))) {
+    try {
+      const direct = await fetch(directApiUrl(path), requestInit);
+      // Prefer direct if it gives a successful or actionable response.
+      if (direct.status !== 502) {
+        res = direct;
+      }
+    } catch {
+      // Keep original proxy error response if direct fallback also fails.
+    }
   }
 
   if (

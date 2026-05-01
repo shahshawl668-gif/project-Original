@@ -205,6 +205,7 @@ export default function DashboardPage() {
             . On{" "}
             <code className="rounded bg-white/70 px-1 text-xs">peopleopslab.in</code>, the app uses a
             same-origin proxy (<code className="rounded bg-white/70 px-1 text-xs">/api/proxy/*</code>).
+            It also auto-falls back to direct API calls when the proxy returns a server connectivity error.
             Add server env{" "}
             <code className="rounded bg-white/70 px-1 text-xs">BACKEND_URL=https://api.peopleopslab.in</code>{" "}
             on Vercel (not NEXT_PUBLIC — mark for Production). Redeploy. Test{" "}
