@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -30,15 +30,15 @@ export default function CtcHistoryPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await apiFetch("/api/ctc/uploads");
-    if (!res.ok) {
+    try {
+      const data = await apiJson<Upload[]>("/api/ctc/uploads");
+      setUploads(data);
+      setError(null);
+    } catch {
       setError("Failed to load uploads");
+    } finally {
       setLoading(false);
-      return;
     }
-    setUploads(await res.json());
-    setError(null);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -47,12 +47,11 @@ export default function CtcHistoryPage() {
 
   const open = async (id: string) => {
     setActiveId(id);
-    const res = await apiFetch(`/api/ctc/uploads/${id}`);
-    if (!res.ok) {
+    try {
+      setRecords(await apiJson<Record[]>(`/api/ctc/uploads/${id}`));
+    } catch {
       setError("Failed to load records");
-      return;
     }
-    setRecords(await res.json());
   };
 
   return (

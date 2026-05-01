@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 
 export type FormulaRuleType = "PF" | "ESIC";
 export type SlabRuleType = "PT" | "LWF";
@@ -43,24 +43,9 @@ export type SlabsResponse = {
   slabs: (SlabRow & { id: string })[];
 };
 
-async function asJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    let msg = `Request failed (${res.status})`;
-    try {
-      const j = await res.json();
-      msg = j.detail || j.message || msg;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg);
-  }
-  if (res.status === 204) return undefined as unknown as T;
-  return (await res.json()) as T;
-}
-
 export async function getFormulas(rule_type?: FormulaRuleType): Promise<Formula[]> {
   const qs = rule_type ? `?rule_type=${rule_type}` : "";
-  return asJson(await apiFetch(`/api/rule-engine/formulas${qs}`));
+  return apiJson<Formula[]>(`/api/rule-engine/formulas${qs}`);
 }
 
 export async function createFormula(payload: {
@@ -70,22 +55,18 @@ export async function createFormula(payload: {
   conditions: Condition[];
   activate?: boolean;
 }): Promise<Formula> {
-  return asJson(
-    await apiFetch("/api/rule-engine/formula", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    })
-  );
+  return apiJson<Formula>("/api/rule-engine/formula", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function activateFormula(id: string): Promise<Formula> {
-  return asJson(
-    await apiFetch(`/api/rule-engine/formula/${id}/activate`, { method: "POST" })
-  );
+  return apiJson<Formula>(`/api/rule-engine/formula/${id}/activate`, { method: "POST" });
 }
 
 export async function deleteFormula(id: string): Promise<void> {
-  await asJson(await apiFetch(`/api/rule-engine/formula/${id}`, { method: "DELETE" }));
+  await apiJson<{ deleted: string }>(`/api/rule-engine/formula/${id}`, { method: "DELETE" });
 }
 
 export type TestFormulaResult = {
@@ -100,19 +81,15 @@ export async function testFormula(payload: {
   conditions: Condition[];
   variables: Record<string, number>;
 }): Promise<TestFormulaResult> {
-  return asJson(
-    await apiFetch("/api/rule-engine/test-formula", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    })
-  );
+  return apiJson<TestFormulaResult>("/api/rule-engine/test-formula", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getSlabs(state: string, rule_type: SlabRuleType): Promise<SlabsResponse> {
-  return asJson(
-    await apiFetch(
-      `/api/rule-engine/slabs?state=${encodeURIComponent(state)}&rule_type=${rule_type}`
-    )
+  return apiJson<SlabsResponse>(
+    `/api/rule-engine/slabs?state=${encodeURIComponent(state)}&rule_type=${rule_type}`
   );
 }
 
@@ -121,12 +98,10 @@ export async function saveSlabs(payload: {
   rule_type: SlabRuleType;
   slabs: SlabRow[];
 }): Promise<SlabsResponse> {
-  return asJson(
-    await apiFetch("/api/rule-engine/slabs", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    })
-  );
+  return apiJson<SlabsResponse>("/api/rule-engine/slabs", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getReferenceStates(): Promise<{
@@ -134,19 +109,19 @@ export async function getReferenceStates(): Promise<{
   lwf_states: string[];
   all_states: string[];
 }> {
-  return asJson(await apiFetch("/api/reference/states"));
+  return apiJson("/api/reference/states");
 }
 
 export async function listPtDefaultStates(): Promise<{ states: string[] }> {
-  return asJson(await apiFetch("/api/rule-engine/defaults/pt-states"));
+  return apiJson("/api/rule-engine/defaults/pt-states");
 }
 
 export async function listLwfDefaultStates(): Promise<{ states: string[] }> {
-  return asJson(await apiFetch("/api/rule-engine/defaults/lwf-states"));
+  return apiJson("/api/rule-engine/defaults/lwf-states");
 }
 
 export async function listDefaultStates(): Promise<{ PT: string[]; LWF: string[] }> {
-  return asJson(await apiFetch("/api/rule-engine/defaults/states"));
+  return apiJson("/api/rule-engine/defaults/states");
 }
 
 export async function importDefaultSlabs(
@@ -154,13 +129,11 @@ export async function importDefaultSlabs(
   rule_type: SlabRuleType = "PT",
   overwrite = true
 ): Promise<SlabsResponse> {
-  return asJson(
-    await apiFetch(
-      `/api/rule-engine/slabs/import-defaults?state=${encodeURIComponent(
-        state
-      )}&rule_type=${rule_type}&overwrite=${overwrite}`,
-      { method: "POST" }
-    )
+  return apiJson<SlabsResponse>(
+    `/api/rule-engine/slabs/import-defaults?state=${encodeURIComponent(
+      state
+    )}&rule_type=${rule_type}&overwrite=${overwrite}`,
+    { method: "POST" }
   );
 }
 
@@ -172,11 +145,9 @@ export async function importAllDefaultSlabs(
   imported: Record<string, number>;
   total_states: number;
 }> {
-  return asJson(
-    await apiFetch(
-      `/api/rule-engine/slabs/import-defaults/all?rule_type=${rule_type}&overwrite=${overwrite}`,
-      { method: "POST" }
-    )
+  return apiJson(
+    `/api/rule-engine/slabs/import-defaults/all?rule_type=${rule_type}&overwrite=${overwrite}`,
+    { method: "POST" }
   );
 }
 
@@ -186,9 +157,7 @@ export async function resetDefaultSlabs(rule_type: SlabRuleType = "PT"): Promise
   imported: Record<string, number>;
   total_states: number;
 }> {
-  return asJson(
-    await apiFetch(`/api/rule-engine/slabs/reset-defaults?rule_type=${rule_type}`, {
-      method: "POST",
-    })
-  );
+  return apiJson(`/api/rule-engine/slabs/reset-defaults?rule_type=${rule_type}`, {
+    method: "POST",
+  });
 }

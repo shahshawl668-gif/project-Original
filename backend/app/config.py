@@ -9,7 +9,15 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
-    cors_origins: str = "http://localhost:3000"
+    # Comma-separated browser origins (Next app). Production default: peopleopslab.in + www;
+    # API itself is served at api.peopleopslab.in. Override with CORS_ORIGINS if the app host differs.
+    cors_origins: str = (
+        "http://localhost:3000,https://peopleopslab.in,"
+        "https://www.peopleopslab.in"
+    )
+    # When True, requests without Bearer token use the built-in system user (local dev convenience).
+    # Set False in production to require JWT on all protected routes.
+    allow_anonymous_api: bool = True
 
     @property
     def cors_origins_list(self) -> list[str]:

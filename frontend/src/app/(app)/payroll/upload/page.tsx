@@ -1,18 +1,27 @@
 "use client";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import {
   UploadCloud,
   FileSpreadsheet,
   Play,
   CheckCircle2,
-  AlertTriangle,
-  Info,
   X,
   ChevronRight,
   HelpCircle,
+  ShieldCheck,
+  History,
+  Info,
+  Loader2,
 } from "lucide-react";
 
 type PreviewRow = Record<string, unknown>;
@@ -45,7 +54,10 @@ export default function UploadPage() {
     setMissing([]);
     setWarnings([]);
     setError(null);
-    if (f) setStep(1);
+    if (f) {
+      setStep(1);
+      toast.info("File ready", { description: f.name });
+    }
   };
 
   const parseUpload = useCallback(async () => {
@@ -54,14 +66,33 @@ export default function UploadPage() {
     setError(null);
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("meta", JSON.stringify({
-      run_type: runType, period_month: periodMonth || null,
-      effective_month_from: from || null, effective_month_to: to || null,
-      strict_header_check: strict,
-    }));
+    fd.append(
+      "meta",
+      JSON.stringify({
+        run_type: runType,
+        period_month: periodMonth || null,
+        effective_month_from: from || null,
+        effective_month_to: to || null,
+        strict_header_check: strict,
+      }),
+    );
     const res = await apiFetch("/api/payroll/upload", { method: "POST", body: fd });
-    if (!res.ok) { setError("Upload failed — check your file format."); setBusy(false); return; }
-    const data = await res.json();
+    let data: {
+      columns: string[];
+      preview: PreviewRow[];
+      employees: PreviewRow[];
+      missing_required?: string[];
+      warnings?: string[];
+    };
+    try {
+      data = await parseEnvelopeResponse(res);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed — check your file format.";
+      setError(msg);
+      toast.error("Parse failed", { description: msg });
+      setBusy(false);
+      return;
+    }
     setColumns(data.columns);
     setPreview(data.preview);
     setEmployees(data.employees);
@@ -69,340 +100,436 @@ export default function UploadPage() {
     setWarnings(data.warnings || []);
     setBusy(false);
     setStep(2);
+    toast.success("Register parsed", {
+      description: `${data.employees.length.toLocaleString("en-IN")} employees · ${data.columns.length} columns`,
+    });
   }, [file, runType, periodMonth, from, to, strict]);
 
   const runValidate = async () => {
-    if (!employees.length) { setError("Parse a file first."); return; }
+    if (!employees.length) {
+      setError("Parse a file first.");
+      toast.error("Nothing to validate", { description: "Parse the register before running validation." });
+      return;
+    }
     setBusy(true);
     setError(null);
     const res = await apiFetch("/api/payroll/validate", {
       method: "POST",
       body: JSON.stringify({
-        employees, run_type: runType,
+        employees,
+        run_type: runType,
         period_month: periodMonth || null,
         effective_month_from: from || null,
         effective_month_to: to || null,
       }),
     });
-    if (!res.ok) { setError("Validation failed — see backend logs."); setBusy(false); return; }
-    const data = await res.json();
-    sessionStorage.setItem("payroll_results", JSON.stringify(data.results));
-    sessionStorage.setItem("payroll_findings", JSON.stringify(data.findings || []));
-    sessionStorage.setItem("payroll_findings_summary", JSON.stringify(data.findings_summary || {}));
-    sessionStorage.setItem("payroll_risk_scores", JSON.stringify(data.risk_scores || []));
-    sessionStorage.setItem("payroll_meta", JSON.stringify({
-      run_type: runType, period_month: periodMonth, from, to, columns, filename: file?.name,
-    }));
-    setBusy(false);
-    router.push("/payroll/results");
+    try {
+      const data = await parseEnvelopeResponse(res) as {
+        results: unknown[];
+        findings?: unknown[];
+        findings_summary?: unknown;
+        risk_scores?: unknown[];
+      };
+      sessionStorage.setItem("payroll_results", JSON.stringify(data.results));
+      sessionStorage.setItem("payroll_findings", JSON.stringify(data.findings || []));
+      sessionStorage.setItem("payroll_findings_summary", JSON.stringify(data.findings_summary || {}));
+      sessionStorage.setItem("payroll_risk_scores", JSON.stringify(data.risk_scores || []));
+      sessionStorage.setItem(
+        "payroll_validate_request",
+        JSON.stringify({
+          employees,
+          run_type: runType,
+          period_month: periodMonth || null,
+          effective_month_from: from || null,
+          effective_month_to: to || null,
+        }),
+      );
+      sessionStorage.setItem(
+        "payroll_meta",
+        JSON.stringify({
+          run_type: runType,
+          period_month: periodMonth,
+          from,
+          to,
+          columns,
+          filename: file?.name,
+        }),
+      );
+      toast.success("Validation complete", {
+        description: "Opening detailed results.",
+      });
+      router.push("/payroll/results");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Validation failed.";
+      setError(msg);
+      toast.error("Validation failed", { description: msg });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const needsArrearDates = runType === "arrear" || runType === "increment_arrear";
 
   return (
-    <div className="max-w-3xl space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Upload & validate payroll</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Upload a CSV or Excel salary register, configure the run, then validate.
-        </p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-8">
+      <PageHeader
+        title="Upload & validate payroll"
+        description="Import a salary register (CSV / Excel), set the payroll run parameters, preview rows, then run statutory validation."
+        actions={
+          <Button variant="outline" asChild className="rounded-xl border-slate-200 bg-white shadow-sm">
+            <Link href="/payroll/history" className="gap-2">
+              <History size={15} strokeWidth={2} /> History
+            </Link>
+          </Button>
+        }
+      />
 
       {/* Step indicator */}
-      <div className="flex items-center gap-0">
-        {STEP_LABELS.map((label, i) => (
-          <div key={label} className="flex items-center flex-1 last:flex-none">
-            <div className={`flex items-center gap-2 ${i < step ? "text-success-600" : i === step ? "text-brand-600" : "text-slate-400"}`}>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0 ${
-                i < step ? "border-success-500 bg-success-50" :
-                i === step ? "border-brand-600 bg-brand-50" :
-                "border-slate-200 bg-white"
-              }`}>
-                {i < step ? <CheckCircle2 size={14} /> : i + 1}
+      <Card className="overflow-hidden shadow-soft">
+        <CardContent className="flex flex-wrap items-center gap-2 p-4 sm:gap-0 sm:p-5">
+          {STEP_LABELS.map((label, i) => (
+            <div key={label} className="flex flex-1 items-center sm:min-w-0">
+              <div
+                className={`flex items-center gap-2.5 ${
+                  i < step ? "text-emerald-600" : i === step ? "text-brand-700" : "text-slate-400"
+                }`}
+              >
+                <div
+                  className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
+                    i < step
+                      ? "border-emerald-500 bg-emerald-50 shadow-sm"
+                      : i === step
+                        ? "border-brand-600 bg-brand-50 shadow-sm"
+                        : "border-slate-200 bg-white"
+                  }`}
+                >
+                  {i < step ? <CheckCircle2 size={16} strokeWidth={2.25} aria-hidden /> : i + 1}
+                </div>
+                <span className="hidden text-xs font-semibold sm:inline">{label}</span>
               </div>
-              <span className="text-xs font-medium whitespace-nowrap hidden sm:block">{label}</span>
+              {i < STEP_LABELS.length - 1 && (
+                <div className={`mx-3 hidden h-0.5 min-w-[1rem] flex-1 sm:block ${i < step ? "bg-emerald-200" : "bg-slate-200"}`} />
+              )}
             </div>
-            {i < STEP_LABELS.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-2 ${i < step ? "bg-success-300" : "bg-slate-200"}`} />
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {/* Step 0: File upload */}
-      <div className={`rounded-xl border-2 transition-all ${
-        drag ? "border-brand-400 bg-brand-50" :
-        file ? "border-success-300 bg-success-50/50" :
-        "border-dashed border-slate-300 bg-white"
-      }`}>
-        <div
-          className="p-8 text-center"
-          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f); }}
-        >
-          {file ? (
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-12 h-12 rounded-xl bg-success-100 flex items-center justify-center">
-                <FileSpreadsheet size={22} className="text-success-600" />
+      <Card className={`overflow-hidden transition-shadow ${drag ? "ring-2 ring-brand-400/50" : ""}`}>
+        <CardContent className="p-0">
+          <div
+            className={`px-6 py-12 text-center transition-colors sm:py-14 ${
+              drag ? "bg-brand-50/90" : file ? "bg-emerald-50/40" : "bg-slate-50/60"
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDrag(true);
+            }}
+            onDragLeave={() => setDrag(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDrag(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) onFile(f);
+            }}
+          >
+            {file ? (
+              <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft ring-1 ring-emerald-200/80">
+                  <FileSpreadsheet className="h-7 w-7 text-emerald-700" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-900">{file.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {(file.size / 1024).toFixed(1)} KB · ready to configure
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onFile(null)}
+                  className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-white/80 hover:text-red-600"
+                >
+                  <X size={13} aria-hidden /> Remove file
+                </button>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{file.name}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {(file.size / 1024).toFixed(1)} KB · Ready to parse
-                </p>
+            ) : (
+              <div className="mx-auto flex max-w-lg flex-col items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/[0.06]">
+                  <UploadCloud className="h-7 w-7 text-brand-600" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-slate-900">Drop your register here</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Payroll CSV / Excel (.csv, .xlsx, .xls). Drag in or browse.
+                  </p>
+                </div>
+                <label className="inline-flex cursor-pointer items-center rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-700">
+                  Choose file
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => onFile(e.target.files?.[0] || null)}
+                  />
+                </label>
               </div>
-              <button
-                type="button"
-                onClick={() => onFile(null)}
-                className="flex items-center gap-1 text-xs text-slate-500 hover:text-danger-600 mt-1 transition-colors"
-              >
-                <X size={12} /> Remove file
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
-                <UploadCloud size={22} className="text-slate-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-700">Drop your file here</p>
-                <p className="text-xs text-slate-500 mt-0.5">or click to browse (.csv, .xlsx, .xls)</p>
-              </div>
-              <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
-                Choose file
-                <input
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  className="hidden"
-                  onChange={(e) => onFile(e.target.files?.[0] || null)}
-                />
-              </label>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </div>
+          <div className="border-t border-slate-100 px-6 py-3 text-center text-xs text-slate-500">
+            Rows should align with salary components configured for your tenant.
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Step 1: Run options */}
-      {step >= 1 && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-            <h2 className="font-semibold text-slate-900 text-sm">Run configuration</h2>
-          </div>
-          <div className="p-5 space-y-5">
-            {/* Run type */}
+      {step >= 1 ? (
+        <Card className="overflow-hidden shadow-soft ring-1 ring-slate-900/[0.04]">
+          <CardContent className="border-b border-slate-100 px-6 py-4">
+            <h2 className="text-base font-semibold text-slate-900">Run configuration</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Payroll period and engine mode. These values are persisted with validation results.
+            </p>
+          </CardContent>
+          <CardContent className="space-y-6 px-6 py-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Run type</label>
-              <div className="grid grid-cols-3 gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Run type</p>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {(["regular", "arrear", "increment_arrear"] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => setRunType(t)}
-                    className={`rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors ${
+                    className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-all ${
                       runType === t
-                        ? "border-brand-500 bg-brand-50 text-brand-700"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        ? "border-brand-500 bg-brand-50 text-brand-900 shadow-sm ring-1 ring-brand-500/15"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    {t === "regular" ? "Regular" : t === "arrear" ? "Arrear" : "Increment arrear"}
+                    {t === "regular" ? "Regular" : t === "arrear" ? "Arrear" : "Increment + arrear"}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Period month */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Period month
-                <span className="ml-1 text-xs text-slate-400 font-normal">(YYYY-MM-DD of first day)</span>
               </label>
+              <p className="mb-2 mt-0.5 text-xs text-slate-500">
+                Typically the first day of the payroll month (<code className="font-mono">YYYY-MM-DD</code>).
+              </p>
               <input
                 type="date"
-                className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                className="h-11 w-full max-w-xs rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium shadow-sm outline-none ring-brand-500/20 transition-shadow focus-visible:ring-[3px]"
                 value={periodMonth}
                 onChange={(e) => setPeriodMonth(e.target.value)}
               />
-              <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
-                <Info size={11} /> Used to store the register and compare with prior month.
+              <p className="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-slate-500">
+                <Info size={13} className="mt-0.5 shrink-0 text-slate-400" />
+                Used to persist the salary register snapshot and MoM comparisons.
               </p>
             </div>
 
-            {/* Arrear dates */}
-            {needsArrearDates && (
-              <div className="grid gap-4 sm:grid-cols-2">
+            {needsArrearDates ? (
+              <div className="grid gap-5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Effective from</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Effective from</label>
                   <input
                     type="date"
-                    className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                    className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none ring-brand-500/20 focus-visible:ring-[3px]"
                     value={from}
                     onChange={(e) => setFrom(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Effective to</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Effective to</label>
                   <input
                     type="date"
-                    className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                    className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm outline-none ring-brand-500/20 focus-visible:ring-[3px]"
                     value={to}
                     onChange={(e) => setTo(e.target.value)}
                   />
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {/* Strict check */}
-            <label className="flex items-start gap-3 cursor-pointer group">
-              <div className="relative mt-0.5 flex-shrink-0">
+            <label className="flex cursor-pointer items-start gap-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4 transition-colors hover:bg-slate-50">
+              <div className="relative mt-0.5 shrink-0">
                 <input
                   type="checkbox"
                   checked={strict}
                   onChange={(e) => setStrict(e.target.checked)}
                   className="sr-only"
                 />
-                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${strict ? "border-brand-600 bg-brand-600" : "border-slate-300 bg-white"}`}>
-                  {strict && <CheckCircle2 size={10} className="text-white" />}
+                <div
+                  className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors ${strict ? "border-brand-600 bg-brand-600" : "border-slate-300 bg-white"}`}
+                >
+                  {strict ? <CheckCircle2 size={12} className="text-white" strokeWidth={3} /> : null}
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-800">Strict header check</p>
-                <p className="text-xs text-slate-500 mt-0.5">All configured salary components must exist as columns.</p>
+                <p className="font-semibold text-slate-900">Strict header check</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                  Require every mapped salary-component column to exist in the file (recommended for audits).
+                </p>
               </div>
             </label>
 
-            {/* Parse button */}
-            <button
+            <Button
               type="button"
               disabled={!file || busy}
               onClick={() => void parseUpload()}
-              className="flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-11 rounded-xl px-6 font-semibold shadow-soft"
+              variant={file && !busy ? "default" : "secondary"}
             >
               {busy ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Parsing…
-                </span>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Parsing…
+                </>
               ) : (
                 <>
-                  <Play size={14} /> Parse & preview
+                  <Play size={16} strokeWidth={2} /> Parse & preview
                 </>
               )}
-            </button>
-          </div>
-        </div>
-      )}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {/* Alerts */}
-      {error && (
-        <div className="flex items-start gap-3 rounded-xl bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3.5 text-sm">
-          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+      {busy && step >= 2 && preview.length === 0 ? (
+        <AlertBanner variant="info" title="Hang tight">
+          Parsing your file… large registers can take a few seconds.
+          <span className="mt-3 block flex gap-2">
+            <Skeleton className="h-2 flex-1 rounded-full" />
+            <Skeleton className="h-2 w-24 rounded-full" />
+          </span>
+        </AlertBanner>
+      ) : null}
+
+      {error ? (
+        <AlertBanner variant="error" title="We could not finish that step">
           {error}
-        </div>
-      )}
-      {missing.length > 0 && (
-        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3.5">
-          <div className="flex items-center gap-2 text-amber-800 font-semibold text-sm mb-2">
-            <AlertTriangle size={15} /> Missing required columns
-          </div>
-          <div className="flex flex-wrap gap-1.5">
+        </AlertBanner>
+      ) : null}
+
+      {missing.length > 0 ? (
+        <AlertBanner variant="warning" title="Missing required columns">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {missing.map((m) => (
-              <span key={m} className="rounded-md bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium">{m}</span>
+              <span
+                key={m}
+                className="inline-flex rounded-lg bg-white/70 px-2 py-1 font-mono text-xs font-semibold text-amber-950 shadow-sm ring-1 ring-amber-200/60"
+              >
+                {m}
+              </span>
             ))}
           </div>
-        </div>
-      )}
-      {warnings.length > 0 && (
-        <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3.5">
-          <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm mb-2">
-            <HelpCircle size={15} /> Warnings
-          </div>
-          <ul className="space-y-1">
+        </AlertBanner>
+      ) : null}
+
+      {warnings.length > 0 ? (
+        <AlertBanner variant="info" title="Parser notices">
+          <ul className="mt-2 space-y-1.5">
             {warnings.map((w) => (
-              <li key={w} className="text-xs text-slate-600 flex items-start gap-1.5">
-                <ChevronRight size={11} className="mt-0.5 flex-shrink-0 text-slate-400" />{w}
+              <li key={w} className="flex items-start gap-1.5 text-xs">
+                <ChevronRight size={12} className="mt-0.5 shrink-0 opacity-70" aria-hidden /> {w}
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        </AlertBanner>
+      ) : null}
 
       {/* Step 2: Preview + Validate */}
-      {step >= 2 && employees.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-success-600" />
-              <p className="font-semibold text-slate-900 text-sm">
-                {employees.length} employees parsed
-              </p>
+      {step >= 2 && employees.length > 0 ? (
+        <Card className="overflow-hidden shadow-soft ring-1 ring-slate-900/[0.04]">
+          <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-emerald-200/60">
+                <CheckCircle2 className="h-5 w-5 text-emerald-700" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900">
+                  {employees.length.toLocaleString("en-IN")} employees parsed
+                </p>
+                <p className="text-sm text-slate-600">{columns.length} columns mapped</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">{columns.length} columns</span>
-              <button
-                type="button"
-                disabled={!employees.length || busy}
-                onClick={() => void runValidate()}
-                className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50 transition-colors shadow-sm"
-              >
-                {busy ? "Validating…" : (
-                  <>
-                    <ShieldCheck size={14} /> Run validation
-                  </>
-                )}
-              </button>
-            </div>
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => void runValidate()}
+              className="w-full shrink-0 rounded-xl px-6 font-semibold shadow-soft sm:w-auto"
+            >
+              {busy ? (
+                <>
+                  <Loader2 size={17} strokeWidth={2} className="animate-spin" /> Validating…
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={17} strokeWidth={2} /> Run validation
+                </>
+              )}
+            </Button>
           </div>
 
-          {/* Columns detected */}
-          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/40">
-            <p className="text-xs text-slate-500 font-medium mb-1.5">Columns detected</p>
-            <div className="flex flex-wrap gap-1">
+          <div className="border-b border-slate-100 bg-slate-50/70 px-6 py-4">
+            <p className="text-2xs font-semibold uppercase tracking-widest text-slate-500">Columns detected</p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
               {columns.map((c) => (
-                <span key={c} className="rounded-md bg-slate-100 text-slate-700 px-2 py-0.5 text-[11px] font-medium">{c}</span>
+                <span
+                  key={c}
+                  className="rounded-lg bg-white px-2 py-1 font-mono text-2xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-200/80"
+                >
+                  {c}
+                </span>
               ))}
             </div>
           </div>
 
-          {/* Preview table */}
-          {preview.length > 0 && (
+          {preview.length > 0 ? (
             <div className="overflow-x-auto">
-              <p className="px-5 py-2 text-xs text-slate-500 font-medium border-b border-slate-100">Preview (first {preview.length} rows)</p>
+              <p className="border-b border-slate-100 px-6 py-2.5 text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Preview · first {preview.length} rows
+              </p>
               <table className="min-w-full text-xs">
-                <thead className="bg-slate-50 text-left text-slate-500 border-b border-slate-100">
+                <thead className="sticky top-0 border-b border-slate-100 bg-slate-50/95 text-left text-2xs font-semibold uppercase tracking-wide text-slate-500 backdrop-blur">
                   <tr>
                     {Object.keys(preview[0]).map((k) => (
-                      <th key={k} className="px-4 py-2 font-semibold whitespace-nowrap">{k}</th>
+                      <th key={k} className="whitespace-nowrap px-5 py-2.5 font-semibold">
+                        {k}
+                      </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {preview.map((row, idx) => (
-                    <tr key={idx} className="border-b border-slate-50">
+                    <tr key={idx} className="hover:bg-slate-50/70">
                       {Object.values(row).map((v, i) => (
-                        <td key={i} className="px-4 py-2 text-slate-700 whitespace-nowrap">{String(v ?? "")}</td>
+                        <td key={i} className="whitespace-nowrap px-5 py-2 text-slate-700">
+                          {String(v ?? "")}
+                        </td>
                       ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+          ) : null}
+        </Card>
+      ) : null}
 
-function ShieldCheck({ size, className }: { size: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      <polyline points="9 12 11 14 15 10" />
-    </svg>
+      {step >= 2 && file && busy && preview.length === 0 ? (
+        <Card>
+          <CardContent className="space-y-4 p-6">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-brand-600" />{" "}
+              <Skeleton className="h-5 w-48" />
+            </div>
+            <Skeleton className="h-28 w-full rounded-xl" />
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
   );
 }

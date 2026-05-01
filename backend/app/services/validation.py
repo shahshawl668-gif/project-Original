@@ -38,6 +38,65 @@ LOP_TOLERANCE = Decimal("1.00")
 ARREAR_TOLERANCE = Decimal("1.00")
 
 
+def recompute_risk_and_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Recompute risk scores and aggregate summary from rows' findings (mutates rows)."""
+    for rec in results:
+        findings = rec.get("findings", [])
+        risk = compute_risk(findings)
+        rec["risk_score"] = risk["risk_score"]
+        rec["risk_level"] = risk["risk_level"]
+        rec["score_breakdown"] = risk["score_breakdown"]
+
+    flat: list[dict[str, Any]] = []
+    for rec in results:
+        flat.extend(rec.get("findings", []))
+
+    total_financial_impact = sum(
+        float(f.get("financial_impact", 0) or 0) for f in flat if f.get("status") == "FAIL"
+    )
+
+    summary: dict[str, Any] = {
+        "total_findings": len(flat),
+        "critical": sum(1 for f in flat if f.get("severity") == "CRITICAL" and f.get("status") == "FAIL"),
+        "warning": sum(1 for f in flat if f.get("severity") == "WARNING" and f.get("status") == "FAIL"),
+        "info": sum(1 for f in flat if f.get("severity") == "INFO"),
+        "pass": sum(1 for f in flat if f.get("status") == "PASS"),
+        "total_financial_impact": round(total_financial_impact, 2),
+        "risk_distribution": risk_distribution([{"risk_level": r["risk_level"]} for r in results]),
+    }
+
+    rule_counts: dict[str, dict] = {}
+    for f in flat:
+        rid = f.get("rule_id", "")
+        if rid not in rule_counts:
+            rule_counts[rid] = {
+                "rule_id": rid,
+                "rule_name": f.get("rule_name", ""),
+                "severity": f.get("severity", ""),
+                "fail_count": 0,
+            }
+        if f.get("status") == "FAIL":
+            rule_counts[rid]["fail_count"] += 1
+
+    summary["rules_triggered"] = sorted(
+        [v for v in rule_counts.values() if v["fail_count"] > 0],
+        key=lambda x: x["fail_count"],
+        reverse=True,
+    )
+    return summary
+
+
+def apply_suppressed_rules(
+    results: list[dict[str, Any]], suppressed_rule_ids: set[str]
+) -> dict[str, Any]:
+    """Remove findings matching suppressed rule IDs and rebuild summary."""
+    if not suppressed_rule_ids:
+        return recompute_risk_and_summary(results)
+    for rec in results:
+        rec["findings"] = [f for f in rec.get("findings", []) if f.get("rule_id") not in suppressed_rule_ids]
+    return recompute_risk_and_summary(results)
+
+
 def _dec(v: Any) -> Decimal:
     if v is None or v == "":
         return Decimal("0")
@@ -673,7 +732,7 @@ def validate_employees(
     effective_to: date | None,
     as_of: date | None,
     period_month: date | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     as_of = as_of or date.today()
 
     # ── Load configs ──────────────────────────────────────────────────────────
@@ -1034,53 +1093,5 @@ def validate_employees(
         if extra:
             rec["findings"] = [f.to_dict() for f in extra] + rec["findings"]
 
-    # Compute risk scores now that batch findings are merged
-    for rec in results:
-        risk = compute_risk(rec.get("findings", []))
-        rec["risk_score"] = risk["risk_score"]
-        rec["risk_level"] = risk["risk_level"]
-        rec["score_breakdown"] = risk["score_breakdown"]
-
-    # Build summary from finding dicts
-    flat: list[dict] = []
-    for rec in results:
-        flat.extend(rec.get("findings", []))
-
-    total_financial_impact = sum(
-        float(f.get("financial_impact", 0) or 0)
-        for f in flat if f.get("status") == "FAIL"
-    )
-
-    summary = {
-        "total_findings": len(flat),
-        "critical": sum(1 for f in flat if f.get("severity") == "CRITICAL" and f.get("status") == "FAIL"),
-        "warning": sum(1 for f in flat if f.get("severity") == "WARNING" and f.get("status") == "FAIL"),
-        "info": sum(1 for f in flat if f.get("severity") == "INFO"),
-        "pass": sum(1 for f in flat if f.get("status") == "PASS"),
-        "total_financial_impact": round(total_financial_impact, 2),
-        "risk_distribution": risk_distribution(
-            [{"risk_level": r["risk_level"]} for r in results]
-        ),
-    }
-
-    # Rule-level breakdown
-    rule_counts: dict[str, dict] = {}
-    for f in flat:
-        rid = f.get("rule_id", "")
-        if rid not in rule_counts:
-            rule_counts[rid] = {
-                "rule_id": rid,
-                "rule_name": f.get("rule_name", ""),
-                "severity": f.get("severity", ""),
-                "fail_count": 0,
-            }
-        if f.get("status") == "FAIL":
-            rule_counts[rid]["fail_count"] += 1
-
-    summary["rules_triggered"] = sorted(
-        [v for v in rule_counts.values() if v["fail_count"] > 0],
-        key=lambda x: x["fail_count"],
-        reverse=True,
-    )
-
+    summary = recompute_risk_and_summary(results)
     return results, summary

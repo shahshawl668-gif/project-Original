@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
-  Shield, Settings2, CheckCircle2, AlertTriangle, RefreshCw,
-  Save, ChevronDown, ChevronUp, Info, Beaker, Plus, Trash2,
+  Shield, Settings2, CheckCircle2, RefreshCw,
+  Save, ChevronDown, ChevronUp, Beaker, Plus, Trash2,
   ToggleLeft, ToggleRight,
 } from "lucide-react";
 import {
@@ -22,9 +27,9 @@ function Section({ title, icon, children, defaultOpen = true }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-soft ring-1 ring-slate-900/[0.04]">
       <button
-        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors"
+        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-slate-50"
         onClick={() => setOpen(o => !o)}
       >
         <div className="flex items-center gap-2">
@@ -54,7 +59,7 @@ function NumberInput({ value, onChange, step = "0.0001", min = "0", max = "1" }:
 }) {
   return (
     <input type="number" value={value} step={step} min={min} max={max}
-      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/25"
       onChange={e => onChange(e.target.value)}
     />
   );
@@ -65,7 +70,7 @@ function TextInput({ value, onChange, placeholder = "" }: {
 }) {
   return (
     <input type="text" value={value} placeholder={placeholder}
-      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/25"
       onChange={e => onChange(e.target.value)}
     />
   );
@@ -75,9 +80,9 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
   return (
     <button onClick={() => onChange(!checked)}
       className={`inline-flex items-center gap-2 text-sm font-medium transition-colors
-        ${checked ? "text-indigo-700" : "text-slate-500"}`}
+        ${checked ? "text-brand-700" : "text-slate-500"}`}
     >
-      {checked ? <ToggleRight size={20} className="text-indigo-600"/> : <ToggleLeft size={20} className="text-slate-400"/>}
+      {checked ? <ToggleRight size={20} className="text-brand-600"/> : <ToggleLeft size={20} className="text-slate-400"/>}
       {label}
     </button>
   );
@@ -94,19 +99,19 @@ function TagInput({ values, onChange, placeholder }: {
   return (
     <div className="flex flex-wrap gap-1.5">
       {values.map(v => (
-        <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full font-medium">
+        <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium">
           {v}
           <button onClick={() => onChange(values.filter(x => x !== v))}><Trash2 size={10}/></button>
         </span>
       ))}
       <input
-        className="text-sm border border-dashed border-slate-300 rounded px-2 py-0.5 focus:outline-none focus:border-indigo-400 min-w-24"
+        className="text-sm border border-dashed border-slate-300 rounded px-2 py-0.5 focus:outline-none focus:border-brand-400 min-w-24"
         placeholder={placeholder || "Add…"}
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }}}
       />
-      <button onClick={add} className="text-indigo-600 hover:text-indigo-800"><Plus size={14}/></button>
+      <button onClick={add} className="text-brand-600 hover:text-brand-800"><Plus size={14}/></button>
     </div>
   );
 }
@@ -121,7 +126,7 @@ function ExprTester({ expression, sampleCtx }: { expression: string; sampleCtx: 
     setRunning(true);
     try {
       const r = await testExpression(expression, sampleCtx);
-      setResult(r.ok ? `✓ ${r.result} (${r.result_type})` : `✗ ${r.error}`);
+      setResult(r.eval_ok ? `✓ ${r.result} (${r.result_type})` : `✗ ${r.error}`);
     } catch {
       setResult("Network error");
     } finally {
@@ -134,7 +139,7 @@ function ExprTester({ expression, sampleCtx }: { expression: string; sampleCtx: 
       <button
         onClick={run}
         disabled={running}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 rounded-lg font-medium hover:bg-indigo-100 disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-50"
       >
         <Beaker size={12}/> {running ? "Testing…" : "Test expression"}
       </button>
@@ -215,7 +220,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
         <select
           value={cfg.above_ceiling_mode}
           onChange={e => set("above_ceiling_mode", e.target.value as PFConfig["above_ceiling_mode"])}
-          className="px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/25"
         >
           <option value="none">None — always cap at ceiling</option>
           <option value="employee_choice">Employee choice — voluntary above ceiling</option>
@@ -311,7 +316,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
           {(["up","down","nearest"] as const).map(m => (
             <label key={m} className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="radio" name="esic_round" value={m} checked={cfg.rounding.mode === m}
-                onChange={() => setRound("mode", m)} className="accent-indigo-600"/>
+                onChange={() => setRound("mode", m)} className="accent-brand-600"/>
               {m.charAt(0).toUpperCase() + m.slice(1)}
             </label>
           ))}
@@ -386,7 +391,7 @@ function ComponentMappingPanel({ cfg, onChange }: {
                   onChange={ev => updateEntry(i, "component_name", ev.target.value)}/></td>
                 {(["pf_applicable","esic_applicable","included_in_wages","taxable"] as const).map(k => (
                   <td key={k} className="px-3 py-2 text-center">
-                    <input type="checkbox" checked={e[k]} className="accent-indigo-600"
+                    <input type="checkbox" checked={e[k]} className="accent-brand-600"
                       onChange={ev => updateEntry(i, k, ev.target.checked)}/>
                   </td>
                 ))}
@@ -400,7 +405,7 @@ function ComponentMappingPanel({ cfg, onChange }: {
       </div>
 
       <button onClick={addEntry}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 font-medium">
+        className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
         <Plus size={12}/> Add alias
       </button>
 
@@ -444,7 +449,10 @@ export default function StatutoryConfigPage() {
       const data = await saveStatutoryConfig(cfg);
       setUpdatedAt(data.updated_at);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      toast.success("Statutory configuration saved", {
+        description: "The next validation run will use these settings.",
+      });
+      setTimeout(() => setSaved(false), 3200);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -459,6 +467,7 @@ export default function StatutoryConfigPage() {
       const data = await resetStatutoryConfig();
       setCfg({ pf: data.pf, esic: data.esic, component_mapping: data.component_mapping });
       setUpdatedAt(data.updated_at);
+      toast.success("Defaults restored", { description: "PF, ESIC, and mapping reset to India statutory baseline." });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Reset failed");
     } finally {
@@ -468,64 +477,86 @@ export default function StatutoryConfigPage() {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-64">
-        <div className="flex items-center gap-3 text-slate-500">
-          <RefreshCw size={18} className="animate-spin"/> Loading config…
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-72" />
+            <Skeleton className="h-4 w-full max-w-lg" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-36 rounded-xl" />
+            <Skeleton className="h-10 w-36 rounded-xl" />
+          </div>
         </div>
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-52 w-full rounded-2xl" />
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Settings2 size={24} className="text-indigo-600"/> Statutory Config Engine
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Config-driven PF & ESIC rules · no code changes needed · isolated per tenant
-          </p>
-          {updatedAt && (
-            <p className="text-xs text-slate-400 mt-0.5">
-              Last saved: {new Date(updatedAt).toLocaleString("en-IN")}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={handleReset} disabled={saving}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50">
-            <RefreshCw size={14}/> Reset to defaults
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg font-medium transition-colors disabled:opacity-50
-              ${saved ? "bg-green-600 text-white" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
-          >
-            {saving ? <RefreshCw size={14} className="animate-spin"/> : saved ? <CheckCircle2 size={14}/> : <Save size={14}/>}
-            {saving ? "Saving…" : saved ? "Saved!" : "Save config"}
-          </button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-8">
+      <PageHeader
+        title="Statutory configuration"
+        description={
+          <>
+            Tenant-scoped PF & ESIC engine: rates, wage rules, rounding, eligibility expressions, and upload column overrides.
+            {updatedAt ? (
+              <span className="mt-2 block text-xs font-medium uppercase tracking-wide text-slate-400">
+                Last saved · {new Date(updatedAt).toLocaleString("en-IN")}
+              </span>
+            ) : null}
+          </>
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={handleReset}
+              disabled={saving}
+              className="rounded-xl border-slate-200 bg-white shadow-sm"
+            >
+              <RefreshCw size={15} strokeWidth={2} /> Reset
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className={`min-w-[8.5rem] rounded-xl shadow-soft ${
+                saved ? "bg-emerald-600 hover:bg-emerald-700" : ""
+              }`}
+            >
+              {saving ? <RefreshCw size={15} strokeWidth={2} className="animate-spin" /> : null}
+              {!saving && saved ? <CheckCircle2 size={15} strokeWidth={2} /> : null}
+              {!saving && !saved ? <Save size={15} strokeWidth={2} /> : null}
+              {saving ? "Saving…" : saved ? "Saved" : "Save"}
+            </Button>
+          </>
+        }
+      />
 
-      {error && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-          <AlertTriangle size={16}/> {error}
-        </div>
-      )}
+      {error ? (
+        <AlertBanner variant="error" title="Unable to save or load">
+          {error}
+        </AlertBanner>
+      ) : null}
 
-      {/* Info banner */}
-      <div className="flex items-start gap-3 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-xl text-sm text-indigo-800">
-        <Info size={16} className="shrink-0 mt-0.5 text-indigo-500"/>
-        <p>
-          All changes here take effect on the <strong>next validation run</strong>.
-          Expressions are evaluated using a safe sandbox — no imports or shell access.
-          Each tenant&apos;s config is fully isolated.
-        </p>
-      </div>
+      {saved ? (
+        <AlertBanner variant="success" title="Configuration updated">
+          Your PF, ESIC, and mapping changes are stored. Running validations will pick them up automatically.
+        </AlertBanner>
+      ) : null}
+
+      <AlertBanner variant="info">
+        All changes here take effect on the <strong>next validation run</strong>. Expressions run in a safe sandbox —
+        no imports or shell access. Each tenant&apos;s config is isolated.
+      </AlertBanner>
 
       {/* PF */}
-      <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-indigo-500"/>}>
+      <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-brand-500"/>}>
         {/* Quick summary */}
         <div className="flex flex-wrap gap-3 mb-5">
           {[
@@ -535,9 +566,9 @@ export default function StatutoryConfigPage() {
             { label: "Ceiling", val: `₹${parseInt(cfg.pf.wage.wage_ceiling).toLocaleString("en-IN")}` },
             { label: "Restricted", val: cfg.pf.wage.restrict_to_ceiling ? "Yes" : "No" },
           ].map(s => (
-            <div key={s.label} className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1.5 text-xs">
-              <span className="text-indigo-500">{s.label}: </span>
-              <span className="font-semibold text-indigo-800">{s.val}</span>
+            <div key={s.label} className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs">
+              <span className="text-brand-600">{s.label}: </span>
+              <span className="font-semibold text-brand-900">{s.val}</span>
             </div>
           ))}
         </div>

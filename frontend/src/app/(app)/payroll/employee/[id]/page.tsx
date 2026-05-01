@@ -186,7 +186,7 @@ export default function EmployeeDrilldownPage() {
     } catch { /* ignore */ }
   }, [employeeId]);
 
-  const allFindings = empData?.findings ?? [];
+  const allFindings = useMemo(() => empData?.findings ?? [], [empData]);
 
   const filteredFindings = useMemo(() => {
     return allFindings.filter(f => {

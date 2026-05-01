@@ -1,10 +1,201 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-/** Simple fetch wrapper — no auth tokens required. */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export const ACCESS_TOKEN_KEY = "payroll_saas_access_token";
+export const REFRESH_TOKEN_KEY = "payroll_saas_refresh_token";
+
+export type ApiEnvelope<T> = {
+  success: boolean;
+  data: T;
+  error: { detail?: unknown; code?: string } | null;
+};
+
+export type TokenPairData = {
+  access_token: string;
+  refresh_token: string;
+  token_type?: string;
+};
+
+/** Decode JWT payload (browser only; no crypto verification — used for expiry scheduling). */
+export function parseJwtPayload(token: string): { exp?: number } | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+    const json = atob(b64 + pad);
+    return JSON.parse(json) as { exp?: number };
+  } catch {
+    return null;
+  }
+}
+
+function authHeader(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const t = localStorage.getItem(ACCESS_TOKEN_KEY);
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+/** Endpoints where a 401 must not trigger refresh-token rotation */
+function shouldNeverRefresh401(path: string): boolean {
+  const p = path.split("?")[0];
+  return (
+    p.endsWith("/api/auth/refresh") ||
+    p.endsWith("/api/auth/login") ||
+    p.endsWith("/api/auth/signup") ||
+    p.endsWith("/api/auth/password-reset-request") ||
+    p.endsWith("/api/auth/password-reset-confirm")
+  );
+}
+
+let refreshMutex: Promise<boolean> | null = null;
+
+/**
+ * Ask the backend for a new access+refresh pair. Returns false if refresh_token is invalid.
+ * Updates localStorage when successful.
+ */
+export async function refreshSession(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const rt = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!rt) return false;
+
+  if (!refreshMutex) {
+    refreshMutex = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: rt }),
+        });
+        const text = await res.text();
+        let body: ApiEnvelope<TokenPairData> | null = null;
+        try {
+          body = text ? (JSON.parse(text) as ApiEnvelope<TokenPairData>) : null;
+        } catch {
+          return false;
+        }
+        if (!res.ok || !body?.success || !body.data?.access_token || !body.data?.refresh_token) {
+          clearTokens();
+          return false;
+        }
+        setTokens(body.data.access_token, body.data.refresh_token);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshMutex = null;
+      }
+    })();
+  }
+  return refreshMutex;
+}
+
+/**
+ * Authenticated fetch. On **401**, attempts one silent refresh when a refresh token exists,
+ * then retries the request once.
+ */
+export async function apiFetch(path: string, init: RequestInit = {}, isRetry = false): Promise<Response> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  return fetch(`${API_BASE}${path}`, { ...init, headers });
+  const a = authHeader();
+  if (!headers.has("Authorization") && a.Authorization) {
+    headers.set("Authorization", a.Authorization);
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+
+  if (
+    res.status === 401 &&
+    !isRetry &&
+    typeof window !== "undefined" &&
+    !shouldNeverRefresh401(path) &&
+    localStorage.getItem(REFRESH_TOKEN_KEY)
+  ) {
+    const rotated = await refreshSession();
+    if (rotated) {
+      return apiFetch(path, init, true);
+    }
+  }
+
+  return res;
+}
+
+function formatErrorDetail(detail: unknown): string {
+  if (detail == null) return "Request failed";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((e) =>
+        typeof e === "object" && e && "msg" in e ? String((e as { msg: string }).msg) : JSON.stringify(e)
+      )
+      .join("; ");
+  }
+  if (typeof detail === "object" && detail && "msg" in detail) {
+    return String((detail as { msg: string }).msg);
+  }
+  return JSON.stringify(detail);
+}
+
+/** Parse a JSON response using the standard `{ success, data, error }` shape. */
+export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  let body: ApiEnvelope<T> | { detail?: unknown } | null = null;
+  try {
+    body = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
+  } catch {
+    throw new Error(`Invalid JSON (${res.status})`);
+  }
+  const env = body as ApiEnvelope<T>;
+  if (!res.ok || !env || env.success !== true) {
+    const errObj = env && typeof env === "object" && "error" in env ? env.error : null;
+    const fallback =
+      typeof body === "object" && body && "detail" in body ? (body as { detail: unknown }).detail : undefined;
+    const detail = errObj?.detail ?? fallback ?? `HTTP ${res.status}`;
+    throw new Error(formatErrorDetail(detail));
+  }
+  return env.data;
+}
+
+/** Parse standard `{ success, data, error }` JSON responses. */
+export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(path, init);
+  return parseEnvelopeResponse<T>(res);
+}
+
+/** For downloads (e.g. Excel) — no JSON envelope. */
+export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const res = await apiFetch(path, init);
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Download failed (${res.status})`;
+    try {
+      const j = JSON.parse(text) as ApiEnvelope<unknown>;
+      if (j?.error?.detail != null) msg = formatErrorDetail(j.error.detail);
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(msg);
+  }
+  return res.blob();
+}
+
+export function setTokens(access: string, refresh: string) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, access);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+}
+
+export function clearTokens() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
 }

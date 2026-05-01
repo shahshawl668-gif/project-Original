@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 import { useCallback, useEffect, useState } from "react";
 
 type ComponentRow = {
@@ -38,15 +38,15 @@ export default function ComponentsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await apiFetch("/api/components");
-    if (!res.ok) {
+    try {
+      const data = await apiJson<ComponentRow[]>("/api/components");
+      setRows(data);
+      setError(null);
+    } catch {
       setError("Failed to load components");
+    } finally {
       setLoading(false);
-      return;
     }
-    setRows(await res.json());
-    setError(null);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -78,17 +78,15 @@ export default function ComponentsPage() {
     setError(null);
     try {
       if (editing) {
-        const res = await apiFetch(`/api/components/${editing.id}`, {
+        await apiJson(`/api/components/${editing.id}`, {
           method: "PATCH",
           body: JSON.stringify(form),
         });
-        if (!res.ok) throw new Error((await res.json()).detail || "Update failed");
       } else {
-        const res = await apiFetch("/api/components", {
+        await apiJson("/api/components", {
           method: "POST",
           body: JSON.stringify(form),
         });
-        if (!res.ok) throw new Error((await res.json()).detail || "Create failed");
       }
       setEditing(null);
       setForm(emptyForm);
@@ -102,8 +100,9 @@ export default function ComponentsPage() {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this component?")) return;
-    const res = await apiFetch(`/api/components/${id}`, { method: "DELETE" });
-    if (!res.ok) {
+    try {
+      await apiJson(`/api/components/${id}`, { method: "DELETE" });
+    } catch {
       setError("Delete failed");
       return;
     }

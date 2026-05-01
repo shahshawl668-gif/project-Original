@@ -1,7 +1,7 @@
 """
 India Payroll Intelligence & Compliance OS — Rule Engine v2
 ===========================================================
-26+ named rules across 8 priority layers.
+Named rules across multiple priority layers (PF, ESIC, PT, LWF, compliance).
 
 Every finding exposes:
   rule_id          – e.g. "STAT-001"
@@ -125,6 +125,13 @@ def build_findings(
     tds_risk: list[str],
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
+
+    # Tenant-aware statutory thresholds (from compute_pf / compute_esic)
+    pf_ceiling_cfg = _dec(pf_calc.get("_ceiling", 15000))
+    esic_ceiling_cfg = _dec(esic_calc.get("_ceiling", 21000))
+    pf_emp_rate_pct = float(pf_calc.get("_emp_rate", 0.12)) * 100
+    esic_emp_rate_pct = float(esic_calc.get("_emp_rate", 0.0075)) * 100
+    esic_er_rate_pct = float(esic_calc.get("_er_rate", 0.0325)) * 100
 
     # ── inner helpers ─────────────────────────────────────────────────────────
 
@@ -309,7 +316,7 @@ def build_findings(
             fail("STAT-001", "PF Employee Contribution Mismatch", "pf_employee",
                  pf_emp_exp, pf_emp_actual, "CRITICAL",
                  f"PF employee ({_fmt(pf_emp_actual)}) ≠ computed ({_fmt(pf_emp_exp)}) "
-                 f"[PF wage {_fmt(pf_capped)} × 12%]. PF type: {pf_calc.get('pf_type','?')}.",
+                 f"[PF wage {_fmt(pf_capped)} × {pf_emp_rate_pct:.2f}%]. PF type: {pf_calc.get('pf_type','?')}.",
                  f"Correct pf_employee to ₹{_fmt(pf_emp_exp)}. Verify PF wage = {_fmt(pf_capped)}.",
                  float(diff_pf))
         else:
@@ -334,14 +341,19 @@ def build_findings(
         else:
             pass_("STAT-002", "PF Employer Contribution", "pf_employer", pf_er_actual)
 
-    if pf_wage_total > pf_capped and pf_calc.get("pf_type") == "uncapped" and pf_wage_total > Decimal("15000"):
-        fail("STAT-003", "PF Wage Above ₹15,000 (Uncapped Mode)", "pf_wage",
-             "≤ ₹15,000 or voluntary", _fmt(pf_wage_total), "WARNING",
-             f"PF wage ({_fmt(pf_wage_total)}) > ₹15,000 ceiling but ceiling restriction is OFF.",
-             "Enable 'Restrict PF to ₹15,000 ceiling' in Statutory Settings unless voluntary PF is confirmed.",
-             float((pf_wage_total - Decimal("15000")) * Decimal("0.12")))
-
-    if pf_wage_total == Decimal("0") and calc_gross > Decimal("0") and comp_by_key:
+    if pf_wage_total > pf_capped and pf_calc.get("pf_type") == "uncapped" and pf_wage_total > pf_ceiling_cfg:
+        fail(
+            "STAT-003",
+            f"PF Wage Above ₹{_fmt(pf_ceiling_cfg)} (Uncapped Mode)",
+            "pf_wage",
+            f"≤ ₹{_fmt(pf_ceiling_cfg)} or voluntary",
+            _fmt(pf_wage_total),
+            "WARNING",
+            f"PF wage ({_fmt(pf_wage_total)}) > ₹{_fmt(pf_ceiling_cfg)} statutory ceiling "
+            "but ceiling restriction is OFF.",
+            "Enable 'Restrict PF to wage ceiling' in Statutory Engine unless voluntary PF is confirmed.",
+            float((pf_wage_total - pf_ceiling_cfg) * _dec(pf_calc.get("_emp_rate", 0.12))),
+        )
         pf_comps = [k for k, c in comp_by_key.items() if c.pf_applicable]
         if pf_comps:
             info("STAT-004", "PF Wage is Zero", "pf_wage",
@@ -359,10 +371,15 @@ def build_findings(
     )
 
     if not esic_eligible and esic_wage_total > Decimal("0"):
-        info("STAT-005", "ESIC Ineligible — Above ₹21,000", "esic_wage",
-             "≤ ₹21,000", _fmt(esic_wage_total),
-             f"ESIC wage ({_fmt(esic_wage_total)}) > ₹21,000 — employee is exempt.",
-             "Ensure no ESIC deduction appears for this employee. Mark them as ESIC-exempt.")
+        info(
+            "STAT-005",
+            f"ESIC Ineligible — Above ₹{_fmt(esic_ceiling_cfg)}",
+            "esic_wage",
+             f"≤ ₹{_fmt(esic_ceiling_cfg)}", _fmt(esic_wage_total),
+             f"ESIC wage ({_fmt(esic_wage_total)}) > ₹{_fmt(esic_ceiling_cfg)} statutory ceiling — "
+             "employee is exempt under current config.",
+             "Ensure no ESIC deduction appears for this employee.",
+        )
 
     esic_emp_raw = row.get("esic_employee")
     if esic_emp_raw not in (None, ""):
@@ -371,7 +388,8 @@ def build_findings(
         if diff_esic > Decimal("1"):
             fail("STAT-006", "ESIC Employee Contribution Mismatch", "esic_employee",
                  esic_emp_exp, esic_emp_actual, "CRITICAL",
-                 f"ESIC employee ({_fmt(esic_emp_actual)}) ≠ {_fmt(esic_wage_total)} × 0.75% = {_fmt(esic_emp_exp)}.",
+                 f"ESIC employee ({_fmt(esic_emp_actual)}) ≠ {_fmt(esic_wage_total)} × "
+                 f"{esic_emp_rate_pct:.4f}% = {_fmt(esic_emp_exp)}.",
                  f"Correct esic_employee to ₹{_fmt(esic_emp_exp)}.",
                  float(diff_esic))
         else:
@@ -389,7 +407,8 @@ def build_findings(
         if diff_er > Decimal("1"):
             fail("STAT-007", "ESIC Employer Contribution Mismatch", "esic_employer",
                  esic_er_exp, esic_er_actual, "CRITICAL",
-                 f"ESIC employer ({_fmt(esic_er_actual)}) ≠ {_fmt(esic_wage_total)} × 3.25% = {_fmt(esic_er_exp)}.",
+                 f"ESIC employer ({_fmt(esic_er_actual)}) ≠ {_fmt(esic_wage_total)} × "
+                 f"{esic_er_rate_pct:.4f}% = {_fmt(esic_er_exp)}.",
                  f"Correct esic_employer to ₹{_fmt(esic_er_exp)}.",
                  float(diff_er))
         else:
@@ -446,44 +465,6 @@ def build_findings(
                           "File revised TDS if already paid.",
             financial_impact=0.0,
         ))
-
-    # ── BONUS (Payment of Bonus Act) ─────────────────────────────────
-    bonus_raw = row.get("bonus")
-    if bonus_raw not in (None, "") and esic_wage_total > Decimal("0"):
-        bonus_actual = _dec(bonus_raw)
-        if bonus_actual > Decimal("0"):
-            # Eligibility: gross ≤ ₹21,000 (ESIC wage = gross of eligible components)
-            if esic_wage_total > Decimal("21000"):
-                fail("STAT-012", "Bonus Paid to Ineligible Employee", "bonus",
-                     "0 (not eligible)", _fmt(bonus_actual), "CRITICAL",
-                     f"Bonus is payable only to employees with gross ≤ ₹21,000. "
-                     f"This employee's gross is {_fmt(esic_wage_total)}.",
-                     "Remove bonus for this employee or verify the gross figure.",
-                     float(bonus_actual))
-            else:
-                # Per Payment of Bonus Act: minimum bonus = 8.33%–20% of basic+DA wage
-                # Use PF-applicable wage (basic/DA) as the bonus calculation basis,
-                # capped at ₹7,000/month per the act.  ESIC wage (gross) is used only
-                # for eligibility, not for rate computation.
-                bonus_wage = pf_wage_total if pf_wage_total > Decimal("0") else esic_wage_total
-                # Apply statutory cap: bonus wages capped at ₹7,000/month per Act
-                bonus_wage_capped = min(bonus_wage, Decimal("7000"))
-                min_bonus = _q(bonus_wage_capped * Decimal("0.0833"))
-                max_bonus = _q(bonus_wage * Decimal("0.20"))   # no cap on upper end
-                if bonus_actual < min_bonus:
-                    fail("STAT-013", "Bonus Below Minimum Rate (8.33%)", "bonus",
-                         min_bonus, bonus_actual, "WARNING",
-                         f"Bonus ({_fmt(bonus_actual)}) < minimum 8.33% of Basic/DA "
-                         f"(capped at ₹7,000 = {_fmt(min_bonus)}). "
-                         "Payment of Bonus Act mandates minimum 8.33% of Basic/DA.",
-                         f"Increase bonus to at least ₹{_fmt(min_bonus)}.",
-                         float(min_bonus - bonus_actual))
-                elif bonus_actual > max_bonus:
-                    fail("STAT-013", "Bonus Above Maximum Rate (20%)", "bonus",
-                         max_bonus, bonus_actual, "WARNING",
-                         f"Bonus ({_fmt(bonus_actual)}) > maximum 20% of Basic/DA ({_fmt(max_bonus)}) under Bonus Act.",
-                         "Review bonus payment — amounts above 20% require ex-gratia treatment.",
-                         float(bonus_actual - max_bonus))
 
     # ── GRATUITY (awareness flag) ─────────────────────────────────────
     gratuity_raw = row.get("gratuity")

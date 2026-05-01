@@ -14,7 +14,7 @@ Tests every major feature:
  10.  CTC upload & history
  11.  Payroll register upload & history
  12.  Payroll validation — PF/ESIC mismatch detection
- 13.  Payroll validation — Bonus eligibility
+ 13.  Payroll validation — ESIC above ceiling (STAT-005)
  14.  Payroll validation — PF avoidance detection
  15.  Payroll validation — Gross/Net aggregation
  16.  Payroll validation — MoM anomaly detection
@@ -462,25 +462,18 @@ except Exception as e:
     ok("PF/ESIC Mismatch Detection", False, str(e))
 
 
-h("13. Bonus Eligibility (STAT-012/013)")
+h("13. ESIC Above Wage Ceiling (STAT-005)")
 try:
-    # Bonus paid to ineligible (gross > 21000)
-    emp = [{"employee_id": "E003", "basic": 22000, "hra": 9000,
-            "special_allowance": 4000, "gross": 35000, "net": 34000,
-            "bonus": 2000}]
+    # ESIC wage above statutory ceiling → ineligible; STAT-005 is informational (INFO severity, FAIL status).
+    emp = [{"employee_id": "E_ESIC_UP", "basic": 18000, "hra": 8000,
+            "special_allowance": 2500, "gross": 28500, "net": 26700,
+            "pf_employee": 1800, "esic_employee": 0, "esic_employer": 0}]
     v = validate(emp)
-    stat012 = [f for f in v["findings"] if f["rule_id"] == "STAT-012"]
-    ok("STAT-012 fires when bonus paid to ineligible employee", len(stat012) > 0)
-    ok("STAT-012 severity = CRITICAL", any(f["severity"] == "CRITICAL" for f in stat012))
-
-    # Bonus below 8.33%
-    emp2 = [{"employee_id": "E004", "basic": 10000, "hra": 4000,
-             "gross": 14000, "net": 13000, "bonus": 100}]  # 100 < 10000*8.33%=833
-    v2 = validate(emp2)
-    stat013 = [f for f in v2["findings"] if f["rule_id"] == "STAT-013"]
-    ok("STAT-013 fires for bonus below 8.33%", len(stat013) > 0)
+    stat005 = [f for f in v["findings"] if f["rule_id"] == "STAT-005"]
+    ok("STAT-005 fires when ESIC wage exceeds ceiling", len(stat005) > 0)
+    ok("STAT-005 severity = INFO", any(f["severity"] == "INFO" for f in stat005))
 except Exception as e:
-    ok("Bonus Eligibility", False, str(e))
+    ok("ESIC Above Ceiling (STAT-005)", False, str(e))
 
 
 h("14. PF Avoidance Detection (STRUCT-001)")

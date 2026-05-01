@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.envelope import ok
 from app.models import LwfRate, PtSlab, SlabRule, User
 from app.services.lwf_defaults import list_default_states as list_lwf_default_states
 from app.services.pt_defaults import list_default_states as list_pt_default_states
@@ -45,4 +46,4 @@ def list_states(db: Session = Depends(get_db), user: User = Depends(get_current_
     pt_states = sorted(seed_pt | default_pt | tenant_pt)
     lwf_states = sorted(seed_lwf | default_lwf | tenant_lwf)
     all_states = sorted(set(pt_states) | set(lwf_states))
-    return {"pt_states": pt_states, "lwf_states": lwf_states, "all_states": all_states}
+    return ok({"pt_states": pt_states, "lwf_states": lwf_states, "all_states": all_states})

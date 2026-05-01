@@ -1,17 +1,16 @@
 "use client";
 
-import { apiFetch } from "@/lib/api";
+import { apiJson } from "@/lib/api";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  CalendarDays,
-  Users,
-  FileText,
-  ChevronRight,
-  Download,
-  Search,
-} from "lucide-react";
+import { CalendarDays, Users, FileText, ChevronRight, Download, Search } from "lucide-react";
 
 type Register = {
   id: string;
@@ -49,30 +48,28 @@ export default function RegisterHistoryContent() {
     setActiveId(id);
     setDetailLoading(true);
     setSearch("");
-    const res = await apiFetch(`/api/payroll/registers/${id}`);
-    if (!res.ok) {
-      setError("Failed to load register detail");
+    try {
+      setDetail(await apiJson<RegisterDetail>(`/api/payroll/registers/${id}`));
+    } catch {
+      setError("Failed to load register detail.");
+    } finally {
       setDetailLoading(false);
-      return;
     }
-    setDetail(await res.json());
-    setDetailLoading(false);
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await apiFetch("/api/payroll/registers");
-    if (!res.ok) {
-      setError("Failed to load registers");
+    try {
+      const data = await apiJson<Register[]>("/api/payroll/registers");
+      setRegisters(data);
+      setError(null);
+      if (initialId && data.some((r) => r.id === initialId)) {
+        await openRegister(initialId);
+      }
+    } catch {
+      setError("Failed to load stored registers.");
+    } finally {
       setLoading(false);
-      return;
-    }
-    const data: Register[] = await res.json();
-    setRegisters(data);
-    setError(null);
-    setLoading(false);
-    if (initialId && data.some((r) => r.id === initialId)) {
-      await openRegister(initialId);
     }
   }, [initialId, openRegister]);
 
@@ -132,173 +129,221 @@ export default function RegisterHistoryContent() {
   const compKeys = detail?.rows.length ? Object.keys(detail.rows[0].components) : [];
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Register history</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            All stored monthly salary registers. Each upload overwrites the same period.
-          </p>
-        </div>
-        <Link
-          href="/payroll/upload"
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors flex items-center gap-2"
-        >
-          <FileText size={15} /> New upload
-        </Link>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Payroll history"
+        description={
+          <>
+            Salary registers keyed by calendar month; re-uploading the same{" "}
+            <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-700">
+              period_month
+            </code>{" "}
+            replaces the prior snapshot for that tenant.
+          </>
+        }
+        actions={
+          <Button asChild className="rounded-xl shadow-soft">
+            <Link href="/payroll/upload">
+              <FileText size={16} strokeWidth={2} /> New upload
+            </Link>
+          </Button>
+        }
+      />
 
-      {error && (
-        <div className="rounded-lg bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 text-sm">
+      {error ? (
+        <AlertBanner variant="error" title="We hit a snag">
           {error}
-        </div>
-      )}
+        </AlertBanner>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Stored registers ({registers.length})
+        <Card className="flex min-h-[22rem] flex-col overflow-hidden">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <p className="text-2xs font-semibold uppercase tracking-widest text-slate-400">Registers</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">
+              {loading ? "Loading…" : `${registers.length} stored`}
             </p>
           </div>
-          {loading ? (
-            <div className="py-10 text-center text-sm text-slate-400">Loading…</div>
-          ) : registers.length === 0 ? (
-            <div className="py-12 flex flex-col items-center text-center px-4">
-              <CalendarDays size={28} className="text-slate-300 mb-2" />
-              <p className="text-sm font-medium text-slate-600">No registers yet</p>
-              <p className="text-xs text-slate-400 mt-1">Upload a payroll file with a period month.</p>
-              <Link href="/payroll/upload" className="mt-3 text-xs text-brand-600 font-medium hover:underline">
-                Upload now →
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-50">
-              {registers.map((reg) => (
-                <button
-                  key={reg.id}
-                  type="button"
-                  onClick={() => void openRegister(reg.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 transition-colors ${
-                    activeId === reg.id ? "bg-brand-50 border-l-4 border-brand-600" : ""
-                  }`}
-                >
-                  <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      activeId === reg.id ? "bg-brand-100" : "bg-slate-100"
-                    }`}
-                  >
-                    <CalendarDays
-                      size={16}
-                      className={activeId === reg.id ? "text-brand-600" : "text-slate-500"}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold ${activeId === reg.id ? "text-brand-700" : "text-slate-800"}`}>
-                      {fmtMonth(reg.period_month)}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                        <Users size={10} /> {reg.employee_count ?? "—"} employees
-                      </span>
+
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="space-y-0 p-2">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-3">
+                    <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-24" />
                     </div>
                   </div>
-                  <ChevronRight size={14} className="text-slate-300 flex-shrink-0" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          {!activeId ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-8">
-              <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
-                <FileText size={24} className="text-slate-300" />
+                ))}
               </div>
-              <p className="text-sm font-medium text-slate-600">Select a register</p>
-              <p className="text-xs text-slate-400 mt-1">Click a month on the left to view its employee rows.</p>
-            </div>
+            ) : registers.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  icon={<CalendarDays className="h-6 w-6 text-slate-400" />}
+                  title="No registers stored"
+                  description="Upload payroll with an explicit period so we can normalize rows for auditing."
+                  action={
+                    <Button asChild variant="outline" className="rounded-xl">
+                      <Link href="/payroll/upload">Go to upload</Link>
+                    </Button>
+                  }
+                  className="border-0 bg-transparent py-8"
+                />
+              </div>
+            ) : (
+              <div className="scrollbar-thin divide-y divide-slate-100">
+                {registers.map((reg) => (
+                  <button
+                    key={reg.id}
+                    type="button"
+                    onClick={() => void openRegister(reg.id)}
+                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 ${
+                      activeId === reg.id ? "border-l-[3px] border-brand-600 bg-brand-50/50" : ""
+                    }`}
+                  >
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                        activeId === reg.id ? "bg-white shadow-sm ring-1 ring-brand-600/15" : "bg-slate-100"
+                      }`}
+                    >
+                      <CalendarDays
+                        size={17}
+                        className={activeId === reg.id ? "text-brand-700" : "text-slate-500"}
+                        strokeWidth={1.75}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`truncate text-sm font-semibold ${activeId === reg.id ? "text-brand-900" : "text-slate-900"}`}
+                      >
+                        {fmtMonth(reg.period_month)}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium uppercase tracking-wide text-slate-400">
+                        <Users size={11} aria-hidden /> {reg.employee_count ?? "—"} employees
+                      </p>
+                    </div>
+                    <ChevronRight size={15} className="shrink-0 text-slate-300" aria-hidden />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card className="min-h-[22rem] overflow-hidden lg:col-span-2">
+          {!activeId ? (
+            <CardContent className="flex min-h-[20rem] flex-col items-center justify-center p-8">
+              <EmptyState
+                icon={<FileText className="h-7 w-7 text-slate-400" strokeWidth={1.5} />}
+                title="Select a register"
+                description="Choose a pay month on the left to inspect validated rows and export CSV."
+                className="border-0 bg-transparent"
+              />
+            </CardContent>
           ) : detailLoading ? (
-            <div className="flex items-center justify-center h-full min-h-[300px] text-sm text-slate-400">
-              Loading rows…
+            <div className="flex min-h-[20rem] flex-col border-b border-slate-100 px-6 py-5">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="mt-3 h-3 w-full max-w-md" />
+              <div className="mt-8 space-y-3">
+                <Skeleton className="h-10 w-full rounded-xl" />
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <Skeleton key={i} className="h-11 w-full" />
+                ))}
+              </div>
             </div>
           ) : detail ? (
-            <div>
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex min-h-[20rem] flex-col">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
                 <div>
-                  <h2 className="font-semibold text-slate-900">{fmtMonth(detail.period_month)}</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {detail.filename || "Manual upload"} · Stored {fmtDate(detail.created_at)} ·{" "}
-                    <span className="font-medium">{detail.employee_count}</span> employees
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                    {fmtMonth(detail.period_month)}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {detail.filename || "Manual upload"} · Stored{" "}
+                    <span className="font-medium text-slate-800">{fmtDate(detail.created_at)}</span> ·{" "}
+                    <span className="font-semibold text-slate-900">{detail.employee_count}</span> employees
                   </p>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={downloadCsv}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="rounded-xl bg-white shadow-sm"
                 >
-                  <Download size={13} /> Export CSV
-                </button>
+                  <Download size={15} strokeWidth={2} /> Export CSV
+                </Button>
               </div>
 
-              <div className="px-5 py-3 border-b border-slate-100">
+              <div className="border-b border-slate-100 px-6 py-3">
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    aria-hidden
+                  />
                   <input
-                    type="text"
+                    type="search"
                     placeholder="Search by employee ID or name…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-8 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2 pl-10 pr-4 text-sm font-medium outline-none ring-brand-500/20 placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:ring-[3px]"
                   />
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="scrollbar-thin flex-1 overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 text-left text-xs font-semibold text-slate-500 border-b border-slate-100">
-                      <th className="px-4 py-2.5 whitespace-nowrap sticky left-0 bg-slate-50">Employee</th>
-                      <th className="px-4 py-2.5 whitespace-nowrap">Paid / LOP</th>
+                    <tr className="sticky top-0 z-10 bg-slate-50/95 text-left text-2xs font-semibold uppercase tracking-wide text-slate-500 backdrop-blur">
+                      <th className="whitespace-nowrap px-5 py-3 font-semibold">Employee</th>
+                      <th className="whitespace-nowrap px-5 py-3 font-semibold">Paid / LOP</th>
                       {compKeys.map((k) => (
-                        <th key={k} className="px-4 py-2.5 whitespace-nowrap capitalize">
+                        <th key={k} className="whitespace-nowrap px-5 py-3 font-semibold capitalize">
                           {k.replace(/_/g, " ")}
                         </th>
                       ))}
                       {detail.rows.some((r) => r.increment_arrear_total > 0) && (
-                        <th className="px-4 py-2.5 whitespace-nowrap">Inc. Arrear</th>
+                        <th className="whitespace-nowrap px-5 py-3 font-semibold">Inc. arrear</th>
                       )}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {filteredRows.length === 0 ? (
                       <tr>
-                        <td colSpan={3 + compKeys.length} className="px-4 py-8 text-center text-slate-400 text-sm">
-                          {search ? "No employees match your search." : "No rows in this register."}
+                        <td
+                          colSpan={3 + compKeys.length + (detail.rows.some((r) => r.increment_arrear_total > 0) ? 1 : 0)}
+                          className="px-5 py-12 text-center"
+                        >
+                          <EmptyState
+                            title={search ? "No matching employees" : "No rows"}
+                            description={
+                              search ? "Adjust your filters or choose another register." : "This register returned no normalized rows."
+                            }
+                            className="border-0 bg-transparent py-4"
+                          />
                         </td>
                       </tr>
                     ) : (
                       filteredRows.map((row, idx) => (
                         <tr
                           key={row.employee_id}
-                          className={`border-b border-slate-50 ${
-                            idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-                          } hover:bg-brand-50/30 transition-colors`}
+                          className={`transition-colors hover:bg-brand-50/25 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/35"}`}
                         >
-                          <td className="px-4 py-2.5 sticky left-0 bg-inherit">
-                            <p className="font-medium text-slate-800 text-sm">{row.employee_id}</p>
-                            {row.employee_name && (
-                              <p className="text-[11px] text-slate-400">{row.employee_name}</p>
-                            )}
+                          <td className="whitespace-nowrap px-5 py-2.5">
+                            <p className="font-semibold text-slate-900">{row.employee_id}</p>
+                            {row.employee_name ? (
+                              <p className="text-xs text-slate-500">{row.employee_name}</p>
+                            ) : null}
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap">
+                          <td className="whitespace-nowrap px-5 py-2.5 text-xs text-slate-600">
                             {row.paid_days != null ? (
                               <span>
-                                <span className="font-medium text-slate-800">{row.paid_days}</span>
-                                {row.lop_days != null && (
+                                <span className="font-semibold text-slate-900">{row.paid_days}</span>
+                                {row.lop_days != null ? (
                                   <span className="text-slate-400"> / {row.lop_days} LOP</span>
-                                )}
+                                ) : null}
                               </span>
                             ) : (
                               "—"
@@ -307,7 +352,7 @@ export default function RegisterHistoryContent() {
                           {compKeys.map((k) => (
                             <td
                               key={k}
-                              className="px-4 py-2.5 text-sm text-right font-mono text-slate-700 whitespace-nowrap"
+                              className="whitespace-nowrap px-5 py-2.5 text-right font-mono text-sm text-slate-800"
                             >
                               {row.components[k]?.toLocaleString("en-IN", {
                                 maximumFractionDigits: 0,
@@ -315,7 +360,7 @@ export default function RegisterHistoryContent() {
                             </td>
                           ))}
                           {detail.rows.some((r) => r.increment_arrear_total > 0) && (
-                            <td className="px-4 py-2.5 text-sm text-right font-mono text-purple-700 whitespace-nowrap">
+                            <td className="whitespace-nowrap px-5 py-2.5 text-right font-mono text-sm font-medium text-violet-800">
                               {row.increment_arrear_total > 0
                                 ? row.increment_arrear_total.toLocaleString("en-IN", {
                                     maximumFractionDigits: 0,
@@ -329,12 +374,14 @@ export default function RegisterHistoryContent() {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-2 border-t border-slate-100 text-xs text-slate-400">
-                Showing {filteredRows.length} of {detail.rows.length} employees
-              </div>
+              {detail.rows.length > 0 ? (
+                <div className="border-t border-slate-100 px-6 py-2.5 text-2xs font-medium uppercase tracking-wide text-slate-400">
+                  Showing {filteredRows.length} of {detail.rows.length} employees
+                </div>
+              ) : null}
             </div>
           ) : null}
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.envelope import ok
 from app.models import StatutorySettings, User
 from app.schemas.statutory import StatutorySettingsOut, StatutorySettingsUpdate
 
@@ -20,12 +21,13 @@ def _get_or_create(db: Session, user_id) -> StatutorySettings:
     return row
 
 
-@router.get("", response_model=StatutorySettingsOut)
+@router.get("")
 def get_statutory(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return _get_or_create(db, user.id)
+    row = _get_or_create(db, user.id)
+    return ok(StatutorySettingsOut.model_validate(row).model_dump())
 
 
-@router.put("", response_model=StatutorySettingsOut)
+@router.put("")
 def update_statutory(
     body: StatutorySettingsUpdate,
     db: Session = Depends(get_db),
@@ -37,4 +39,4 @@ def update_statutory(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return ok(StatutorySettingsOut.model_validate(row).model_dump())

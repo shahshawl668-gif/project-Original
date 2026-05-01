@@ -4,6 +4,13 @@ const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
+      fontSize: {
+        "2xs": ["0.6875rem", { lineHeight: "1rem" }],
+      },
+      boxShadow: {
+        soft: "0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06)",
+        card: "0 1px 0 rgb(15 23 42 / 0.05), 0 12px 32px rgb(15 23 42 / 0.06)",
+      },
       colors: {
         brand: {
           50: "#eef2ff",

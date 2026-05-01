@@ -45,6 +45,7 @@ def get_db() -> Generator[Session, None, None]:
 
 _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     # (table, column, DDL fragment after `ADD COLUMN`)
+    ("users", "role", "VARCHAR(32) NOT NULL DEFAULT 'user'"),
     ("slab_rules", "gender", "VARCHAR(8) NOT NULL DEFAULT 'ALL'"),
     ("slab_rules", "applicable_months", "TEXT"),
     ("slab_rules", "employer_amount", "NUMERIC(14, 2)"),

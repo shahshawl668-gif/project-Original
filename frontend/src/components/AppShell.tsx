@@ -17,8 +17,17 @@ import {
   X,
   ChevronRight,
   FileSpreadsheet,
+  Ban,
+  LogIn,
+  LogOut,
+  Shield,
+  Search,
+  Bell,
+  HelpCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+import { useAuth } from "@/context/AuthContext";
 
 const navGroups = [
   {
@@ -47,6 +56,7 @@ const navGroups = [
     items: [
       { href: "/config/statutory", label: "Statutory Engine", icon: Settings2 },
       { href: "/config/components", label: "Salary Components", icon: Layers },
+      { href: "/config/rules", label: "Rule suppressions", icon: Ban },
     ],
   },
   {
@@ -58,56 +68,88 @@ const navGroups = [
   },
 ];
 
-function SidebarContent({ onClose }: {
+function useNavGroups() {
+  const { user } = useAuth();
+  return useMemo(() => {
+    return navGroups.map((g) => {
+      if (g.label !== "Configuration") return g;
+      const adminItems =
+        user?.role === "admin"
+          ? [{ href: "/admin/users", label: "Users & roles", icon: Shield }]
+          : [];
+      return { ...g, items: [...adminItems, ...g.items] };
+    });
+  }, [user?.role]);
+}
+
+function SidebarContent({
+  groups,
+  onClose,
+}: {
+  groups: ReturnType<typeof useNavGroups>;
   onClose?: () => void;
 }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-white">
-      {/* Brand header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-slate-700/60">
-        <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0" onClick={onClose}>
-          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-            <Building2 size={16} className="text-white" />
+    <div className="flex h-full flex-col border-r border-slate-200/80 bg-white">
+      <div className="flex items-center justify-between gap-3 px-4 py-5">
+        <Link
+          href="/dashboard"
+          className="flex min-w-0 items-center gap-3"
+          onClick={onClose}
+        >
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-soft">
+            <Building2 size={18} className="text-white" aria-hidden />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-sm text-white leading-none">PayrollCheck</p>
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">India Payroll Audit</p>
+            <p className="text-sm font-semibold leading-tight text-slate-900">PayrollCheck</p>
+            <p className="mt-0.5 truncate text-2xs font-medium uppercase tracking-wider text-slate-500">
+              India payroll audit
+            </p>
           </div>
         </Link>
         {onClose && (
-          <button onClick={onClose} className="text-slate-400 hover:text-white lg:hidden">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 lg:hidden"
+            aria-label="Close menu"
+          >
             <X size={18} />
           </button>
         )}
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-5">
-        {navGroups.map((group) => (
+      <nav className="scrollbar-thin flex-1 space-y-6 overflow-y-auto px-3 pb-6">
+        {groups.map((group) => (
           <div key={group.label}>
-            <p className="px-3 mb-1.5 text-[10px] uppercase tracking-widest text-slate-500 font-semibold select-none">
+            <p className="mb-2 px-3 text-2xs font-semibold uppercase tracking-widest text-slate-400">
               {group.label}
             </p>
             <div className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                const active =
+                  pathname === item.href ||
+                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={onClose}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                       active
-                        ? "bg-brand-600 text-white shadow-sm"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800"
+                        ? "bg-brand-50 text-brand-800 shadow-sm ring-1 ring-brand-600/15"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    <Icon size={15} className="flex-shrink-0" />
+                    <Icon
+                      size={17}
+                      strokeWidth={active ? 2.25 : 2}
+                      className={`flex-shrink-0 ${active ? "text-brand-600" : "text-slate-400 group-hover:text-slate-600"}`}
+                    />
                     <span className="truncate">{item.label}</span>
-                    {active && <ChevronRight size={13} className="ml-auto opacity-70 flex-shrink-0" />}
                   </Link>
                 );
               })}
@@ -116,14 +158,10 @@ function SidebarContent({ onClose }: {
         ))}
       </nav>
 
-      {/* Brand footer */}
-      <div className="border-t border-slate-700/60 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-brand-700 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-            P
-          </div>
-          <p className="text-[11px] text-slate-400">PayrollCheck — India Payroll Audit</p>
-        </div>
+      <div className="border-t border-slate-100 px-4 py-4">
+        <p className="text-2xs leading-relaxed text-slate-400">
+          Statutory validation aligned with your tenant configuration — PF, ESIC, PT, LWF.
+        </p>
       </div>
     </div>
   );
@@ -131,60 +169,131 @@ function SidebarContent({ onClose }: {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const groups = useNavGroups();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, loading: authLoading, logout, isAuthenticated } = useAuth();
 
-  // Derive page title from pathname
-  const allItems = navGroups.flatMap((g) => g.items);
+  const allItems = groups.flatMap((g) => g.items);
   const currentItem = allItems.find(
     (i) => pathname === i.href || (i.href !== "/dashboard" && pathname.startsWith(i.href)),
   );
-  const pageTitle = currentItem?.label ?? "PayrollCheck";
+  const pageTitle = currentItem?.label ?? "Workspace";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      {/* Desktop sidebar */}
-      <div className="hidden lg:flex flex-col w-60 flex-shrink-0 shadow-xl">
-        <SidebarContent />
-      </div>
+    <div className="flex h-screen overflow-hidden bg-[#f6f8fc]">
+      <aside className="hidden w-60 flex-shrink-0 lg:flex lg:flex-col xl:w-[17rem]">
+        <SidebarContent groups={groups} />
+      </aside>
 
-      {/* Mobile sidebar overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+            aria-label="Close menu overlay"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative w-60 flex-shrink-0 shadow-2xl">
-            <SidebarContent onClose={() => setMobileOpen(false)} />
+          <div className="relative h-full w-[min(280px,88vw)] flex-shrink-0 bg-white shadow-2xl">
+            <SidebarContent groups={groups} onClose={() => setMobileOpen(false)} />
           </div>
         </div>
       )}
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar */}
-        <header className="flex items-center gap-3 px-4 lg:px-6 py-3.5 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="lg:hidden text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <Menu size={20} />
-          </button>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <span className="text-slate-400 text-xs">PayrollCheck</span>
-            <ChevronRight size={13} className="text-slate-300" />
-            <span className="font-medium text-slate-800">{pageTitle}</span>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="sticky top-0 z-40 flex-shrink-0 border-b border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-white/75">
+          <div className="flex h-[3.75rem] w-full items-center gap-3 px-4 sm:px-6 lg:gap-6">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 lg:hidden"
+              aria-label="Open navigation"
+            >
+              <Menu size={20} />
+            </button>
+
+            <nav className="hidden min-w-0 items-center gap-1 text-sm text-slate-500 md:flex lg:gap-1.5">
+              <Link
+                href="/dashboard"
+                className="truncate font-medium text-slate-400 transition-colors hover:text-slate-700"
+              >
+                Home
+              </Link>
+              <ChevronRight size={14} className="flex-shrink-0 text-slate-300" aria-hidden />
+              <span className="truncate font-semibold text-slate-900">{pageTitle}</span>
+            </nav>
+
+            <div className="hidden min-w-0 flex-1 lg:flex lg:justify-center">
+              <div className="relative w-full max-w-lg">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  aria-hidden
+                />
+                <input
+                  type="search"
+                  placeholder="Search pages, shortcuts…"
+                  readOnly
+                  className="h-10 w-full cursor-default rounded-xl border border-slate-200/90 bg-slate-50/80 py-2 pl-10 pr-4 text-sm text-slate-500 placeholder:text-slate-400 outline-none ring-brand-500/20 transition-shadow focus-visible:ring-[3px]"
+                />
+              </div>
+            </div>
+
+            <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <button
+                type="button"
+                className="hidden rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 md:inline-flex"
+                aria-label="Notifications"
+              >
+                <Bell size={18} strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                className="hidden rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 md:inline-flex"
+                aria-label="Help"
+              >
+                <HelpCircle size={18} strokeWidth={1.75} />
+              </button>
+
+              <div className="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden />
+
+              {!authLoading && isAuthenticated && user && (
+                <span className="hidden max-w-[10rem] truncate text-xs text-slate-600 sm:inline">
+                  {user.email}
+                  {user.role === "admin" ? (
+                    <span className="ml-1.5 rounded-md bg-brand-50 px-1.5 py-0.5 text-2xs font-semibold uppercase text-brand-700">
+                      admin
+                    </span>
+                  ) : null}
+                </span>
+              )}
+              {!authLoading && !isAuthenticated && (
+                <span className="hidden text-xs text-slate-500 sm:inline">Guest</span>
+              )}
+              {!authLoading && isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                >
+                  <LogOut size={14} strokeWidth={2} />
+                  <span className="hidden sm:inline">Sign out</span>
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-soft transition-colors hover:bg-brand-700"
+                >
+                  <LogIn size={14} strokeWidth={2} /> Sign in
+                </Link>
+              )}
+            </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="hidden sm:block text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-              PayrollCheck
-            </span>
+          <div className="flex border-t border-slate-100 px-4 py-1.5 text-xs md:hidden">
+            <span className="font-semibold text-slate-900">{pageTitle}</span>
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
-          {children}
+        <main className="scrollbar-thin flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">{children}</div>
         </main>
       </div>
     </div>

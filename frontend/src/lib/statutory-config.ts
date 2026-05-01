@@ -1,7 +1,7 @@
 /**
  * API helpers for the Config-Driven Statutory Engine.
  */
-import { apiFetch } from "./api";
+import { apiJson } from "./api";
 
 export interface PFRateConfig {
   employee_rate: string;
@@ -152,39 +152,30 @@ export const defaultESICConfig: ESICConfig = {
 // ── API ───────────────────────────────────────────────────────────────────────
 
 export async function getStatutoryConfig(): Promise<StatutoryConfigResponse> {
-  const r = await apiFetch("/api/config/statutory");
-  if (!r.ok) throw new Error("Failed to load statutory config");
-  return r.json();
+  return apiJson<StatutoryConfigResponse>("/api/config/statutory");
 }
 
 export async function saveStatutoryConfig(cfg: TenantStatutoryConfig): Promise<StatutoryConfigResponse> {
-  const r = await apiFetch("/api/config/statutory", {
+  return apiJson<StatutoryConfigResponse>("/api/config/statutory", {
     method: "PUT",
     body: JSON.stringify(cfg),
   });
-  if (!r.ok) throw new Error("Failed to save statutory config");
-  return r.json();
 }
 
 export async function resetStatutoryConfig(): Promise<StatutoryConfigResponse> {
-  const r = await apiFetch("/api/config/statutory/reset", { method: "POST" });
-  if (!r.ok) throw new Error("Failed to reset config");
-  return r.json();
+  return apiJson<StatutoryConfigResponse>("/api/config/statutory/reset", { method: "POST" });
 }
 
 export async function getConfigSummary(): Promise<ConfigSummary> {
-  const r = await apiFetch("/api/config/statutory/summary");
-  if (!r.ok) throw new Error("Failed to load config summary");
-  return r.json();
+  return apiJson<ConfigSummary>("/api/config/statutory/summary");
 }
 
 export async function testExpression(
   expression: string,
   context: Record<string, unknown>,
-): Promise<{ result: unknown; result_type: string; ok: boolean; error?: string }> {
-  const r = await apiFetch("/api/config/statutory/test-expression", {
+): Promise<{ result?: unknown; result_type?: string; eval_ok: boolean; error?: string }> {
+  return apiJson("/api/config/statutory/test-expression", {
     method: "POST",
     body: JSON.stringify({ expression, context }),
   });
-  return r.json();
 }

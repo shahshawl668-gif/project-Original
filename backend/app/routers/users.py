@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.envelope import ok
 from app.models import User
 from app.schemas.auth import UserOut
 
@@ -14,7 +15,7 @@ class UserProfileUpdate(BaseModel):
     company_name: str | None = None
 
 
-@router.patch("/me", response_model=UserOut)
+@router.patch("/me")
 def update_me(
     body: UserProfileUpdate,
     db: Session = Depends(get_db),
@@ -25,4 +26,4 @@ def update_me(
     db.add(user)
     db.commit()
     db.refresh(user)
-    return user
+    return ok(UserOut.model_validate(user).model_dump())

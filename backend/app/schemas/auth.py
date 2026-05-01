@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -29,6 +30,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
     company_name: str | None
+    role: str
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -41,3 +43,9 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str = Field(min_length=8)
+
+
+class AdminRoleUpdate(BaseModel):
+    """Body for admin-only PATCH to change a human user's role."""
+
+    role: Literal["admin", "user"]

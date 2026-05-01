@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.envelope import ok
 from app.models import Formula, SlabRule, User
 from app.schemas.rule_engine import (
     FormulaCreate,
@@ -35,13 +36,42 @@ def _defaults_for(rule_type: str):
         return LWF_DEFAULTS, get_lwf_default_slabs, list_lwf_states
     raise HTTPException(status_code=400, detail=f"Unsupported rule_type: {rule_type}")
 
+
+def _build_slabs_response(state: str, rule_type: str, db: Session, user: User) -> SlabsResponse:
+    rt = rule_type.upper()
+    rows = (
+        db.query(SlabRule)
+        .filter(
+            SlabRule.user_id == user.id,
+            SlabRule.state == state,
+            SlabRule.rule_type == rt,
+        )
+        .order_by(SlabRule.sort_order, SlabRule.min_salary)
+        .all()
+    )
+    return SlabsResponse(
+        state=state,
+        rule_type=rt,
+        slabs=[
+            SlabRowOut(
+                id=str(r.id),
+                min_salary=r.min_salary,
+                max_salary=r.max_salary,
+                deduction_amount=r.deduction_amount,
+                employer_amount=r.employer_amount,
+                frequency=r.frequency,
+                gender=(r.gender or "ALL"),
+                applicable_months=r.applicable_months,
+            )
+            for r in rows
+        ],
+    )
+
+
 router = APIRouter()
 
 
-# ---------- Formulas ----------
-
-
-@router.get("/formulas", response_model=list[FormulaOut])
+@router.get("/formulas")
 def list_formulas(
     rule_type: str | None = Query(default=None),
     db: Session = Depends(get_db),
@@ -50,16 +80,16 @@ def list_formulas(
     q = db.query(Formula).filter(Formula.user_id == user.id)
     if rule_type:
         q = q.filter(Formula.rule_type == rule_type.upper())
-    return q.order_by(Formula.rule_type, Formula.version.desc()).all()
+    rows = q.order_by(Formula.rule_type, Formula.version.desc()).all()
+    return ok([FormulaOut.model_validate(r).model_dump() for r in rows])
 
 
-@router.post("/formula", response_model=FormulaOut, status_code=201)
+@router.post("/formula", status_code=201)
 def create_formula(
     body: FormulaCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Pre-validate expression syntax with sample variables.
     try:
         evaluate_formula(body.expression, _sample_vars())
     except FormulaError as e:
@@ -91,10 +121,10 @@ def create_formula(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return ok(FormulaOut.model_validate(row).model_dump())
 
 
-@router.post("/formula/{formula_id}/activate", response_model=FormulaOut)
+@router.post("/formula/{formula_id}/activate")
 def activate_formula(
     formula_id: str,
     db: Session = Depends(get_db),
@@ -116,10 +146,10 @@ def activate_formula(
     db.add(target)
     db.commit()
     db.refresh(target)
-    return target
+    return ok(FormulaOut.model_validate(target).model_dump())
 
 
-@router.delete("/formula/{formula_id}", status_code=204)
+@router.delete("/formula/{formula_id}")
 def delete_formula(
     formula_id: str,
     db: Session = Depends(get_db),
@@ -134,9 +164,10 @@ def delete_formula(
         raise HTTPException(status_code=404, detail="Formula not found")
     db.delete(row)
     db.commit()
+    return ok({"deleted": formula_id})
 
 
-@router.post("/test-formula", response_model=TestFormulaResponse)
+@router.post("/test-formula")
 def test_formula(body: TestFormulaRequest, _user: User = Depends(get_current_user)):
     vars_ = {**_sample_vars(), **body.variables}
     try:
@@ -144,15 +175,14 @@ def test_formula(body: TestFormulaRequest, _user: User = Depends(get_current_use
             [c.model_dump() for c in body.conditions], vars_
         )
         if not cond_pass:
-            return TestFormulaResponse(ok=True, result=0.0, conditions_passed=False)
+            return ok(TestFormulaResponse(ok=True, result=0.0, conditions_passed=False).model_dump())
         result = evaluate_formula(body.expression, vars_)
-        return TestFormulaResponse(ok=True, result=result, conditions_passed=True)
+        return ok(TestFormulaResponse(ok=True, result=result, conditions_passed=True).model_dump())
     except FormulaError as e:
-        return TestFormulaResponse(ok=False, error=str(e))
+        return ok(TestFormulaResponse(ok=False, error=str(e)).model_dump())
 
 
 def _sample_vars() -> dict[str, float]:
-    """Defaults used for validation and tester so missing keys don't crash."""
     return {
         "basic": 0.0,
         "da": 0.0,
@@ -167,55 +197,23 @@ def _sample_vars() -> dict[str, float]:
     }
 
 
-# ---------- Slabs ----------
-
-
-@router.get("/slabs", response_model=SlabsResponse)
-def get_slabs(
+@router.get("/slabs")
+def get_slabs_route(
     state: str = Query(...),
     rule_type: str = Query(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    rt = rule_type.upper()
-    rows = (
-        db.query(SlabRule)
-        .filter(
-            SlabRule.user_id == user.id,
-            SlabRule.state == state,
-            SlabRule.rule_type == rt,
-        )
-        .order_by(SlabRule.sort_order, SlabRule.min_salary)
-        .all()
-    )
-    return SlabsResponse(
-        state=state,
-        rule_type=rt,
-        slabs=[
-            SlabRowOut(
-                id=str(r.id),
-                min_salary=r.min_salary,
-                max_salary=r.max_salary,
-                deduction_amount=r.deduction_amount,
-                employer_amount=r.employer_amount,
-                frequency=r.frequency,
-                gender=(r.gender or "ALL"),
-                applicable_months=r.applicable_months,
-            )
-            for r in rows
-        ],
-    )
+    return ok(_build_slabs_response(state, rule_type, db, user).model_dump())
 
 
-@router.post("/slabs", response_model=SlabsResponse)
+@router.post("/slabs")
 def save_slabs(
     body: SlabSaveRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Server-side validation: min <= max; overlap is checked per (gender,
-    # applicable_months) bucket so a Feb-only row legitimately shares the
-    # same wage band with the always-on row.
+
     def _bucket(s) -> tuple:
         months = tuple(sorted(s.applicable_months)) if s.applicable_months else ()
         return ((s.gender or "ALL"), months)
@@ -230,15 +228,13 @@ def save_slabs(
     by_bucket: dict[tuple, list] = {}
     for s in body.slabs:
         by_bucket.setdefault(_bucket(s), []).append(s)
-    for bucket, rows in by_bucket.items():
-        rows_sorted = sorted(rows, key=lambda r: r.min_salary)
+    for bucket, slab_rows in by_bucket.items():
+        rows_sorted = sorted(slab_rows, key=lambda r: r.min_salary)
         last_max = None
         for r in rows_sorted:
             if last_max is not None and r.min_salary <= last_max:
                 gender, months = bucket
-                tag = f"gender={gender}" + (
-                    f", months={list(months)}" if months else ""
-                )
+                tag = f"gender={gender}" + (f", months={list(months)}" if months else "")
                 raise HTTPException(
                     status_code=400,
                     detail=(
@@ -254,7 +250,6 @@ def save_slabs(
         SlabRule.rule_type == body.rule_type,
     ).delete()
 
-    # Stable ordering: gender (ALL→MALE→FEMALE), months (none first), min_salary.
     gender_rank = {"ALL": 0, "MALE": 1, "FEMALE": 2}
 
     def _sort_key(s):
@@ -282,14 +277,10 @@ def save_slabs(
         )
     db.commit()
 
-    return get_slabs(state=body.state, rule_type=body.rule_type, db=db, user=user)
-
-
-# ---------- Defaults (PT + LWF) ----------
+    return ok(_build_slabs_response(body.state, body.rule_type, db, user).model_dump())
 
 
 def _slab_kwargs(rule_type: str, state: str, idx: int, user_id, s: dict) -> dict:
-    """Translate a catalog row into SlabRule kwargs (PT or LWF)."""
     return dict(
         user_id=user_id,
         state=state,
@@ -307,26 +298,20 @@ def _slab_kwargs(rule_type: str, state: str, idx: int, user_id, s: dict) -> dict
 
 @router.get("/defaults/pt-states")
 def get_pt_default_states(_user: User = Depends(get_current_user)):
-    """States with curated PT defaults available for one-click import."""
-    return {"states": list_pt_states()}
+    return ok({"states": list_pt_states()})
 
 
 @router.get("/defaults/lwf-states")
 def get_lwf_default_states(_user: User = Depends(get_current_user)):
-    """States with curated LWF defaults available for one-click import."""
-    return {"states": list_lwf_states()}
+    return ok({"states": list_lwf_states()})
 
 
 @router.get("/defaults/states")
 def get_all_default_states(_user: User = Depends(get_current_user)):
-    """Combined view — used by the Slabs UI to know which import buttons to show."""
-    return {
-        "PT": list_pt_states(),
-        "LWF": list_lwf_states(),
-    }
+    return ok({"PT": list_pt_states(), "LWF": list_lwf_states()})
 
 
-@router.post("/slabs/import-defaults", response_model=SlabsResponse)
+@router.post("/slabs/import-defaults")
 def import_default_slabs(
     state: str = Query(...),
     rule_type: str = Query(default="PT"),
@@ -334,7 +319,6 @@ def import_default_slabs(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Replace (or append to) a tenant's slabs with the curated defaults for *state*."""
     rt = rule_type.upper()
     catalog, get_state, list_states = _defaults_for(rt)
     defaults = get_state(state)
@@ -357,16 +341,15 @@ def import_default_slabs(
     for idx, s in enumerate(defaults):
         db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, s)))
     db.commit()
-    return get_slabs(state=state, rule_type=rt, db=db, user=user)
+    return ok(_build_slabs_response(state, rt, db, user).model_dump())
 
 
-@router.post("/slabs/reset-defaults", response_model=dict)
+@router.post("/slabs/reset-defaults")
 def reset_default_slabs(
     rule_type: str = Query(default="PT"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Destructively wipe ALL tenant slabs of *rule_type* and re-import the curated catalog."""
     rt = rule_type.upper()
     catalog, _get, _list = _defaults_for(rt)
 
@@ -381,23 +364,23 @@ def reset_default_slabs(
             db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, s)))
         imported[state] = len(rows)
     db.commit()
-    return {
-        "rule_type": rt,
-        "deleted_rows": int(deleted or 0),
-        "imported": imported,
-        "total_states": len(imported),
-    }
+    return ok(
+        {
+            "rule_type": rt,
+            "deleted_rows": int(deleted or 0),
+            "imported": imported,
+            "total_states": len(imported),
+        }
+    )
 
 
-@router.post("/slabs/import-defaults/all", response_model=dict)
+@router.post("/slabs/import-defaults/all")
 def import_all_default_slabs(
     rule_type: str = Query(default="PT"),
     overwrite: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Bulk-import every curated default state of *rule_type*. With overwrite=False,
-    states that already have any tenant rows are left untouched."""
     rt = rule_type.upper()
     catalog, _get, _list = _defaults_for(rt)
 
@@ -426,8 +409,10 @@ def import_all_default_slabs(
             db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, s)))
         imported[state] = len(rows)
     db.commit()
-    return {
-        "rule_type": rt,
-        "imported": imported,
-        "total_states": len([k for k, v in imported.items() if v]),
-    }
+    return ok(
+        {
+            "rule_type": rt,
+            "imported": imported,
+            "total_states": len([k for k, v in imported.items() if v]),
+        }
+    )

@@ -1,16 +1,24 @@
 "use client";
 
+import { apiBlob } from "@/lib/api";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import {
-  AlertTriangle, CheckCircle2, ShieldCheck, TrendingUp,
-  Users, Download, XCircle, Info, Search, FileText,
-  ArrowRight, Shield, Flame, Activity,
+  AlertTriangle, CheckCircle2,
+  Users, XCircle, Search,
+  ArrowRight, Shield, Flame, Activity, UploadCloud,
+  TrendingUp, Download,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,26 +108,31 @@ const RISK_COLOR: Record<string, { bg: string; text: string; dot: string }> = {
 
 const PIE_COLORS = ["#ef4444", "#f59e0b", "#22c55e"];
 
-function StatCard({ label, value, sub, icon, color = "indigo" }: {
+function StatCard({ label, value, sub, icon, color = "brand" }: {
   label: string; value: string | number; sub?: string;
-  icon?: React.ReactNode; color?: string;
+  icon?: ReactNode; color?: string;
 }) {
   const bg: Record<string, string> = {
-    red: "bg-red-50 border-red-100", yellow: "bg-yellow-50 border-yellow-100",
-    green: "bg-green-50 border-green-100", indigo: "bg-indigo-50 border-indigo-100",
-    blue: "bg-blue-50 border-blue-100",
+    red: "bg-red-50 border-red-100 shadow-sm ring-1 ring-red-900/[0.03]",
+    yellow: "bg-amber-50 border-amber-100 shadow-sm ring-1 ring-amber-900/[0.03]",
+    green: "bg-emerald-50 border-emerald-100 shadow-sm ring-1 ring-emerald-900/[0.03]",
+    brand: "bg-brand-50 border-brand-100 shadow-sm ring-1 ring-brand-900/[0.03]",
+    blue: "bg-sky-50 border-sky-100 shadow-sm ring-1 ring-sky-900/[0.03]",
   };
   const txt: Record<string, string> = {
-    red: "text-red-600", yellow: "text-yellow-600", green: "text-green-600",
-    indigo: "text-indigo-600", blue: "text-blue-600",
+    red: "text-red-600",
+    yellow: "text-amber-600",
+    green: "text-emerald-600",
+    brand: "text-brand-600",
+    blue: "text-sky-600",
   };
   return (
-    <div className={`rounded-xl border p-4 flex items-center gap-4 ${bg[color] || bg.indigo}`}>
-      {icon && <div className={`text-2xl ${txt[color] || txt.indigo}`}>{icon}</div>}
-      <div>
-        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{label}</p>
-        <p className={`text-2xl font-bold ${txt[color] || txt.indigo}`}>{value}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    <div className={`flex items-center gap-4 rounded-2xl border p-4 ${bg[color] || bg.brand}`}>
+      {icon && <div className={`text-2xl ${txt[color] || txt.brand}`}>{icon}</div>}
+      <div className="min-w-0">
+        <p className="text-2xs font-semibold uppercase tracking-widest text-slate-500">{label}</p>
+        <p className={`truncate text-2xl font-semibold tabular-nums tracking-tight ${txt[color] || txt.brand}`}>{value}</p>
+        {sub && <p className="mt-0.5 text-2xs font-medium text-slate-500">{sub}</p>}
       </div>
     </div>
   );
@@ -137,21 +150,26 @@ function RiskBadge({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function ResultsPage() {
-  const [results,  setResults]  = useState<ResultRow[]>([]);
+function PayrollResultsContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [results, setResults] = useState<ResultRow[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
-  const [summary,  setSummary]  = useState<FindingsSummary | null>(null);
+  const [summary, setSummary] = useState<FindingsSummary | null>(null);
   const [riskScores, setRiskScores] = useState<RiskScore[]>([]);
   const [tab, setTab] = useState<Tab>("overview");
+  const [ready, setReady] = useState(false);
 
   // Findings filters
-  const [fSev,    setFSev]    = useState<"ALL"|"CRITICAL"|"WARNING"|"INFO">("ALL");
-  const [fStatus, setFStatus] = useState<"ALL"|"FAIL"|"PASS">("FAIL");
+  const [fSev, setFSev] = useState<"ALL" | "CRITICAL" | "WARNING" | "INFO">("ALL");
+  const [fStatus, setFStatus] = useState<"ALL" | "FAIL" | "PASS">("FAIL");
   const [fSearch, setFSearch] = useState("");
 
   // Risk filters
-  const [rLevel, setRLevel] = useState<"ALL"|"HIGH"|"MEDIUM"|"LOW">("ALL");
+  const [rLevel, setRLevel] = useState<"ALL" | "HIGH" | "MEDIUM" | "LOW">("ALL");
   const [rSearch, setRSearch] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
 
   useEffect(() => {
     try {
@@ -163,8 +181,17 @@ export default function ResultsPage() {
       if (f) setFindings(JSON.parse(f));
       if (s) setSummary(JSON.parse(s));
       if (rs) setRiskScores(JSON.parse(rs));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
+    setReady(true);
   }, []);
+
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    const valid: Tab[] = ["overview", "risk", "findings", "pf", "esic", "ptlwf", "lop"];
+    if (t && valid.includes(t as Tab)) setTab(t as Tab);
+  }, [searchParams]);
 
   // Filtered findings
   const filteredFindings = useMemo(() => {
@@ -219,6 +246,42 @@ export default function ResultsPage() {
       .map(r => ({ name: r.rule_id, count: r.fail_count, severity: r.severity }));
   }, [summary]);
 
+  const downloadExcelAudit = async () => {
+    const raw = typeof window !== "undefined" ? sessionStorage.getItem("payroll_validate_request") : null;
+    if (!raw) {
+      toast.error("Audit export unavailable", {
+        description: "Run validation again from Upload — we need the same payload for the Excel workbook.",
+      });
+      return;
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      toast.error("Could not read validation session");
+      return;
+    }
+    setExportBusy(true);
+    try {
+      const blob = await apiBlob("/api/payroll/validate/export-excel", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `payroll-audit-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Audit workbook downloaded");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Export failed";
+      toast.error("Excel export failed", { description: msg });
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
   const tabs: { id: Tab; label: string; badge?: number; badgeColor?: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "risk",     label: "Risk Scores",  badge: riskScores.filter(r => r.risk_level === "HIGH").length, badgeColor: "red" },
@@ -229,29 +292,96 @@ export default function ResultsPage() {
     { id: "lop",   label: "LOP / Arrear" },
   ];
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Payroll Audit Results</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {results.length} employees · {failFindings.length} issues found
-          </p>
+  const commitTab = (id: Tab) => {
+    setTab(id);
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("tab", id);
+    router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+  };
+
+  if (!ready) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-3">
+          <Skeleton className="h-9 w-72" />
+          <Skeleton className="h-4 w-full max-w-md" />
         </div>
-        <div className="flex gap-2">
-          <Link
-            href="/payroll/upload"
-            className="px-4 py-2 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-          >
-            New Validation
-          </Link>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-[5.5rem] rounded-2xl" />
+          ))}
         </div>
+        <Skeleton className="h-11 w-full max-w-xl rounded-xl" />
+        <Skeleton className="h-[22rem] w-full rounded-2xl" />
       </div>
+    );
+  }
+
+  if (results.length === 0) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          title="Validation results"
+          description="Per-employee computations, statutory findings, and risk scores appear here after you complete an upload validation in this browser."
+          actions={
+            <Button asChild className="rounded-xl shadow-soft">
+              <Link href="/payroll/upload" className="gap-2">
+                <UploadCloud size={16} strokeWidth={2} /> New validation
+              </Link>
+            </Button>
+          }
+        />
+        <EmptyState
+          icon={<Activity className="h-7 w-7 text-slate-400" strokeWidth={1.5} />}
+          title="No results in this session"
+          description="We keep the latest run in session storage so you can drill down without round-tripping the server. Start an upload to populate this view."
+          action={
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/dashboard">Back to dashboard</Link>
+            </Button>
+          }
+          className="bg-white shadow-soft ring-1 ring-slate-900/[0.04]"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="Validation results"
+        description={
+          <>
+            {results.length.toLocaleString("en-IN")} employees · {failFindings.length} open findings · Financial exposure{" "}
+            {summary?.total_financial_impact != null
+              ? `₹${Math.round(summary.total_financial_impact).toLocaleString("en-IN")}`
+              : "—"}
+          </>
+        }
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl border-slate-200 bg-white shadow-sm gap-2"
+              disabled={exportBusy}
+              onClick={() => void downloadExcelAudit()}
+            >
+              <Download size={15} strokeWidth={2} />
+              {exportBusy ? "Working…" : "Excel audit"}
+            </Button>
+            <Button variant="outline" asChild className="rounded-xl border-slate-200 bg-white shadow-sm">
+              <Link href="/payroll/upload" className="gap-2">
+                <UploadCloud size={15} strokeWidth={2} /> New run
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       {/* Summary stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard label="Employees"   value={results.length}               icon={<Users size={20}/>}        color="indigo" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard label="Employees"   value={results.length}               icon={<Users size={20}/>}        color="brand" />
         <StatCard label="Critical"    value={summary?.critical ?? 0}       icon={<XCircle size={20}/>}      color="red" />
         <StatCard label="Warnings"    value={summary?.warning ?? 0}        icon={<AlertTriangle size={20}/>} color="yellow" />
         <StatCard label="High Risk"   value={riskScores.filter(r=>r.risk_level==="HIGH").length} icon={<Flame size={20}/>} color="red" />
@@ -268,15 +398,17 @@ export default function ResultsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="border-b border-slate-200 flex gap-1 overflow-x-auto">
-        {tabs.map(t => (
+      <div className="flex flex-wrap gap-1 rounded-2xl bg-slate-100/90 p-1.5 ring-1 ring-slate-200/80">
+        {tabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 whitespace-nowrap transition-colors
-              ${tab === t.id
-                ? "border-b-2 border-indigo-600 text-indigo-600"
-                : "text-slate-500 hover:text-slate-700"}`}
+            type="button"
+            onClick={() => commitTab(t.id)}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+              tab === t.id
+                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
+                : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+            }`}
           >
             {t.label}
             {t.badge != null && t.badge > 0 && (
@@ -295,7 +427,7 @@ export default function ResultsPage() {
           {/* Risk distribution pie */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <Shield size={16} className="text-indigo-500"/> Risk Distribution
+              <Shield size={16} className="text-brand-600"/> Risk Distribution
             </h3>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -314,7 +446,7 @@ export default function ResultsPage() {
           {/* Top violated rules */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
             <h3 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <TrendingUp size={16} className="text-indigo-500"/> Top Rule Failures
+              <TrendingUp size={16} className="text-brand-600"/> Top Rule Failures
             </h3>
             {ruleTriggerData.length === 0 ? (
               <div className="flex items-center gap-2 text-green-600 mt-8 justify-center">
@@ -383,7 +515,7 @@ export default function ResultsPage() {
                         <td className="px-4 py-3">
                           <Link
                             href={`/payroll/employee/${encodeURIComponent(r.employee_id)}`}
-                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                            className="inline-flex items-center gap-1 text-xs text-brand-700 hover:text-brand-800 font-medium"
                           >
                             Drilldown <ArrowRight size={12}/>
                           </Link>
@@ -405,7 +537,7 @@ export default function ResultsPage() {
             <div className="relative flex-1 min-w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
               <input
-                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none ring-brand-500/20 placeholder:text-slate-400 focus-visible:ring-[3px]"
                 placeholder="Search employee…"
                 value={rSearch}
                 onChange={e => setRSearch(e.target.value)}
@@ -419,7 +551,7 @@ export default function ResultsPage() {
                     ? lvl==="HIGH" ? "bg-red-600 text-white"
                     : lvl==="MEDIUM" ? "bg-yellow-500 text-white"
                     : lvl==="LOW" ? "bg-green-600 text-white"
-                    : "bg-indigo-600 text-white"
+                    : "bg-brand-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               >
                 {lvl}
@@ -460,7 +592,7 @@ export default function ResultsPage() {
                     <td className="px-4 py-3">
                       <Link
                         href={`/payroll/employee/${encodeURIComponent(r.employee_id)}`}
-                        className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                        className="inline-flex items-center gap-1 text-xs text-brand-700 hover:text-brand-800 font-medium"
                       >
                         View <ArrowRight size={12}/>
                       </Link>
@@ -483,7 +615,7 @@ export default function ResultsPage() {
             <div className="relative flex-1 min-w-48">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
               <input
-                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none ring-brand-500/20 placeholder:text-slate-400 focus-visible:ring-[3px]"
                 placeholder="Search rule, employee, component…"
                 value={fSearch}
                 onChange={e => setFSearch(e.target.value)}
@@ -496,7 +628,7 @@ export default function ResultsPage() {
                     ? s==="CRITICAL"?"bg-red-600 text-white"
                     : s==="WARNING"?"bg-yellow-500 text-white"
                     : s==="INFO"?"bg-blue-600 text-white"
-                    : "bg-indigo-600 text-white"
+                    : "bg-brand-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
               >
                 {s}
@@ -531,7 +663,7 @@ export default function ResultsPage() {
                   </div>
                   <Link
                     href={`/payroll/employee/${encodeURIComponent(f.employee_id)}`}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                    className="text-xs text-brand-700 hover:text-brand-800 font-medium"
                   >
                     {f.employee_id} {f.employee_name ? `· ${f.employee_name}` : ""}
                   </Link>
@@ -548,7 +680,7 @@ export default function ResultsPage() {
                   )}
                 </div>
                 {f.suggested_fix && (
-                  <div className="mt-2 text-xs bg-white/70 border border-indigo-100 rounded-lg px-3 py-2 text-indigo-800">
+                  <div className="mt-2 rounded-lg border border-brand-100 bg-brand-50/80 px-3 py-2 text-xs text-brand-950">
                     <span className="font-semibold">Fix: </span>{f.suggested_fix}
                   </div>
                 )}
@@ -699,7 +831,7 @@ export default function ResultsPage() {
                 </div>
               )}
               {r.increment_arrear?.applicable && (
-                <div className="bg-indigo-50 rounded-lg p-3 text-xs text-indigo-800">
+                <div className="rounded-lg bg-brand-50 p-3 text-xs text-brand-950 ring-1 ring-brand-100">
                   <strong>Increment Arrear:</strong> Expected ₹{r.increment_arrear.expected_total.toFixed(2)} over {r.increment_arrear.months} month(s) · Actual ₹{r.increment_arrear.actual_total.toFixed(2)}
                 </div>
               )}
@@ -723,5 +855,31 @@ export default function ResultsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function ResultsPageSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <Skeleton className="h-9 w-72" />
+        <Skeleton className="h-4 w-full max-w-lg" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-[5.5rem] rounded-2xl" />
+        ))}
+      </div>
+      <Skeleton className="h-12 w-full max-w-xl rounded-xl" />
+      <Skeleton className="h-[28rem] w-full rounded-2xl" />
+    </div>
+  );
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<ResultsPageSkeleton />}>
+      <PayrollResultsContent />
+    </Suspense>
   );
 }

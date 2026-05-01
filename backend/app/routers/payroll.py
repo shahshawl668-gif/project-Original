@@ -1,5 +1,6 @@
 import io
 import json
+import uuid
 from datetime import date
 from decimal import Decimal
 
@@ -9,11 +10,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.envelope import ok
 from app.models import (
     ComponentConfig,
     PayrollRun,
     SalaryRegister,
     SalaryRegisterRow,
+    TenantRulePreference,
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
@@ -22,7 +25,12 @@ from app.services.payroll_parse import (
     parse_payroll_file,
     validate_required_columns,
 )
-from app.services.validation import _component_key_map, split_row_amounts, validate_employees
+from app.services.validation import (
+    _component_key_map,
+    apply_suppressed_rules,
+    split_row_amounts,
+    validate_employees,
+)
 
 router = APIRouter()
 
@@ -31,6 +39,18 @@ def _to_first_of_month(d: date | None) -> date | None:
     if d is None:
         return None
     return d.replace(day=1)
+
+
+def _suppressed_rule_ids(db: Session, user_id: uuid.UUID) -> set[str]:
+    rows = (
+        db.query(TenantRulePreference.rule_id)
+        .filter(
+            TenantRulePreference.user_id == user_id,
+            TenantRulePreference.suppressed.is_(True),
+        )
+        .all()
+    )
+    return {r[0] for r in rows}
 
 
 def _persist_salary_register(
@@ -114,7 +134,29 @@ def _persist_salary_register(
     db.commit()
 
 
-@router.post("/upload", response_model=UploadParseResponse)
+def _payload_after_validation(rows: list, findings_summary: dict) -> dict:
+    all_findings: list = []
+    for r in rows:
+        all_findings.extend(r.get("findings", []))
+    risk_list = [
+        {
+            "employee_id": r["employee_id"],
+            "employee_name": r.get("employee_name"),
+            "risk_score": r["risk_score"],
+            "risk_level": r["risk_level"],
+            "score_breakdown": r.get("score_breakdown", {}),
+        }
+        for r in rows
+    ]
+    return {
+        "results": rows,
+        "findings": all_findings,
+        "findings_summary": findings_summary,
+        "risk_scores": risk_list,
+    }
+
+
+@router.post("/upload")
 async def upload_payroll(
     file: UploadFile = File(...),
     meta: str = Form(...),
@@ -162,13 +204,14 @@ async def upload_payroll(
     if persist_period and comps and not missing:
         _persist_salary_register(db, user, persist_period, file.filename, employees, comps)
 
-    return UploadParseResponse(
+    out = UploadParseResponse(
         columns=columns,
         preview=preview,
         employees=employees,
         missing_required=missing,
         warnings=warnings,
     )
+    return ok(out.model_dump())
 
 
 @router.post("/validate")
@@ -192,30 +235,9 @@ def validate_payroll(
         body.as_of_date,
         period_month=period_month,
     )
-
-    # Collect all findings across employees into a flat list for easy frontend consumption
-    all_findings = []
-    for r in rows:
-        all_findings.extend(r.get("findings", []))
-
-    # Attach risk scores at top level per employee
-    risk_list = [
-        {
-            "employee_id": r["employee_id"],
-            "employee_name": r.get("employee_name"),
-            "risk_score": r["risk_score"],
-            "risk_level": r["risk_level"],
-            "score_breakdown": r.get("score_breakdown", {}),
-        }
-        for r in rows
-    ]
-
-    return {
-        "results": rows,
-        "findings": all_findings,
-        "findings_summary": findings_summary,
-        "risk_scores": risk_list,
-    }
+    suppressed = _suppressed_rule_ids(db, user.id)
+    findings_summary = apply_suppressed_rules(rows, suppressed)
+    return ok(_payload_after_validation(rows, findings_summary))
 
 
 @router.get("/runs")
@@ -224,7 +246,6 @@ def list_payroll_runs(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """List most recent payroll upload runs."""
     runs = (
         db.query(PayrollRun)
         .filter(PayrollRun.user_id == user.id)
@@ -232,7 +253,7 @@ def list_payroll_runs(
         .limit(limit)
         .all()
     )
-    return [
+    data = [
         {
             "id": str(r.id),
             "run_type": r.run_type,
@@ -244,6 +265,7 @@ def list_payroll_runs(
         }
         for r in runs
     ]
+    return ok(data)
 
 
 @router.get("/registers")
@@ -251,14 +273,13 @@ def list_salary_registers(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """List all stored salary registers (one per period month)."""
     regs = (
         db.query(SalaryRegister)
         .filter(SalaryRegister.user_id == user.id)
         .order_by(SalaryRegister.period_month.desc())
         .all()
     )
-    return [
+    data = [
         {
             "id": str(r.id),
             "period_month": r.period_month.isoformat(),
@@ -268,6 +289,7 @@ def list_salary_registers(
         }
         for r in regs
     ]
+    return ok(data)
 
 
 @router.get("/registers/{register_id}")
@@ -276,11 +298,12 @@ def get_salary_register(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Get all rows for a specific salary register."""
+    try:
+        rid = uuid.UUID(register_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Register not found")
     reg = (
-        db.query(SalaryRegister)
-        .filter(SalaryRegister.id == register_id, SalaryRegister.user_id == user.id)
-        .first()
+        db.query(SalaryRegister).filter(SalaryRegister.id == rid, SalaryRegister.user_id == user.id).first()
     )
     if not reg:
         raise HTTPException(status_code=404, detail="Register not found")
@@ -290,7 +313,7 @@ def get_salary_register(
         .order_by(SalaryRegisterRow.employee_id)
         .all()
     )
-    return {
+    payload = {
         "id": str(reg.id),
         "period_month": reg.period_month.isoformat(),
         "filename": reg.filename,
@@ -309,6 +332,7 @@ def get_salary_register(
             for r in rows
         ],
     }
+    return ok(payload)
 
 
 @router.post("/validate/export-excel")
@@ -317,10 +341,10 @@ def export_findings_excel(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Run validation and return findings as an Excel workbook."""
+    """Run validation and return findings as an Excel workbook (binary stream, not JSON envelope)."""
     try:
         import openpyxl
-        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.styles import Font, PatternFill
     except ImportError:
         raise HTTPException(status_code=500, detail="openpyxl not installed.")
 
@@ -329,14 +353,21 @@ def export_findings_excel(
         raise HTTPException(status_code=400, detail="Configure salary components before export.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
     rows, findings_summary = validate_employees(
-        db, user, comps, body.employees, body.run_type,
-        body.effective_month_from, body.effective_month_to,
-        body.as_of_date, period_month=period_month,
+        db,
+        user,
+        comps,
+        body.employees,
+        body.run_type,
+        body.effective_month_from,
+        body.effective_month_to,
+        body.as_of_date,
+        period_month=period_month,
     )
+    suppressed = _suppressed_rule_ids(db, user.id)
+    findings_summary = apply_suppressed_rules(rows, suppressed)
 
     wb = openpyxl.Workbook()
 
-    # ── Sheet 1: Summary ────────────────────────────────────────────
     ws_sum = wb.active
     ws_sum.title = "Summary"
     hdr_font = Font(bold=True, color="FFFFFF")
@@ -357,12 +388,21 @@ def export_findings_excel(
     ws_sum.column_dimensions["A"].width = 30
     ws_sum.column_dimensions["B"].width = 20
 
-    # ── Sheet 2: All Findings ────────────────────────────────────────
     ws_f = wb.create_sheet("Findings")
     f_headers = [
-        "Employee ID", "Employee Name", "Rule ID", "Rule Name",
-        "Component", "Expected", "Actual", "Difference",
-        "Severity", "Status", "Reason", "Suggested Fix", "Financial Impact (₹)",
+        "Employee ID",
+        "Employee Name",
+        "Rule ID",
+        "Rule Name",
+        "Component",
+        "Expected",
+        "Actual",
+        "Difference",
+        "Severity",
+        "Status",
+        "Reason",
+        "Suggested Fix",
+        "Financial Impact (₹)",
     ]
     ws_f.append(f_headers)
     for cell in ws_f[1]:
@@ -371,18 +411,24 @@ def export_findings_excel(
 
     severity_fills = {
         "CRITICAL": PatternFill("solid", fgColor="FEE2E2"),
-        "WARNING":  PatternFill("solid", fgColor="FEF9C3"),
-        "INFO":     PatternFill("solid", fgColor="EFF6FF"),
+        "WARNING": PatternFill("solid", fgColor="FEF9C3"),
+        "INFO": PatternFill("solid", fgColor="EFF6FF"),
     }
     for emp in rows:
         for f in emp.get("findings", []):
             row_data = [
-                f.get("employee_id", ""), f.get("employee_name", ""),
-                f.get("rule_id", ""), f.get("rule_name", ""),
-                f.get("component", ""), f.get("expected_value", ""),
-                f.get("actual_value", ""), f.get("difference", ""),
-                f.get("severity", ""), f.get("status", ""),
-                f.get("reason", ""), f.get("suggested_fix", ""),
+                f.get("employee_id", ""),
+                f.get("employee_name", ""),
+                f.get("rule_id", ""),
+                f.get("rule_name", ""),
+                f.get("component", ""),
+                f.get("expected_value", ""),
+                f.get("actual_value", ""),
+                f.get("difference", ""),
+                f.get("severity", ""),
+                f.get("status", ""),
+                f.get("reason", ""),
+                f.get("suggested_fix", ""),
                 f.get("financial_impact", 0),
             ]
             ws_f.append(row_data)
@@ -398,7 +444,6 @@ def export_findings_excel(
     ws_f.column_dimensions["K"].width = 60
     ws_f.column_dimensions["L"].width = 60
 
-    # ── Sheet 3: Risk Scores ─────────────────────────────────────────
     ws_r = wb.create_sheet("Risk Scores")
     ws_r.append(["Employee ID", "Employee Name", "Risk Score", "Risk Level"])
     for cell in ws_r[1]:
@@ -406,15 +451,19 @@ def export_findings_excel(
         cell.fill = hdr_fill
 
     level_fills = {
-        "HIGH":   PatternFill("solid", fgColor="FEE2E2"),
+        "HIGH": PatternFill("solid", fgColor="FEE2E2"),
         "MEDIUM": PatternFill("solid", fgColor="FEF9C3"),
-        "LOW":    PatternFill("solid", fgColor="F0FDF4"),
+        "LOW": PatternFill("solid", fgColor="F0FDF4"),
     }
     for emp in rows:
-        ws_r.append([
-            emp.get("employee_id", ""), emp.get("employee_name", ""),
-            emp.get("risk_score", 0), emp.get("risk_level", "LOW"),
-        ])
+        ws_r.append(
+            [
+                emp.get("employee_id", ""),
+                emp.get("employee_name", ""),
+                emp.get("risk_score", 0),
+                emp.get("risk_level", "LOW"),
+            ]
+        )
         lvl = emp.get("risk_level", "LOW")
         if lvl in level_fills:
             for cell in ws_r[ws_r.max_row]:
@@ -438,7 +487,10 @@ def export_findings_excel(
 def dashboard_stats(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     n_comp = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).count()
     last_run = (
-        db.query(PayrollRun).filter(PayrollRun.user_id == user.id).order_by(PayrollRun.created_at.desc()).first()
+        db.query(PayrollRun)
+        .filter(PayrollRun.user_id == user.id)
+        .order_by(PayrollRun.created_at.desc())
+        .first()
     )
     last_register = (
         db.query(SalaryRegister)
@@ -446,10 +498,11 @@ def dashboard_stats(db: Session = Depends(get_db), user: User = Depends(get_curr
         .order_by(SalaryRegister.period_month.desc())
         .first()
     )
-    return {
+    payload = {
         "components_configured": n_comp,
         "last_run_employee_count": last_run.employee_count if last_run else 0,
         "last_run_at": last_run.created_at.isoformat() if last_run else None,
         "last_register_period": last_register.period_month.isoformat() if last_register else None,
         "message": "Upload and validate payroll to populate PF/ESIC stats.",
     }
+    return ok(payload)

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.envelope import ok
 from app.models import ComponentConfig, CtcRecord, CtcUpload, User
 from app.schemas.ctc import CtcCommitRequest, CtcParseResponse, CtcRecordOut, CtcUploadOut
 from app.services.ctc_parse import parse_ctc_file
@@ -14,7 +15,7 @@ from app.services.payroll_parse import normalize_col
 router = APIRouter()
 
 
-@router.post("/upload", response_model=CtcParseResponse)
+@router.post("/upload")
 async def upload_ctc(
     file: UploadFile = File(...),
     meta: str = Form(...),
@@ -62,15 +63,16 @@ async def upload_ctc(
     if not records:
         warnings.append("No usable rows found. Ensure employee_id and effective_from are present.")
 
-    return CtcParseResponse(
+    out = CtcParseResponse(
         columns=columns,
         records=records,
         unknown_columns=unknown,
         warnings=warnings,
     )
+    return ok(out.model_dump())
 
 
-@router.post("/commit", response_model=CtcUploadOut)
+@router.post("/commit")
 def commit_ctc(
     body: CtcCommitRequest,
     db: Session = Depends(get_db),
@@ -121,34 +123,36 @@ def commit_ctc(
 
     db.commit()
     db.refresh(upload)
-    return upload
+    return ok(CtcUploadOut.model_validate(upload).model_dump())
 
 
-@router.get("/uploads", response_model=list[CtcUploadOut])
+@router.get("/uploads")
 def list_uploads(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return (
+    rows = (
         db.query(CtcUpload)
         .filter(CtcUpload.user_id == user.id)
         .order_by(CtcUpload.created_at.desc())
         .all()
     )
+    return ok([CtcUploadOut.model_validate(r).model_dump() for r in rows])
 
 
-@router.get("/uploads/{upload_id}", response_model=list[CtcRecordOut])
+@router.get("/uploads/{upload_id}")
 def list_records(
     upload_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return (
+    rows = (
         db.query(CtcRecord)
         .filter(CtcRecord.user_id == user.id, CtcRecord.upload_id == upload_id)
         .order_by(CtcRecord.employee_id)
         .all()
     )
+    return ok([CtcRecordOut.model_validate(r).model_dump() for r in rows])
 
 
-@router.get("/latest", response_model=CtcRecordOut | None)
+@router.get("/latest")
 def latest_for_employee(
     employee_id: str,
     as_of: date | None = None,
@@ -159,4 +163,6 @@ def latest_for_employee(
     if as_of:
         q = q.filter(CtcRecord.effective_from <= as_of)
     row = q.order_by(CtcRecord.effective_from.desc()).first()
-    return row
+    if row is None:
+        return ok(None)
+    return ok(CtcRecordOut.model_validate(row).model_dump())

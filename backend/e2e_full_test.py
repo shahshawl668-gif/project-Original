@@ -15,7 +15,7 @@ Covers every feature with realistic Indian payroll data:
       EMP005 - ESIC at ceiling boundary (Delhi, Male)
       EMP006 - New Joiner (Kerala, Female) - no March record
       EMP007 - F&F / Exit with gratuity (West Bengal, Male)
-      EMP008 - Bonus eligibility correct (Telangana, Female)
+      EMP008 - ESIC-eligible payroll below ceiling (Telangana, Female)
       EMP009 - PF mismatch data error (Maharashtra, Male)
       EMP010 - Salary spike anomaly 100% increase (Rajasthan, Female)
   • Excel Audit Report saved to disk
@@ -552,13 +552,10 @@ APRIL_EMPLOYEES = [
         "pt": 200, "lwf_employee": 0, "lwf_employer": 0,
         "paid_days": 26, "lop_days": 0, "total_days": 26,
     },
-    # ── EMP008: Telangana Female, Bonus case (correct rate) ──────────────────
-    # Gross = 19000 < 21000 → bonus eligible
-    # Bonus = 1200; basic=12000, capped at 7000 for bonus calc → min=7000*8.33%=583 < 1200 PASS
-    # ESIC: gross 19000 < 21000 → eligible
-    # Employee ESIC = ceil(19000 * 0.75%) = ceil(142.5) = 143
-    # Employer ESIC = ceil(19000 * 3.25%) = ceil(617.5) = 618
-    # Telangana PT: 0 (no PT slabs configured for Telangana)
+    # ── EMP008: Telangana Female, ESIC below ceiling (contrib matches engine) ─
+    # ESIC wage = gross = 19000 < 21000 → eligible
+    # Employee ESIC = ceil(19000 * 0.75%) = 143 ; employer = ceil(19000 * 3.25%) = 618
+    # PF: basic 12000 → 1440 ; Telangana PT: 0
     # Net = 19000 - 1440 - 143 = 17417
     {
         "employee_id": "EMP008", "employee_name": "Deepa Iyer",
@@ -566,7 +563,6 @@ APRIL_EMPLOYEES = [
         "basic": 12000, "hra": 6000, "conveyance": 0,
         "medical_allowance": 0, "lta": 0, "special_allowance": 1000,
         "gross": 19000, "net": 17417,
-        "bonus": 1200,
         "pf_employee": 1440, "pf_employer": 1440,
         "esic_employee": 143, "esic_employer": 618,
         "pt": 0, "lwf_employee": 0,
@@ -686,16 +682,15 @@ if result:
     stat014_fail = [f for f in f7 if f["rule_id"] == "STAT-014" and f["status"] == "FAIL"]
     ok("EMP007 (F&F): STAT-014 not fired (gratuity < cap)", len(stat014_fail) == 0)
 
-    # ── EMP008: Bonus Eligibility ─────────────────────────────────────────────
+    # ── EMP008: ESIC-eligible employee (contrib matches statutory engine) ───
     f8 = findings_for(result, "EMP008")
-    stat012 = [f for f in f8 if f["rule_id"] == "STAT-012" and f["status"] == "FAIL"]
-    stat013 = [f for f in f8 if f["rule_id"] == "STAT-013" and f["status"] == "FAIL"]
-    ok("EMP008 (Bonus): STAT-012 not fired (eligible, gross<21000)", len(stat012) == 0,
-       f"STAT-012 unexpected: {stat012}")
-    ok("EMP008 (Bonus): STAT-013 not fired (rate 10% ≥ 8.33%)", len(stat013) == 0,
-       f"STAT-013 unexpected: {stat013}")
-    esic006 = [f for f in f8 if "ESIC" in f["rule_name"] and f["status"] == "FAIL"]
-    _rep(f"  EMP008 ESIC findings (if any): {[(f['rule_id'], f['reason'][:60]) for f in esic006]}")
+    esic_fails_8 = [
+        f for f in f8
+        if f["rule_id"] in ("STAT-005", "STAT-006", "STAT-007") and f["status"] == "FAIL"
+    ]
+    ok("EMP008 (ESIC): no ESIC mismatch / eligibility errors", len(esic_fails_8) == 0,
+       f"ESIC-related fails: {[(f['rule_id'], f['severity'], f['reason'][:72]) for f in esic_fails_8]}")
+    _rep(f"  EMP008 ESIC rule rows: {[(f['rule_id'], f['status']) for f in f8 if 'ESIC' in f['rule_name']]}")
 
     # ── EMP009: PF Mismatch ───────────────────────────────────────────────────
     f9 = findings_for(result, "EMP009")
@@ -905,7 +900,7 @@ GAPS = [
     ("Email Notifications", "MISSING", "No alerting for HIGH-risk employees or validation completion."),
     ("Role-Based Access Control", "MISSING", "Single system user only. No multi-user/admin/auditor role separation."),
     ("Peer / Band Salary Comparison", "BASIC", "ADV-002/003 do basic MoM comparison. Cross-employee band comparison (e.g., all Jr. Engineers) is not implemented."),
-    ("Bonus Annual Payout Validation", "PARTIAL", "Monthly bonus rate is validated; annual bonus reconciliation vs statutory minimum is not checked."),
+    ("Bonus / Payment-of-Bonus Act checks", "OUT OF SCOPE", "Bonus column may appear in uploads; statutory bonus eligibility or rate auditing is not performed by this engine."),
 ]
 
 for name, status, detail in GAPS:

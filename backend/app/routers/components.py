@@ -1,27 +1,29 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
+from app.envelope import ok
 from app.models import ComponentConfig, User
 from app.schemas.component import ComponentCreate, ComponentOut, ComponentUpdate
 
 router = APIRouter()
 
 
-@router.get("", response_model=list[ComponentOut])
+@router.get("")
 def list_components(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return (
+    rows = (
         db.query(ComponentConfig)
         .filter(ComponentConfig.user_id == user.id)
         .order_by(ComponentConfig.component_name)
         .all()
     )
+    return ok([ComponentOut.model_validate(r).model_dump() for r in rows])
 
 
-@router.post("", response_model=ComponentOut, status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 def create_component(
     body: ComponentCreate,
     db: Session = Depends(get_db),
@@ -41,10 +43,10 @@ def create_component(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return ok(ComponentOut.model_validate(row).model_dump())
 
 
-@router.patch("/{component_id}", response_model=ComponentOut)
+@router.patch("/{component_id}")
 def update_component(
     component_id: uuid.UUID,
     body: ComponentUpdate,
@@ -76,15 +78,15 @@ def update_component(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return ok(ComponentOut.model_validate(row).model_dump())
 
 
-@router.delete("/{component_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{component_id}")
 def delete_component(
     component_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> Response:
+):
     row = (
         db.query(ComponentConfig)
         .filter(ComponentConfig.id == component_id, ComponentConfig.user_id == user.id)
@@ -94,4 +96,4 @@ def delete_component(
         raise HTTPException(status_code=404, detail="Not found")
     db.delete(row)
     db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return ok({"deleted": str(component_id)})
