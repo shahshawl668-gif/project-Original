@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,7 +13,7 @@ from app.seed import seed_reference_data
 
 app = FastAPI(title="India Payroll Validation API", version="1.0.0")
 
-# ✅ FIXED CORS CONFIG (IMPORTANT)
+# ✅ FINAL CORS CONFIG (STRICT + WORKING)
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "https://peopleopslab.in",
@@ -24,17 +24,24 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=False,  # 🔥 IMPORTANT FIX
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ✅ FIX: Handle OPTIONS (preflight) explicitly (prevents 403)
+@app.middleware("http")
+async def handle_preflight(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return JSONResponse(content={"ok": True})
+    response = await call_next(request)
+    return response
 
 # ------------------ EXCEPTION HANDLING ------------------
 
 @app.exception_handler(HTTPException)
 async def http_exception_envelope(_, exc: HTTPException):
-    detail = exc.detail
-    body = err_payload(detail)
+    body = err_payload(exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
         content={"success": False, "data": None, "error": body},
