@@ -198,18 +198,20 @@ export default function DashboardPage() {
         <AlertBanner variant="error" title="Could not reach the API">
           <span className="block">{apiError}</span>
           <span className="mt-2 block text-sm">
-            Effective target in this browser:{" "}
+            Effective routing:{" "}
             <code className="rounded-md bg-white/70 px-1.5 py-0.5 text-xs font-medium text-red-950">
               {getApiTargetDescription()}
             </code>
-            . Ensure the API is up (e.g.{" "}
-            <code className="rounded bg-white/70 px-1 text-xs">https://api.peopleopslab.in/api/health</code>
-            ), CORS allows this site, and you use HTTPS→HTTPS. For Vercel + a separate API host, set{" "}
-            <code className="rounded bg-white/70 px-1 text-xs">NEXT_PUBLIC_API_URL</code> at build time, or enable
-            same-origin relay:{" "}
-            <code className="rounded bg-white/70 px-1 text-xs">NEXT_PUBLIC_USE_API_RELAY=1</code> and{" "}
-            <code className="rounded bg-white/70 px-1 text-xs">RELAY_BACKEND_ORIGIN=https://api.peopleopslab.in</code>{" "}
-            (see README).
+            . On{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">peopleopslab.in</code>, the app uses a
+            same-origin proxy (<code className="rounded bg-white/70 px-1 text-xs">/api/proxy/*</code>).
+            Add server env{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">BACKEND_URL=https://api.peopleopslab.in</code>{" "}
+            on Vercel (not NEXT_PUBLIC — mark for Production). Redeploy. Test{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">/api/proxy/api/health</code> on your site.
+            To force browser→API directly:{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">NEXT_PUBLIC_DIRECT_API=1</code> plus{" "}
+            <code className="rounded bg-white/70 px-1 text-xs">NEXT_PUBLIC_API_URL</code>.
           </span>
         </AlertBanner>
       ) : null}

@@ -1,20 +1,30 @@
-/** Same-origin relay to backend (needs next.config rewrite + RELAY_BACKEND_ORIGIN at build time). */
-function isApiRelayEnabled(): boolean {
-  return (
-    process.env.NEXT_PUBLIC_USE_API_RELAY === "true" || process.env.NEXT_PUBLIC_USE_API_RELAY === "1"
-  );
+/** When true, the browser calls same-origin `/api/proxy/api/…` and the Next.js server forwards to BACKEND_URL (avoids CORS / browser TLS issues). */
+function usesServerSideProxy(): boolean {
+  const forceDirect =
+    process.env.NEXT_PUBLIC_DIRECT_API === "1" ||
+    process.env.NEXT_PUBLIC_DIRECT_API === "true";
+  if (forceDirect) return false;
+
+  const relay = process.env.NEXT_PUBLIC_USE_API_RELAY;
+  if (relay === "0" || relay === "false") return false;
+  if (relay === "1" || relay === "true") return true;
+
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h === "peopleopslab.in" || h === "www.peopleopslab.in") return true;
+  }
+  return false;
 }
 
 /**
- * Public API absolute URL for a backend path (path must start with `/api/…`).
- * - Relay mode: `/api-relay/api/…` → proxied to RELAY_BACKEND_ORIGIN (see next.config).
- * - Otherwise: `{origin}{path}` — uses NEXT_PUBLIC_API_URL if set; on peopleopslab.in in the browser
- *   infers https://api.peopleopslab.in so production survives a missing bake-time env var.
+ * Public URL for an API route (must start with `/api/…`).
+ * - On peopleopslab.in (automatic) or NEXT_PUBLIC_USE_API_RELAY=1 → `/api/proxy/api/…` (needs BACKEND_URL on server).
+ * - Else → `{origin}{path}` using NEXT_PUBLIC_API_URL or inferred `https://api.peopleopslab.in` when not proxied.
  */
 export function apiAbsoluteUrl(apiPath: string): string {
   const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
-  if (isApiRelayEnabled()) {
-    return `/api-relay${path}`;
+  if (usesServerSideProxy()) {
+    return `/api/proxy${path}`;
   }
   const base = resolvedApiOrigin();
   return `${base}${path}`;
@@ -33,17 +43,17 @@ function resolvedApiOrigin(): string {
   return "http://localhost:8000";
 }
 
-/** Human-readable hint for dashboards (browser only resolves infer; SSR may omit infer). */
+/** Human-readable hint for dashboards. */
 export function getApiTargetDescription(): string {
-  if (isApiRelayEnabled()) {
-    return "same-origin proxy /api-relay (set RELAY_BACKEND_ORIGIN when building)";
+  if (usesServerSideProxy()) {
+    return "/api/proxy (Next.js → BACKEND_URL) — set BACKEND_URL on the server (e.g. Vercel)";
   }
   const env = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (env) return env.replace(/\/$/, "");
   if (typeof window !== "undefined") {
     const h = window.location.hostname;
     if (h === "peopleopslab.in" || h === "www.peopleopslab.in") {
-      return "https://api.peopleopslab.in (inferred — set NEXT_PUBLIC_API_URL explicitly for SSR/build)";
+      return "https://api.peopleopslab.in (direct — prefer BACKEND_URL + /api/proxy; see README)";
     }
   }
   return "http://localhost:8000";
@@ -84,7 +94,7 @@ function authHeader(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
-/** Logical path `/api/...` passed to apiFetch — used after URL resolution. */
+/** Logical `/api/...` path passed to apiFetch — used for refresh suppression rules. */
 function shouldNeverRefresh401(logicalPath: string): boolean {
   const p = logicalPath.split("?")[0];
   return (
@@ -159,7 +169,7 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
     if (typeof window !== "undefined" && e instanceof TypeError) {
       const hint = getApiTargetDescription();
       throw new Error(
-        `Failed to fetch (${e.message}). API target: ${hint}. If the API runs on another host, set NEXT_PUBLIC_API_URL at build time or use NEXT_PUBLIC_USE_API_RELAY=1 with RELAY_BACKEND_ORIGIN.`,
+        `Failed to fetch (${e.message}). Target: ${hint}. If using peopleopslab.in, set BACKEND_URL on Vercel. Otherwise set NEXT_PUBLIC_API_URL.`,
       );
     }
     throw e;
