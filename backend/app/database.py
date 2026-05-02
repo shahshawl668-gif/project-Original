@@ -18,7 +18,16 @@ def _make_engine():
             connect_args={"check_same_thread": False},
             pool_pre_ping=True,
         )
-    return create_engine(url, pool_pre_ping=True)
+    # Postgres / other servers — production pool tuning.
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=10,
+        pool_recycle=1800,
+        pool_timeout=30,
+        future=True,
+    )
 
 
 engine = _make_engine()

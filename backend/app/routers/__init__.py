@@ -5,6 +5,7 @@ from app.routers import (
     auth,
     components,
     ctc,
+    income_tax,
     payroll,
     reference,
     rule_engine,
@@ -24,6 +25,7 @@ api_router.include_router(reference.router, prefix="/reference", tags=["referenc
 api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 api_router.include_router(rule_engine.router, prefix="/rule-engine", tags=["rule-engine"])
+api_router.include_router(income_tax.router, prefix="/income-tax", tags=["income-tax"])
 # Config-Driven Statutory Engine (router has its own /api/config prefix)
 api_router.include_router(statutory_config.router)
 api_router.include_router(rule_preferences.router)

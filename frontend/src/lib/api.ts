@@ -307,3 +307,37 @@ export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
+
+/** Probe API health from the browser; resolves with which routing path actually responded. */
+export async function probeApiHealth(): Promise<{
+  ok: boolean;
+  via: "proxy" | "direct" | "none";
+  detail?: string;
+  data?: unknown;
+}> {
+  const path = "/api/health";
+  // Try proxy first (if active), then direct.
+  const tries: Array<{ via: "proxy" | "direct"; url: string }> = [];
+  if (usesServerSideProxy()) {
+    tries.push({ via: "proxy", url: `/api/proxy${path}` });
+  }
+  tries.push({ via: "direct", url: `${resolvedApiOrigin()}${path}` });
+
+  for (const t of tries) {
+    try {
+      const res = await fetch(t.url, { cache: "no-store" });
+      if (res.ok) {
+        let data: unknown = undefined;
+        try {
+          data = await res.json();
+        } catch {
+          /* tolerate non-JSON */
+        }
+        return { ok: true, via: t.via, data };
+      }
+    } catch {
+      /* try next */
+    }
+  }
+  return { ok: false, via: "none", detail: "Both proxy and direct API attempts failed" };
+}

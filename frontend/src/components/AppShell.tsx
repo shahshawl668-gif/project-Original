@@ -28,6 +28,7 @@ import {
 import { useMemo, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
+import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 
 const navGroups = [
   {
@@ -238,6 +239,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
+              <div className="hidden md:inline-flex">
+                <ApiHealthBadge />
+              </div>
               <button
                 type="button"
                 className="hidden rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 md:inline-flex"
