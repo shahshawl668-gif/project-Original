@@ -123,6 +123,28 @@ async function shouldFallbackToDirect(res: Response): Promise<boolean> {
   }
 }
 
+async function fetchWithProxyFallback(path: string, init: RequestInit): Promise<Response> {
+  const usingProxy = usesServerSideProxy();
+  try {
+    const res = await fetch(apiAbsoluteUrl(path), init);
+    if (usingProxy && (await shouldFallbackToDirect(res))) {
+      try {
+        const direct = await fetch(directApiUrl(path), init);
+        if (direct.status !== 502) return direct;
+      } catch {
+        // Keep original proxy response if direct fallback also fails.
+      }
+    }
+    return res;
+  } catch (e) {
+    if (usingProxy && e instanceof TypeError) {
+      // Proxy path itself is unreachable; attempt direct API call.
+      return fetch(directApiUrl(path), init);
+    }
+    throw e;
+  }
+}
+
 /**
  * Ask the backend for a new access+refresh pair. Returns false if refresh_token is invalid.
  * Updates localStorage when successful.
@@ -135,7 +157,7 @@ export async function refreshSession(): Promise<boolean> {
   if (!refreshMutex) {
     refreshMutex = (async () => {
       try {
-        const res = await fetch(apiAbsoluteUrl("/api/auth/refresh"), {
+        const res = await fetchWithProxyFallback("/api/auth/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: rt }),
@@ -178,10 +200,9 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
   }
 
   const requestInit: RequestInit = { ...init, headers };
-  const usingProxy = usesServerSideProxy();
   let res: Response;
   try {
-    res = await fetch(apiAbsoluteUrl(path), requestInit);
+    res = await fetchWithProxyFallback(path, requestInit);
   } catch (e) {
     if (typeof window !== "undefined" && e instanceof TypeError) {
       const hint = getApiTargetDescription();
@@ -190,18 +211,6 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
       );
     }
     throw e;
-  }
-
-  if (usingProxy && (await shouldFallbackToDirect(res))) {
-    try {
-      const direct = await fetch(directApiUrl(path), requestInit);
-      // Prefer direct if it gives a successful or actionable response.
-      if (direct.status !== 502) {
-        res = direct;
-      }
-    } catch {
-      // Keep original proxy error response if direct fallback also fails.
-    }
   }
 
   if (
