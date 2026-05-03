@@ -4,10 +4,34 @@
 
 :root {
   color-scheme: light;
+  /* Surfaces */
   --bg-canvas: #f7f8fb;
-  --bg-canvas-elevated: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-subtle: rgba(15, 23, 42, 0.04);
+  --bg-card: #ffffff;
+  /* Borders */
   --border-soft: rgb(15 23 42 / 0.07);
+  --border-default: rgb(15 23 42 / 0.10);
+  /* Text */
+  --text-primary: #0e1220;
+  --text-secondary: #5b6478;
+  --text-muted: #7c8597;
+  /* Accents (kept identical across modes for brand) */
   --shadow-card: 0 1px 0 rgb(15 23 42 / 0.04), 0 12px 32px rgb(15 23 42 / 0.06);
+}
+
+html.dark {
+  color-scheme: dark;
+  --bg-canvas: #060812;
+  --bg-elevated: #0e1220;
+  --bg-subtle: rgba(255, 255, 255, 0.04);
+  --bg-card: #11152a;
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --text-primary: #f7f8fa;
+  --text-secondary: #aab1c1;
+  --text-muted: #7c8597;
+  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.45);
 }
 
 @layer base {
@@ -17,14 +41,20 @@
   }
 
   body {
-    @apply bg-[var(--bg-canvas)] text-ink-900;
+    @apply bg-[var(--bg-canvas)] text-ink-900 dark:text-ink-50;
     font-feature-settings: "kern" 1, "liga" 1, "ss01" 1, "cv11" 1;
     background-image:
       radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.04) 0%, transparent 25%),
       radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.04) 0%, transparent 25%);
   }
 
-  /* Premium typography defaults */
+  html.dark body {
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.10) 0%, transparent 30%),
+      radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.08) 0%, transparent 30%),
+      radial-gradient(circle at 50% 100%, rgba(236, 72, 153, 0.05) 0%, transparent 35%);
+  }
+
   h1, h2, h3, h4 {
     @apply tracking-tight;
     letter-spacing: -0.02em;
@@ -44,16 +74,23 @@
     background: rgb(148 163 184 / 0.5);
     border-radius: 4px;
   }
+  html.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(120 130 150 / 0.35);
+  }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  /* Glass surface — used on premium cards */
   .glass {
     background: rgba(255, 255, 255, 0.72);
     backdrop-filter: saturate(180%) blur(14px);
     -webkit-backdrop-filter: saturate(180%) blur(14px);
     border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  html.dark .glass {
+    background: rgba(17, 21, 42, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.07);
   }
 
   .glass-dark {
@@ -63,7 +100,6 @@
     border: 1px solid rgba(255, 255, 255, 0.07);
   }
 
-  /* Shimmer loading state */
   .shimmer {
     background: linear-gradient(
       90deg,
@@ -75,14 +111,22 @@
     animation: shimmer 2s linear infinite;
   }
 
-  /* Modern focus ring (Rippling-ish) */
+  html.dark .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 1000px 100%;
+  }
+
   .focus-ring:focus-visible {
     outline: 2px solid #6366f1;
     outline-offset: 2px;
     border-radius: 0.5rem;
   }
 
-  /* Subtle hover lift used on cards */
   .lift {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
@@ -90,14 +134,15 @@
     transform: translateY(-2px);
     box-shadow: 0 1px 0 rgb(15 23 42 / 0.06), 0 24px 56px -16px rgb(15 23 42 / 0.18);
   }
+  html.dark .lift:hover {
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.6), 0 24px 56px -16px rgb(99 102 241 / 0.35);
+  }
 
-  /* Number tabular alignment used in KPI cards */
   .num {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1, "ss01" 1;
   }
 
-  /* Dotted dropzone border that animates on hover */
   .dropzone {
     background-image: repeating-linear-gradient(
       45deg,
@@ -109,7 +154,6 @@
     background-size: 100% 100%;
   }
 
-  /* Gradient text helper */
   .text-gradient {
     background: linear-gradient(135deg, #6366f1 0%, #a855f7 60%, #ec4899 100%);
     -webkit-background-clip: text;
@@ -122,5 +166,13 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+
+  /* Grid background for hero panels */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
   }
 }

@@ -14,13 +14,16 @@ const buttonVariants = cva(
           "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-soft hover:shadow-glow hover:from-brand-500 hover:to-accent-500",
         primary:
           "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-soft hover:shadow-glow",
-        solid: "bg-ink-900 text-white shadow-soft hover:bg-ink-800",
+        solid:
+          "bg-ink-900 text-white shadow-soft hover:bg-ink-800 dark:bg-white dark:text-ink-900 dark:hover:bg-ink-100",
         destructive: "bg-danger-600 text-white shadow-soft hover:bg-danger-700",
         outline:
-          "border border-ink-200 bg-white text-ink-800 shadow-sm hover:bg-ink-50 hover:border-ink-300",
-        secondary: "bg-ink-100 text-ink-900 hover:bg-ink-200",
-        ghost: "text-ink-700 hover:bg-ink-100 hover:text-ink-900",
-        link: "text-brand-700 underline-offset-4 hover:underline",
+          "border border-ink-200 bg-white text-ink-800 shadow-sm hover:bg-ink-50 hover:border-ink-300 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-100 dark:hover:bg-white/[0.08] dark:hover:border-white/20",
+        secondary:
+          "bg-ink-100 text-ink-900 hover:bg-ink-200 dark:bg-white/[0.06] dark:text-ink-100 dark:hover:bg-white/[0.10]",
+        ghost:
+          "text-ink-700 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-200 dark:hover:bg-white/[0.06] dark:hover:text-white",
+        link: "text-brand-700 underline-offset-4 hover:underline dark:text-brand-300",
       },
       size: {
         default: "h-10 px-4 py-2",

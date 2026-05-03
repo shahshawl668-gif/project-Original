@@ -30,6 +30,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { ApiHealthBadge } from "@/components/ApiHealthBadge";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { PageTransition } from "@/components/motion/PageTransition";
 
 const navGroups = [
   {
@@ -238,7 +240,7 @@ function ProfileMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-ink-200/70 bg-white py-1 pl-1 pr-3 text-xs font-medium text-ink-800 shadow-sm transition-colors hover:bg-ink-50/70"
+        className="flex items-center gap-2 rounded-full border border-ink-200/70 bg-white py-1 pl-1 pr-3 text-xs font-medium text-ink-800 shadow-sm transition-colors hover:bg-ink-50/70 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-100 dark:hover:bg-white/[0.08]"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-accent-500 text-[11px] font-semibold text-white">
           {initial}
@@ -249,22 +251,24 @@ function ProfileMenu() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right animate-fade-up rounded-2xl border border-ink-200/70 bg-white p-2 shadow-elevated"
+          className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right animate-fade-up rounded-2xl border border-ink-200/70 bg-white p-2 shadow-elevated dark:border-white/10 dark:bg-ink-900"
         >
-          <div className="rounded-xl bg-gradient-to-br from-brand-50 via-white to-accent-50 p-3">
-            <p className="text-xs font-semibold text-ink-900">{user.email}</p>
+          <div className="rounded-xl bg-gradient-to-br from-brand-50 via-white to-accent-50 p-3 dark:from-brand-500/10 dark:via-ink-900 dark:to-accent-500/10">
+            <p className="text-xs font-semibold text-ink-900 dark:text-white">{user.email}</p>
             <div className="mt-1 flex items-center gap-2">
-              <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-700 ring-1 ring-brand-200">
+              <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-700 ring-1 ring-brand-200 dark:bg-white/10 dark:text-brand-300 dark:ring-brand-500/30">
                 {user.role || "user"}
               </span>
-              <span className="text-[10px] text-ink-500">{user.company_name || "Tenant"}</span>
+              <span className="text-[10px] text-ink-500 dark:text-ink-300">
+                {user.company_name || "Tenant"}
+              </span>
             </div>
           </div>
-          <div className="my-1 h-px bg-ink-100" />
+          <div className="my-1 h-px bg-ink-100 dark:bg-white/10" />
           <Link
             href="/config/statutory"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-white/[0.06]"
           >
             <Settings2 size={14} className="text-ink-400" />
             Statutory settings
@@ -272,19 +276,19 @@ function ProfileMenu() {
           <Link
             href="/config/rules"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-white/[0.06]"
           >
             <Ban size={14} className="text-ink-400" />
             Rule preferences
           </Link>
-          <div className="my-1 h-px bg-ink-100" />
+          <div className="my-1 h-px bg-ink-100 dark:bg-white/10" />
           <button
             type="button"
             onClick={() => {
               setOpen(false);
               void logout();
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
           >
             <LogOut size={14} />
             Sign out
@@ -327,12 +331,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-40 flex-shrink-0 border-b border-ink-200/60 bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/70">
+        <header className="sticky top-0 z-40 flex-shrink-0 border-b border-ink-200/60 bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:border-white/5 dark:bg-ink-950/85 dark:supports-[backdrop-filter]:bg-ink-950/65">
           <div className="flex h-14 w-full items-center gap-3 px-4 sm:px-6 lg:gap-5">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="rounded-lg p-2 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 lg:hidden"
+              className="rounded-lg p-2 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-white/[0.06] dark:hover:text-white lg:hidden"
               aria-label="Open navigation"
             >
               <Menu size={20} />
@@ -341,31 +345,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="hidden min-w-0 items-center gap-1.5 text-sm md:flex">
               <Link
                 href="/dashboard"
-                className="truncate text-xs font-semibold text-ink-400 transition-colors hover:text-ink-700"
+                className="truncate text-xs font-semibold text-ink-400 transition-colors hover:text-ink-700 dark:text-ink-400 dark:hover:text-white"
               >
                 Workspace
               </Link>
-              <ChevronRight size={13} className="flex-shrink-0 text-ink-300" aria-hidden />
-              <span className="truncate text-xs font-semibold text-ink-900">{pageTitle}</span>
+              <ChevronRight size={13} className="flex-shrink-0 text-ink-300 dark:text-ink-500" aria-hidden />
+              <span className="truncate text-xs font-semibold text-ink-900 dark:text-white">
+                {pageTitle}
+              </span>
             </nav>
 
             <div className="hidden min-w-0 flex-1 lg:flex lg:justify-center">
               <button
                 type="button"
-                className="group inline-flex w-full max-w-md items-center gap-2.5 rounded-xl border border-ink-200/70 bg-ink-50/60 px-3.5 py-2 text-xs text-ink-500 shadow-sm transition-colors hover:border-brand-300 hover:bg-white"
+                className="group inline-flex w-full max-w-md items-center gap-2.5 rounded-xl border border-ink-200/70 bg-ink-50/60 px-3.5 py-2 text-xs text-ink-500 shadow-sm transition-colors hover:border-brand-300 hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-300 dark:hover:border-brand-500/40 dark:hover:bg-white/[0.07]"
               >
-                <Search size={14} className="text-ink-400 group-hover:text-brand-600" />
+                <Search size={14} className="text-ink-400 group-hover:text-brand-600 dark:text-ink-400" />
                 <span className="flex-1 text-left">Search anything…</span>
-                <kbd className="hidden items-center gap-0.5 rounded-md border border-ink-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-ink-500 sm:inline-flex">
+                <kbd className="hidden items-center gap-0.5 rounded-md border border-ink-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-ink-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-300 sm:inline-flex">
                   <Command size={10} /> K
                 </kbd>
               </button>
             </div>
 
             <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
               <button
                 type="button"
-                className="hidden rounded-lg border border-ink-200/70 bg-white p-2 text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-900 sm:inline-flex"
+                className="hidden rounded-lg border border-ink-200/70 bg-white p-2 text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-200 dark:hover:bg-white/[0.08] dark:hover:text-white sm:inline-flex"
                 aria-label="Notifications"
               >
                 <Bell size={15} strokeWidth={2} />
@@ -376,8 +383,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="scrollbar-thin flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-7xl animate-fade-in px-5 py-7 sm:px-8 lg:px-10 lg:py-9">
-            {children}
+          <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10 lg:py-9">
+            <PageTransition>{children}</PageTransition>
           </div>
         </main>
       </div>

@@ -180,7 +180,10 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
         <TableBody>
           {local.length === 0 && (
             <TableRow>
-              <TableCell colSpan={showEmployer ? 8 : 7} className="text-center text-slate-500 py-6">
+              <TableCell
+                colSpan={showEmployer ? 8 : 7}
+                className="py-8 text-center text-ink-500 dark:text-ink-400"
+              >
                 No slabs yet. Add your first row.
               </TableCell>
             </TableRow>
@@ -189,22 +192,33 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
             const e = errors?.[idx];
             const monthErr = monthErrors[idx];
             return (
-              <TableRow key={idx} className={e || monthErr ? "bg-red-50" : undefined}>
+              <TableRow
+                key={idx}
+                className={
+                  e || monthErr
+                    ? "bg-danger-50/60 dark:bg-danger-500/[0.08]"
+                    : undefined
+                }
+              >
                 <TableCell>
                   <Input
                     type="number"
                     value={r.min_salary}
                     onChange={(ev) => update(idx, { min_salary: ev.target.value })}
-                    className={e?.min_salary ? "border-red-400" : ""}
+                    className={e?.min_salary ? "border-danger-400 dark:border-danger-500/60" : ""}
                   />
-                  {e?.min_salary && <p className="text-xs text-red-600 mt-1">{e.min_salary}</p>}
+                  {e?.min_salary && (
+                    <p className="mt-1 text-xs text-danger-600 dark:text-danger-300">
+                      {e.min_salary}
+                    </p>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Input
                     type="number"
                     value={r.max_salary}
                     onChange={(ev) => update(idx, { max_salary: ev.target.value })}
-                    className={e?.max_salary ? "border-red-400" : ""}
+                    className={e?.max_salary ? "border-danger-400 dark:border-danger-500/60" : ""}
                   />
                 </TableCell>
                 <TableCell>
@@ -213,7 +227,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                     step="0.01"
                     value={r.deduction_amount}
                     onChange={(ev) => update(idx, { deduction_amount: ev.target.value })}
-                    className={e?.deduction_amount ? "border-red-400" : ""}
+                    className={e?.deduction_amount ? "border-danger-400 dark:border-danger-500/60" : ""}
                   />
                 </TableCell>
                 {showEmployer && (
@@ -223,10 +237,12 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                       step="0.01"
                       value={r.employer_amount ?? 0}
                       onChange={(ev) => update(idx, { employer_amount: ev.target.value })}
-                      className={e?.employer_amount ? "border-red-400" : ""}
+                      className={e?.employer_amount ? "border-danger-400 dark:border-danger-500/60" : ""}
                     />
                     {e?.employer_amount && (
-                      <p className="text-xs text-red-600 mt-1">{e.employer_amount}</p>
+                      <p className="mt-1 text-xs text-danger-600 dark:text-danger-300">
+                        {e.employer_amount}
+                      </p>
                     )}
                   </TableCell>
                 )}
@@ -269,17 +285,19 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                     placeholder="all months"
                     value={monthsText[idx] ?? ""}
                     onChange={(ev) => updateMonths(idx, ev.target.value)}
-                    className={monthErr ? "border-red-400" : ""}
+                    className={monthErr ? "border-danger-400 dark:border-danger-500/60" : ""}
                   />
                   {monthErr ? (
-                    <p className="text-xs text-red-600 mt-1">{monthErr}</p>
+                    <p className="mt-1 text-xs text-danger-600 dark:text-danger-300">{monthErr}</p>
                   ) : (
-                    <p className="text-[10px] text-slate-400 mt-1">e.g. 2 (Feb only)</p>
+                    <p className="mt-1 text-[10px] text-ink-400 dark:text-ink-500">
+                      e.g. 2 (Feb only)
+                    </p>
                   )}
                 </TableCell>
                 <TableCell>
                   <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)}>
-                    <Trash2 className="h-4 w-4 text-red-600" />
+                    <Trash2 className="h-4 w-4 text-danger-600 dark:text-danger-400" />
                   </Button>
                 </TableCell>
               </TableRow>

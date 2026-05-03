@@ -3,12 +3,18 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Shield, Loader2 } from "lucide-react";
+import { Shield, Loader2, Lock, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/context/AuthContext";
 import { AdminUserRow, listAdminUsers, patchUserRole } from "@/lib/admin";
 import { refreshSession } from "@/lib/api";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function AdminUsersPage() {
   const { user, refreshUser } = useAuth();
@@ -38,14 +44,26 @@ export default function AdminUsersPage() {
 
   if (user?.role !== "admin") {
     return (
-      <div className="max-w-lg space-y-4">
-        <h1 className="text-xl font-semibold text-slate-900">Admin only</h1>
-        <p className="text-sm text-slate-600">
-          You need an administrator account to manage tenant users.
-        </p>
-        <Link href="/dashboard" className="text-sm text-brand-600 font-medium hover:underline">
-          ← Back to dashboard
-        </Link>
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Restricted"
+          title="Admin only"
+          description="You need an administrator account to manage tenant users."
+        />
+        <Card>
+          <EmptyState
+            icon={Lock}
+            title="Permission required"
+            description="Sign in as an administrator to manage roles for your tenant."
+            action={
+              <Link href="/dashboard">
+                <Button variant="outline" size="sm">
+                  Back to dashboard
+                </Button>
+              </Link>
+            }
+          />
+        </Card>
       </div>
     );
   }
@@ -53,88 +71,101 @@ export default function AdminUsersPage() {
   const rows = q.data ?? [];
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div className="flex items-center gap-2">
-        <Shield className="text-brand-600" size={24} />
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Users & roles</h1>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Promote or demote human accounts. The built-in system user is never listed.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Administration"
+        title={
+          <span className="inline-flex items-center gap-3">
+            <Shield className="text-brand-600 dark:text-brand-300" size={26} />
+            Users & roles
+          </span>
+        }
+        description="Promote or demote human accounts. The built-in system user is never listed."
+      />
 
       {q.isLoading && (
-        <div className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
           <Loader2 className="animate-spin" size={16} /> Loading users…
         </div>
       )}
       {q.isError && (
-        <p className="text-sm text-red-600" role="alert">
+        <AlertBanner variant="error" title="Could not load users">
           {(q.error as Error).message}
-        </p>
+        </AlertBanner>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-2 font-medium">Email</th>
-              <th className="px-4 py-2 font-medium">Company</th>
-              <th className="px-4 py-2 font-medium">Role</th>
-              <th className="px-4 py-2 font-medium w-56" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r: AdminUserRow) => (
-              <tr key={r.id}>
-                <td className="px-4 py-3 font-mono text-xs">{r.email}</td>
-                <td className="px-4 py-3 text-slate-600">{r.company_name ?? "—"}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${
-                      r.role === "admin" ? "bg-brand-100 text-brand-800" : "bg-slate-100 text-slate-700"
-                    }`}
+      <Card className="overflow-hidden">
+        {!q.isLoading && rows.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="No registered users"
+            description="When teammates sign up to your tenant, they will appear here."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-ink-50/80 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Company</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="w-56 px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+                {rows.map((r: AdminUserRow) => (
+                  <tr
+                    key={r.id}
+                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
                   >
-                    {r.role}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex gap-2 justify-end flex-wrap">
-                    {r.role !== "admin" && (
-                      <button
-                        type="button"
-                        disabled={mut.isPending}
-                        className="text-xs rounded-md border border-brand-200 text-brand-700 px-2 py-1 hover:bg-brand-50 disabled:opacity-50"
-                        onClick={() => mut.mutate({ id: r.id, role: "admin" })}
-                      >
-                        Make admin
-                      </button>
-                    )}
-                    {r.role === "admin" && (
-                      <button
-                        type="button"
-                        disabled={mut.isPending}
-                        className="text-xs rounded-md border border-slate-200 text-slate-700 px-2 py-1 hover:bg-slate-50 disabled:opacity-50"
-                        onClick={() => mut.mutate({ id: r.id, role: "user" })}
-                      >
-                        Remove admin
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!q.isLoading && rows.length === 0 && (
-          <p className="text-sm text-slate-500 p-4">No registered users.</p>
+                    <td className="px-4 py-3 font-mono text-xs text-ink-900 dark:text-white">
+                      {r.email}
+                    </td>
+                    <td className="px-4 py-3 text-ink-600 dark:text-ink-300">
+                      {r.company_name ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={r.role === "admin" ? "primary" : "secondary"}>
+                        {r.role}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {r.role !== "admin" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={mut.isPending}
+                            onClick={() => mut.mutate({ id: r.id, role: "admin" })}
+                          >
+                            Make admin
+                          </Button>
+                        )}
+                        {r.role === "admin" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={mut.isPending}
+                            onClick={() => mut.mutate({ id: r.id, role: "user" })}
+                          >
+                            Remove admin
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </Card>
 
-      <p className="text-xs text-slate-400">
-        You cannot remove the last admin. Protects against accidental lock-out (demote yourself last only after promoting
-        another admin).
+      <p className="text-xs text-ink-500 dark:text-ink-400">
+        You cannot remove the last admin. Protects against accidental lock-out (demote yourself last only after
+        promoting another admin).
       </p>
     </div>
   );

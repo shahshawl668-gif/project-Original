@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
+import { useTheme } from "@/providers/ThemeProvider";
 
 const Monaco = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -25,6 +26,7 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
   const editorRef = useRef<unknown>(null);
   const monacoRef = useRef<unknown>(null);
   const decorationsRef = useRef<string[]>([]);
+  const { resolved } = useTheme();
 
   useImperativeHandle(ref, () => ({
     insertAtCursor: (text: string) => {
@@ -104,11 +106,12 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
   }, [errorLine, errorMessage]);
 
   return (
-    <div className="rounded-md border border-slate-200 overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm dark:border-white/10 dark:bg-ink-950">
       <Monaco
         height={height}
         defaultLanguage="javascript"
         value={value}
+        theme={resolved === "dark" ? "vs-dark" : "vs"}
         onChange={(v) => onChange(v ?? "")}
         onMount={(editor, monaco) => {
           editorRef.current = editor;
@@ -122,6 +125,7 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
           scrollBeyondLastLine: false,
           wordWrap: "on",
           automaticLayout: true,
+          padding: { top: 12, bottom: 12 },
         }}
       />
     </div>

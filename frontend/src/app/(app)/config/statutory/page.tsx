@@ -27,18 +27,28 @@ function Section({ title, icon, children, defaultOpen = true }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-soft ring-1 ring-slate-900/[0.04]">
+    <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
       <button
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-slate-50"
-        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-ink-50 dark:hover:bg-white/[0.04]"
+        onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-2">
           {icon}
-          <span className="font-semibold text-slate-800 text-sm">{title}</span>
+          <span className="font-display text-sm font-semibold text-ink-800 dark:text-white">
+            {title}
+          </span>
         </div>
-        {open ? <ChevronUp size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
+        {open ? (
+          <ChevronUp size={16} className="text-ink-400 dark:text-ink-500" />
+        ) : (
+          <ChevronDown size={16} className="text-ink-400 dark:text-ink-500" />
+        )}
       </button>
-      {open && <div className="px-5 pb-5 border-t border-slate-100 pt-4">{children}</div>}
+      {open && (
+        <div className="border-t border-ink-100 px-5 pb-5 pt-4 dark:border-white/[0.06]">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -46,9 +56,11 @@ function Section({ title, icon, children, defaultOpen = true }: {
 function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
+      <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+        {label}
+      </label>
       {children}
-      {help && <p className="text-xs text-slate-400">{help}</p>}
+      {help && <p className="text-xs text-ink-400 dark:text-ink-500">{help}</p>}
     </div>
   );
 }
@@ -58,9 +70,14 @@ function NumberInput({ value, onChange, step = "0.0001", min = "0", max = "1" }:
   step?: string; min?: string; max?: string;
 }) {
   return (
-    <input type="number" value={value} step={step} min={min} max={max}
-      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/25"
-      onChange={e => onChange(e.target.value)}
+    <input
+      type="number"
+      value={value}
+      step={step}
+      min={min}
+      max={max}
+      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+      onChange={(e) => onChange(e.target.value)}
     />
   );
 }
@@ -69,20 +86,29 @@ function TextInput({ value, onChange, placeholder = "" }: {
   value: string; onChange: (v: string) => void; placeholder?: string;
 }) {
   return (
-    <input type="text" value={value} placeholder={placeholder}
-      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/25"
-      onChange={e => onChange(e.target.value)}
+    <input
+      type="text"
+      value={value}
+      placeholder={placeholder}
+      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500"
+      onChange={(e) => onChange(e.target.value)}
     />
   );
 }
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
-    <button onClick={() => onChange(!checked)}
-      className={`inline-flex items-center gap-2 text-sm font-medium transition-colors
-        ${checked ? "text-brand-700" : "text-slate-500"}`}
+    <button
+      onClick={() => onChange(!checked)}
+      className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
+        checked ? "text-brand-700 dark:text-brand-300" : "text-ink-500 dark:text-ink-400"
+      }`}
     >
-      {checked ? <ToggleRight size={20} className="text-brand-600"/> : <ToggleLeft size={20} className="text-slate-400"/>}
+      {checked ? (
+        <ToggleRight size={20} className="text-brand-600 dark:text-brand-300" />
+      ) : (
+        <ToggleLeft size={20} className="text-ink-400 dark:text-ink-500" />
+      )}
       {label}
     </button>
   );
@@ -94,24 +120,39 @@ function TagInput({ values, onChange, placeholder }: {
   const [input, setInput] = useState("");
   const add = () => {
     const v = input.trim();
-    if (v && !values.includes(v)) { onChange([...values, v]); setInput(""); }
+    if (v && !values.includes(v)) {
+      onChange([...values, v]);
+      setInput("");
+    }
   };
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {values.map(v => (
-        <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-100 text-brand-700 text-xs rounded-full font-medium">
+    <div className="flex flex-wrap items-center gap-1.5">
+      {values.map((v) => (
+        <span
+          key={v}
+          className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+        >
           {v}
-          <button onClick={() => onChange(values.filter(x => x !== v))}><Trash2 size={10}/></button>
+          <button onClick={() => onChange(values.filter((x) => x !== v))}>
+            <Trash2 size={10} />
+          </button>
         </span>
       ))}
       <input
-        className="text-sm border border-dashed border-slate-300 rounded px-2 py-0.5 focus:outline-none focus:border-brand-400 min-w-24"
+        className="min-w-24 rounded border border-dashed border-ink-300 px-2 py-0.5 text-sm transition-colors focus:border-brand-400 focus:outline-none dark:border-white/15 dark:bg-transparent dark:text-white dark:focus:border-brand-400"
         placeholder={placeholder || "Add…"}
         value={input}
-        onChange={e => setInput(e.target.value)}
-        onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }}}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            add();
+          }
+        }}
       />
-      <button onClick={add} className="text-brand-600 hover:text-brand-800"><Plus size={14}/></button>
+      <button onClick={add} className="text-brand-600 hover:text-brand-800 dark:text-brand-300">
+        <Plus size={14} />
+      </button>
     </div>
   );
 }
@@ -135,16 +176,22 @@ function ExprTester({ expression, sampleCtx }: { expression: string; sampleCtx: 
   };
 
   return (
-    <div className="flex items-center gap-3 mt-2">
+    <div className="mt-2 flex items-center gap-3">
       <button
         onClick={run}
         disabled={running}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-50 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
       >
-        <Beaker size={12}/> {running ? "Testing…" : "Test expression"}
+        <Beaker size={12} /> {running ? "Testing…" : "Test expression"}
       </button>
       {result && (
-        <span className={`text-xs font-mono ${result.startsWith("✓") ? "text-green-700" : "text-red-600"}`}>
+        <span
+          className={`font-mono text-xs ${
+            result.startsWith("✓")
+              ? "text-success-700 dark:text-success-300"
+              : "text-danger-600 dark:text-danger-300"
+          }`}
+        >
           {result}
         </span>
       )}
@@ -165,20 +212,26 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
     <div className="space-y-5">
       {/* Rates */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Contribution Rates</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {(["employee_rate","employer_rate","eps_rate","edli_rate","admin_rate"] as const).map(k => (
-            <Field key={k} label={k.replace("_rate","").toUpperCase()} help={pct(cfg.rates[k])}>
-              <NumberInput value={cfg.rates[k]} onChange={v => setRates(k, v)}/>
-            </Field>
-          ))}
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          Contribution rates
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {(["employee_rate", "employer_rate", "eps_rate", "edli_rate", "admin_rate"] as const).map(
+            (k) => (
+              <Field key={k} label={k.replace("_rate", "").toUpperCase()} help={pct(cfg.rates[k])}>
+                <NumberInput value={cfg.rates[k]} onChange={(v) => setRates(k, v)} />
+              </Field>
+            ),
+          )}
         </div>
       </div>
 
       {/* Wage */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">PF Wage Computation</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          PF wage computation
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Wage Ceiling (₹)" help="Statutory ceiling — ₹15,000">
             <NumberInput value={cfg.wage.wage_ceiling} onChange={v => setWage("wage_ceiling", v)} step="500" min="0" max="999999"/>
           </Field>
@@ -216,11 +269,13 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Above-ceiling mode */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Above-Ceiling Contributions</p>
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          Above-ceiling contributions
+        </p>
         <select
           value={cfg.above_ceiling_mode}
-          onChange={e => set("above_ceiling_mode", e.target.value as PFConfig["above_ceiling_mode"])}
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+          onChange={(e) => set("above_ceiling_mode", e.target.value as PFConfig["above_ceiling_mode"])}
+          className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
         >
           <option value="none">None — always cap at ceiling</option>
           <option value="employee_choice">Employee choice — voluntary above ceiling</option>
@@ -230,8 +285,14 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Voluntary PF */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Voluntary PF</p>
-        <Toggle checked={cfg.voluntary.enabled} onChange={v => setVol("enabled", v)} label="Enable Voluntary PF components"/>
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          Voluntary PF
+        </p>
+        <Toggle
+          checked={cfg.voluntary.enabled}
+          onChange={(v) => setVol("enabled", v)}
+          label="Enable voluntary PF components"
+        />
         {cfg.voluntary.enabled && (
           <div className="mt-3">
             <Field label="VPF component names" help="Columns that carry voluntary PF amounts in the register">
@@ -243,7 +304,9 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Eligibility */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">PF Eligibility</p>
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          PF eligibility
+        </p>
         <div className="space-y-3">
           <Field label="Eligibility expression" help="Python-safe expression. Vars: pf_wage, gross, employee_type">
             <TextInput value={cfg.eligibility.expression} onChange={v => setElig("expression", v)} placeholder="pf_wage > 0"/>
@@ -271,20 +334,24 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
     <div className="space-y-5">
       {/* Rates */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Contribution Rates</p>
-        <div className="grid grid-cols-2 gap-3 max-w-xs">
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          Contribution rates
+        </p>
+        <div className="grid max-w-xs grid-cols-2 gap-3">
           <Field label="Employee" help={pct(cfg.rates.employee_rate)}>
-            <NumberInput value={cfg.rates.employee_rate} onChange={v => setRates("employee_rate", v)}/>
+            <NumberInput value={cfg.rates.employee_rate} onChange={(v) => setRates("employee_rate", v)} />
           </Field>
           <Field label="Employer" help={pct(cfg.rates.employer_rate)}>
-            <NumberInput value={cfg.rates.employer_rate} onChange={v => setRates("employer_rate", v)}/>
+            <NumberInput value={cfg.rates.employer_rate} onChange={(v) => setRates("employer_rate", v)} />
           </Field>
         </div>
       </div>
 
       {/* Wage */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">ESIC Wage Computation</p>
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          ESIC wage computation
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Wage Ceiling (₹)" help="Employees above this are ESIC-exempt">
             <NumberInput value={cfg.wage.wage_ceiling} onChange={v => setWage("wage_ceiling", v)} step="500" min="0" max="999999"/>
@@ -311,12 +378,23 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
 
       {/* Rounding */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Rounding</p>
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          Rounding
+        </p>
         <div className="flex items-center gap-4">
-          {(["up","down","nearest"] as const).map(m => (
-            <label key={m} className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="radio" name="esic_round" value={m} checked={cfg.rounding.mode === m}
-                onChange={() => setRound("mode", m)} className="accent-brand-600"/>
+          {(["up", "down", "nearest"] as const).map((m) => (
+            <label
+              key={m}
+              className="flex cursor-pointer items-center gap-2 text-sm text-ink-700 dark:text-ink-200"
+            >
+              <input
+                type="radio"
+                name="esic_round"
+                value={m}
+                checked={cfg.rounding.mode === m}
+                onChange={() => setRound("mode", m)}
+                className="accent-brand-600"
+              />
               {m.charAt(0).toUpperCase() + m.slice(1)}
             </label>
           ))}
@@ -333,7 +411,9 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
 
       {/* Eligibility */}
       <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Eligibility & Entry/Exit</p>
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+          Eligibility & entry/exit
+        </p>
         <div className="space-y-3">
           <Field label="Eligibility expression" help="Vars: esic_wage, esic_ceiling, employee_type">
             <TextInput value={cfg.eligibility.expression} onChange={v => setElig("expression", v)}/>
@@ -367,36 +447,61 @@ function ComponentMappingPanel({ cfg, onChange }: {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-ink-500 dark:text-ink-400">
         Define aliases for upload columns and override component flags without changing ComponentConfig.
       </p>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-xl border border-ink-200/70 dark:border-white/10">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-slate-50 text-slate-500 uppercase tracking-wide">
-              {["Upload Column","Component Name","PF","ESIC","In Wages","Taxable",""].map(h=>(
-                <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
+            <tr className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
+              {["Upload column", "Component name", "PF", "ESIC", "In wages", "Taxable", ""].map((h) => (
+                <th key={h} className="px-3 py-2 text-left font-semibold">
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
             {cfg.entries.map((e, i) => (
-              <tr key={i}>
-                <td className="px-3 py-2"><input type="text" value={e.upload_column} placeholder="column_name"
-                  className="w-28 px-2 py-1 border border-slate-200 rounded text-xs"
-                  onChange={ev => updateEntry(i, "upload_column", ev.target.value)}/></td>
-                <td className="px-3 py-2"><input type="text" value={e.component_name} placeholder="Component"
-                  className="w-28 px-2 py-1 border border-slate-200 rounded text-xs"
-                  onChange={ev => updateEntry(i, "component_name", ev.target.value)}/></td>
-                {(["pf_applicable","esic_applicable","included_in_wages","taxable"] as const).map(k => (
-                  <td key={k} className="px-3 py-2 text-center">
-                    <input type="checkbox" checked={e[k]} className="accent-brand-600"
-                      onChange={ev => updateEntry(i, k, ev.target.checked)}/>
-                  </td>
-                ))}
+              <tr key={i} className="hover:bg-ink-50/40 dark:hover:bg-white/[0.03]">
                 <td className="px-3 py-2">
-                  <button onClick={() => removeEntry(i)} className="text-red-400 hover:text-red-600"><Trash2 size={12}/></button>
+                  <input
+                    type="text"
+                    value={e.upload_column}
+                    placeholder="column_name"
+                    className="w-28 rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                    onChange={(ev) => updateEntry(i, "upload_column", ev.target.value)}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="text"
+                    value={e.component_name}
+                    placeholder="Component"
+                    className="w-28 rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                    onChange={(ev) => updateEntry(i, "component_name", ev.target.value)}
+                  />
+                </td>
+                {(["pf_applicable", "esic_applicable", "included_in_wages", "taxable"] as const).map(
+                  (k) => (
+                    <td key={k} className="px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={e[k]}
+                        className="accent-brand-600"
+                        onChange={(ev) => updateEntry(i, k, ev.target.checked)}
+                      />
+                    </td>
+                  ),
+                )}
+                <td className="px-3 py-2">
+                  <button
+                    onClick={() => removeEntry(i)}
+                    className="text-danger-400 transition-colors hover:text-danger-600 dark:text-danger-400 dark:hover:text-danger-300"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -404,9 +509,11 @@ function ComponentMappingPanel({ cfg, onChange }: {
         </table>
       </div>
 
-      <button onClick={addEntry}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50">
-        <Plus size={12}/> Add alias
+      <button
+        onClick={addEntry}
+        className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50 dark:border-brand-500/30 dark:text-brand-300 dark:hover:bg-brand-500/15"
+      >
+        <Plus size={12} /> Add alias
       </button>
 
       <div className="mt-4">
@@ -500,11 +607,13 @@ export default function StatutoryConfigPage() {
     <div className="mx-auto max-w-5xl space-y-8">
       <PageHeader
         title="Statutory configuration"
+        eyebrow="Statutory engine"
         description={
           <>
-            Tenant-scoped PF & ESIC engine: rates, wage rules, rounding, eligibility expressions, and upload column overrides.
+            Tenant-scoped PF & ESIC engine: rates, wage rules, rounding, eligibility expressions, and upload
+            column overrides.
             {updatedAt ? (
-              <span className="mt-2 block text-xs font-medium uppercase tracking-wide text-slate-400">
+              <span className="mt-2 block text-xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
                 Last saved · {new Date(updatedAt).toLocaleString("en-IN")}
               </span>
             ) : null}
@@ -512,22 +621,14 @@ export default function StatutoryConfigPage() {
         }
         actions={
           <>
-            <Button
-              variant="outline"
-              type="button"
-              onClick={handleReset}
-              disabled={saving}
-              className="rounded-xl border-slate-200 bg-white shadow-sm"
-            >
+            <Button variant="outline" type="button" onClick={handleReset} disabled={saving}>
               <RefreshCw size={15} strokeWidth={2} /> Reset
             </Button>
             <Button
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className={`min-w-[8.5rem] rounded-xl shadow-soft ${
-                saved ? "bg-emerald-600 hover:bg-emerald-700" : ""
-              }`}
+              className={`min-w-[8.5rem] ${saved ? "!from-success-600 !to-success-500" : ""}`}
             >
               {saving ? <RefreshCw size={15} strokeWidth={2} className="animate-spin" /> : null}
               {!saving && saved ? <CheckCircle2 size={15} strokeWidth={2} /> : null}
@@ -556,48 +657,67 @@ export default function StatutoryConfigPage() {
       </AlertBanner>
 
       {/* PF */}
-      <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-brand-500"/>}>
+      <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-brand-500" />}>
         {/* Quick summary */}
-        <div className="flex flex-wrap gap-3 mb-5">
+        <div className="mb-5 flex flex-wrap gap-2">
           {[
             { label: "Emp rate", val: pct(cfg.pf.rates.employee_rate) },
-            { label: "Emp&apos;r rate", val: pct(cfg.pf.rates.employer_rate) },
+            { label: "Er rate", val: pct(cfg.pf.rates.employer_rate) },
             { label: "EPS", val: pct(cfg.pf.rates.eps_rate) },
-            { label: "Ceiling", val: `₹${parseInt(cfg.pf.wage.wage_ceiling).toLocaleString("en-IN")}` },
+            {
+              label: "Ceiling",
+              val: `₹${parseInt(cfg.pf.wage.wage_ceiling).toLocaleString("en-IN")}`,
+            },
             { label: "Restricted", val: cfg.pf.wage.restrict_to_ceiling ? "Yes" : "No" },
-          ].map(s => (
-            <div key={s.label} className="rounded-lg border border-brand-100 bg-brand-50 px-3 py-1.5 text-xs">
-              <span className="text-brand-600">{s.label}: </span>
-              <span className="font-semibold text-brand-900">{s.val}</span>
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-lg border border-brand-200/60 bg-brand-50 px-3 py-1.5 text-xs dark:border-brand-500/30 dark:bg-brand-500/10"
+            >
+              <span className="text-brand-700 dark:text-brand-300">{s.label}: </span>
+              <span className="font-semibold text-brand-900 dark:text-brand-100">{s.val}</span>
             </div>
           ))}
         </div>
-        <PFConfigPanel cfg={cfg.pf} onChange={pf => setCfg(c => ({ ...c, pf }))}/>
+        <PFConfigPanel cfg={cfg.pf} onChange={(pf) => setCfg((c) => ({ ...c, pf }))} />
       </Section>
 
       {/* ESIC */}
-      <Section title="Employee State Insurance (ESIC)" icon={<Shield size={16} className="text-green-500"/>}>
-        <div className="flex flex-wrap gap-3 mb-5">
+      <Section
+        title="Employee State Insurance (ESIC)"
+        icon={<Shield size={16} className="text-success-500 dark:text-success-400" />}
+      >
+        <div className="mb-5 flex flex-wrap gap-2">
           {[
             { label: "Emp rate", val: pct(cfg.esic.rates.employee_rate) },
-            { label: "Emp&apos;r rate", val: pct(cfg.esic.rates.employer_rate) },
-            { label: "Ceiling", val: `₹${parseInt(cfg.esic.wage.wage_ceiling).toLocaleString("en-IN")}` },
+            { label: "Er rate", val: pct(cfg.esic.rates.employer_rate) },
+            {
+              label: "Ceiling",
+              val: `₹${parseInt(cfg.esic.wage.wage_ceiling).toLocaleString("en-IN")}`,
+            },
             { label: "Rounding", val: cfg.esic.rounding.mode },
-          ].map(s => (
-            <div key={s.label} className="bg-green-50 border border-green-100 rounded-lg px-3 py-1.5 text-xs">
-              <span className="text-green-500">{s.label}: </span>
-              <span className="font-semibold text-green-800">{s.val}</span>
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="rounded-lg border border-success-200/60 bg-success-50 px-3 py-1.5 text-xs dark:border-success-500/30 dark:bg-success-500/10"
+            >
+              <span className="text-success-700 dark:text-success-300">{s.label}: </span>
+              <span className="font-semibold text-success-800 dark:text-success-100">{s.val}</span>
             </div>
           ))}
         </div>
-        <ESICConfigPanel cfg={cfg.esic} onChange={esic => setCfg(c => ({ ...c, esic }))}/>
+        <ESICConfigPanel cfg={cfg.esic} onChange={(esic) => setCfg((c) => ({ ...c, esic }))} />
       </Section>
 
       {/* Component mapping */}
-      <Section title="Component Mapping Overrides" icon={<Settings2 size={16} className="text-slate-500"/>} defaultOpen={false}>
+      <Section
+        title="Component mapping overrides"
+        icon={<Settings2 size={16} className="text-ink-500 dark:text-ink-300" />}
+        defaultOpen={false}
+      >
         <ComponentMappingPanel
           cfg={cfg.component_mapping}
-          onChange={component_mapping => setCfg(c => ({ ...c, component_mapping }))}
+          onChange={(component_mapping) => setCfg((c) => ({ ...c, component_mapping }))}
         />
       </Section>
     </div>

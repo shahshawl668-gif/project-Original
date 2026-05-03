@@ -17,7 +17,7 @@ function RegisterHistoryFallback() {
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="overflow-hidden">
-          <div className="space-y-0 border-b border-slate-100 p-4">
+          <div className="space-y-0 border-b border-ink-100 p-4 dark:border-white/[0.06]">
             <Skeleton className="mx-auto mb-5 h-3 w-32" />
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="flex items-center gap-3 px-2 py-3">

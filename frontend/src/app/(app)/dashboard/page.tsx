@@ -11,6 +11,8 @@ import { SectionHeader } from "@/components/ui/section-header";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import {
   BarChart,
   Bar,
@@ -212,7 +214,12 @@ export default function DashboardPage() {
   return (
     <div className="space-y-9">
       {/* HERO */}
-      <section className="relative overflow-hidden rounded-3xl border border-ink-200/70 bg-ink-950 text-white shadow-elevated">
+      <motion.section
+        initial={{ opacity: 0, y: 18, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+        className="relative overflow-hidden rounded-3xl border border-ink-200/70 bg-ink-950 text-white shadow-elevated dark:border-white/[0.06]"
+      >
         <div
           aria-hidden
           className="absolute inset-0"
@@ -265,34 +272,44 @@ export default function DashboardPage() {
               </Link>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <HeroStat
-              icon={<Users className="h-4 w-4" />}
-              label="Last run employees"
-              value={(localStats.total || stats?.last_run_employee_count || 0).toLocaleString("en-IN")}
-              hint={stats?.last_run_at ? fmtDate(stats.last_run_at) : "No runs yet"}
-            />
-            <HeroStat
-              icon={<ShieldCheck className="h-4 w-4" />}
-              label="Statutory rules"
-              value="38"
-              hint="PF · ESIC · PT · LWF · IT"
-            />
-            <HeroStat
-              icon={<TrendingUp className="h-4 w-4" />}
-              label="Setup progress"
-              value={`${setupDone}/${setupSteps.length}`}
-              hint={`${Math.round(setupPct)}% configured`}
-            />
-            <HeroStat
-              icon={<CalendarDays className="h-4 w-4" />}
-              label="Last register"
-              value={stats?.last_register_period ? fmtMonth(stats.last_register_period) : "—"}
-              hint={`${registers.length} stored`}
-            />
-          </div>
+          <Stagger className="grid grid-cols-2 gap-3">
+            <StaggerItem>
+              <HeroStat
+                icon={<Users className="h-4 w-4" />}
+                label="Last run employees"
+                value={(localStats.total || stats?.last_run_employee_count || 0).toLocaleString(
+                  "en-IN",
+                )}
+                hint={stats?.last_run_at ? fmtDate(stats.last_run_at) : "No runs yet"}
+              />
+            </StaggerItem>
+            <StaggerItem>
+              <HeroStat
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Statutory rules"
+                value="38"
+                hint="PF · ESIC · PT · LWF · IT"
+              />
+            </StaggerItem>
+            <StaggerItem>
+              <HeroStat
+                icon={<TrendingUp className="h-4 w-4" />}
+                label="Setup progress"
+                value={`${setupDone}/${setupSteps.length}`}
+                hint={`${Math.round(setupPct)}% configured`}
+              />
+            </StaggerItem>
+            <StaggerItem>
+              <HeroStat
+                icon={<CalendarDays className="h-4 w-4" />}
+                label="Last register"
+                value={stats?.last_register_period ? fmtMonth(stats.last_register_period) : "—"}
+                hint={`${registers.length} stored`}
+              />
+            </StaggerItem>
+          </Stagger>
         </div>
-      </section>
+      </motion.section>
 
       {apiError && (
         <AlertBanner variant="error" title="API connection issue">
@@ -323,63 +340,81 @@ export default function DashboardPage() {
             ) : null
           }
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stagger className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {loadingApi ? (
             <>
-              <StatCardSkeleton />
-              <StatCardSkeleton />
-              <StatCardSkeleton />
-              <StatCardSkeleton />
+              <StaggerItem>
+                <StatCardSkeleton />
+              </StaggerItem>
+              <StaggerItem>
+                <StatCardSkeleton />
+              </StaggerItem>
+              <StaggerItem>
+                <StatCardSkeleton />
+              </StaggerItem>
+              <StaggerItem>
+                <StatCardSkeleton />
+              </StaggerItem>
             </>
           ) : (
             <>
-              <KpiCard
-                icon={Users}
-                tone="indigo"
-                label="Employees in last run"
-                value={localStats.total || stats?.last_run_employee_count || 0}
-                hint={stats?.last_run_at ? `Run ${fmtDate(stats.last_run_at)}` : "No runs logged yet"}
-                spark={sparkData(1)}
-                trend={{ value: "+12%", direction: "up", label: "vs last month" }}
-              />
-              <KpiCard
-                icon={ShieldCheck}
-                tone="emerald"
-                label="PF-linked employees"
-                value={localStats.pfLinked}
-                hint="Employees with PF wage captured"
-                spark={sparkData(2)}
-                trend={{ value: "+5%", direction: "up", label: "vs last run" }}
-              />
-              <KpiCard
-                icon={TrendingUp}
-                tone="sky"
-                label="ESIC-eligible"
-                value={localStats.esicEligible}
-                hint="Under configured ESIC ceiling (₹21,000)"
-                spark={sparkData(3)}
-                trend={{ value: "Stable", direction: "flat" }}
-              />
-              <KpiCard
-                icon={AlertTriangle}
-                tone={localStats.errors > 0 ? "rose" : "slate"}
-                label="Validation issues"
-                value={localStats.errors}
-                hint={
-                  localStats.errors > 0
-                    ? "From last validation in this session"
-                    : "Clean run · no flags"
-                }
-                spark={sparkData(4)}
-                trend={
-                  localStats.errors > 0
-                    ? { value: "Action", direction: "down", label: "review now" }
-                    : { value: "All clear", direction: "up" }
-                }
-              />
+              <StaggerItem>
+                <KpiCard
+                  icon={Users}
+                  tone="indigo"
+                  label="Employees in last run"
+                  value={localStats.total || stats?.last_run_employee_count || 0}
+                  hint={
+                    stats?.last_run_at ? `Run ${fmtDate(stats.last_run_at)}` : "No runs logged yet"
+                  }
+                  spark={sparkData(1)}
+                  trend={{ value: "+12%", direction: "up", label: "vs last month" }}
+                />
+              </StaggerItem>
+              <StaggerItem>
+                <KpiCard
+                  icon={ShieldCheck}
+                  tone="emerald"
+                  label="PF-linked employees"
+                  value={localStats.pfLinked}
+                  hint="Employees with PF wage captured"
+                  spark={sparkData(2)}
+                  trend={{ value: "+5%", direction: "up", label: "vs last run" }}
+                />
+              </StaggerItem>
+              <StaggerItem>
+                <KpiCard
+                  icon={TrendingUp}
+                  tone="sky"
+                  label="ESIC-eligible"
+                  value={localStats.esicEligible}
+                  hint="Under configured ESIC ceiling (₹21,000)"
+                  spark={sparkData(3)}
+                  trend={{ value: "Stable", direction: "flat" }}
+                />
+              </StaggerItem>
+              <StaggerItem>
+                <KpiCard
+                  icon={AlertTriangle}
+                  tone={localStats.errors > 0 ? "rose" : "slate"}
+                  label="Validation issues"
+                  value={localStats.errors}
+                  hint={
+                    localStats.errors > 0
+                      ? "From last validation in this session"
+                      : "Clean run · no flags"
+                  }
+                  spark={sparkData(4)}
+                  trend={
+                    localStats.errors > 0
+                      ? { value: "Action", direction: "down", label: "review now" }
+                      : { value: "All clear", direction: "up" }
+                  }
+                />
+              </StaggerItem>
             </>
           )}
-        </div>
+        </Stagger>
       </section>
 
       {/* ANALYTICS (only if local session data exists) */}
@@ -387,7 +422,7 @@ export default function DashboardPage() {
         <section className="grid gap-5 lg:grid-cols-2" aria-label="Session analytics">
           {riskDist.length > 0 && (
             <Card className="overflow-hidden">
-              <div className="border-b border-ink-100 p-5">
+              <div className="border-b border-ink-100 p-5 dark:border-white/[0.06]">
                 <CardTitle className="text-base">Risk distribution</CardTitle>
                 <CardDescription className="mt-1">From your last validation</CardDescription>
               </div>
@@ -405,15 +440,26 @@ export default function DashboardPage() {
                       paddingAngle={2}
                     >
                       {riskDist.map((d, i) => (
-                        <Cell key={i} fill={d.fill} stroke="#fff" strokeWidth={2} />
+                        <Cell key={i} fill={d.fill} stroke="rgba(0,0,0,0)" strokeWidth={2} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        background: "rgba(15,18,32,0.95)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: 10,
+                        color: "#fff",
+                        fontSize: 12,
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="mt-2 flex justify-center gap-4 text-[11px]">
                   {riskDist.map((d) => (
-                    <span key={d.name} className="inline-flex items-center gap-1.5 font-medium text-ink-700">
+                    <span
+                      key={d.name}
+                      className="inline-flex items-center gap-1.5 font-medium text-ink-700 dark:text-ink-200"
+                    >
                       <span className="h-2 w-2 rounded-full" style={{ background: d.fill }} />
                       {d.name}: <span className="num">{d.value}</span>
                     </span>
@@ -422,7 +468,7 @@ export default function DashboardPage() {
                 <div className="mt-3 text-center">
                   <Link
                     href="/payroll/results?tab=risk"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
                   >
                     Open risk table <ArrowRight size={12} />
                   </Link>
@@ -433,16 +479,37 @@ export default function DashboardPage() {
 
           {topRules.length > 0 && (
             <Card className="overflow-hidden">
-              <div className="border-b border-ink-100 p-5">
+              <div className="border-b border-ink-100 p-5 dark:border-white/[0.06]">
                 <CardTitle className="text-base">Top rule violations</CardTitle>
-                <CardDescription className="mt-1">Failed checks in the last session</CardDescription>
+                <CardDescription className="mt-1">
+                  Failed checks in the last session
+                </CardDescription>
               </div>
               <CardContent className="pt-4">
                 <ResponsiveContainer width="100%" height={210}>
                   <BarChart data={topRules} layout="vertical" margin={{ left: 8 }}>
-                    <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} />
-                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "#475569" }} width={72} />
-                    <Tooltip cursor={{ fill: "rgba(99,102,241,0.06)" }} />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fill: "currentColor" }}
+                      className="text-ink-500 dark:text-ink-400"
+                    />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      tick={{ fontSize: 11, fill: "currentColor" }}
+                      className="text-ink-600 dark:text-ink-300"
+                      width={72}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "rgba(99,102,241,0.06)" }}
+                      contentStyle={{
+                        background: "rgba(15,18,32,0.95)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: 10,
+                        color: "#fff",
+                        fontSize: 12,
+                      }}
+                    />
                     <Bar dataKey="count" fill="url(#barGrad)" radius={[0, 6, 6, 0]} />
                     <defs>
                       <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
@@ -455,7 +522,7 @@ export default function DashboardPage() {
                 <div className="mt-3 text-center">
                   <Link
                     href="/payroll/results?tab=findings"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
                   >
                     View all findings <ArrowRight size={12} />
                   </Link>
@@ -469,7 +536,7 @@ export default function DashboardPage() {
       {/* SETUP + REGISTERS */}
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-1">
-          <div className="border-b border-ink-100 p-5">
+          <div className="border-b border-ink-100 p-5 dark:border-white/[0.06]">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle className="text-base">Onboarding checklist</CardTitle>
@@ -479,7 +546,14 @@ export default function DashboardPage() {
               </div>
               <div className="relative flex h-14 w-14 items-center justify-center">
                 <svg viewBox="0 0 36 36" className="absolute h-14 w-14 -rotate-90">
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="#e2e8f0" strokeWidth="3" />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="14"
+                    fill="none"
+                    className="stroke-ink-200 dark:stroke-white/10"
+                    strokeWidth="3"
+                  />
                   <circle
                     cx="18"
                     cy="18"
@@ -497,7 +571,7 @@ export default function DashboardPage() {
                     </linearGradient>
                   </defs>
                 </svg>
-                <span className="num relative text-xs font-bold text-ink-900">
+                <span className="num relative text-xs font-bold text-ink-900 dark:text-white">
                   {Math.round(setupPct)}%
                 </span>
               </div>
@@ -508,7 +582,7 @@ export default function DashboardPage() {
               <Link
                 key={i}
                 href={step.href}
-                className={`group flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-ink-50 ${
+                className={`group flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-ink-50 dark:hover:bg-white/[0.04] ${
                   step.done ? "opacity-60" : ""
                 }`}
               >
@@ -520,23 +594,27 @@ export default function DashboardPage() {
                   />
                 ) : (
                   <div
-                    className="mt-1 h-4 w-4 shrink-0 rounded-full border-2 border-ink-300 transition-colors group-hover:border-brand-500"
+                    className="mt-1 h-4 w-4 shrink-0 rounded-full border-2 border-ink-300 transition-colors group-hover:border-brand-500 dark:border-white/15 dark:group-hover:border-brand-400"
                     aria-hidden
                   />
                 )}
                 <div className="min-w-0 flex-1">
                   <p
                     className={`text-[13px] font-semibold ${
-                      step.done ? "text-ink-400 line-through" : "text-ink-900"
+                      step.done
+                        ? "text-ink-400 line-through dark:text-ink-500"
+                        : "text-ink-900 dark:text-white"
                     }`}
                   >
                     {step.label}
                   </p>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-500">{step.desc}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
+                    {step.desc}
+                  </p>
                 </div>
                 <ArrowRight
                   size={14}
-                  className="mt-1 shrink-0 text-ink-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand-500"
+                  className="mt-1 shrink-0 text-ink-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand-500 dark:text-ink-500 dark:group-hover:text-brand-300"
                 />
               </Link>
             ))}
@@ -544,10 +622,10 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="overflow-hidden lg:col-span-2">
-          <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4">
+          <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4 dark:border-white/[0.06]">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-50 to-accent-50 ring-1 ring-brand-100">
-                <FileSpreadsheet size={16} className="text-brand-600" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-50 to-accent-50 ring-1 ring-brand-100 dark:from-brand-500/15 dark:to-accent-500/15 dark:ring-brand-500/30">
+                <FileSpreadsheet size={16} className="text-brand-600 dark:text-brand-300" />
               </div>
               <div>
                 <CardTitle className="text-base">Salary registers</CardTitle>
@@ -558,7 +636,7 @@ export default function DashboardPage() {
             </div>
             <Link
               href="/payroll/history"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
             >
               View all
               <ArrowRight size={12} />
@@ -596,25 +674,29 @@ export default function DashboardPage() {
               />
             </div>
           ) : (
-            <ul className="divide-y divide-ink-100">
+            <ul className="divide-y divide-ink-100 dark:divide-white/[0.05]">
               {registers.slice(0, 6).map((reg) => (
                 <li key={reg.id}>
                   <Link
                     href={`/payroll/history?id=${reg.id}`}
-                    className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-ink-50/60"
+                    className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
                   >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-accent-50 ring-1 ring-brand-100">
-                      <CalendarDays size={17} className="text-brand-600" />
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-accent-50 ring-1 ring-brand-100 dark:from-brand-500/15 dark:to-accent-500/15 dark:ring-brand-500/30">
+                      <CalendarDays size={17} className="text-brand-600 dark:text-brand-300" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-semibold text-ink-900">{fmtMonth(reg.period_month)}</p>
-                      <p className="truncate text-xs text-ink-500">{reg.filename || "Manual upload"}</p>
+                      <p className="text-[13px] font-semibold text-ink-900 dark:text-white">
+                        {fmtMonth(reg.period_month)}
+                      </p>
+                      <p className="truncate text-xs text-ink-500 dark:text-ink-400">
+                        {reg.filename || "Manual upload"}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="num text-sm font-bold text-ink-900">
+                      <p className="num text-sm font-bold text-ink-900 dark:text-white">
                         {reg.employee_count ?? "—"}
                       </p>
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-ink-400">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
                         employees
                       </p>
                     </div>
@@ -629,9 +711,9 @@ export default function DashboardPage() {
       {/* RECENT RUNS + QUICK ACTIONS */}
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-2">
-          <div className="flex items-center gap-3 border-b border-ink-100 px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink-100">
-              <ClipboardList size={16} className="text-ink-600" />
+          <div className="flex items-center gap-3 border-b border-ink-100 px-5 py-4 dark:border-white/[0.06]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ink-100 dark:bg-white/[0.06]">
+              <ClipboardList size={16} className="text-ink-600 dark:text-ink-200" />
             </div>
             <CardTitle className="text-base">Recent payroll runs</CardTitle>
           </div>
@@ -662,26 +744,31 @@ export default function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-[10px] font-bold uppercase tracking-wider text-ink-500">
+                  <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-[10px] font-bold uppercase tracking-wider text-ink-500 dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-ink-300">
                     <th className="whitespace-nowrap px-5 py-3">Type</th>
                     <th className="whitespace-nowrap px-5 py-3">File</th>
                     <th className="whitespace-nowrap px-5 py-3">Employees</th>
                     <th className="whitespace-nowrap px-5 py-3">Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ink-100">
+                <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
                   {runs.map((run) => (
-                    <tr key={run.id} className="transition-colors hover:bg-ink-50/60">
+                    <tr
+                      key={run.id}
+                      className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                    >
                       <td className="px-5 py-3">
                         <RunTypeBadge type={run.run_type} />
                       </td>
-                      <td className="max-w-[220px] truncate px-5 py-3 text-xs text-ink-600">
+                      <td className="max-w-[220px] truncate px-5 py-3 text-xs text-ink-600 dark:text-ink-300">
                         {run.filename || "—"}
                       </td>
-                      <td className="num px-5 py-3 text-[13px] font-semibold text-ink-900">
+                      <td className="num px-5 py-3 text-[13px] font-semibold text-ink-900 dark:text-white">
                         {run.employee_count ?? "—"}
                       </td>
-                      <td className="px-5 py-3 text-xs text-ink-500">{fmtDate(run.created_at)}</td>
+                      <td className="px-5 py-3 text-xs text-ink-500 dark:text-ink-400">
+                        {fmtDate(run.created_at)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -691,7 +778,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="overflow-hidden">
-          <div className="border-b border-ink-100 p-5">
+          <div className="border-b border-ink-100 p-5 dark:border-white/[0.06]">
             <CardTitle className="text-base">Quick actions</CardTitle>
             <CardDescription className="mt-1">Shortcuts to frequent workflows</CardDescription>
           </div>
@@ -750,10 +837,10 @@ function HeroStat({
 function RunTypeBadge({ type }: { type: string }) {
   const styles =
     type === "arrear"
-      ? "bg-warning-50 text-warning-700 ring-warning-200"
+      ? "bg-warning-50 text-warning-700 ring-warning-200 dark:bg-warning-500/10 dark:text-warning-300 dark:ring-warning-500/30"
       : type === "increment_arrear"
-        ? "bg-accent-50 text-accent-700 ring-accent-200"
-        : "bg-brand-50 text-brand-700 ring-brand-200";
+        ? "bg-accent-50 text-accent-700 ring-accent-200 dark:bg-accent-500/10 dark:text-accent-300 dark:ring-accent-500/30"
+        : "bg-brand-50 text-brand-700 ring-brand-200 dark:bg-brand-500/10 dark:text-brand-300 dark:ring-brand-500/30";
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide capitalize ring-1 ${styles}`}
@@ -780,15 +867,19 @@ function QuickAction({
       className={`group flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold transition-all ${
         primary
           ? "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-soft hover:shadow-glow"
-          : "border border-ink-200 bg-white text-ink-800 hover:border-ink-300 hover:bg-ink-50"
+          : "border border-ink-200 bg-white text-ink-800 hover:border-ink-300 hover:bg-ink-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-100 dark:hover:border-white/20 dark:hover:bg-white/[0.08]"
       }`}
     >
-      <Icon size={16} strokeWidth={2.25} className={primary ? "text-white" : "text-ink-500"} />
+      <Icon
+        size={16}
+        strokeWidth={2.25}
+        className={primary ? "text-white" : "text-ink-500 dark:text-ink-300"}
+      />
       <span className="flex-1">{label}</span>
       <ArrowRight
         size={14}
         className={`transition-transform group-hover:translate-x-0.5 ${
-          primary ? "text-white/80" : "text-ink-400"
+          primary ? "text-white/80" : "text-ink-400 dark:text-ink-500"
         }`}
       />
     </Link>

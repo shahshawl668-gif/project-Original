@@ -102,15 +102,16 @@ export default function CtcUploadPage() {
   return (
     <div className="space-y-8">
       <PageHeader
+        eyebrow="CTC import"
         title="Upload CTC"
         description={
           <>
-            Import annual cost‑to‑company by employee. Uses{" "}
-            <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-700">
+            Import annual cost-to-company by employee. Uses{" "}
+            <code className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-semibold text-ink-700 dark:bg-white/[0.06] dark:text-ink-200">
               employee_id
             </code>
             ,{" "}
-            <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-700">
+            <code className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-semibold text-ink-700 dark:bg-white/[0.06] dark:text-ink-200">
               effective_from
             </code>
             , and annual amounts per configured component (CSV or Excel).
@@ -135,7 +136,10 @@ export default function CtcUploadPage() {
         <AlertBanner variant="success" title="Upload saved">
           Linked to history record{" "}
           <span className="font-mono text-sm font-semibold">{committedId.slice(0, 8)}…</span>.{" "}
-          <Link href="/ctc/history" className="font-semibold text-emerald-900 underline underline-offset-2">
+          <Link
+            href="/ctc/history"
+            className="font-semibold text-success-900 underline underline-offset-2 dark:text-success-100"
+          >
             Open CTC history
           </Link>
         </AlertBanner>
@@ -144,8 +148,10 @@ export default function CtcUploadPage() {
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           <div
-            className={`relative border-b border-slate-100 px-6 py-14 text-center transition-all ${
-              drag ? "bg-brand-50/80 ring-2 ring-brand-400/40 ring-inset" : "bg-slate-50/50"
+            className={`relative border-b border-ink-100 px-6 py-14 text-center transition-all dark:border-white/[0.06] ${
+              drag
+                ? "bg-brand-50/80 ring-2 ring-inset ring-brand-400/40 dark:bg-brand-500/10 dark:ring-brand-400/40"
+                : "bg-ink-50/50 dark:bg-white/[0.02]"
             }`}
             onDragOver={(e) => {
               e.preventDefault();
@@ -160,12 +166,16 @@ export default function CtcUploadPage() {
             }}
           >
             <div className="mx-auto flex max-w-md flex-col items-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/[0.06]">
-                <CloudUpload className="h-7 w-7 text-brand-600" strokeWidth={1.75} />
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft ring-1 ring-ink-900/[0.06] dark:bg-white/[0.04] dark:ring-white/10">
+                <CloudUpload className="h-7 w-7 text-brand-600 dark:text-brand-300" strokeWidth={1.75} />
               </div>
-              <p className="text-sm font-semibold text-slate-900">Drag and drop your file</p>
-              <p className="mt-1 text-sm text-slate-600">or choose a CSV / Excel spreadsheet from your device</p>
-              <label className="mt-6 inline-flex cursor-pointer items-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-700">
+              <p className="text-sm font-semibold text-ink-900 dark:text-white">
+                Drag and drop your file
+              </p>
+              <p className="mt-1 text-sm text-ink-600 dark:text-ink-300">
+                or choose a CSV / Excel spreadsheet from your device
+              </p>
+              <label className="mt-6 inline-flex cursor-pointer items-center rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 px-5 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:shadow-glow">
                 <input
                   type="file"
                   accept=".csv,.xlsx,.xls"
@@ -175,15 +185,15 @@ export default function CtcUploadPage() {
                 Browse files
               </label>
               {file ? (
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-slate-200/80">
-                    <FileSpreadsheet size={14} className="text-brand-600" />
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs text-ink-600 dark:text-ink-300">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 font-medium shadow-sm ring-1 ring-ink-200/80 dark:bg-white/[0.06] dark:ring-white/10">
+                    <FileSpreadsheet size={14} className="text-brand-600 dark:text-brand-300" />
                     {file.name}
                   </span>
                   <button
                     type="button"
                     onClick={clearFile}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-medium text-slate-600 transition hover:bg-slate-50"
+                    className="inline-flex items-center gap-1 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 font-medium text-ink-600 transition hover:bg-ink-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-300 dark:hover:bg-white/[0.08]"
                   >
                     <Trash2 size={13} /> Remove
                   </button>
@@ -195,21 +205,28 @@ export default function CtcUploadPage() {
           <div className="space-y-6 p-6 sm:p-8">
             <div className="grid gap-6 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Default effective from</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+                  Default effective from
+                </span>
                 <input
                   type="date"
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-sm outline-none ring-brand-500/20 transition-shadow focus-visible:ring-[3px]"
+                  className="mt-2 w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm font-medium text-ink-900 shadow-sm outline-none ring-brand-500/20 transition-shadow focus-visible:ring-[3px] dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
                   value={defaultEff}
                   onChange={(e) => setDefaultEff(e.target.value)}
                 />
-                <span className="mt-2 block text-xs leading-relaxed text-slate-500">
+                <span className="mt-2 block text-xs leading-relaxed text-ink-500 dark:text-ink-400">
                   Applied when a row omits <code className="font-mono text-2xs">effective_from</code>.
                 </span>
               </label>
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button type="button" disabled={!file || busy} onClick={() => void parse()} className="rounded-xl px-5">
+              <Button
+                type="button"
+                disabled={!file || busy}
+                onClick={() => void parse()}
+                className="px-5"
+              >
                 {busy ? "Working…" : "Parse & preview"}
               </Button>
               <Button
@@ -217,7 +234,7 @@ export default function CtcUploadPage() {
                 variant="secondary"
                 disabled={!records.length || busy}
                 onClick={() => void commit()}
-                className="rounded-xl px-5"
+                className="px-5"
               >
                 Commit to history
               </Button>
@@ -254,34 +271,39 @@ export default function CtcUploadPage() {
 
       {!busy && columns.length > 0 ? (
         <Card>
-          <CardContent className="border-b border-slate-100 p-5">
+          <CardContent className="border-b border-ink-100 p-5 dark:border-white/[0.06]">
             <div className="flex items-center gap-2">
-              <Table2 size={17} className="text-slate-500" />
+              <Table2 size={17} className="text-ink-500 dark:text-ink-300" />
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Columns detected</h2>
-                <p className="text-xs text-slate-500">Mapped headers from your file</p>
+                <h2 className="font-display text-sm font-bold text-ink-900 dark:text-white">
+                  Columns detected
+                </h2>
+                <p className="text-xs text-ink-500 dark:text-ink-400">Mapped headers from your file</p>
               </div>
             </div>
           </CardContent>
           <CardContent className="p-5">
-            <p className="break-all font-mono text-xs leading-relaxed text-slate-700">{columns.join(", ")}</p>
+            <p className="break-all font-mono text-xs leading-relaxed text-ink-700 dark:text-ink-200">
+              {columns.join(", ")}
+            </p>
           </CardContent>
         </Card>
       ) : null}
 
       {!busy && records.length > 0 ? (
         <Card className="overflow-hidden">
-          <CardContent className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 p-5">
+          <CardContent className="flex flex-wrap items-end justify-between gap-3 border-b border-ink-100 p-5 dark:border-white/[0.06]">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Preview</h2>
-              <p className="text-xs text-slate-500">
-                Showing first {Math.min(25, records.length)} of {records.length.toLocaleString("en-IN")} rows
+              <h2 className="font-display text-sm font-bold text-ink-900 dark:text-white">Preview</h2>
+              <p className="text-xs text-ink-500 dark:text-ink-400">
+                Showing first {Math.min(25, records.length)} of{" "}
+                {records.length.toLocaleString("en-IN")} rows
               </p>
             </div>
           </CardContent>
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 bg-slate-50/95 text-left text-2xs font-semibold uppercase tracking-wide text-slate-500 backdrop-blur">
+              <thead className="sticky top-0 bg-ink-50/95 text-left text-2xs font-bold uppercase tracking-[0.12em] text-ink-500 backdrop-blur dark:bg-ink-900/95 dark:text-ink-300">
                 <tr>
                   <th className="whitespace-nowrap px-4 py-3 font-semibold">employee_id</th>
                   <th className="whitespace-nowrap px-4 py-3 font-semibold">name</th>
@@ -290,14 +312,25 @@ export default function CtcUploadPage() {
                   <th className="whitespace-nowrap px-4 py-3 font-semibold">components</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
                 {records.slice(0, 25).map((r) => (
-                  <tr key={`${r.employee_id}-${r.effective_from}`} className="align-top hover:bg-slate-50/60">
-                    <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-slate-900">{r.employee_id}</td>
-                    <td className="px-4 py-2.5 text-slate-700">{r.employee_name || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-600">{r.effective_from}</td>
-                    <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-slate-800">{r.annual_ctc}</td>
-                    <td className="min-w-[12rem] px-4 py-2.5 text-slate-600">
+                  <tr
+                    key={`${r.employee_id}-${r.effective_from}`}
+                    className="align-top transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                  >
+                    <td className="whitespace-nowrap px-4 py-2.5 font-semibold text-ink-900 dark:text-white">
+                      {r.employee_id}
+                    </td>
+                    <td className="px-4 py-2.5 text-ink-700 dark:text-ink-200">
+                      {r.employee_name || "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-ink-600 dark:text-ink-300">
+                      {r.effective_from}
+                    </td>
+                    <td className="num whitespace-nowrap px-4 py-2.5 text-ink-800 dark:text-ink-100">
+                      {r.annual_ctc}
+                    </td>
+                    <td className="min-w-[12rem] px-4 py-2.5 text-ink-600 dark:text-ink-300">
                       {Object.entries(r.annual_components)
                         .map(([k, v]) => `${k}: ${v}`)
                         .join(", ")}
@@ -310,10 +343,9 @@ export default function CtcUploadPage() {
         </Card>
       ) : !busy && file && columns.length === 0 && records.length === 0 && !error ? (
         <EmptyState
-          icon={<FileSpreadsheet className="h-6 w-6 text-slate-400" />}
+          icon={<FileSpreadsheet className="h-6 w-6 text-ink-400 dark:text-ink-300" />}
           title="Ready to parse"
           description="Run “Parse & preview” to validate column mapping and preview rows before committing."
-          className="bg-white"
         />
       ) : null}
     </div>

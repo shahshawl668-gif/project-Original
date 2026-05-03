@@ -103,6 +103,7 @@ export function KpiCard({
     <div
       className={cn(
         "lift group relative overflow-hidden rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03]",
+        "dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04] dark:shadow-[0_1px_0_rgba(0,0,0,0.4),0_16px_40px_rgba(0,0,0,0.4)]",
         className,
       )}
     >
@@ -116,7 +117,7 @@ export function KpiCard({
       <div className="relative flex items-start justify-between">
         <div
           className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-xl bg-white ring-1 shadow-sm",
+            "flex h-10 w-10 items-center justify-center rounded-xl bg-white ring-1 shadow-sm dark:bg-white/[0.04] dark:ring-white/10",
             t.ring,
           )}
         >
@@ -127,6 +128,11 @@ export function KpiCard({
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
               trendColor,
+              trend.direction === "up"
+                ? "dark:bg-success-500/10 dark:text-success-300 dark:ring-success-500/20"
+                : trend.direction === "down"
+                  ? "dark:bg-danger-500/10 dark:text-danger-300 dark:ring-danger-500/20"
+                  : "dark:bg-white/[0.06] dark:text-ink-200 dark:ring-white/10",
             )}
           >
             <TrendIcon size={11} strokeWidth={2.5} />
@@ -134,20 +140,30 @@ export function KpiCard({
           </span>
         )}
       </div>
-      <p className="num relative mt-5 text-[2rem] font-bold leading-none tracking-tightest text-ink-900">
+      <p className="num relative mt-5 text-[2rem] font-bold leading-none tracking-tightest text-ink-900 dark:text-white">
         {typeof value === "number" ? value.toLocaleString("en-IN") : value}
       </p>
       <div className="relative mt-2 flex items-center justify-between gap-3">
-        <p className="text-[13px] font-medium text-ink-700">{label}</p>
+        <p className="text-[13px] font-medium text-ink-700 dark:text-ink-200">{label}</p>
         {trend?.label && (
-          <span className="text-[10px] font-medium text-ink-400">{trend.label}</span>
+          <span className="text-[10px] font-medium text-ink-400 dark:text-ink-400">
+            {trend.label}
+          </span>
         )}
       </div>
-      {hint && <p className="relative mt-1.5 text-[11px] leading-relaxed text-ink-500">{hint}</p>}
+      {hint && (
+        <p className="relative mt-1.5 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
+          {hint}
+        </p>
+      )}
       {spark && spark.length > 1 && (
         <Sparkline points={spark} tone={tone} className="relative mt-4 h-9 w-full" />
       )}
-      {footer && <div className="relative mt-4 border-t border-ink-100 pt-3">{footer}</div>}
+      {footer && (
+        <div className="relative mt-4 border-t border-ink-100 pt-3 dark:border-white/[0.06]">
+          {footer}
+        </div>
+      )}
     </div>
   );
 }

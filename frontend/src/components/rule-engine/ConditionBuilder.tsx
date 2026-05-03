@@ -44,16 +44,16 @@ export function ConditionBuilder({ conditions, onChange, fields = FIELDS }: Prop
     onChange([...conditions, { field: fields[0] ?? "gross", operator: "<=", value: 0 }]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       {conditions.length === 0 && (
-        <p className="text-xs text-slate-500">
+        <p className="rounded-xl border border-dashed border-ink-200 bg-ink-50/40 px-4 py-3 text-xs text-ink-500 dark:border-white/[0.07] dark:bg-white/[0.02] dark:text-ink-400">
           No conditions. Formula will always apply. Add a condition to gate it.
         </p>
       )}
       {conditions.map((c, idx) => (
         <div
           key={idx}
-          className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 p-2"
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-ink-200 bg-white p-2 shadow-sm dark:border-white/[0.07] dark:bg-white/[0.03]"
         >
           <Select value={c.field} onValueChange={(v) => update(idx, { field: v })}>
             <SelectTrigger className="w-40">
@@ -93,7 +93,7 @@ export function ConditionBuilder({ conditions, onChange, fields = FIELDS }: Prop
           />
 
           <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)}>
-            <Trash2 className="h-4 w-4 text-red-600" />
+            <Trash2 className="h-4 w-4 text-danger-600 dark:text-danger-400" />
           </Button>
         </div>
       ))}

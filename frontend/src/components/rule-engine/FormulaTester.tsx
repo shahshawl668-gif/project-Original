@@ -53,13 +53,16 @@ export function FormulaTester({ expression, conditions }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Formula Tester</CardTitle>
-        <p className="text-xs text-slate-500">
+        <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+          Sandbox
+        </p>
+        <CardTitle>Formula tester</CardTitle>
+        <p className="text-xs text-ink-500 dark:text-ink-400">
           Provide sample inputs and run the formula end-to-end.
         </p>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-2.5">
           {TEST_VARS.map((k) => (
             <div key={k} className="space-y-1">
               <Label htmlFor={`var-${k}`} className="text-xs">
@@ -75,15 +78,17 @@ export function FormulaTester({ expression, conditions }: Props) {
           ))}
         </div>
         <Button type="button" onClick={handleTest} disabled={loading} className="w-full">
-          {loading ? "Testing…" : "Test Formula"}
+          {loading ? "Testing…" : "Test formula"}
         </Button>
         {result && (
-          <div className="rounded-md border border-slate-200 p-3 text-sm">
+          <div className="rounded-xl border border-ink-200 bg-ink-50/50 p-4 text-sm dark:border-white/[0.07] dark:bg-white/[0.03]">
             {result.ok ? (
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-slate-500 text-xs">Computed value</p>
-                  <p className="text-xl font-semibold text-slate-900">
+                  <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+                    Computed value
+                  </p>
+                  <p className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
                     {(result.result ?? 0).toLocaleString(undefined, {
                       maximumFractionDigits: 2,
                     })}
@@ -94,7 +99,7 @@ export function FormulaTester({ expression, conditions }: Props) {
                 </Badge>
               </div>
             ) : (
-              <div className="text-red-700 text-sm">{result.error}</div>
+              <div className="text-sm text-danger-700 dark:text-danger-300">{result.error}</div>
             )}
           </div>
         )}

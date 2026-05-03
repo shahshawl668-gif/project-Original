@@ -19,6 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { AlertBanner } from "@/components/ui/alert-banner";
 import FormulaEditor, {
   type FormulaEditorHandle,
 } from "@/components/rule-engine/FormulaEditor";
@@ -141,45 +143,49 @@ export default function FormulaPage() {
   const saveDisabled = saving || !!syntaxError || !expression.trim();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Formula Builder</h1>
-          <p className="text-sm text-slate-600">
-            Define dynamic PF / ESIC computation logic. Versions are immutable.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <div className="space-y-1">
-            <Label>Rule Type</Label>
-            <Select value={ruleType} onValueChange={handleRuleTypeChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RULE_TYPES.map((rt) => (
-                  <SelectItem key={rt} value={rt}>
-                    {rt}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Rule engine"
+        title="Formula builder"
+        description="Define dynamic PF / ESIC computation logic. Versions are immutable and can be rolled back at any time."
+        actions={
+          <div className="flex items-end gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase tracking-[0.12em]">Rule type</Label>
+              <Select value={ruleType} onValueChange={handleRuleTypeChange}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RULE_TYPES.map((rt) => (
+                    <SelectItem key={rt} value={rt}>
+                      {rt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
+              <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+                Definition
+              </p>
               <CardTitle>Expression</CardTitle>
-              <p className="text-xs text-slate-500">
-                Allowed: + - * / %, parentheses, min, max, round, if(cond, a, b), and the listed
-                variables.
+              <p className="text-xs text-ink-500 dark:text-ink-400">
+                Allowed: <span className="font-mono">+ - * / %</span>, parentheses,{" "}
+                <span className="font-mono">min</span>, <span className="font-mono">max</span>,{" "}
+                <span className="font-mono">round</span>,{" "}
+                <span className="font-mono">if(cond, a, b)</span>, and the listed variables.
               </p>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
                 <Label htmlFor="formula-name">Name (optional)</Label>
                 <Input
                   id="formula-name"
@@ -196,7 +202,9 @@ export default function FormulaPage() {
                 errorMessage={syntaxError}
               />
               {syntaxError && (
-                <p className="text-xs text-red-600">{syntaxError}</p>
+                <AlertBanner variant="error" title="Syntax error">
+                  {syntaxError}
+                </AlertBanner>
               )}
               <FormulaPreview expression={expression} ruleType={ruleType} />
             </CardContent>
@@ -204,8 +212,11 @@ export default function FormulaPage() {
 
           <Card>
             <CardHeader>
+              <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+                Eligibility
+              </p>
               <CardTitle>Conditions</CardTitle>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-ink-500 dark:text-ink-400">
                 If set, all conditions (AND) must pass for the formula to apply. Otherwise the
                 contribution is 0.
               </p>
@@ -227,7 +238,7 @@ export default function FormulaPage() {
               Reset to default
             </Button>
             <Button type="button" onClick={handleSave} disabled={saveDisabled}>
-              {saving ? "Saving…" : "Save & Activate"}
+              {saving ? "Saving…" : "Save & activate"}
             </Button>
           </div>
 

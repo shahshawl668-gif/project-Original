@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SlabTable, slabsSchema } from "@/components/rule-engine/SlabTable";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Badge } from "@/components/ui/badge";
 import {
   type SlabRow,
   type SlabRuleType,
@@ -239,22 +241,24 @@ export default function SlabsPage() {
   }, [slabs]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">State Slab Configuration</h1>
-        <p className="text-sm text-slate-600">
-          Manage state-wise PT &amp; LWF slabs. These override seeded reference data when present.
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Rule engine"
+        title="State slab configuration"
+        description="Manage state-wise PT & LWF slabs. These override seeded reference data when present."
+      />
 
       <Card>
         <CardHeader>
+          <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+            Selection
+          </p>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label>Rule Type</Label>
+            <div className="space-y-1.5">
+              <Label>Rule type</Label>
               <Select value={ruleType} onValueChange={(v) => setRuleType(v as SlabRuleType)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -268,7 +272,7 @@ export default function SlabsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label>State</Label>
               <Select value={state} onValueChange={setState}>
                 <SelectTrigger>
@@ -283,7 +287,7 @@ export default function SlabsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label>Add custom state</Label>
               <div className="flex gap-2">
                 <Input
@@ -302,16 +306,19 @@ export default function SlabsPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
-          <div>
-            <CardTitle>
-              {ruleType} slabs — {state || "—"}
-            </CardTitle>
-            <p className="text-xs text-slate-500">
-              Slabs must be non-overlapping. Sum of deductions: {sumPreview.toFixed(2)}
+          <div className="space-y-1">
+            <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+              Editor
             </p>
-            <p className="text-xs text-slate-500 mt-1">
-              Built-in {ruleType} defaults available for:{" "}
-              <span className="text-slate-700">{defaultStates.join(", ") || "—"}</span>
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <span>
+                {ruleType} slabs — {state || "—"}
+              </span>
+              <Badge variant="secondary">∑ {sumPreview.toFixed(2)}</Badge>
+            </CardTitle>
+            <p className="text-xs text-ink-500 dark:text-ink-400">
+              Slabs must be non-overlapping. Built-in {ruleType} defaults available for:{" "}
+              <span className="text-ink-700 dark:text-ink-200">{defaultStates.join(", ") || "—"}</span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -349,7 +356,7 @@ export default function SlabsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-slate-500">Loading…</p>
+            <p className="text-sm text-ink-500 dark:text-ink-400">Loading…</p>
           ) : (
             <SlabTable
               slabs={slabs}
@@ -366,7 +373,7 @@ export default function SlabsPage() {
           Reload
         </Button>
         <Button type="button" onClick={handleSave} disabled={saving || !state}>
-          {saving ? "Saving…" : "Save Slabs"}
+          {saving ? "Saving…" : "Save slabs"}
         </Button>
       </div>
     </div>

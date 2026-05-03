@@ -94,16 +94,30 @@ const fmt = (n: number | null | undefined, digits = 2) =>
   n == null ? "–" : `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 
 const SEV_COLOR: Record<string, string> = {
-  CRITICAL: "bg-red-100 text-red-800 border border-red-200",
-  WARNING:  "bg-yellow-100 text-yellow-800 border border-yellow-200",
-  INFO:     "bg-blue-100 text-blue-700 border border-blue-200",
-  PASS:     "bg-green-100 text-green-700 border border-green-200",
+  CRITICAL:
+    "bg-danger-50 text-danger-700 border border-danger-200 dark:bg-danger-500/10 dark:text-danger-300 dark:border-danger-500/30",
+  WARNING:
+    "bg-warning-50 text-warning-800 border border-warning-200 dark:bg-warning-500/10 dark:text-warning-300 dark:border-warning-500/30",
+  INFO: "bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/30",
+  PASS: "bg-success-50 text-success-700 border border-success-200 dark:bg-success-500/10 dark:text-success-300 dark:border-success-500/30",
 };
 
 const RISK_COLOR: Record<string, { bg: string; text: string; dot: string }> = {
-  HIGH:   { bg: "bg-red-50 border-red-200",    text: "text-red-700",    dot: "bg-red-500"    },
-  MEDIUM: { bg: "bg-yellow-50 border-yellow-200", text: "text-yellow-700", dot: "bg-yellow-500" },
-  LOW:    { bg: "bg-green-50 border-green-200", text: "text-green-700", dot: "bg-green-500"  },
+  HIGH: {
+    bg: "bg-danger-50 border-danger-200 dark:bg-danger-500/10 dark:border-danger-500/30",
+    text: "text-danger-700 dark:text-danger-300",
+    dot: "bg-danger-500",
+  },
+  MEDIUM: {
+    bg: "bg-warning-50 border-warning-200 dark:bg-warning-500/10 dark:border-warning-500/30",
+    text: "text-warning-700 dark:text-warning-300",
+    dot: "bg-warning-500",
+  },
+  LOW: {
+    bg: "bg-success-50 border-success-200 dark:bg-success-500/10 dark:border-success-500/30",
+    text: "text-success-700 dark:text-success-300",
+    dot: "bg-success-500",
+  },
 };
 
 const PIE_COLORS = ["#ef4444", "#f59e0b", "#22c55e"];
@@ -113,26 +127,39 @@ function StatCard({ label, value, sub, icon, color = "brand" }: {
   icon?: ReactNode; color?: string;
 }) {
   const bg: Record<string, string> = {
-    red: "bg-red-50 border-red-100 shadow-sm ring-1 ring-red-900/[0.03]",
-    yellow: "bg-amber-50 border-amber-100 shadow-sm ring-1 ring-amber-900/[0.03]",
-    green: "bg-emerald-50 border-emerald-100 shadow-sm ring-1 ring-emerald-900/[0.03]",
-    brand: "bg-brand-50 border-brand-100 shadow-sm ring-1 ring-brand-900/[0.03]",
-    blue: "bg-sky-50 border-sky-100 shadow-sm ring-1 ring-sky-900/[0.03]",
+    red: "bg-gradient-to-br from-danger-50 to-white border-danger-100 ring-danger-900/[0.03] dark:from-danger-500/10 dark:to-ink-900/40 dark:border-danger-500/20 dark:ring-white/[0.04]",
+    yellow:
+      "bg-gradient-to-br from-warning-50 to-white border-warning-100 ring-warning-900/[0.03] dark:from-warning-500/10 dark:to-ink-900/40 dark:border-warning-500/20 dark:ring-white/[0.04]",
+    green:
+      "bg-gradient-to-br from-success-50 to-white border-success-100 ring-success-900/[0.03] dark:from-success-500/10 dark:to-ink-900/40 dark:border-success-500/20 dark:ring-white/[0.04]",
+    brand:
+      "bg-gradient-to-br from-brand-50 to-white border-brand-100 ring-brand-900/[0.03] dark:from-brand-500/10 dark:to-ink-900/40 dark:border-brand-500/20 dark:ring-white/[0.04]",
+    blue: "bg-gradient-to-br from-sky-50 to-white border-sky-100 ring-sky-900/[0.03] dark:from-sky-500/10 dark:to-ink-900/40 dark:border-sky-500/20 dark:ring-white/[0.04]",
   };
   const txt: Record<string, string> = {
-    red: "text-red-600",
-    yellow: "text-amber-600",
-    green: "text-emerald-600",
-    brand: "text-brand-600",
-    blue: "text-sky-600",
+    red: "text-danger-600 dark:text-danger-300",
+    yellow: "text-warning-600 dark:text-warning-300",
+    green: "text-success-600 dark:text-success-300",
+    brand: "text-brand-600 dark:text-brand-300",
+    blue: "text-sky-600 dark:text-sky-300",
   };
   return (
-    <div className={`flex items-center gap-4 rounded-2xl border p-4 ${bg[color] || bg.brand}`}>
+    <div
+      className={`lift flex items-center gap-4 rounded-2xl border p-4 shadow-soft ring-1 ${bg[color] || bg.brand}`}
+    >
       {icon && <div className={`text-2xl ${txt[color] || txt.brand}`}>{icon}</div>}
       <div className="min-w-0">
-        <p className="text-2xs font-semibold uppercase tracking-widest text-slate-500">{label}</p>
-        <p className={`truncate text-2xl font-semibold tabular-nums tracking-tight ${txt[color] || txt.brand}`}>{value}</p>
-        {sub && <p className="mt-0.5 text-2xs font-medium text-slate-500">{sub}</p>}
+        <p className="text-2xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
+          {label}
+        </p>
+        <p
+          className={`num truncate text-2xl font-bold tracking-tight ${txt[color] || txt.brand}`}
+        >
+          {value}
+        </p>
+        {sub && (
+          <p className="mt-0.5 text-2xs font-medium text-ink-500 dark:text-ink-400">{sub}</p>
+        )}
       </div>
     </div>
   );
@@ -141,8 +168,10 @@ function StatCard({ label, value, sub, icon, color = "brand" }: {
 function RiskBadge({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
   const c = RISK_COLOR[level] || RISK_COLOR.LOW;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border ${c.bg} ${c.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${c.bg} ${c.text}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} />
       {level}
     </span>
   );
@@ -332,15 +361,14 @@ function PayrollResultsContent() {
           }
         />
         <EmptyState
-          icon={<Activity className="h-7 w-7 text-slate-400" strokeWidth={1.5} />}
+          icon={<Activity className="h-7 w-7 text-ink-400 dark:text-ink-300" strokeWidth={1.5} />}
           title="No results in this session"
           description="We keep the latest run in session storage so you can drill down without round-tripping the server. Start an upload to populate this view."
           action={
-            <Button asChild variant="outline" className="rounded-xl">
+            <Button asChild variant="outline">
               <Link href="/dashboard">Back to dashboard</Link>
             </Button>
           }
-          className="bg-white shadow-soft ring-1 ring-slate-900/[0.04]"
         />
       </div>
     );
@@ -363,14 +391,14 @@ function PayrollResultsContent() {
             <Button
               type="button"
               variant="outline"
-              className="rounded-xl border-slate-200 bg-white shadow-sm gap-2"
+              className="gap-2"
               disabled={exportBusy}
               onClick={() => void downloadExcelAudit()}
             >
               <Download size={15} strokeWidth={2} />
               {exportBusy ? "Working…" : "Excel audit"}
             </Button>
-            <Button variant="outline" asChild className="rounded-xl border-slate-200 bg-white shadow-sm">
+            <Button variant="outline" asChild>
               <Link href="/payroll/upload" className="gap-2">
                 <UploadCloud size={15} strokeWidth={2} /> New run
               </Link>
@@ -398,7 +426,7 @@ function PayrollResultsContent() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex flex-wrap gap-1 rounded-2xl bg-slate-100/90 p-1.5 ring-1 ring-slate-200/80">
+      <div className="flex flex-wrap gap-1 rounded-2xl border border-ink-200/70 bg-ink-50/80 p-1.5 ring-1 ring-ink-900/[0.02] dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -406,14 +434,19 @@ function PayrollResultsContent() {
             onClick={() => commitTab(t.id)}
             className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
               tab === t.id
-                ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80"
-                : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+                ? "bg-white text-ink-900 shadow-soft ring-1 ring-ink-200/80 dark:bg-ink-900 dark:text-white dark:ring-white/10"
+                : "text-ink-600 hover:bg-white/70 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
             }`}
           >
             {t.label}
             {t.badge != null && t.badge > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold
-                ${t.badgeColor === "red" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${
+                  t.badgeColor === "red"
+                    ? "bg-danger-100 text-danger-700 dark:bg-danger-500/20 dark:text-danger-300"
+                    : "bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-300"
+                }`}
+              >
                 {t.badge}
               </span>
             )}
@@ -425,99 +458,180 @@ function PayrollResultsContent() {
       {tab === "overview" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Risk distribution pie */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <Shield size={16} className="text-brand-600"/> Risk Distribution
+          <div className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
+            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold tracking-tight text-ink-900 dark:text-white">
+              <Shield size={16} className="text-brand-600 dark:text-brand-300" /> Risk distribution
             </h3>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={riskDist} cx="50%" cy="50%" outerRadius={80}
-                  dataKey="value" nameKey="name" label={({name,value}) => `${name}: ${value}`}>
+                <Pie
+                  data={riskDist}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  dataKey="value"
+                  nameKey="name"
+                  label={({ name, value }) => `${name}: ${value}`}
+                >
                   {riskDist.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i]}/>
+                    <Cell key={i} fill={PIE_COLORS[i]} />
                   ))}
                 </Pie>
-                <Tooltip/>
-                <Legend/>
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(15,18,32,0.95)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 10,
+                    color: "#fff",
+                    fontSize: 12,
+                  }}
+                />
+                <Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
 
           {/* Top violated rules */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <TrendingUp size={16} className="text-brand-600"/> Top Rule Failures
+          <div className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
+            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold tracking-tight text-ink-900 dark:text-white">
+              <TrendingUp size={16} className="text-brand-600 dark:text-brand-300" /> Top rule failures
             </h3>
             {ruleTriggerData.length === 0 ? (
-              <div className="flex items-center gap-2 text-green-600 mt-8 justify-center">
-                <CheckCircle2 size={20}/> No violations found
+              <div className="mt-8 flex items-center justify-center gap-2 text-success-600 dark:text-success-300">
+                <CheckCircle2 size={20} /> No violations found
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={ruleTriggerData} layout="vertical" margin={{ left: 20 }}>
-                  <XAxis type="number" tick={{fontSize:11}}/>
-                  <YAxis dataKey="name" type="category" tick={{fontSize:11}} width={80}/>
-                  <Tooltip/>
-                  <Bar dataKey="count" fill="#6366f1" radius={[0,4,4,0]}/>
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "currentColor" }}
+                    className="text-ink-500 dark:text-ink-400"
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    tick={{ fontSize: 11, fill: "currentColor" }}
+                    className="text-ink-600 dark:text-ink-300"
+                    width={80}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "rgba(99,102,241,0.06)" }}
+                    contentStyle={{
+                      background: "rgba(15,18,32,0.95)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 10,
+                      color: "#fff",
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar dataKey="count" fill="url(#resBarGrad)" radius={[0, 6, 6, 0]} />
+                  <defs>
+                    <linearGradient id="resBarGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="100%" stopColor="#a855f7" />
+                    </linearGradient>
+                  </defs>
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
 
           {/* Employee table with risk overview */}
-          <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-800">Employee Summary</h3>
-              <span className="text-sm text-slate-500">{results.length} employees</span>
+          <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04] lg:col-span-2">
+            <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4 dark:border-white/[0.06]">
+              <h3 className="font-display text-base font-semibold tracking-tight text-ink-900 dark:text-white">
+                Employee summary
+              </h3>
+              <span className="text-sm text-ink-500 dark:text-ink-400">{results.length} employees</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
                   <tr>
-                    {["Emp ID","Name","Risk","Score","PF Emp","ESIC","PT","Issues",""].map(h=>(
-                      <th key={h} className="px-4 py-2.5 text-left font-medium">{h}</th>
+                    {["Emp ID", "Name", "Risk", "Score", "PF emp", "ESIC", "PT", "Issues", ""].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left font-semibold">
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {results.map(r => {
+                <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+                  {results.map((r) => {
                     const empFindings = r.findings || [];
-                    const fails = empFindings.filter(f => f.status === "FAIL");
-                    const hasCrit = fails.some(f => f.severity === "CRITICAL");
+                    const fails = empFindings.filter((f) => f.status === "FAIL");
+                    const hasCrit = fails.some((f) => f.severity === "CRITICAL");
                     return (
-                      <tr key={r.employee_id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-mono text-slate-600">{r.employee_id}</td>
-                        <td className="px-4 py-3 font-medium text-slate-800">{r.employee_name || "—"}</td>
-                        <td className="px-4 py-3"><RiskBadge level={r.risk_level || "LOW"}/></td>
+                      <tr
+                        key={r.employee_id}
+                        className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                      >
+                        <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
+                        <td className="px-4 py-3 font-medium text-ink-800 dark:text-white">
+                          {r.employee_name || "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <RiskBadge level={r.risk_level || "LOW"} />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-16 bg-slate-200 rounded-full h-1.5">
+                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-ink-200 dark:bg-white/10">
                               <div
-                                className={`h-1.5 rounded-full ${r.risk_level==="HIGH"?"bg-red-500":r.risk_level==="MEDIUM"?"bg-yellow-500":"bg-green-500"}`}
-                                style={{width:`${r.risk_score || 0}%`}}
+                                className={`h-1.5 rounded-full ${
+                                  r.risk_level === "HIGH"
+                                    ? "bg-danger-500"
+                                    : r.risk_level === "MEDIUM"
+                                      ? "bg-warning-500"
+                                      : "bg-success-500"
+                                }`}
+                                style={{ width: `${r.risk_score || 0}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-500">{r.risk_score ?? 0}</span>
+                            <span className="num text-xs text-ink-500 dark:text-ink-400">
+                              {r.risk_score ?? 0}
+                            </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-700">{fmt(r.pf_amount_employee)}</td>
-                        <td className="px-4 py-3 text-slate-700">{r.esic_eligible ? fmt(r.esic_employee) : <span className="text-slate-400 text-xs">exempt</span>}</td>
-                        <td className="px-4 py-3 text-slate-700">{r.pt_due > 0 ? fmt(r.pt_due) : <span className="text-slate-400 text-xs">nil</span>}</td>
+                        <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
+                          {fmt(r.pf_amount_employee)}
+                        </td>
+                        <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
+                          {r.esic_eligible ? (
+                            fmt(r.esic_employee)
+                          ) : (
+                            <span className="text-xs text-ink-400 dark:text-ink-500">exempt</span>
+                          )}
+                        </td>
+                        <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
+                          {r.pt_due > 0 ? (
+                            fmt(r.pt_due)
+                          ) : (
+                            <span className="text-xs text-ink-400 dark:text-ink-500">nil</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           {fails.length > 0 ? (
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${hasCrit ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                hasCrit
+                                  ? "bg-danger-100 text-danger-700 dark:bg-danger-500/15 dark:text-danger-300"
+                                  : "bg-warning-100 text-warning-700 dark:bg-warning-500/15 dark:text-warning-300"
+                              }`}
+                            >
                               {fails.length} issue{fails.length > 1 ? "s" : ""}
                             </span>
                           ) : (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">OK</span>
+                            <span className="rounded-full bg-success-100 px-2 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-300">
+                              OK
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <Link
                             href={`/payroll/employee/${encodeURIComponent(r.employee_id)}`}
-                            className="inline-flex items-center gap-1 text-xs text-brand-700 hover:text-brand-800 font-medium"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
                           >
-                            Drilldown <ArrowRight size={12}/>
+                            Drilldown <ArrowRight size={12} />
                           </Link>
                         </td>
                       </tr>
@@ -533,58 +647,85 @@ function PayrollResultsContent() {
       {/* ── Risk Scores Tab ── */}
       {tab === "risk" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-48">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-48 flex-1">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500"
+              />
               <input
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none ring-brand-500/20 placeholder:text-slate-400 focus-visible:ring-[3px]"
+                className="w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-900 shadow-sm outline-none ring-brand-500/20 placeholder:text-ink-400 focus-visible:ring-[3px] dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500"
                 placeholder="Search employee…"
                 value={rSearch}
-                onChange={e => setRSearch(e.target.value)}
+                onChange={(e) => setRSearch(e.target.value)}
               />
             </div>
-            {(["ALL","HIGH","MEDIUM","LOW"] as const).map(lvl => (
-              <button key={lvl}
+            {(["ALL", "HIGH", "MEDIUM", "LOW"] as const).map((lvl) => (
+              <button
+                key={lvl}
                 onClick={() => setRLevel(lvl)}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors
-                  ${rLevel === lvl
-                    ? lvl==="HIGH" ? "bg-red-600 text-white"
-                    : lvl==="MEDIUM" ? "bg-yellow-500 text-white"
-                    : lvl==="LOW" ? "bg-green-600 text-white"
-                    : "bg-brand-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  rLevel === lvl
+                    ? lvl === "HIGH"
+                      ? "bg-danger-600 text-white shadow-sm"
+                      : lvl === "MEDIUM"
+                        ? "bg-warning-500 text-white shadow-sm"
+                        : lvl === "LOW"
+                          ? "bg-success-600 text-white shadow-sm"
+                          : "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-sm"
+                    : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-white/[0.05] dark:text-ink-300 dark:hover:bg-white/[0.08]"
+                }`}
               >
                 {lvl}
               </button>
             ))}
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
                 <tr>
-                  {["Emp ID","Name","Risk Level","Score","Breakdown",""].map(h=>(
-                    <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>
+                  {["Emp ID", "Name", "Risk level", "Score", "Breakdown", ""].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left font-semibold">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredRisk.map(r => (
-                  <tr key={r.employee_id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-slate-600">{r.employee_id}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800">{r.employee_name || "—"}</td>
-                    <td className="px-4 py-3"><RiskBadge level={r.risk_level}/></td>
+              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+                {filteredRisk.map((r) => (
+                  <tr
+                    key={r.employee_id}
+                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                  >
+                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">
+                      {r.employee_id}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-ink-800 dark:text-white">
+                      {r.employee_name || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <RiskBadge level={r.risk_level} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-24 bg-slate-200 rounded-full h-2">
+                        <div className="h-2 w-24 overflow-hidden rounded-full bg-ink-200 dark:bg-white/10">
                           <div
-                            className={`h-2 rounded-full ${r.risk_level==="HIGH"?"bg-red-500":r.risk_level==="MEDIUM"?"bg-yellow-500":"bg-green-500"}`}
-                            style={{width:`${r.risk_score}%`}}
+                            className={`h-2 rounded-full ${
+                              r.risk_level === "HIGH"
+                                ? "bg-danger-500"
+                                : r.risk_level === "MEDIUM"
+                                  ? "bg-warning-500"
+                                  : "bg-success-500"
+                            }`}
+                            style={{ width: `${r.risk_score}%` }}
                           />
                         </div>
-                        <span className="text-sm font-semibold text-slate-700">{r.risk_score}</span>
+                        <span className="num text-sm font-semibold text-ink-700 dark:text-ink-200">
+                          {r.risk_score}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
+                    <td className="px-4 py-3 text-xs text-ink-500 dark:text-ink-400">
                       {r.score_breakdown && Object.entries(r.score_breakdown)
                         .filter(([,v])=>v>0)
                         .map(([k,v])=>`${k}: ${v}`).join(" · ")}
@@ -600,7 +741,14 @@ function PayrollResultsContent() {
                   </tr>
                 ))}
                 {filteredRisk.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No results match your filters.</td></tr>
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-10 text-center text-ink-400 dark:text-ink-500"
+                    >
+                      No results match your filters.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -611,85 +759,132 @@ function PayrollResultsContent() {
       {/* ── Findings Tab ── */}
       {tab === "findings" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-48">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-48 flex-1">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500"
+              />
               <input
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none ring-brand-500/20 placeholder:text-slate-400 focus-visible:ring-[3px]"
+                className="w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-900 shadow-sm outline-none ring-brand-500/20 placeholder:text-ink-400 focus-visible:ring-[3px] dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500"
                 placeholder="Search rule, employee, component…"
                 value={fSearch}
-                onChange={e => setFSearch(e.target.value)}
+                onChange={(e) => setFSearch(e.target.value)}
               />
             </div>
-            {(["ALL","CRITICAL","WARNING","INFO"] as const).map(s => (
-              <button key={s} onClick={() => setFSev(s)}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors
-                  ${fSev===s
-                    ? s==="CRITICAL"?"bg-red-600 text-white"
-                    : s==="WARNING"?"bg-yellow-500 text-white"
-                    : s==="INFO"?"bg-blue-600 text-white"
-                    : "bg-brand-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            {(["ALL", "CRITICAL", "WARNING", "INFO"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setFSev(s)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  fSev === s
+                    ? s === "CRITICAL"
+                      ? "bg-danger-600 text-white shadow-sm"
+                      : s === "WARNING"
+                        ? "bg-warning-500 text-white shadow-sm"
+                        : s === "INFO"
+                          ? "bg-sky-600 text-white shadow-sm"
+                          : "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-sm"
+                    : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-white/[0.05] dark:text-ink-300 dark:hover:bg-white/[0.08]"
+                }`}
               >
                 {s}
               </button>
             ))}
-            <button onClick={() => setFStatus(s => s === "FAIL" ? "ALL" : "FAIL")}
-              className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors
-                ${fStatus === "FAIL" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            <button
+              onClick={() => setFStatus((s) => (s === "FAIL" ? "ALL" : "FAIL"))}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                fStatus === "FAIL"
+                  ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900"
+                  : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-white/[0.05] dark:text-ink-300 dark:hover:bg-white/[0.08]"
+              }`}
             >
-              Fails Only
+              Fails only
             </button>
           </div>
 
-          <p className="text-sm text-slate-500">{filteredFindings.length} findings shown</p>
+          <p className="text-sm text-ink-500 dark:text-ink-400">
+            {filteredFindings.length} findings shown
+          </p>
 
           <div className="space-y-2">
             {filteredFindings.map((f, i) => (
-              <div key={i}
-                className={`rounded-xl border p-4 ${f.status==="PASS" ? "bg-green-50 border-green-100" :
-                  f.severity==="CRITICAL" ? "bg-red-50 border-red-200" :
-                  f.severity==="WARNING" ? "bg-yellow-50 border-yellow-200" : "bg-blue-50 border-blue-100"}`}
+              <div
+                key={i}
+                className={`rounded-2xl border p-4 shadow-soft transition-colors ${
+                  f.status === "PASS"
+                    ? "border-success-200/80 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/10 dark:to-ink-900/40"
+                    : f.severity === "CRITICAL"
+                      ? "border-danger-200/80 bg-gradient-to-br from-danger-50 to-white dark:border-danger-500/20 dark:from-danger-500/10 dark:to-ink-900/40"
+                      : f.severity === "WARNING"
+                        ? "border-warning-200/80 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/25 dark:from-warning-500/10 dark:to-ink-900/40"
+                        : "border-sky-200/80 bg-gradient-to-br from-sky-50 to-white dark:border-sky-500/25 dark:from-sky-500/10 dark:to-ink-900/40"
+                }`}
               >
-                <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded font-mono font-semibold ${SEV_COLOR[f.status==="PASS"?"PASS":f.severity]}`}>
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded px-2 py-0.5 font-mono text-xs font-semibold ${
+                        SEV_COLOR[f.status === "PASS" ? "PASS" : f.severity]
+                      }`}
+                    >
                       {f.rule_id}
                     </span>
-                    <span className={`text-xs px-2 py-0.5 rounded font-semibold ${SEV_COLOR[f.status==="PASS"?"PASS":f.severity]}`}>
-                      {f.status==="PASS" ? "PASS" : f.severity}
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs font-semibold ${
+                        SEV_COLOR[f.status === "PASS" ? "PASS" : f.severity]
+                      }`}
+                    >
+                      {f.status === "PASS" ? "PASS" : f.severity}
                     </span>
-                    <span className="text-sm font-semibold text-slate-800">{f.rule_name}</span>
+                    <span className="text-sm font-semibold text-ink-800 dark:text-white">
+                      {f.rule_name}
+                    </span>
                   </div>
                   <Link
                     href={`/payroll/employee/${encodeURIComponent(f.employee_id)}`}
-                    className="text-xs text-brand-700 hover:text-brand-800 font-medium"
+                    className="text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
                   >
                     {f.employee_id} {f.employee_name ? `· ${f.employee_name}` : ""}
                   </Link>
                 </div>
-                <p className="text-sm text-slate-700 mb-1.5">{f.reason}</p>
-                <div className="flex flex-wrap gap-4 text-xs text-slate-500 mb-1.5">
-                  {f.expected_value && <span>Expected: <strong>{f.expected_value}</strong></span>}
-                  {f.actual_value && <span>Actual: <strong>{f.actual_value}</strong></span>}
-                  {f.difference && f.difference !== "0.00" && <span>Diff: <strong>{f.difference}</strong></span>}
+                <p className="mb-1.5 text-sm text-ink-700 dark:text-ink-200">{f.reason}</p>
+                <div className="mb-1.5 flex flex-wrap gap-4 text-xs text-ink-500 dark:text-ink-400">
+                  {f.expected_value && (
+                    <span>
+                      Expected: <strong className="text-ink-700 dark:text-ink-200">{f.expected_value}</strong>
+                    </span>
+                  )}
+                  {f.actual_value && (
+                    <span>
+                      Actual: <strong className="text-ink-700 dark:text-ink-200">{f.actual_value}</strong>
+                    </span>
+                  )}
+                  {f.difference && f.difference !== "0.00" && (
+                    <span>
+                      Diff: <strong className="text-ink-700 dark:text-ink-200">{f.difference}</strong>
+                    </span>
+                  )}
                   {f.financial_impact > 0 && (
-                    <span className="text-red-600 font-semibold">
+                    <span className="font-semibold text-danger-600 dark:text-danger-300">
                       Impact: ₹{f.financial_impact.toLocaleString("en-IN")}
                     </span>
                   )}
                 </div>
                 {f.suggested_fix && (
-                  <div className="mt-2 rounded-lg border border-brand-100 bg-brand-50/80 px-3 py-2 text-xs text-brand-950">
-                    <span className="font-semibold">Fix: </span>{f.suggested_fix}
+                  <div className="mt-2 rounded-lg border border-brand-100 bg-brand-50/80 px-3 py-2 text-xs text-brand-950 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-100">
+                    <span className="font-semibold">Fix: </span>
+                    {f.suggested_fix}
                   </div>
                 )}
               </div>
             ))}
             {filteredFindings.length === 0 && (
-              <div className="text-center py-16 text-slate-400">
-                <CheckCircle2 size={40} className="mx-auto mb-3 text-green-300"/>
-                <p className="text-lg font-medium text-slate-500">No findings match your filters</p>
+              <div className="py-16 text-center text-ink-400 dark:text-ink-500">
+                <CheckCircle2 size={40} className="mx-auto mb-3 text-success-300 dark:text-success-400" />
+                <p className="text-lg font-medium text-ink-500 dark:text-ink-400">
+                  No findings match your filters
+                </p>
               </div>
             )}
           </div>
@@ -698,32 +893,49 @@ function PayrollResultsContent() {
 
       {/* ── PF Tab ── */}
       {tab === "pf" && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
                 <tr>
-                  {["Emp ID","Name","PF Wage","Type","PF (Emp)","PF (Er)","EPS","EPF","EDLI+Admin"].map(h=>(
-                    <th key={h} className="px-4 py-2.5 text-left font-medium">{h}</th>
+                  {["Emp ID", "Name", "PF wage", "Type", "PF (emp)", "PF (er)", "EPS", "EPF", "EDLI+admin"].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-left font-semibold">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {results.map(r => (
-                  <tr key={r.employee_id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-slate-600">{r.employee_id}</td>
-                    <td className="px-4 py-3">{r.employee_name || "—"}</td>
-                    <td className="px-4 py-3">{fmt(r.pf_wage)}</td>
+              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+                {results.map((r) => (
+                  <tr
+                    key={r.employee_id}
+                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                  >
+                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
+                    <td className="px-4 py-3 text-ink-800 dark:text-white">{r.employee_name || "—"}</td>
+                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">{fmt(r.pf_wage)}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${r.pf_type==="uncapped"?"bg-orange-100 text-orange-700":"bg-blue-100 text-blue-700"}`}>
+                      <span
+                        className={`rounded px-2 py-0.5 text-xs font-semibold ${
+                          r.pf_type === "uncapped"
+                            ? "bg-warning-100 text-warning-800 dark:bg-warning-500/15 dark:text-warning-300"
+                            : "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300"
+                        }`}
+                      >
                         {r.pf_type}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-semibold">{fmt(r.pf_amount_employee)}</td>
-                    <td className="px-4 py-3 font-semibold">{fmt(r.pf_amount_employer)}</td>
-                    <td className="px-4 py-3 text-slate-500">{fmt(r.pf_breakup?.eps)}</td>
-                    <td className="px-4 py-3 text-slate-500">{fmt(r.pf_breakup?.epf)}</td>
-                    <td className="px-4 py-3 text-slate-500">{fmt((r.pf_breakup?.edli || 0) + (r.pf_breakup?.admin || 0))}</td>
+                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
+                      {fmt(r.pf_amount_employee)}
+                    </td>
+                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
+                      {fmt(r.pf_amount_employer)}
+                    </td>
+                    <td className="num px-4 py-3 text-ink-500 dark:text-ink-400">{fmt(r.pf_breakup?.eps)}</td>
+                    <td className="num px-4 py-3 text-ink-500 dark:text-ink-400">{fmt(r.pf_breakup?.epf)}</td>
+                    <td className="num px-4 py-3 text-ink-500 dark:text-ink-400">
+                      {fmt((r.pf_breakup?.edli || 0) + (r.pf_breakup?.admin || 0))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -734,29 +946,44 @@ function PayrollResultsContent() {
 
       {/* ── ESIC Tab ── */}
       {tab === "esic" && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
                 <tr>
-                  {["Emp ID","Name","ESIC Wage","Eligible?","ESIC (Emp)","ESIC (Er)"].map(h=>(
-                    <th key={h} className="px-4 py-2.5 text-left font-medium">{h}</th>
+                  {["Emp ID", "Name", "ESIC wage", "Eligible?", "ESIC (emp)", "ESIC (er)"].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-left font-semibold">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {results.map(r => (
-                  <tr key={r.employee_id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-slate-600">{r.employee_id}</td>
-                    <td className="px-4 py-3">{r.employee_name || "—"}</td>
-                    <td className="px-4 py-3">{fmt(r.esic_wage)}</td>
+              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+                {results.map((r) => (
+                  <tr
+                    key={r.employee_id}
+                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                  >
+                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
+                    <td className="px-4 py-3 text-ink-800 dark:text-white">{r.employee_name || "—"}</td>
+                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">{fmt(r.esic_wage)}</td>
                     <td className="px-4 py-3">
-                      {r.esic_eligible
-                        ? <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 font-medium">Yes</span>
-                        : <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">Exempt</span>}
+                      {r.esic_eligible ? (
+                        <span className="rounded bg-success-100 px-2 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-300">
+                          Yes
+                        </span>
+                      ) : (
+                        <span className="rounded bg-ink-100 px-2 py-0.5 text-xs font-semibold text-ink-500 dark:bg-white/[0.06] dark:text-ink-300">
+                          Exempt
+                        </span>
+                      )}
                     </td>
-                    <td className="px-4 py-3 font-semibold">{r.esic_eligible ? fmt(r.esic_employee) : "–"}</td>
-                    <td className="px-4 py-3 font-semibold">{r.esic_eligible ? fmt(r.esic_employer) : "–"}</td>
+                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
+                      {r.esic_eligible ? fmt(r.esic_employee) : "–"}
+                    </td>
+                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
+                      {r.esic_eligible ? fmt(r.esic_employer) : "–"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -767,26 +994,45 @@ function PayrollResultsContent() {
 
       {/* ── PT/LWF Tab ── */}
       {tab === "ptlwf" && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
                 <tr>
-                  {["Emp ID","Name","PT State","PT Due","LWF State","LWF (Emp)","LWF (Er)"].map(h=>(
-                    <th key={h} className="px-4 py-2.5 text-left font-medium">{h}</th>
+                  {["Emp ID", "Name", "PT state", "PT due", "LWF state", "LWF (emp)", "LWF (er)"].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-left font-semibold">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {results.map(r => (
-                  <tr key={r.employee_id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-slate-600">{r.employee_id}</td>
-                    <td className="px-4 py-3">{r.employee_name || "—"}</td>
-                    <td className="px-4 py-3 text-slate-500">{(r as unknown as {pt_applicable_state:string}).pt_applicable_state || "–"}</td>
-                    <td className="px-4 py-3 font-semibold">{r.pt_due > 0 ? fmt(r.pt_due) : <span className="text-slate-400">nil</span>}</td>
-                    <td className="px-4 py-3 text-slate-500">{(r as unknown as {lwf_applicable_state:string}).lwf_applicable_state || "–"}</td>
-                    <td className="px-4 py-3">{r.lwf_employee > 0 ? fmt(r.lwf_employee) : "–"}</td>
-                    <td className="px-4 py-3">{r.lwf_employer > 0 ? fmt(r.lwf_employer) : "–"}</td>
+              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+                {results.map((r) => (
+                  <tr
+                    key={r.employee_id}
+                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                  >
+                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
+                    <td className="px-4 py-3 text-ink-800 dark:text-white">{r.employee_name || "—"}</td>
+                    <td className="px-4 py-3 text-ink-500 dark:text-ink-400">
+                      {(r as unknown as { pt_applicable_state: string }).pt_applicable_state || "–"}
+                    </td>
+                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
+                      {r.pt_due > 0 ? (
+                        fmt(r.pt_due)
+                      ) : (
+                        <span className="text-ink-400 dark:text-ink-500">nil</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-ink-500 dark:text-ink-400">
+                      {(r as unknown as { lwf_applicable_state: string }).lwf_applicable_state || "–"}
+                    </td>
+                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
+                      {r.lwf_employee > 0 ? fmt(r.lwf_employee) : "–"}
+                    </td>
+                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
+                      {r.lwf_employer > 0 ? fmt(r.lwf_employer) : "–"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -798,58 +1044,99 @@ function PayrollResultsContent() {
       {/* ── LOP/Arrear Tab ── */}
       {tab === "lop" && (
         <div className="space-y-4">
-          {results.filter(r => r.lop_check?.diffs?.length || r.increment_arrear?.applicable || r.tds_risk_flags?.length).map(r => (
-            <div key={r.employee_id} className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <span className="font-semibold text-slate-800">{r.employee_id}</span>
-                  {r.employee_name && <span className="text-slate-500 text-sm ml-2">{r.employee_name}</span>}
+          {results
+            .filter(
+              (r) =>
+                r.lop_check?.diffs?.length ||
+                r.increment_arrear?.applicable ||
+                r.tds_risk_flags?.length,
+            )
+            .map((r) => (
+              <div
+                key={r.employee_id}
+                className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-ink-800 dark:text-white">{r.employee_id}</span>
+                    {r.employee_name && (
+                      <span className="ml-2 text-sm text-ink-500 dark:text-ink-400">
+                        {r.employee_name}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {r.paid_days != null && (
+                      <span className="rounded bg-ink-100 px-2 py-0.5 text-xs text-ink-600 dark:bg-white/[0.06] dark:text-ink-300">
+                        Paid: {r.paid_days}d | LOP: {r.lop_days ?? 0}d
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  {r.paid_days != null && (
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
-                      Paid: {r.paid_days}d | LOP: {r.lop_days ?? 0}d
-                    </span>
-                  )}
-                </div>
-              </div>
-              {r.lop_check?.diffs?.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-semibold text-slate-500 mb-1">LOP Proration Diffs</p>
-                  <div className="space-y-1">
-                    {r.lop_check.diffs.map((d,i) => (
-                      <div key={i} className="flex items-center gap-3 text-xs">
-                        <span className="font-mono text-slate-600">{d.component}</span>
-                        <span className="text-slate-400">Expected: <strong>{d.expected.toFixed(2)}</strong></span>
-                        <span className="text-slate-400">Actual: <strong>{d.actual.toFixed(2)}</strong></span>
-                        <span className={d.diff > 0 ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
-                          {d.diff > 0 ? "+" : ""}{d.diff.toFixed(2)}
-                        </span>
+                {r.lop_check?.diffs?.length > 0 && (
+                  <div className="mb-3">
+                    <p className="mb-1 text-xs font-semibold text-ink-500 dark:text-ink-400">
+                      LOP proration diffs
+                    </p>
+                    <div className="space-y-1">
+                      {r.lop_check.diffs.map((d, i) => (
+                        <div key={i} className="flex items-center gap-3 text-xs">
+                          <span className="font-mono text-ink-600 dark:text-ink-300">{d.component}</span>
+                          <span className="text-ink-400 dark:text-ink-500">
+                            Expected:{" "}
+                            <strong className="text-ink-700 dark:text-ink-200">
+                              {d.expected.toFixed(2)}
+                            </strong>
+                          </span>
+                          <span className="text-ink-400 dark:text-ink-500">
+                            Actual:{" "}
+                            <strong className="text-ink-700 dark:text-ink-200">{d.actual.toFixed(2)}</strong>
+                          </span>
+                          <span
+                            className={
+                              d.diff > 0
+                                ? "font-semibold text-danger-600 dark:text-danger-300"
+                                : "font-semibold text-success-600 dark:text-success-300"
+                            }
+                          >
+                            {d.diff > 0 ? "+" : ""}
+                            {d.diff.toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {r.increment_arrear?.applicable && (
+                  <div className="rounded-lg bg-brand-50 p-3 text-xs text-brand-950 ring-1 ring-brand-100 dark:bg-brand-500/10 dark:text-brand-100 dark:ring-brand-500/30">
+                    <strong>Increment arrear:</strong> Expected ₹
+                    {r.increment_arrear.expected_total.toFixed(2)} over {r.increment_arrear.months}{" "}
+                    month(s) · Actual ₹{r.increment_arrear.actual_total.toFixed(2)}
+                  </div>
+                )}
+                {r.tds_risk_flags?.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {r.tds_risk_flags.map((f, i) => (
+                      <div
+                        key={i}
+                        className="rounded-lg border border-warning-200 bg-warning-50 p-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
+                      >
+                        <AlertTriangle size={12} className="mr-1.5 inline" /> {f}
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-              {r.increment_arrear?.applicable && (
-                <div className="rounded-lg bg-brand-50 p-3 text-xs text-brand-950 ring-1 ring-brand-100">
-                  <strong>Increment Arrear:</strong> Expected ₹{r.increment_arrear.expected_total.toFixed(2)} over {r.increment_arrear.months} month(s) · Actual ₹{r.increment_arrear.actual_total.toFixed(2)}
-                </div>
-              )}
-              {r.tds_risk_flags?.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {r.tds_risk_flags.map((f,i) => (
-                    <div key={i} className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-800">
-                      <AlertTriangle size={12} className="inline mr-1.5"/> {f}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          {results.filter(r => r.lop_check?.diffs?.length || r.increment_arrear?.applicable || r.tds_risk_flags?.length).length === 0 && (
-            <div className="text-center py-16 text-slate-400">
-              <CheckCircle2 size={40} className="mx-auto mb-3 text-green-300"/>
-              <p className="text-slate-500">No LOP/Arrear issues found.</p>
+                )}
+              </div>
+            ))}
+          {results.filter(
+            (r) =>
+              r.lop_check?.diffs?.length ||
+              r.increment_arrear?.applicable ||
+              r.tds_risk_flags?.length,
+          ).length === 0 && (
+            <div className="py-16 text-center text-ink-400 dark:text-ink-500">
+              <CheckCircle2 size={40} className="mx-auto mb-3 text-success-300 dark:text-success-400" />
+              <p className="text-ink-500 dark:text-ink-400">No LOP/Arrear issues found.</p>
             </div>
           )}
         </div>
