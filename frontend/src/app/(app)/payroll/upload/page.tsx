@@ -171,12 +171,13 @@ export default function UploadPage() {
   const needsArrearDates = runType === "arrear" || runType === "increment_arrear";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="mx-auto max-w-3xl space-y-7">
       <PageHeader
+        eyebrow="Validation engine"
         title="Upload & validate payroll"
-        description="Import a salary register (CSV / Excel), set the payroll run parameters, preview rows, then run statutory validation."
+        description="Import a salary register (CSV / Excel), set run parameters, preview rows, then run a full statutory validation pass."
         actions={
-          <Button variant="outline" asChild className="rounded-xl border-slate-200 bg-white shadow-sm">
+          <Button variant="outline" asChild>
             <Link href="/payroll/history" className="gap-2">
               <History size={15} strokeWidth={2} /> History
             </Link>
@@ -184,103 +185,127 @@ export default function UploadPage() {
         }
       />
 
-      {/* Step indicator */}
-      <Card className="overflow-hidden shadow-soft">
-        <CardContent className="flex flex-wrap items-center gap-2 p-4 sm:gap-0 sm:p-5">
-          {STEP_LABELS.map((label, i) => (
-            <div key={label} className="flex flex-1 items-center sm:min-w-0">
+      {/* Step indicator — segmented progress */}
+      <div className="flex items-center gap-3 rounded-2xl border border-ink-200/70 bg-white p-3 shadow-soft">
+        {STEP_LABELS.map((label, i) => {
+          const done = i < step;
+          const current = i === step;
+          return (
+            <div key={label} className="flex flex-1 items-center gap-2.5">
               <div
-                className={`flex items-center gap-2.5 ${
-                  i < step ? "text-emerald-600" : i === step ? "text-brand-700" : "text-slate-400"
+                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border-2 text-xs font-bold transition-all ${
+                  done
+                    ? "border-success-500 bg-gradient-to-br from-success-50 to-white text-success-700 shadow-sm"
+                    : current
+                      ? "border-brand-500 bg-gradient-to-br from-brand-50 to-accent-50 text-brand-700 shadow-sm"
+                      : "border-ink-200 bg-white text-ink-400"
                 }`}
               >
-                <div
-                  className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
-                    i < step
-                      ? "border-emerald-500 bg-emerald-50 shadow-sm"
-                      : i === step
-                        ? "border-brand-600 bg-brand-50 shadow-sm"
-                        : "border-slate-200 bg-white"
-                  }`}
-                >
-                  {i < step ? <CheckCircle2 size={16} strokeWidth={2.25} aria-hidden /> : i + 1}
-                </div>
-                <span className="hidden text-xs font-semibold sm:inline">{label}</span>
+                {done ? <CheckCircle2 size={16} strokeWidth={2.5} /> : i + 1}
               </div>
+              <span
+                className={`hidden text-[12px] font-semibold sm:inline ${
+                  done ? "text-success-700" : current ? "text-ink-900" : "text-ink-400"
+                }`}
+              >
+                {label}
+              </span>
               {i < STEP_LABELS.length - 1 && (
-                <div className={`mx-3 hidden h-0.5 min-w-[1rem] flex-1 sm:block ${i < step ? "bg-emerald-200" : "bg-slate-200"}`} />
+                <div
+                  className={`mx-2 hidden h-0.5 min-w-[1rem] flex-1 rounded-full transition-colors sm:block ${
+                    done ? "bg-success-300" : "bg-ink-100"
+                  }`}
+                />
               )}
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          );
+        })}
+      </div>
 
-      {/* Step 0: File upload */}
-      <Card className={`overflow-hidden transition-shadow ${drag ? "ring-2 ring-brand-400/50" : ""}`}>
-        <CardContent className="p-0">
-          <div
-            className={`px-6 py-12 text-center transition-colors sm:py-14 ${
-              drag ? "bg-brand-50/90" : file ? "bg-emerald-50/40" : "bg-slate-50/60"
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDrag(true);
-            }}
-            onDragLeave={() => setDrag(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDrag(false);
-              const f = e.dataTransfer.files?.[0];
-              if (f) onFile(f);
-            }}
-          >
-            {file ? (
-              <div className="mx-auto flex max-w-md flex-col items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft ring-1 ring-emerald-200/80">
-                  <FileSpreadsheet className="h-7 w-7 text-emerald-700" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900">{file.name}</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {(file.size / 1024).toFixed(1)} KB · ready to configure
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onFile(null)}
-                  className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-white/80 hover:text-red-600"
-                >
-                  <X size={13} aria-hidden /> Remove file
-                </button>
+      {/* Step 0: Premium dropzone */}
+      <div
+        className={`group relative overflow-hidden rounded-2xl border-2 border-dashed transition-all ${
+          drag
+            ? "border-brand-500 bg-gradient-to-br from-brand-50 to-accent-50 ring-4 ring-brand-500/15"
+            : file
+              ? "border-success-300 bg-gradient-to-br from-success-50/60 to-white"
+              : "border-ink-200 bg-white hover:border-brand-300"
+        }`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDrag(true);
+        }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDrag(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f) onFile(f);
+        }}
+      >
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full blur-3xl transition-opacity ${
+            drag || file
+              ? "bg-gradient-to-br from-brand-300/40 to-accent-300/40 opacity-100"
+              : "bg-brand-200/30 opacity-0 group-hover:opacity-100"
+          }`}
+        />
+        <div className="relative px-6 py-14 text-center sm:py-16">
+          {file ? (
+            <div className="mx-auto flex max-w-md flex-col items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-soft ring-1 ring-success-300/40">
+                <FileSpreadsheet className="h-8 w-8 text-success-600" strokeWidth={1.75} />
               </div>
-            ) : (
-              <div className="mx-auto flex max-w-lg flex-col items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/[0.06]">
-                  <UploadCloud className="h-7 w-7 text-brand-600" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-slate-900">Drop your register here</p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Payroll CSV / Excel (.csv, .xlsx, .xls). Drag in or browse.
-                  </p>
-                </div>
-                <label className="inline-flex cursor-pointer items-center rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-700">
-                  Choose file
-                  <input
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    className="hidden"
-                    onChange={(e) => onFile(e.target.files?.[0] || null)}
-                  />
-                </label>
+              <div>
+                <p className="font-display text-lg font-bold text-ink-900">{file.name}</p>
+                <p className="mt-1 text-sm text-ink-500">
+                  {(file.size / 1024).toFixed(1)} KB · ready to configure
+                </p>
               </div>
-            )}
-          </div>
-          <div className="border-t border-slate-100 px-6 py-3 text-center text-xs text-slate-500">
-            Rows should align with salary components configured for your tenant.
-          </div>
-        </CardContent>
-      </Card>
+              <button
+                type="button"
+                onClick={() => onFile(null)}
+                className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-500 transition-colors hover:bg-white hover:text-danger-600"
+              >
+                <X size={13} /> Remove file
+              </button>
+            </div>
+          ) : (
+            <div className="mx-auto flex max-w-lg flex-col items-center gap-5">
+              <div className="relative">
+                <div className="absolute inset-0 -m-2 animate-pulse-soft rounded-2xl bg-gradient-to-br from-brand-300/30 to-accent-300/30 blur-xl" />
+                <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-600 to-accent-600 shadow-glow">
+                  <UploadCloud className="h-8 w-8 text-white" strokeWidth={2} />
+                </div>
+              </div>
+              <div>
+                <p className="font-display text-lg font-bold tracking-tight text-ink-900">
+                  Drop your register, or browse
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
+                  Payroll CSV / Excel (<code className="rounded bg-ink-100 px-1 text-[11px]">.csv</code>,{" "}
+                  <code className="rounded bg-ink-100 px-1 text-[11px]">.xlsx</code>,{" "}
+                  <code className="rounded bg-ink-100 px-1 text-[11px]">.xls</code>).
+                </p>
+              </div>
+              <label className="group/btn inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 px-6 py-3 text-sm font-semibold text-white shadow-soft transition-all hover:shadow-glow">
+                <UploadCloud size={16} strokeWidth={2.25} />
+                Choose file
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => onFile(e.target.files?.[0] || null)}
+                />
+              </label>
+              <p className="text-[11px] text-ink-400">
+                Rows align with salary components configured for your tenant.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Step 1: Run options */}
       {step >= 1 ? (
@@ -295,18 +320,31 @@ export default function UploadPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Run type</p>
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {(["regular", "arrear", "increment_arrear"] as const).map((t) => (
+                {(
+                  [
+                    { id: "regular", label: "Regular", desc: "Standard monthly run" },
+                    { id: "arrear", label: "Arrear", desc: "Past-period correction" },
+                    { id: "increment_arrear", label: "Increment + arrear", desc: "With CTC delta" },
+                  ] as const
+                ).map((t) => (
                   <button
-                    key={t}
+                    key={t.id}
                     type="button"
-                    onClick={() => setRunType(t)}
-                    className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-all ${
-                      runType === t
-                        ? "border-brand-500 bg-brand-50 text-brand-900 shadow-sm ring-1 ring-brand-500/15"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    onClick={() => setRunType(t.id)}
+                    className={`group relative overflow-hidden rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-all ${
+                      runType === t.id
+                        ? "border-brand-500 bg-gradient-to-br from-brand-50 to-accent-50 text-brand-900 shadow-sm ring-1 ring-brand-500/20"
+                        : "border-ink-200 bg-white text-ink-700 hover:border-brand-300 hover:bg-ink-50"
                     }`}
                   >
-                    {t === "regular" ? "Regular" : t === "arrear" ? "Arrear" : "Increment + arrear"}
+                    {runType === t.id && (
+                      <span
+                        aria-hidden
+                        className="absolute right-2 top-2 h-2 w-2 rounded-full bg-gradient-to-br from-brand-500 to-accent-500"
+                      />
+                    )}
+                    <p className="font-display">{t.label}</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-ink-500">{t.desc}</p>
                   </button>
                 ))}
               </div>

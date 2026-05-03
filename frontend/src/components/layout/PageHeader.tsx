@@ -2,28 +2,43 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type PageHeaderProps = {
+  eyebrow?: string;
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
   className?: string;
 };
 
-/** Stripe-style page title row: eyebrow-ready typography, optional right-side actions */
-export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
+export function PageHeader({
+  eyebrow,
+  title,
+  description,
+  actions,
+  className,
+}: PageHeaderProps) {
   return (
     <header
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6",
+        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8",
         className,
       )}
     >
-      <div className="min-w-0 space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{title}</h1>
+      <div className="min-w-0 space-y-1.5">
+        {eyebrow && (
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brand-600">
+            {eyebrow}
+          </p>
+        )}
+        <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-ink-900 sm:text-[28px]">
+          {title}
+        </h1>
         {description ? (
-          <div className="max-w-2xl text-sm leading-relaxed text-slate-600">{description}</div>
+          <div className="max-w-2xl text-[14px] leading-relaxed text-ink-500">{description}</div>
         ) : null}
       </div>
-      {actions ? <div className="flex flex-shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">{actions}</div>
+      ) : null}
     </header>
   );
 }

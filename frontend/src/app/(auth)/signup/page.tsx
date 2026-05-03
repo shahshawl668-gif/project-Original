@@ -3,12 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+
+const benefits = [
+  "Validate PF, ESIC, PT, LWF in seconds",
+  "Old vs new regime tax projection",
+  "Excel audit trail for every register",
+  "Tenant-isolated, role-based access",
+];
 
 export default function SignupPage() {
   const router = useRouter();
@@ -36,29 +42,46 @@ export default function SignupPage() {
   };
 
   return (
-    <AuthShell
-      brandTitle="Create your workspace in one step"
-      brandSubtitle="The first user in an empty database receives admin privileges so you can onboard your team and statutory settings without extra setup."
-    >
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-8 shadow-card ring-1 ring-slate-900/[0.04] sm:p-9">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">Create account</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          Use a work email you control — we tie validations, uploads, and config to your tenant.
+    <AuthShell>
+      <div className="animate-fade-up">
+        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600">
+          Create workspace
         </p>
-        <form onSubmit={onSubmit} className="mt-8 space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="company">Company / workspace (optional)</Label>
+        <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
+          Get started in <span className="text-gradient">90 seconds</span>
+        </h1>
+        <p className="mt-2.5 text-sm leading-relaxed text-ink-500">
+          The first user in an empty workspace becomes the admin. No credit card. No commitment.
+        </p>
+
+        <ul className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {benefits.map((b) => (
+            <li key={b} className="flex items-start gap-2 text-[12px] text-ink-700">
+              <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0 text-success-500" />
+              {b}
+            </li>
+          ))}
+        </ul>
+
+        <form onSubmit={onSubmit} className="mt-7 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="company" className="text-[12px] font-semibold text-ink-800">
+              Company / workspace
+              <span className="ml-1 text-ink-400">(optional)</span>
+            </Label>
             <input
               id="company"
               type="text"
               value={company}
               onChange={(e) => setCompany(e.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm font-medium outline-none ring-brand-500/20 transition-colors placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:ring-[3px]"
-              placeholder="e.g. Acme India Pvt Ltd"
+              className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium outline-none transition-all placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+              placeholder="Acme India Pvt Ltd"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Work email</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-[12px] font-semibold text-ink-800">
+              Work email
+            </Label>
             <input
               id="email"
               type="email"
@@ -66,12 +89,15 @@ export default function SignupPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm font-medium outline-none ring-brand-500/20 transition-colors placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:ring-[3px]"
+              className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium outline-none transition-all placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
               placeholder="you@company.com"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password (min 8 characters)</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-[12px] font-semibold text-ink-800">
+              Password
+              <span className="ml-1 text-ink-400">(min 8 characters)</span>
+            </Label>
             <input
               id="password"
               type="password"
@@ -80,30 +106,51 @@ export default function SignupPage() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm font-medium outline-none ring-brand-500/20 transition-colors focus:border-brand-400 focus:bg-white focus:ring-[3px]"
+              className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium outline-none transition-all focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+              placeholder="••••••••••"
             />
           </div>
-          <Button type="submit" disabled={busy} className="h-11 w-full rounded-xl text-sm font-semibold shadow-soft">
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                Creating…
-              </>
-            ) : (
-              "Create account"
-            )}
-          </Button>
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="group relative mt-2 inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(99,102,241,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(99,102,241,0.7)] disabled:opacity-60"
+          >
+            <span className="relative flex items-center gap-2">
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating workspace…
+                </>
+              ) : (
+                <>
+                  Create my workspace
+                  <ArrowRight
+                    size={16}
+                    strokeWidth={2.25}
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
+                </>
+              )}
+            </span>
+          </button>
+
+          <p className="text-center text-[11px] leading-relaxed text-ink-400">
+            By continuing you agree to use PayrollCheck in line with your organisation&apos;s
+            policies.
+          </p>
         </form>
-        <p className="mt-8 text-center text-sm text-slate-600">
-          Already registered?{" "}
-          <Link href="/login" className="font-semibold text-brand-700 hover:text-brand-800 hover:underline">
+
+        <p className="mt-7 text-center text-sm text-ink-500">
+          Already on PayrollCheck?{" "}
+          <Link
+            href="/login"
+            className="font-semibold text-brand-600 hover:text-brand-700 hover:underline"
+          >
             Sign in
           </Link>
         </p>
       </div>
-      <p className="mt-8 text-center text-2xs font-medium uppercase tracking-widest text-slate-400 lg:text-left">
-        By continuing you agree to use this product in line with your organization&apos;s policies.
-      </p>
     </AuthShell>
   );
 }

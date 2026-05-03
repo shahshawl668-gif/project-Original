@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 
@@ -16,6 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) router.replace("/dashboard");
@@ -35,18 +35,24 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthShell
-      brandTitle="Sign in — enterprise-grade payroll validation"
-      brandSubtitle="Authenticate to bind this browser session to your tenant, or continue as guest when the API allows anonymous access."
-    >
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-8 shadow-card ring-1 ring-slate-900/[0.04] sm:p-9">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
-          Use your PayrollCheck credentials. Optional sign-in when the backend runs in anonymous tenant mode.
+    <AuthShell>
+      <div className="animate-fade-up">
+        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600">
+          Welcome back
         </p>
+        <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
+          Sign in to your <span className="text-gradient">workspace</span>
+        </h1>
+        <p className="mt-2.5 text-sm leading-relaxed text-ink-500">
+          Enter your work email and password. We&apos;ll match you to the right tenant and statutory
+          configuration automatically.
+        </p>
+
         <form onSubmit={onSubmit} className="mt-8 space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="email">Work email</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-[12px] font-semibold text-ink-800">
+              Work email
+            </Label>
             <input
               id="email"
               type="email"
@@ -54,52 +60,103 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm font-medium outline-none ring-brand-500/20 transition-colors placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:ring-[3px]"
+              className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium outline-none transition-all placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
               placeholder="you@company.com"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 text-sm font-medium outline-none ring-brand-500/20 transition-colors focus:border-brand-400 focus:bg-white focus:ring-[3px]"
-            />
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-[12px] font-semibold text-ink-800">
+                Password
+              </Label>
+              <Link
+                href="/login"
+                className="text-[11px] font-semibold text-brand-600 hover:text-brand-700"
+              >
+                Forgot?
+              </Link>
+            </div>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPwd ? "text" : "password"}
+                autoComplete="current-password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 pr-11 text-sm font-medium outline-none transition-all focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+                placeholder="••••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-400 transition-colors hover:text-ink-700"
+                aria-label={showPwd ? "Hide password" : "Show password"}
+              >
+                {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
-          <Button type="submit" disabled={busy} className="h-11 w-full rounded-xl text-sm font-semibold shadow-soft">
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                Signing in…
-              </>
-            ) : (
-              "Sign in"
-            )}
-          </Button>
-        </form>
-        <p className="mt-8 text-center text-sm text-slate-600">
-          No account?{" "}
-          <Link href="/signup" className="font-semibold text-brand-700 hover:text-brand-800 hover:underline">
-            Create one
-          </Link>
-        </p>
-        <p className="mt-4 text-center">
-          <Link
-            href="/dashboard"
-            className="text-xs font-medium text-slate-500 transition-colors hover:text-slate-800"
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(99,102,241,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(99,102,241,0.7)] disabled:opacity-60"
           >
-            Continue without signing in →
+            <span
+              aria-hidden
+              className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
+            />
+            <span className="relative flex items-center gap-2">
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight
+                    size={16}
+                    strokeWidth={2.25}
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
+                </>
+              )}
+            </span>
+          </button>
+        </form>
+
+        <div className="my-7 flex items-center gap-3">
+          <div className="h-px flex-1 bg-ink-200" />
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+            or
+          </span>
+          <div className="h-px flex-1 bg-ink-200" />
+        </div>
+
+        <Link
+          href="/dashboard"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white text-sm font-semibold text-ink-800 transition-all hover:bg-ink-50"
+        >
+          Continue without signing in
+          <ArrowRight
+            size={15}
+            className="text-ink-400 transition-transform group-hover:translate-x-0.5"
+          />
+        </Link>
+
+        <p className="mt-8 text-center text-sm text-ink-500">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/signup"
+            className="font-semibold text-brand-600 hover:text-brand-700 hover:underline"
+          >
+            Create workspace
           </Link>
         </p>
       </div>
-      <p className="mt-8 text-center text-2xs font-medium uppercase tracking-widest text-slate-400 lg:text-left">
-        Secured session · Tenant-scoped API
-      </p>
     </AuthShell>
   );
 }

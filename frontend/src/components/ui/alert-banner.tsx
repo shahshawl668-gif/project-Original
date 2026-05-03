@@ -4,20 +4,34 @@ import { cn } from "@/lib/utils";
 
 type AlertVariant = "success" | "error" | "warning" | "info";
 
-const styles: Record<AlertVariant, string> = {
-  success:
-    "border-emerald-200/80 bg-emerald-50/90 text-emerald-900 [&>svg]:text-emerald-600",
-  error: "border-red-200/80 bg-red-50/90 text-red-900 [&>svg]:text-red-600",
-  warning:
-    "border-amber-200/80 bg-amber-50/90 text-amber-950 [&>svg]:text-amber-600",
-  info: "border-slate-200/80 bg-slate-50 text-slate-800 [&>svg]:text-slate-500",
+const styles: Record<AlertVariant, { wrap: string; iconWrap: string; icon: string }> = {
+  success: {
+    wrap: "border-success-200/80 bg-gradient-to-br from-success-50 to-white text-success-900",
+    iconWrap: "bg-success-500/10 ring-1 ring-success-500/30",
+    icon: "text-success-600",
+  },
+  error: {
+    wrap: "border-danger-200/80 bg-gradient-to-br from-danger-50 to-white text-danger-900",
+    iconWrap: "bg-danger-500/10 ring-1 ring-danger-500/30",
+    icon: "text-danger-600",
+  },
+  warning: {
+    wrap: "border-warning-200/80 bg-gradient-to-br from-warning-50 to-white text-warning-950",
+    iconWrap: "bg-warning-500/10 ring-1 ring-warning-500/40",
+    icon: "text-warning-600",
+  },
+  info: {
+    wrap: "border-brand-200/70 bg-gradient-to-br from-brand-50 to-white text-ink-800",
+    iconWrap: "bg-brand-500/10 ring-1 ring-brand-500/30",
+    icon: "text-brand-600",
+  },
 };
 
-const icons: Record<AlertVariant, ReactNode> = {
-  success: <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />,
-  error: <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />,
-  warning: <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />,
-  info: <Info className="h-4 w-4 shrink-0" aria-hidden />,
+const icons: Record<AlertVariant, typeof CheckCircle2> = {
+  success: CheckCircle2,
+  error: AlertCircle,
+  warning: AlertTriangle,
+  info: Info,
 };
 
 type AlertBannerProps = {
@@ -28,19 +42,28 @@ type AlertBannerProps = {
 };
 
 export function AlertBanner({ variant, title, children, className }: AlertBannerProps) {
+  const s = styles[variant];
+  const Icon = icons[variant];
   return (
     <div
       role="alert"
       className={cn(
-        "flex gap-3 rounded-xl border px-4 py-3 text-sm leading-relaxed shadow-sm",
-        styles[variant],
+        "flex items-start gap-3 rounded-2xl border p-4 text-sm leading-relaxed shadow-soft",
+        s.wrap,
         className,
       )}
     >
-      {icons[variant]}
-      <div className="min-w-0 pt-px">
-        {title ? <p className="font-medium">{title}</p> : null}
-        <div className={cn(title && "mt-0.5")}>{children}</div>
+      <span
+        className={cn(
+          "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl",
+          s.iconWrap,
+        )}
+      >
+        <Icon className={cn("h-4 w-4", s.icon)} aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1 pt-0.5">
+        {title ? <p className="font-display text-[14px] font-semibold">{title}</p> : null}
+        <div className={cn("text-[13px]", title && "mt-1")}>{children}</div>
       </div>
     </div>
   );

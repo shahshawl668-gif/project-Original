@@ -4,12 +4,30 @@
 
 :root {
   color-scheme: light;
+  --bg-canvas: #f7f8fb;
+  --bg-canvas-elevated: #ffffff;
+  --border-soft: rgb(15 23 42 / 0.07);
+  --shadow-card: 0 1px 0 rgb(15 23 42 / 0.04), 0 12px 32px rgb(15 23 42 / 0.06);
 }
 
 @layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
-    @apply bg-[#f6f8fc] text-slate-900 antialiased;
-    font-feature-settings: "kern" 1, "liga" 1;
+    @apply bg-[var(--bg-canvas)] text-ink-900;
+    font-feature-settings: "kern" 1, "liga" 1, "ss01" 1, "cv11" 1;
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.04) 0%, transparent 25%),
+      radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.04) 0%, transparent 25%);
+  }
+
+  /* Premium typography defaults */
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -17,5 +35,92 @@
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: rgb(148 163 184 / 0.5) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184 / 0.5);
+    border-radius: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Glass surface — used on premium cards */
+  .glass {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  .glass-dark {
+    background: rgba(14, 18, 32, 0.65);
+    backdrop-filter: saturate(160%) blur(16px);
+    -webkit-backdrop-filter: saturate(160%) blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  /* Shimmer loading state */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.6) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 1000px 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Modern focus ring (Rippling-ish) */
+  .focus-ring:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+
+  /* Subtle hover lift used on cards */
+  .lift {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 1px 0 rgb(15 23 42 / 0.06), 0 24px 56px -16px rgb(15 23 42 / 0.18);
+  }
+
+  /* Number tabular alignment used in KPI cards */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "ss01" 1;
+  }
+
+  /* Dotted dropzone border that animates on hover */
+  .dropzone {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(99, 102, 241, 0.18) 0,
+      rgba(99, 102, 241, 0.18) 6px,
+      transparent 6px,
+      transparent 14px
+    );
+    background-size: 100% 100%;
+  }
+
+  /* Gradient text helper */
+  .text-gradient {
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 60%, #ec4899 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .text-gradient-cool {
+    background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }

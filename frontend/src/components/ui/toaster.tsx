@@ -13,9 +13,13 @@ export function Toaster() {
       toastOptions={{
         classNames: {
           toast:
-            "rounded-xl border border-slate-200/80 bg-white/95 shadow-card backdrop-blur-sm text-sm",
-          title: "font-semibold text-slate-900",
-          description: "text-slate-600",
+            "!rounded-2xl !border-ink-200/80 !bg-white !shadow-elevated !backdrop-blur-md text-sm font-sans",
+          title: "!font-display !font-semibold !text-ink-900",
+          description: "!text-ink-500",
+          success: "!bg-gradient-to-br !from-success-50 !to-white",
+          error: "!bg-gradient-to-br !from-danger-50 !to-white",
+          warning: "!bg-gradient-to-br !from-warning-50 !to-white",
+          info: "!bg-gradient-to-br !from-brand-50 !to-white",
         },
       }}
     />
