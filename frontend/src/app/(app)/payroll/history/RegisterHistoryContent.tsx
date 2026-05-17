@@ -34,7 +34,7 @@ type RegisterDetail = Register & { rows: RegisterRow[] };
 
 export default function RegisterHistoryContent() {
   const searchParams = useSearchParams();
-  const initialId = searchParams.get("id");
+  const initialId = searchParams?.get("id") ?? null;
 
   const [registers, setRegisters] = useState<Register[]>([]);
   const [loading, setLoading] = useState(true);
