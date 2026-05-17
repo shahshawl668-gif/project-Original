@@ -158,7 +158,7 @@ function Sidebar({
                 const Icon = item.icon;
                 const active =
                   pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                  (item.href !== "/dashboard" && (pathname?.startsWith(item.href) ?? false));
                 return (
                   <Link
                     key={item.href}
@@ -306,7 +306,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const allItems = groups.flatMap((g) => g.items);
   const currentItem = allItems.find(
-    (i) => pathname === i.href || (i.href !== "/dashboard" && pathname.startsWith(i.href)),
+    (i) => pathname === i.href || (i.href !== "/dashboard" && (pathname?.startsWith(i.href) ?? false)),
   );
   const pageTitle = currentItem?.label ?? "Workspace";
 

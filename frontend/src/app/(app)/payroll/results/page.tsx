@@ -217,7 +217,7 @@ function PayrollResultsContent() {
   }, []);
 
   useEffect(() => {
-    const t = searchParams.get("tab");
+    const t = searchParams?.get("tab") ?? null;
     const valid: Tab[] = ["overview", "risk", "findings", "pf", "esic", "ptlwf", "lop"];
     if (t && valid.includes(t as Tab)) setTab(t as Tab);
   }, [searchParams]);
@@ -323,7 +323,7 @@ function PayrollResultsContent() {
 
   const commitTab = (id: Tab) => {
     setTab(id);
-    const p = new URLSearchParams(searchParams.toString());
+    const p = new URLSearchParams(searchParams?.toString() ?? "");
     p.set("tab", id);
     router.replace(`${pathname}?${p.toString()}`, { scroll: false });
   };
