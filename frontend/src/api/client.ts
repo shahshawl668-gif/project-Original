@@ -13,6 +13,8 @@ export type RunSummary = {
   status: "uploaded" | "running" | "completed" | "failed";
   created_at: string;
   completed_at?: string;
+  payroll_month?: number;
+  payroll_year?: number;
   summary?: {
     total_employees: number;
     total_issues: number;
