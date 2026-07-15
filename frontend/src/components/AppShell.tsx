@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   UploadCloud,
@@ -213,6 +213,7 @@ function Sidebar({
 
 function ProfileMenu() {
   const { user, isAuthenticated, logout } = useAuth();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -288,7 +289,7 @@ function ProfileMenu() {
             type="button"
             onClick={() => {
               setOpen(false);
-              void logout();
+              void logout().finally(() => router.replace("/login"));
             }}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
           >

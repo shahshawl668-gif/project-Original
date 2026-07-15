@@ -7,9 +7,15 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+function currentFyLabel(): string {
+  const d = new Date();
+  const start = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+  return `${start}-${String(start + 1).slice(-2)}`;
+}
+
 const stats = [
   { label: "PF · ESIC · PT · LWF · IT", icon: ShieldCheck },
-  { label: "FY 2025-26 ready", icon: TrendingUp },
+  { label: `FY ${currentFyLabel()} ready`, icon: TrendingUp },
   { label: "<2 min to validate", icon: Zap },
 ];
 

@@ -4,7 +4,21 @@ import dynamic from "next/dynamic";
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
 import { useTheme } from "@/providers/ThemeProvider";
 
-const Monaco = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+// Use the locally bundled monaco-editor instead of @monaco-editor/react's
+// default CDN loader — keeps the editor working offline / behind strict CSPs.
+const Monaco = dynamic(
+  async () => {
+    const [reactMonaco, monaco] = await Promise.all([
+      import("@monaco-editor/react"),
+      // Explicit ESM entry — the package's `require` condition points at the
+      // AMD `min` build, which webpack cannot bundle.
+      import("monaco-editor/esm/vs/editor/editor.api.js"),
+    ]);
+    reactMonaco.loader.config({ monaco });
+    return reactMonaco.default;
+  },
+  { ssr: false },
+);
 
 export type FormulaEditorHandle = {
   insertAtCursor: (text: string) => void;
