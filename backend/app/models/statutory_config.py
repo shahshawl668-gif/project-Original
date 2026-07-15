@@ -33,6 +33,11 @@ class StatutoryConfig(Base):
     pf_config:               Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     esic_config:             Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     component_mapping_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # FY-versioned income-tax parameters (slabs, rebate, surcharge, cess, …)
+    # and tunable rule-engine thresholds. Nullable so existing rows patch in
+    # cleanly; None is treated as "use seeded defaults" by ConfigService.
+    income_tax_config:       Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    rule_thresholds_config:  Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

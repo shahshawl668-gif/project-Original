@@ -80,13 +80,35 @@ This edits `**/api/config/statutory`** (JSON): PF wage rules, rates, ceiling, vo
 - **Test expression** (if exposed in UI or via API): safe arithmetic/boolean checks for custom logic.
 - After changes, run a small test payroll to confirm PF/ESIC match your payroll software.
 
-### 3.5 Formulas (optional)
+### 3.5 Income tax & rule thresholds (FY-versioned)
+
+**UI:** Configuration → **Income tax & thresholds**
+
+Nothing statutory is hardcoded: income-tax slabs, Section 87A rebate,
+surcharge brackets, cess, standard deductions, and Chapter VI-A caps are
+stored **per financial year** and are fully editable. Known years
+(FY 2025-26, FY 2026-27) are seeded as editable defaults; add the next FY
+with one click (it copies the selected year), adjust rates when a Budget
+changes them, and mark the year your payroll runs against as **default**.
+
+The same page tunes **validation rule thresholds**: structural risk
+percentages (STRUCT-001/002), mismatch tolerances (AGG/STAT rules),
+month-on-month spike limits (MOM/ADV rules), the TDS-risk heuristic
+(STAT-011) and the gratuity exemption cap (STAT-014).
+
+**API:** `GET/PUT /api/config/statutory/income-tax`,
+`PUT/DELETE /api/config/statutory/income-tax/years/{fy}`,
+`GET/PUT /api/config/statutory/rule-thresholds`, plus `POST …/reset`
+endpoints. Tax computation: `POST /api/income-tax/compute` and
+`/api/income-tax/compare` accept an optional `financial_year`.
+
+### 3.6 Formulas (optional)
 
 **UI:** Rule Engine → **Formulas**
 
 Create expressions (e.g. HRA = 50% of Basic) for documentation or future rule hooks; use **Test** to verify with sample variables.
 
-### 3.6 CTC history
+### 3.7 CTC history
 
 **UI:** CTC → **Upload CTC** then **CTC History**
 
@@ -224,6 +246,10 @@ Shows setup progress, recent activity, and charts driven by last runs/registers.
 | GET      | `/api/payroll/registers`, `/api/payroll/registers/{id}` | History                                                   |
 | GET/POST | `/api/rule-engine/slabs`, import-defaults               | PT/LWF                                                    |
 | POST     | `/api/rule-engine/formula`                              | Custom formulas                                           |
+| GET/PUT  | `/api/config/statutory/income-tax`                      | FY-versioned tax slabs/rebate/surcharge/cess              |
+| PUT/DEL  | `/api/config/statutory/income-tax/years/{fy}`           | Add / remove one financial year                           |
+| GET/PUT  | `/api/config/statutory/rule-thresholds`                 | Tunable rule-engine thresholds                            |
+| POST     | `/api/income-tax/compute`, `/api/income-tax/compare`    | Old vs new regime projection (per FY)                     |
 
 
 Health: `**GET /api/health`**

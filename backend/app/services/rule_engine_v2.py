@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from app.schemas.rule_thresholds import RuleThresholdsConfig
+
 CENT = Decimal("0.01")
 HALF_UP = __import__("decimal").ROUND_HALF_UP
 
@@ -123,13 +125,21 @@ def build_findings(
     lop_diffs: list[dict[str, Any]],
     inc_info: dict[str, Any],
     tds_risk: list[str],
+    thresholds: "RuleThresholdsConfig | None" = None,
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
+
+    # Tenant-tunable rule thresholds (see /api/config/rule-thresholds)
+    t = thresholds or RuleThresholdsConfig()
+    tol_gross = t.tolerances.gross_mismatch
+    tol_net = t.tolerances.net_mismatch
+    tol_stat = t.tolerances.statutory_mismatch
 
     # Tenant-aware statutory thresholds (from compute_pf / compute_esic)
     pf_ceiling_cfg = _dec(pf_calc.get("_ceiling", 15000))
     esic_ceiling_cfg = _dec(esic_calc.get("_ceiling", 21000))
-    pf_emp_rate_pct = float(pf_calc.get("_emp_rate", 0.12)) * 100
+    pf_emp_rate = _dec(pf_calc.get("_emp_rate", 0.12))
+    pf_emp_rate_pct = float(pf_emp_rate) * 100
     esic_emp_rate_pct = float(esic_calc.get("_emp_rate", 0.0075)) * 100
     esic_er_rate_pct = float(esic_calc.get("_er_rate", 0.0325)) * 100
 
@@ -233,29 +243,34 @@ def build_findings(
         start=Decimal("0"),
     )
 
+    min_pf_pct = t.structural.min_pf_wage_pct_of_gross
+    rec_pf_frac = t.structural.recommended_pf_wage_pct / Decimal("100")
     if calc_gross > Decimal("0") and pf_wage_total > Decimal("0"):
         basic_pct = float(pf_wage_total / calc_gross) * 100
-        if basic_pct < 30.0:
+        if basic_pct < float(min_pf_pct):
             fail("STRUCT-001", "Low PF Wage — Possible PF Avoidance", "pf_wage",
-                 f"≥ 30% of gross ({_fmt(_q(calc_gross * Decimal('0.30')))})",
+                 f"≥ {min_pf_pct}% of gross ({_fmt(_q(calc_gross * min_pf_pct / Decimal('100')))})",
                  _fmt(pf_wage_total),
                  "WARNING",
                  f"PF wage ({_fmt(pf_wage_total)}) is only {basic_pct:.1f}% of gross ({_fmt(calc_gross)}). "
-                 "Structures where Basic < 30% of CTC are flagged by PF authorities as avoidance.",
-                 "Restructure Basic to be ≥ 40-50% of CTC. Consult CA before changing.",
-                 float(_q((calc_gross * Decimal("0.40") - pf_wage_total) * Decimal("0.12"))))
+                 f"Structures where Basic < {min_pf_pct}% of CTC are flagged by PF authorities as avoidance.",
+                 f"Restructure Basic to be ≥ {t.structural.recommended_pf_wage_pct}-50% of CTC. "
+                 "Consult CA before changing.",
+                 float(_q((calc_gross * rec_pf_frac - pf_wage_total) * pf_emp_rate)))
 
     # Allowance-heavy structure
+    allow_heavy_pct = t.structural.allowance_heavy_pct
     if calc_gross > Decimal("0") and pf_wage_total > Decimal("0"):
         allowances = calc_gross - pf_wage_total
         allow_pct = float(allowances / calc_gross) * 100
-        if allow_pct > 70.0:
+        if allow_pct > float(allow_heavy_pct):
             fail("STRUCT-002", "Allowance-Heavy Salary Structure", "allowances",
-                 "≤ 70% of gross in allowances", f"{allow_pct:.1f}% of gross",
+                 f"≤ {allow_heavy_pct}% of gross in allowances", f"{allow_pct:.1f}% of gross",
                  "WARNING",
                  f"Non-PF allowances are {allow_pct:.1f}% of gross. "
                  "High allowance structures attract scrutiny under PF Act and Income Tax.",
-                 "Balance the CTC mix: target Basic ≥ 40%, HRA ≤ 50% of Basic, allowances ≤ 30%.")
+                 f"Balance the CTC mix: target Basic ≥ {t.structural.recommended_pf_wage_pct}%, "
+                 "HRA ≤ 50% of Basic, allowances ≤ 30%.")
 
     # ═══════════════════════════════════════════════════════════════════
     # P3 – AGGREGATION
@@ -266,7 +281,7 @@ def build_findings(
         if reg_val not in (None, ""):
             actual_gross = _dec(reg_val)
             delta = (actual_gross - calc_gross).copy_abs()
-            if delta > Decimal("2"):
+            if delta > tol_gross:
                 fail("AGG-001", "Gross Pay Mismatch", "gross",
                      calc_gross, actual_gross, "CRITICAL",
                      f"Gross in register ({_fmt(actual_gross)}) ≠ sum of earnings ({_fmt(calc_gross)}). "
@@ -288,7 +303,7 @@ def build_findings(
         if reg_val not in (None, ""):
             actual_net = _dec(reg_val)
             delta = (actual_net - calc_net).copy_abs()
-            if delta > Decimal("5"):
+            if delta > tol_net:
                 fail("AGG-002", "Net Pay Mismatch", "net",
                      calc_net, actual_net, "CRITICAL",
                      f"Net in register ({_fmt(actual_net)}) ≠ Gross − Statutory ({_fmt(calc_net)}). "
@@ -312,7 +327,7 @@ def build_findings(
     if pf_emp_raw not in (None, ""):
         pf_emp_actual = _dec(pf_emp_raw)
         diff_pf = (pf_emp_actual - pf_emp_exp).copy_abs()
-        if diff_pf > Decimal("1"):
+        if diff_pf > tol_stat:
             fail("STAT-001", "PF Employee Contribution Mismatch", "pf_employee",
                  pf_emp_exp, pf_emp_actual, "CRITICAL",
                  f"PF employee ({_fmt(pf_emp_actual)}) ≠ computed ({_fmt(pf_emp_exp)}) "
@@ -331,7 +346,7 @@ def build_findings(
     if pf_er_raw not in (None, ""):
         pf_er_actual = _dec(pf_er_raw)
         diff_er = (pf_er_actual - pf_er_exp).copy_abs()
-        if diff_er > Decimal("1"):
+        if diff_er > tol_stat:
             fail("STAT-002", "PF Employer Contribution Mismatch", "pf_employer",
                  pf_er_exp, pf_er_actual, "CRITICAL",
                  f"PF employer ({_fmt(pf_er_actual)}) ≠ expected ({_fmt(pf_er_exp)}). "
@@ -385,7 +400,7 @@ def build_findings(
     if esic_emp_raw not in (None, ""):
         esic_emp_actual = _dec(esic_emp_raw)
         diff_esic = (esic_emp_actual - esic_emp_exp).copy_abs()
-        if diff_esic > Decimal("1"):
+        if diff_esic > tol_stat:
             fail("STAT-006", "ESIC Employee Contribution Mismatch", "esic_employee",
                  esic_emp_exp, esic_emp_actual, "CRITICAL",
                  f"ESIC employee ({_fmt(esic_emp_actual)}) ≠ {_fmt(esic_wage_total)} × "
@@ -404,7 +419,7 @@ def build_findings(
     if esic_er_raw not in (None, ""):
         esic_er_actual = _dec(esic_er_raw)
         diff_er = (esic_er_actual - esic_er_exp).copy_abs()
-        if diff_er > Decimal("1"):
+        if diff_er > tol_stat:
             fail("STAT-007", "ESIC Employer Contribution Mismatch", "esic_employer",
                  esic_er_exp, esic_er_actual, "CRITICAL",
                  f"ESIC employer ({_fmt(esic_er_actual)}) ≠ {_fmt(esic_wage_total)} × "
@@ -418,7 +433,7 @@ def build_findings(
     pt_raw = row.get("pt") or row.get("pt_amount")
     if pt_raw not in (None, ""):
         pt_actual = _dec(pt_raw)
-        if pt_due > Decimal("0") and (pt_actual - pt_due).copy_abs() > Decimal("1"):
+        if pt_due > Decimal("0") and (pt_actual - pt_due).copy_abs() > tol_stat:
             fail("STAT-008", "Professional Tax Mismatch", "pt",
                  pt_due, pt_actual, "WARNING",
                  f"PT in register ({_fmt(pt_actual)}) ≠ slab ({_fmt(pt_due)}).",
@@ -436,7 +451,7 @@ def build_findings(
     if lwf_emp_raw not in (None, "") and lwf_eamt > Decimal("0"):
         lwf_emp_actual = _dec(lwf_emp_raw)
         diff_lwf = (lwf_emp_actual - lwf_eamt).copy_abs()
-        if diff_lwf > Decimal("1"):
+        if diff_lwf > tol_stat:
             fail("STAT-009", "LWF Employee Mismatch", "lwf_employee",
                  lwf_eamt, lwf_emp_actual, "WARNING",
                  f"LWF employee ({_fmt(lwf_emp_actual)}) ≠ slab ({_fmt(lwf_eamt)}).",
@@ -447,7 +462,7 @@ def build_findings(
     if lwf_er_raw not in (None, "") and lwf_oamt > Decimal("0"):
         lwf_er_actual = _dec(lwf_er_raw)
         diff_lwf_er = (lwf_er_actual - lwf_oamt).copy_abs()
-        if diff_lwf_er > Decimal("1"):
+        if diff_lwf_er > tol_stat:
             fail("STAT-010", "LWF Employer Mismatch", "lwf_employer",
                  lwf_oamt, lwf_er_actual, "WARNING",
                  f"LWF employer ({_fmt(lwf_er_actual)}) ≠ slab ({_fmt(lwf_oamt)}).",
@@ -470,7 +485,7 @@ def build_findings(
     gratuity_raw = row.get("gratuity")
     if gratuity_raw not in (None, "") and _dec(gratuity_raw) > Decimal("0"):
         gratuity_actual = _dec(gratuity_raw)
-        max_gratuity = Decimal("2000000")  # ₹20 lakh cap
+        max_gratuity = t.gratuity.exemption_cap
         if gratuity_actual > max_gratuity:
             fail("STAT-014", "Gratuity Exceeds ₹20 Lakh Statutory Cap", "gratuity",
                  _fmt(max_gratuity), _fmt(gratuity_actual), "WARNING",
@@ -528,9 +543,11 @@ def build_findings(
                 continue
             pct = float((new_val - old_val) / old_val) * 100
 
-            if abs(pct) > 30 and not arrear_present:
+            change_pct = float(t.trends.component_change_pct)
+            if abs(pct) > change_pct and not arrear_present:
                 rule_id = "MOM-002" if pct > 0 else "MOM-003"
-                rule_name = "Component Spike > 30%" if pct > 0 else "Component Drop > 30%"
+                rule_name = (f"Component Spike > {t.trends.component_change_pct}%" if pct > 0
+                             else f"Component Drop > {t.trends.component_change_pct}%")
                 findings.append(ValidationFinding(
                     employee_id=employee_id, employee_name=employee_name,
                     rule_id=rule_id, rule_name=rule_name, component=k,
@@ -592,15 +609,16 @@ def build_findings(
         prior_gross = sum(Decimal(str(v)) for v in prior_components.values())
         if prior_gross > Decimal("0") and total_regular > Decimal("0"):
             ratio = float(total_regular / prior_gross)
-            if ratio > 3.0:
-                fail("ADV-002", "Salary Spike > 3× Prior Month", "gross",
+            if ratio > float(t.trends.salary_spike_ratio):
+                fail("ADV-002", f"Salary Spike > {t.trends.salary_spike_ratio}× Prior Month", "gross",
                      _fmt(prior_gross), _fmt(total_regular), "WARNING",
                      f"Salary is {ratio:.1f}× the prior month ({_fmt(prior_gross)} → {_fmt(total_regular)}). "
                      "Likely bulk arrear, duplication, or data error.",
                      "Validate if this includes arrear. If so, run as increment_arrear type.",
                      float(total_regular - prior_gross))
-            elif ratio < 0.25:
-                fail("ADV-003", "Salary Drop < 25% of Prior Month", "gross",
+            elif ratio < float(t.trends.salary_drop_ratio):
+                fail("ADV-003",
+                     f"Salary Drop < {float(t.trends.salary_drop_ratio) * 100:.0f}% of Prior Month", "gross",
                      _fmt(prior_gross), _fmt(total_regular), "WARNING",
                      f"Salary is only {ratio*100:.0f}% of prior ({_fmt(prior_gross)} → {_fmt(total_regular)}). "
                      "Possible excessive LOP, partial exit, or data truncation.",

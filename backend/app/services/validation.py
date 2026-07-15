@@ -741,6 +741,7 @@ def validate_employees(
     cfg_svc  = ConfigService(db)
     pf_cfg   = cfg_svc.get_pf_config(user.id)
     esic_cfg = cfg_svc.get_esic_config(user.id)
+    rule_thresholds = cfg_svc.get_rule_thresholds(user.id)
     settings = _get_or_default_settings(db, user)   # still used for PT/LWF states
 
     comp_by_key = _component_key_map(components)
@@ -989,10 +990,10 @@ def validate_employees(
         )
         errors.extend(prior_errors)
 
-        # TDS risk heuristic
+        # TDS risk heuristic (thresholds configurable per tenant)
         taxable = taxable_exposure(components, regular)
-        spike = taxable + (arrear_total * Decimal("0.3"))
-        if spike > Decimal("500000") / 12:
+        spike = taxable + (arrear_total * rule_thresholds.tds.arrear_annualisation_factor)
+        if spike > rule_thresholds.tds.annual_income_threshold / 12:
             tds_risk.append("TDS slab not applied; high-income month possible due to arrears/bunching.")
 
         # Structured rule engine findings (v2)
@@ -1026,6 +1027,7 @@ def validate_employees(
             lop_diffs=lop_diffs,
             inc_info=inc_info,
             tds_risk=tds_risk,
+            thresholds=rule_thresholds,
         )
 
         results.append(

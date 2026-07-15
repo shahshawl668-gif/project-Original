@@ -32,6 +32,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.statutory_config import StatutoryConfig
+from app.schemas.income_tax_config import IncomeTaxConfig, TaxYearConfig
+from app.schemas.rule_thresholds import RuleThresholdsConfig
 from app.schemas.statutory_config import (
     ComponentMappingConfig,
     ESICConfig,
@@ -231,6 +233,55 @@ class ConfigService:
     def reset_to_defaults(self, tenant_id: uuid.UUID) -> TenantStatutoryConfig:
         defaults = TenantStatutoryConfig()
         self.save_full_config(tenant_id, defaults)
+        return defaults
+
+    # ── Income tax (FY-versioned) ─────────────────────────────────────────────
+
+    def get_income_tax_config(self, tenant_id: uuid.UUID) -> IncomeTaxConfig:
+        """Return the tenant's income-tax config, seeding defaults if unset."""
+        from app.services.tax_year_defaults import default_income_tax_config
+
+        row = self._load_row(tenant_id)
+        raw = getattr(row, "income_tax_config", None)
+        if not raw:
+            return default_income_tax_config()
+        return IncomeTaxConfig.model_validate(raw)
+
+    def save_income_tax_config(self, tenant_id: uuid.UUID, cfg: IncomeTaxConfig) -> None:
+        row = self._load_row(tenant_id)
+        row.income_tax_config = cfg.model_dump(mode="json")
+        self._db.commit()
+
+    def get_tax_year(
+        self, tenant_id: uuid.UUID, financial_year: str | None = None
+    ) -> TaxYearConfig | None:
+        """Resolve one FY's tax parameters (request FY → tenant default → newest)."""
+        return self.get_income_tax_config(tenant_id).resolve_year(financial_year)
+
+    def reset_income_tax_config(self, tenant_id: uuid.UUID) -> IncomeTaxConfig:
+        from app.services.tax_year_defaults import default_income_tax_config
+
+        defaults = default_income_tax_config()
+        self.save_income_tax_config(tenant_id, defaults)
+        return defaults
+
+    # ── Rule-engine thresholds ────────────────────────────────────────────────
+
+    def get_rule_thresholds(self, tenant_id: uuid.UUID) -> RuleThresholdsConfig:
+        row = self._load_row(tenant_id)
+        raw = getattr(row, "rule_thresholds_config", None)
+        if not raw:
+            return RuleThresholdsConfig()
+        return RuleThresholdsConfig.model_validate(raw)
+
+    def save_rule_thresholds(self, tenant_id: uuid.UUID, cfg: RuleThresholdsConfig) -> None:
+        row = self._load_row(tenant_id)
+        row.rule_thresholds_config = cfg.model_dump(mode="json")
+        self._db.commit()
+
+    def reset_rule_thresholds(self, tenant_id: uuid.UUID) -> RuleThresholdsConfig:
+        defaults = RuleThresholdsConfig()
+        self.save_rule_thresholds(tenant_id, defaults)
         return defaults
 
     # ── Eligibility evaluators ────────────────────────────────────────────────

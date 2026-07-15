@@ -240,7 +240,7 @@ export default function DashboardPage() {
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/85 backdrop-blur">
               <Sparkles size={11} className="text-pink-200" />
-              FY 2025-26 ready
+              FY {(() => { const d = new Date(); const s = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; return `${s}-${String(s + 1).slice(-2)}`; })()} ready
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold leading-tight tracking-tightest text-white sm:text-4xl">
               {greeting}, {displayName}.
