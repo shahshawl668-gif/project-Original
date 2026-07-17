@@ -556,6 +556,71 @@ export default function TaxConfigPage() {
                 onChange={(v) => setThresholds({ ...thresholds, gratuity: { ...thresholds.gratuity, exemption_cap: v } })} />
             </Field>
           </div>
+
+          {/* Deep statutory rule parameters (identity, PF/ESI edge rules, PT caps, bonus, gratuity formula, TDS) */}
+          {([
+            ["identity", "Identity & age rules (ID-*)"],
+            ["pf_deep", "PF deep rules — EPS split (PF-*)"],
+            ["esi_deep", "ESI deep rules (ESI-*)"],
+            ["pt_caps", "Professional tax caps (PT-*)"],
+            ["bonus", "Statutory bonus (BON-*)"],
+            ["gratuity_formula", "Gratuity formula (GRAT-*)"],
+            ["tds_deep", "TDS projection (TDS-*)"],
+          ] as const).map(([groupKey, title]) => {
+            const group = thresholds[groupKey] as Record<string, string | string[]>;
+            if (!group) return null;
+            return (
+              <div key={groupKey}>
+                <p className="mb-2 mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+                  {title}
+                </p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {Object.entries(group).map(([field, value]) => (
+                    <Field key={field} label={field.replace(/_/g, " ")}>
+                      {Array.isArray(value) ? (
+                        <input
+                          type="text"
+                          value={value.join(", ")}
+                          className={inputCls}
+                          onChange={(e) =>
+                            setThresholds({
+                              ...thresholds,
+                              [groupKey]: {
+                                ...group,
+                                [field]: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+                              },
+                            } as typeof thresholds)
+                          }
+                        />
+                      ) : Number.isFinite(parseFloat(String(value))) && !/[^0-9.\-]/.test(String(value)) ? (
+                        <NumInput
+                          value={String(value)}
+                          onChange={(v) =>
+                            setThresholds({
+                              ...thresholds,
+                              [groupKey]: { ...group, [field]: v },
+                            } as typeof thresholds)
+                          }
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={String(value)}
+                          className={inputCls}
+                          onChange={(e) =>
+                            setThresholds({
+                              ...thresholds,
+                              [groupKey]: { ...group, [field]: e.target.value },
+                            } as typeof thresholds)
+                          }
+                        />
+                      )}
+                    </Field>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
           <div className="flex items-center gap-3">
             <Button onClick={saveThresholdsNow} disabled={savingThresholds}>
               <Save size={15} className="mr-1.5" /> {savingThresholds ? "Saving…" : "Save thresholds"}

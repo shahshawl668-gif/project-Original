@@ -319,6 +319,13 @@ export interface RuleThresholdsConfig {
   gratuity: {
     exemption_cap: string;
   };
+  identity: Record<string, string>;
+  pf_deep: Record<string, string>;
+  esi_deep: Record<string, string>;
+  pt_caps: { annual_cap: string; no_pt_states: string[] };
+  bonus: Record<string, string>;
+  gratuity_formula: Record<string, string>;
+  tds_deep: Record<string, string>;
 }
 
 export async function getRuleThresholds(): Promise<RuleThresholdsConfig> {

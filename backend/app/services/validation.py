@@ -208,6 +208,10 @@ def lookup_pt(
         return Decimal("0"), None
 
     g_norm = _normalize_gender(gender)
+    # Registers without a gender column must still match gender-split slab
+    # sets: MALE rows carry the general slabs in states that differentiate
+    # (female rows are concessions), so unknown gender falls back to MALE.
+    match_genders = ("ALL", g_norm) if g_norm != "ALL" else ("ALL", "MALE")
     month = run_month if run_month is not None else as_of.month
 
     if user_id is not None:
@@ -230,7 +234,7 @@ def lookup_pt(
                 if not (lo <= w_period <= hi):
                     continue
                 row_gender = (r.gender or "ALL").upper()
-                if row_gender not in ("ALL", g_norm):
+                if row_gender not in match_genders:
                     continue
                 months = r.applicable_months
                 if months and month not in months:
@@ -286,7 +290,10 @@ def lookup_lwf(
     by dividing by the slab's frequency factor (1 for monthly, 6 for
     half-yearly, 12 for yearly).
     """
-    if not state:
+    if not state or wage <= 0:
+        # No LWF-flagged wages this month (or no state): no LWF expectation.
+        # Matching a zero wage into the lowest band would fabricate phantom
+        # deductions for tenants that haven't flagged LWF components.
         return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
     if user_id is not None:
@@ -996,6 +1003,26 @@ def validate_employees(
         if spike > rule_thresholds.tds.annual_income_threshold / 12:
             tds_risk.append("TDS slab not applied; high-income month possible due to arrears/bunching.")
 
+        # Sec 192 projection: expected monthly TDS from the tenant's FY tax
+        # config and the employee's declared regime (new regime is the default).
+        expected_monthly_tds = None
+        if (row.get("tds") or row.get("income_tax")) not in (None, "") and taxable > 0:
+            try:
+                from app.services.income_tax_engine import compute_income_tax
+                from app.services.tax_year_defaults import fy_label_for_date
+
+                fy = fy_label_for_date(period_month or as_of)
+                year_cfg = cfg_svc.get_tax_year(user.id, fy)
+                regime_raw = str(row.get("tax_regime") or row.get("regime") or "new").strip().lower()
+                regime = "old" if regime_raw.startswith("old") else "new"
+                if year_cfg is not None:
+                    breakup = compute_income_tax(
+                        annual_gross=float(taxable) * 12.0, regime=regime, year_cfg=year_cfg,
+                    )
+                    expected_monthly_tds = breakup.monthly_tds
+            except Exception:
+                expected_monthly_tds = None
+
         # Structured rule engine findings (v2)
         prior_components_map: dict[str, float] | None = None
         if prior_info.get("is_continuing") and eid in prior_rows:
@@ -1028,6 +1055,8 @@ def validate_employees(
             inc_info=inc_info,
             tds_risk=tds_risk,
             thresholds=rule_thresholds,
+            period_month=period_month or as_of,
+            expected_monthly_tds=expected_monthly_tds,
         )
 
         results.append(

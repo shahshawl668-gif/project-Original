@@ -23,6 +23,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.schemas.rule_thresholds import RuleThresholdsConfig
+from app.services import identity_checks as idc
 
 CENT = Decimal("0.01")
 HALF_UP = __import__("decimal").ROUND_HALF_UP
@@ -64,6 +65,12 @@ _RESERVED_COLS = {
     "esic_employee", "esic_employer", "pt", "pt_amount",
     "lwf_employee", "lwf_employer", "bonus", "gratuity",
     "tds", "income_tax", "risk_score",
+    # identity / master-data columns (spec §1-2)
+    "pan", "aadhaar", "aadhar", "uan", "esi_number", "esi_no", "ip_number",
+    "bank_account", "account_number", "ifsc", "ifsc_code",
+    "dob", "date_of_birth", "doj", "date_of_joining", "dol", "date_of_leaving",
+    "tax_regime", "regime", "disability", "international_worker",
+    "adolescent_permit", "death_or_disablement",
 }
 
 # ── data class ───────────────────────────────────────────────────────────────
@@ -126,6 +133,8 @@ def build_findings(
     inc_info: dict[str, Any],
     tds_risk: list[str],
     thresholds: "RuleThresholdsConfig | None" = None,
+    period_month: Any = None,
+    expected_monthly_tds: float | None = None,
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
 
@@ -625,6 +634,260 @@ def build_findings(
                      "Verify paid_days. If partial exit, confirm final settlement is separate.",
                      float(prior_gross - total_regular))
 
+    # ═══════════════════════════════════════════════════════════════════
+    # P7 – IDENTITY & MASTER DATA (spec §2)
+    # ═══════════════════════════════════════════════════════════════════
+
+    ref_date = period_month or None
+
+    pan_raw = idc.row_text(row, "pan")
+    pan_ok, pan_reason = idc.validate_pan(pan_raw) if pan_raw else (False, "missing")
+    if pan_raw and not pan_ok:
+        fail("ID-001", "Invalid PAN", "pan", "[A-Z]{5}[0-9]{4}[A-Z], 4th char 'P'",
+             pan_raw, "CRITICAL",
+             f"PAN '{pan_raw}' failed validation ({pan_reason}). TDS credit will not reflect in 26AS.",
+             "Correct the PAN from the employee's PAN card; 4th character must be 'P' for individuals.")
+
+    aad_raw = idc.row_text(row, "aadhaar", "aadhar")
+    if aad_raw:
+        ok_a, why_a = idc.validate_aadhaar(aad_raw)
+        if not ok_a:
+            fail("ID-002", "Invalid Aadhaar", "aadhaar", "12 digits, valid Verhoeff checksum",
+                 aad_raw, "CRITICAL",
+                 f"Aadhaar failed validation ({why_a}).",
+                 "Re-verify against the Aadhaar card. UAN-Aadhaar seeding fails on invalid numbers.")
+
+    pf_deducted = _dec(row.get("pf_employee") or row.get("pf_emp") or 0) > 0
+    uan_raw = idc.row_text(row, "uan")
+    if pf_deducted and not uan_raw:
+        fail("ID-003", "UAN Missing with PF Deduction", "uan", "12-digit UAN", "(missing)",
+             "WARNING", "PF is deducted but no UAN — ECR filing will reject this member.",
+             "Obtain/generate the employee's UAN before the ECR due date.")
+    elif uan_raw and not idc.validate_uan(uan_raw)[0]:
+        fail("ID-003", "Invalid UAN", "uan", "12 digits", uan_raw, "CRITICAL",
+             "UAN must be exactly 12 digits.", "Correct the UAN from the EPFO portal.")
+
+    esic_deducted = _dec(row.get("esic_employee") or 0) > 0
+    esi_num_raw = idc.row_text(row, "esi_number", "esi_no", "ip_number")
+    if esic_deducted and not esi_num_raw:
+        fail("ID-004", "ESI Number Missing with ESI Deduction", "esi_number",
+             "10 or 17-digit IP number", "(missing)", "CRITICAL",
+             "ESI contribution deducted but no insured-person number on record.",
+             "Register the employee on the ESIC portal and record the IP number.")
+    elif esi_num_raw and not idc.validate_esi_number(esi_num_raw)[0]:
+        fail("ID-004", "Invalid ESI Number", "esi_number", "10 or 17 digits", esi_num_raw,
+             "CRITICAL", "ESI number must be 10 (old) or 17 (new) digits.",
+             "Correct from the ESIC registration.")
+
+    ifsc_raw = idc.row_text(row, "ifsc", "ifsc_code")
+    if ifsc_raw and not idc.validate_ifsc(ifsc_raw)[0]:
+        fail("ID-005", "Invalid IFSC", "ifsc", "[A-Z]{4}0[A-Z0-9]{6}", ifsc_raw, "CRITICAL",
+             "IFSC failed format validation — salary credit will bounce.",
+             "Correct the IFSC from the employee's cancelled cheque / bank record.")
+
+    dob = idc.parse_cell_date(row.get("dob") or row.get("date_of_birth"))
+    if dob and ref_date:
+        age = idc.age_in_years(dob, ref_date)
+        if age < float(t.identity.min_working_age_years):
+            fail("ID-006", "Below Minimum Working Age", "dob",
+                 f"age ≥ {t.identity.min_working_age_years}", f"{age:.1f} years", "CRITICAL",
+                 "Employee is below the minimum working age — child labour is prohibited.",
+                 "Remove from payroll immediately and review onboarding records.")
+        elif age < float(t.identity.adult_age_years) and not idc.row_flag(row, "adolescent_permit"):
+            fail("ID-006", "Adolescent Without Permit Flag", "dob",
+                 f"age ≥ {t.identity.adult_age_years} or adolescent_permit=1", f"{age:.1f} years",
+                 "CRITICAL",
+                 "Employees aged 14-18 need non-hazardous adolescent permits on file.",
+                 "Attach the permit record and set adolescent_permit=1, or remove from rolls.")
+
+    doj = idc.parse_cell_date(row.get("doj") or row.get("date_of_joining"))
+    dol = idc.parse_cell_date(row.get("dol") or row.get("date_of_leaving"))
+    if doj and ref_date and doj > ref_date:
+        try:
+            import calendar as _cal
+            month_end = ref_date.replace(day=_cal.monthrange(ref_date.year, ref_date.month)[1])
+        except Exception:
+            month_end = ref_date
+        if doj > month_end:
+            fail("ID-007", "Paid Before Date of Joining", "doj", f"≤ {month_end}", str(doj),
+                 "CRITICAL", "DOJ is after the payroll month — employee paid before joining.",
+                 "Verify DOJ; remove the row or correct the joining date.")
+    if dol and ref_date and dol < ref_date and total_regular > Decimal("0") \
+            and inc_arrear_total == Decimal("0") and not any(v > 0 for v in arrear_by_base.values()):
+        fail("ID-008", "Salary After Exit Without Arrear Flag", "dol", "no pay after DOL", str(dol),
+             "CRITICAL",
+             f"Employee exited on {dol} but has regular earnings this month with no arrear marking.",
+             "Route post-exit payments through an arrear/F&F run, or correct the DOL.")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # P8 – DEEP STATUTORY (spec §4-10)
+    # ═══════════════════════════════════════════════════════════════════
+
+    # PF: EPS split (EPS-95) — validated when the register carries an EPS column
+    eps_raw = row.get("eps") or row.get("pf_eps") or row.get("eps_employer")
+    if eps_raw not in (None, ""):
+        eps_actual = _dec(eps_raw)
+        eps_cap = t.pf_deep.eps_wage_cap
+        eps_expected = _q(min(pf_wage_total, eps_cap) * t.pf_deep.eps_rate)
+        eps_zero_reason = ""
+        cutoff = idc.parse_cell_date(t.pf_deep.eps_join_cutoff)
+        if doj and cutoff and doj >= cutoff and pf_wage_total > eps_cap:
+            eps_expected, eps_zero_reason = Decimal("0"), f"joined {doj} (≥ {cutoff}) with PF wages above ₹{eps_cap}"
+        if dob and ref_date and idc.age_in_years(dob, ref_date) >= float(t.pf_deep.eps_max_age_years):
+            eps_expected, eps_zero_reason = Decimal("0"), f"age ≥ {t.pf_deep.eps_max_age_years} — EPS stops, full 12% to EPF"
+        if (eps_actual - eps_expected).copy_abs() > tol_stat:
+            fail("PF-004", "EPS Contribution Mismatch", "eps", eps_expected, eps_actual, "CRITICAL",
+                 (f"EPS should be 0: {eps_zero_reason}." if eps_zero_reason else
+                  f"EPS must be {t.pf_deep.eps_rate}×min(PF wages, ₹{eps_cap}) = {_fmt(eps_expected)}."),
+                 f"Correct EPS to ₹{_fmt(eps_expected)} and route the balance to EPF.",
+                 float((eps_actual - eps_expected).copy_abs()))
+
+    # PF: international worker — no wage ceiling
+    if idc.row_flag(row, "international_worker") and _dec(pf_calc.get("pf_wage_capped", 0)) < pf_wage_total:
+        fail("PF-008", "International Worker PF Capped", "pf_wage",
+             _fmt(pf_wage_total), _fmt(_dec(pf_calc.get("pf_wage_capped", 0))), "CRITICAL",
+             "International workers have no PF wage ceiling — contribution must be on full PF wages.",
+             "Disable ceiling restriction for this employee (para 83 / relevant SSA).",
+             float((pf_wage_total - _dec(pf_calc.get("pf_wage_capped", 0))) * pf_emp_rate))
+
+    # ESI: disability ceiling and daily-wage exemption
+    if idc.row_flag(row, "disability") and not esic_deducted \
+            and esic_ceiling_cfg < esic_wage_total <= t.esi_deep.disability_wage_ceiling:
+        fail("ESI-005", "Disability ESI Coverage Missed", "esic_employee",
+             f"covered up to ₹{t.esi_deep.disability_wage_ceiling}", "0.00", "WARNING",
+             f"Employees with disability are ESI-covered up to ₹{t.esi_deep.disability_wage_ceiling} "
+             f"(wage {_fmt(esic_wage_total)}).",
+             "Enrol the employee under ESI with the enhanced ceiling.")
+    if days_in_month and esic_deducted:
+        daily_wage = esic_wage_total / Decimal(days_in_month)
+        if daily_wage <= t.esi_deep.daily_wage_exemption_limit:
+            fail("ESI-006", "Employee ESI Share on Exempt Daily Wage", "esic_employee",
+                 "0.00", _fmt(_dec(row.get("esic_employee"))), "WARNING",
+                 f"Average daily wage {_fmt(_q(daily_wage))} ≤ ₹{t.esi_deep.daily_wage_exemption_limit} — "
+                 "employee share is exempt (employer share still payable).",
+                 "Zero the employee ESI deduction for this employee.")
+
+    # PT: constitutional cap + no-PT states
+    pt_actual_row = _dec(row.get("pt") or row.get("pt_amount") or 0)
+    if pt_actual_row > t.pt_caps.annual_cap:
+        fail("PT-002", "PT Exceeds Constitutional Annual Cap", "pt",
+             f"≤ {t.pt_caps.annual_cap}/year", _fmt(pt_actual_row), "CRITICAL",
+             f"A single month's PT ({_fmt(pt_actual_row)}) exceeds the Article 276 annual cap of "
+             f"₹{t.pt_caps.annual_cap}.",
+             "Correct the PT deduction; the annual total per employee cannot exceed the cap.",
+             float(pt_actual_row - t.pt_caps.annual_cap))
+    row_state = idc.row_text(row, "state", "work_state", "state_pt", "location_state")
+    if pt_actual_row > 0 and row_state and row_state.strip().title() in {
+        s.strip().title() for s in t.pt_caps.no_pt_states
+    }:
+        fail("PT-003", "PT Deducted in a No-PT State", "pt", "0.00", _fmt(pt_actual_row),
+             "CRITICAL", f"{row_state} does not levy Professional Tax.",
+             "Remove the PT deduction and refund the employee.", float(pt_actual_row))
+
+    # Bonus: Payment of Bonus Act band
+    bonus_raw = row.get("bonus")
+    if bonus_raw not in (None, "") and _dec(bonus_raw) > 0:
+        bonus_actual = _dec(bonus_raw)
+        basic_da = pf_wage_total  # Basic+DA proxy: PF-flagged components
+        if basic_da > t.bonus.eligibility_wage_ceiling:
+            info("BON-001", "Bonus Paid Above Eligibility Ceiling", "bonus",
+                 f"Basic+DA ≤ {t.bonus.eligibility_wage_ceiling}", _fmt(basic_da),
+                 "Wages exceed the Payment of Bonus Act ceiling — label this as ex-gratia, not statutory bonus.",
+                 "Rename the component or record it as ex-gratia in the register.")
+        else:
+            base = min(basic_da, t.bonus.calc_base_floor)
+            lo = _q(base * t.bonus.min_rate)
+            hi = _q(base * t.bonus.max_rate)
+            if not (lo <= bonus_actual <= hi):
+                fail("BON-002", "Statutory Bonus Outside 8.33-20% Band", "bonus",
+                     f"{_fmt(lo)} – {_fmt(hi)}", _fmt(bonus_actual), "CRITICAL",
+                     f"Monthly statutory bonus must fall between {t.bonus.min_rate}× and "
+                     f"{t.bonus.max_rate}× of base ₹{_fmt(base)}.",
+                     "Recompute bonus per the Act, or reclassify as ex-gratia.",
+                     float(min((bonus_actual - hi).copy_abs(), (bonus_actual - lo).copy_abs())))
+
+    # Gratuity: formula check at exit
+    grat_raw = row.get("gratuity")
+    if grat_raw not in (None, "") and _dec(grat_raw) > 0 and doj and dol:
+        grat_actual = _dec(grat_raw)
+        years = idc.completed_service_years(doj, dol)
+        waived = idc.row_flag(row, "death_or_disablement")
+        if years < float(t.gratuity_formula.min_service_years) and not waived:
+            fail("GRAT-002", "Gratuity Paid Below Minimum Service", "gratuity",
+                 f"≥ {t.gratuity_formula.min_service_years} years service", f"{years} years",
+                 "WARNING",
+                 f"Service {doj} → {dol} is {years} completed years — below the eligibility threshold "
+                 "(waived only on death/disablement).",
+                 "Verify eligibility (4y240d case law) or reclassify the payment.")
+        else:
+            basic_da = pf_wage_total
+            expected_grat = _q(basic_da * t.gratuity_formula.factor_numerator
+                               / t.gratuity_formula.factor_denominator * Decimal(years))
+            if expected_grat > 0:
+                dev_pct = float((grat_actual - expected_grat).copy_abs() / expected_grat * 100)
+                if dev_pct > float(t.gratuity_formula.amount_tolerance_pct):
+                    fail("GRAT-003", "Gratuity Deviates from Formula", "gratuity",
+                         _fmt(expected_grat), _fmt(grat_actual), "WARNING",
+                         f"(Basic+DA {_fmt(basic_da)}) × {t.gratuity_formula.factor_numerator}/"
+                         f"{t.gratuity_formula.factor_denominator} × {years} years = {_fmt(expected_grat)} "
+                         f"(deviation {dev_pct:.1f}%).",
+                         "Recheck last-drawn Basic+DA and completed service years.",
+                         float((grat_actual - expected_grat).copy_abs()))
+
+    # TDS: Sec 206AA (no PAN) and Sec 192 projection
+    tds_raw = row.get("tds") or row.get("income_tax")
+    taxable_month = sum(
+        (amt for k, amt in regular.items()
+         if comp_by_key.get(k) and getattr(comp_by_key[k], "taxable", False)),
+        start=Decimal("0"),
+    )
+    if not pan_ok and tds_raw not in (None, "") and taxable_month > 0:
+        required = _q(taxable_month * t.identity.no_pan_tds_rate)
+        if _dec(tds_raw) < required - tol_stat:
+            fail("TDS-001", "No-PAN TDS Below 20% (Sec 206AA)", "tds",
+                 _fmt(required), _fmt(_dec(tds_raw)), "CRITICAL",
+                 f"PAN is {'invalid' if pan_raw else 'missing'} — TDS must be at least "
+                 f"{float(t.identity.no_pan_tds_rate) * 100:.0f}% of taxable pay ({_fmt(taxable_month)}).",
+                 "Deduct at the Sec 206AA rate or obtain a valid PAN.",
+                 float(required - _dec(tds_raw)))
+    if expected_monthly_tds is not None and tds_raw not in (None, ""):
+        tds_actual = _dec(tds_raw)
+        exp_tds = Decimal(str(round(expected_monthly_tds, 2)))
+        tol = max(t.tds_deep.projection_tolerance_abs,
+                  _q(exp_tds * t.tds_deep.projection_tolerance_pct / Decimal("100")))
+        if (tds_actual - exp_tds).copy_abs() > tol:
+            fail("TDS-002", "Monthly TDS Deviates from Projection", "tds",
+                 _fmt(exp_tds), _fmt(tds_actual), "WARNING",
+                 f"Projected monthly TDS (annualised, declared regime) is {_fmt(exp_tds)}; "
+                 f"deduction differs by {_fmt((tds_actual - exp_tds).copy_abs())} (> ₹{_fmt(tol)} tolerance).",
+                 "Re-project annual tax over remaining months; correct cumulative deduction by Q4.",
+                 float((tds_actual - exp_tds).copy_abs()))
+
+    # Data-quality: negative deductions, zero-net actives, impossible paid days
+    for ded_key in ("pf_employee", "esic_employee", "pt", "pt_amount", "lwf_employee", "tds", "income_tax"):
+        v = row.get(ded_key)
+        if v not in (None, "") and _dec(v) < 0:
+            fail("DATA-005", "Negative Deduction", ded_key, "≥ 0", _fmt(_dec(v)), "CRITICAL",
+                 f"Deduction '{ded_key}' is negative — refunds must be separate reversal lines.",
+                 "Move the refund to a marked recovery/reversal component.")
+    net_col = next(
+        (row[k] for k in ("net", "net_salary", "net_pay", "take_home")
+         if row.get(k) not in (None, "")),
+        None,
+    )
+    if net_col is not None and _dec(net_col) == 0 and paid_days and paid_days > 0:
+        fail("AGG-003", "Zero Net Pay for Active Employee", "net", "> 0", "0.00", "WARNING",
+             f"Employee has {paid_days} paid days but zero net pay.",
+             "Check for full-salary recovery/hold; document the reason.")
+    if net_col not in (None, "") and _dec(net_col) < 0:
+        fail("AGG-004", "Negative Net Pay", "net", "≥ 0", _fmt(_dec(net_col)), "CRITICAL",
+             "Net pay is negative — recoveries exceed earnings.",
+             "Cap recoveries this month and carry the balance to a recovery schedule.")
+    if paid_days is not None and days_in_month and paid_days > Decimal(days_in_month):
+        fail("LOP-003", "Paid Days Exceed Days in Month", "paid_days",
+             f"≤ {days_in_month}", _fmt(paid_days), "CRITICAL",
+             "Paid days cannot exceed the month's days.", "Correct the attendance import.")
+
     return findings
 
 
@@ -651,6 +914,44 @@ def batch_findings(employees: list[dict[str, Any]]) -> list[ValidationFinding]:
                 suggested_fix="Remove duplicate rows. Keep one record per employee per pay period.",
                 financial_impact=0.0,
             ))
+
+    # Duplicate statutory identifiers across different employees (spec §2.5-2.6)
+    dup_specs = [
+        ("DATA-006", "Duplicate PAN", "pan", ("pan",), "CRITICAL",
+         "The same PAN on two employees corrupts TDS returns (24Q)."),
+        ("DATA-007", "Duplicate UAN", "uan", ("uan",), "CRITICAL",
+         "The same UAN on two employees corrupts the PF ECR."),
+        ("DATA-008", "Duplicate Aadhaar", "aadhaar", ("aadhaar", "aadhar"), "CRITICAL",
+         "The same Aadhaar on two employees indicates a data error or duplicate identity."),
+        ("DATA-009", "Duplicate Bank Account", "bank_account", ("bank_account", "account_number"),
+         "WARNING", "Two employees share a bank account — possible ghost employee."),
+    ]
+    for rule_id, rule_name, component, keys, severity, why in dup_specs:
+        by_value: dict[str, list[str]] = {}
+        for row in employees:
+            eid = str(row.get("employee_id") or row.get("emp_id") or row.get("employee_code") or "").strip()
+            val = ""
+            for k in keys:
+                v = row.get(k)
+                if v not in (None, ""):
+                    val = idc.clean_id(v)
+                    break
+            if eid and val:
+                by_value.setdefault(val, []).append(eid)
+        for val, eids in by_value.items():
+            if len(set(eids)) > 1:
+                for eid in sorted(set(eids)):
+                    findings.append(ValidationFinding(
+                        employee_id=eid, employee_name=None,
+                        rule_id=rule_id, rule_name=rule_name, component=component,
+                        expected_value="unique per employee",
+                        actual_value=f"shared by {len(set(eids))} employees",
+                        difference="", severity=severity, status="FAIL",
+                        reason=f"{rule_name.split(' ', 1)[1]} '{val}' is shared by employees "
+                               f"{', '.join(sorted(set(eids)))}. {why}",
+                        suggested_fix="Verify each employee's identity documents and correct the register.",
+                        financial_impact=0.0,
+                    ))
     return findings
 
 

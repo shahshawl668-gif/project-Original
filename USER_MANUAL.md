@@ -206,6 +206,20 @@ Rules are grouped in layers (data quality → structure → aggregates → statu
 | LOP-*      | paid_days + lop_days vs denominator; proration vs CTC monthly × paid/total                                           |
 | MOM-*      | New joiner, component spike/drop vs prior month, new components, increment arrear vs CTC                             |
 | ADV-*      | Salary spikes/drops vs prior gross                                                                                   |
+| ID-*       | PAN (206AA), Aadhaar (Verhoeff), UAN, ESI number, IFSC formats; working age; pay before DOJ / after DOL              |
+| PF-004/008 | EPS split vs cap, post-Sep-2014 joiner EPS=0, EPS stop at 58, international-worker ceiling                           |
+| ESI-005/006| Disability coverage ceiling (₹25,000), daily-wage employee-share exemption (₹176)                                    |
+| PT-002/003 | Article 276 annual cap (₹2,500), PT deducted in a no-PT state                                                        |
+| BON-*      | Payment of Bonus Act eligibility (₹21,000) and 8.33–20% band on min(Basic+DA, ₹7,000)                                |
+| GRAT-002/3 | Gratuity service gate (5y, waived on death/disablement) and 15/26 formula check                                      |
+| TDS-001/002| No-PAN 20% minimum (Sec 206AA); monthly TDS vs annualised projection for the declared regime                         |
+| DATA-005…9 | Negative deductions; duplicate PAN / UAN / Aadhaar / bank account across employees                                   |
+
+Optional identity/master-data columns the register may carry: `pan`, `aadhaar`,
+`uan`, `esi_number`, `bank_account`, `ifsc`, `dob`, `doj`, `dol`, `tax_regime`,
+`gender`, `disability`, `international_worker`, `adolescent_permit`,
+`death_or_disablement`, `eps`, `bonus`, `gratuity`, `tds`. Every threshold these
+rules use is editable under **Configuration → Income tax & thresholds**.
 
 
 **Increment / arrear run:** Use `**increment_arrear`** when pay structure legitimately changes with arrears so **MOM-002** (spike) is not raised incorrectly.
