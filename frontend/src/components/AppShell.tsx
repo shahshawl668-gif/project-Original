@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   UploadCloud,
@@ -17,6 +17,7 @@ import {
   ChevronRight,
   FileSpreadsheet,
   Ban,
+  Landmark,
   LogOut,
   Shield,
   Search,
@@ -57,6 +58,7 @@ const navGroups = [
     label: "Configuration",
     items: [
       { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
+      { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
       { href: "/config/components", label: "Salary components", icon: Layers },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
     ],
@@ -198,7 +200,7 @@ function Sidebar({
         <div className="rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-3">
           <p className="text-[11px] font-semibold text-white">Production status</p>
           <p className="mt-1 text-[10px] leading-relaxed text-ink-300">
-            Statutory rules current as of FY 2025-26 · PF · ESIC · PT · LWF · IT
+            FY-versioned statutory rules · PF · ESIC · PT · LWF · IT
           </p>
           <div className="mt-2.5">
             <ApiHealthBadge />
@@ -211,6 +213,7 @@ function Sidebar({
 
 function ProfileMenu() {
   const { user, isAuthenticated, logout } = useAuth();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -286,7 +289,7 @@ function ProfileMenu() {
             type="button"
             onClick={() => {
               setOpen(false);
-              void logout();
+              void logout().finally(() => router.replace("/login"));
             }}
             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
           >

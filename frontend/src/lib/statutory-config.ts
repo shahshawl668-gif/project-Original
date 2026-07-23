@@ -179,3 +179,168 @@ export async function testExpression(
     body: JSON.stringify({ expression, context }),
   });
 }
+
+// ── Income tax (FY-versioned) ────────────────────────────────────────────────
+
+export interface TaxSlab {
+  up_to: string | null; // null = no upper bound
+  rate: string;
+}
+
+export interface RebateConfig {
+  taxable_income_limit: string;
+  max_rebate: string;
+  marginal_relief: boolean;
+}
+
+export interface SurchargeBracket {
+  up_to: string | null;
+  rate: string;
+}
+
+export interface RegimeConfig {
+  label: string;
+  slabs: TaxSlab[];
+  standard_deduction: string;
+  rebate: RebateConfig;
+  surcharge_brackets: SurchargeBracket[];
+  allow_chapter_via: boolean;
+}
+
+export interface DeductionCapsConfig {
+  section_80c: string;
+  section_80d: string;
+  section_80ccd_1b: string;
+  home_loan_interest: string;
+}
+
+export interface TaxYearConfig {
+  financial_year: string;
+  cess_rate: string;
+  old_regime: RegimeConfig;
+  new_regime: RegimeConfig;
+  deduction_caps: DeductionCapsConfig;
+  notes: string;
+}
+
+export interface IncomeTaxConfig {
+  default_year: string;
+  years: Record<string, TaxYearConfig>;
+}
+
+export async function getIncomeTaxConfig(): Promise<IncomeTaxConfig> {
+  return apiJson<IncomeTaxConfig>("/api/config/statutory/income-tax");
+}
+
+export async function saveIncomeTaxConfig(cfg: IncomeTaxConfig): Promise<IncomeTaxConfig> {
+  return apiJson<IncomeTaxConfig>("/api/config/statutory/income-tax", {
+    method: "PUT",
+    body: JSON.stringify(cfg),
+  });
+}
+
+export async function upsertTaxYear(
+  financialYear: string,
+  year: TaxYearConfig,
+  makeDefault = false,
+): Promise<IncomeTaxConfig> {
+  return apiJson<IncomeTaxConfig>(`/api/config/statutory/income-tax/years/${financialYear}`, {
+    method: "PUT",
+    body: JSON.stringify({ year, make_default: makeDefault }),
+  });
+}
+
+export async function deleteTaxYear(financialYear: string): Promise<IncomeTaxConfig> {
+  return apiJson<IncomeTaxConfig>(`/api/config/statutory/income-tax/years/${financialYear}`, {
+    method: "DELETE",
+  });
+}
+
+export async function resetIncomeTaxConfig(): Promise<IncomeTaxConfig> {
+  return apiJson<IncomeTaxConfig>("/api/config/statutory/income-tax/reset", { method: "POST" });
+}
+
+export interface TaxBreakup {
+  regime: "old" | "new";
+  financial_year: string;
+  annual_gross: number;
+  standard_deduction: number;
+  chapter_via: number;
+  taxable_income: number;
+  slab_tax: number;
+  rebate_87a: number;
+  surcharge: number;
+  cess: number;
+  total_tax_annual: number;
+  monthly_tds: number;
+  notes: string[];
+}
+
+export interface RegimeComparison {
+  old: TaxBreakup;
+  new: TaxBreakup;
+  cheaper_regime: "old" | "new";
+  annual_saving: number;
+  financial_year: string;
+}
+
+export async function compareRegimes(
+  annualGross: number,
+  financialYear?: string,
+): Promise<RegimeComparison> {
+  return apiJson<RegimeComparison>("/api/income-tax/compare", {
+    method: "POST",
+    body: JSON.stringify({ annual_gross: annualGross, financial_year: financialYear ?? null }),
+  });
+}
+
+// ── Rule-engine thresholds ───────────────────────────────────────────────────
+
+export interface RuleThresholdsConfig {
+  structural: {
+    min_pf_wage_pct_of_gross: string;
+    recommended_pf_wage_pct: string;
+    allowance_heavy_pct: string;
+  };
+  tolerances: {
+    gross_mismatch: string;
+    net_mismatch: string;
+    statutory_mismatch: string;
+  };
+  trends: {
+    component_change_pct: string;
+    salary_spike_ratio: string;
+    salary_drop_ratio: string;
+  };
+  tds: {
+    annual_income_threshold: string;
+    arrear_annualisation_factor: string;
+  };
+  gratuity: {
+    exemption_cap: string;
+  };
+  identity: Record<string, string>;
+  pf_deep: Record<string, string>;
+  esi_deep: Record<string, string>;
+  pt_caps: { annual_cap: string; no_pt_states: string[] };
+  bonus: Record<string, string>;
+  gratuity_formula: Record<string, string>;
+  tds_deep: Record<string, string>;
+}
+
+export async function getRuleThresholds(): Promise<RuleThresholdsConfig> {
+  return apiJson<RuleThresholdsConfig>("/api/config/statutory/rule-thresholds");
+}
+
+export async function saveRuleThresholds(cfg: RuleThresholdsConfig): Promise<RuleThresholdsConfig> {
+  return apiJson<RuleThresholdsConfig>("/api/config/statutory/rule-thresholds", {
+    method: "PUT",
+    body: JSON.stringify(cfg),
+  });
+}
+
+export async function resetRuleThresholds(): Promise<RuleThresholdsConfig> {
+  return apiJson<RuleThresholdsConfig>("/api/config/statutory/rule-thresholds/reset", {
+    method: "POST",
+  });
+}

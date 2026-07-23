@@ -80,13 +80,35 @@ This edits `**/api/config/statutory`** (JSON): PF wage rules, rates, ceiling, vo
 - **Test expression** (if exposed in UI or via API): safe arithmetic/boolean checks for custom logic.
 - After changes, run a small test payroll to confirm PF/ESIC match your payroll software.
 
-### 3.5 Formulas (optional)
+### 3.5 Income tax & rule thresholds (FY-versioned)
+
+**UI:** Configuration → **Income tax & thresholds**
+
+Nothing statutory is hardcoded: income-tax slabs, Section 87A rebate,
+surcharge brackets, cess, standard deductions, and Chapter VI-A caps are
+stored **per financial year** and are fully editable. Known years
+(FY 2025-26, FY 2026-27) are seeded as editable defaults; add the next FY
+with one click (it copies the selected year), adjust rates when a Budget
+changes them, and mark the year your payroll runs against as **default**.
+
+The same page tunes **validation rule thresholds**: structural risk
+percentages (STRUCT-001/002), mismatch tolerances (AGG/STAT rules),
+month-on-month spike limits (MOM/ADV rules), the TDS-risk heuristic
+(STAT-011) and the gratuity exemption cap (STAT-014).
+
+**API:** `GET/PUT /api/config/statutory/income-tax`,
+`PUT/DELETE /api/config/statutory/income-tax/years/{fy}`,
+`GET/PUT /api/config/statutory/rule-thresholds`, plus `POST …/reset`
+endpoints. Tax computation: `POST /api/income-tax/compute` and
+`/api/income-tax/compare` accept an optional `financial_year`.
+
+### 3.6 Formulas (optional)
 
 **UI:** Rule Engine → **Formulas**
 
 Create expressions (e.g. HRA = 50% of Basic) for documentation or future rule hooks; use **Test** to verify with sample variables.
 
-### 3.6 CTC history
+### 3.7 CTC history
 
 **UI:** CTC → **Upload CTC** then **CTC History**
 
@@ -184,6 +206,20 @@ Rules are grouped in layers (data quality → structure → aggregates → statu
 | LOP-*      | paid_days + lop_days vs denominator; proration vs CTC monthly × paid/total                                           |
 | MOM-*      | New joiner, component spike/drop vs prior month, new components, increment arrear vs CTC                             |
 | ADV-*      | Salary spikes/drops vs prior gross                                                                                   |
+| ID-*       | PAN (206AA), Aadhaar (Verhoeff), UAN, ESI number, IFSC formats; working age; pay before DOJ / after DOL              |
+| PF-004/008 | EPS split vs cap, post-Sep-2014 joiner EPS=0, EPS stop at 58, international-worker ceiling                           |
+| ESI-005/006| Disability coverage ceiling (₹25,000), daily-wage employee-share exemption (₹176)                                    |
+| PT-002/003 | Article 276 annual cap (₹2,500), PT deducted in a no-PT state                                                        |
+| BON-*      | Payment of Bonus Act eligibility (₹21,000) and 8.33–20% band on min(Basic+DA, ₹7,000)                                |
+| GRAT-002/3 | Gratuity service gate (5y, waived on death/disablement) and 15/26 formula check                                      |
+| TDS-001/002| No-PAN 20% minimum (Sec 206AA); monthly TDS vs annualised projection for the declared regime                         |
+| DATA-005…9 | Negative deductions; duplicate PAN / UAN / Aadhaar / bank account across employees                                   |
+
+Optional identity/master-data columns the register may carry: `pan`, `aadhaar`,
+`uan`, `esi_number`, `bank_account`, `ifsc`, `dob`, `doj`, `dol`, `tax_regime`,
+`gender`, `disability`, `international_worker`, `adolescent_permit`,
+`death_or_disablement`, `eps`, `bonus`, `gratuity`, `tds`. Every threshold these
+rules use is editable under **Configuration → Income tax & thresholds**.
 
 
 **Increment / arrear run:** Use `**increment_arrear`** when pay structure legitimately changes with arrears so **MOM-002** (spike) is not raised incorrectly.
@@ -224,6 +260,10 @@ Shows setup progress, recent activity, and charts driven by last runs/registers.
 | GET      | `/api/payroll/registers`, `/api/payroll/registers/{id}` | History                                                   |
 | GET/POST | `/api/rule-engine/slabs`, import-defaults               | PT/LWF                                                    |
 | POST     | `/api/rule-engine/formula`                              | Custom formulas                                           |
+| GET/PUT  | `/api/config/statutory/income-tax`                      | FY-versioned tax slabs/rebate/surcharge/cess              |
+| PUT/DEL  | `/api/config/statutory/income-tax/years/{fy}`           | Add / remove one financial year                           |
+| GET/PUT  | `/api/config/statutory/rule-thresholds`                 | Tunable rule-engine thresholds                            |
+| POST     | `/api/income-tax/compute`, `/api/income-tax/compare`    | Old vs new regime projection (per FY)                     |
 
 
 Health: `**GET /api/health`**

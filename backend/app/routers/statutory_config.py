@@ -13,6 +13,8 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.envelope import ok
 from app.models import User
+from app.schemas.income_tax_config import IncomeTaxConfig, TaxYearConfig, TaxYearUpsert
+from app.schemas.rule_thresholds import RuleThresholdsConfig
 from app.schemas.statutory_config import (
     ComponentMappingConfig,
     ESICConfig,
@@ -146,6 +148,99 @@ def test_expression(body: dict, user: User = Depends(get_current_user)):
         return ok({"result": result, "result_type": type(result).__name__, "eval_ok": True})
     except Exception as e:
         return ok({"error": str(e), "eval_ok": False})
+
+
+# ─── Income tax (FY-versioned) ────────────────────────────────────────────────
+
+@router.get("/income-tax")
+def get_income_tax_config(
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    return ok(svc.get_income_tax_config(user.id).model_dump(mode="json"))
+
+
+@router.put("/income-tax")
+def save_income_tax_config(
+    body: IncomeTaxConfig,
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    if body.default_year and body.default_year not in body.years:
+        raise HTTPException(status_code=422, detail=f"default_year '{body.default_year}' has no entry in years.")
+    svc.save_income_tax_config(user.id, body)
+    return ok(body.model_dump(mode="json"))
+
+
+@router.put("/income-tax/years/{financial_year}")
+def upsert_tax_year(
+    financial_year: str,
+    body: TaxYearUpsert,
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    """Add or replace one financial year's parameters."""
+    cfg = svc.get_income_tax_config(user.id)
+    year = body.year.model_copy(update={"financial_year": financial_year})
+    cfg.years[financial_year] = year
+    if body.make_default or not cfg.default_year:
+        cfg.default_year = financial_year
+    svc.save_income_tax_config(user.id, cfg)
+    return ok(cfg.model_dump(mode="json"))
+
+
+@router.delete("/income-tax/years/{financial_year}")
+def delete_tax_year(
+    financial_year: str,
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    cfg = svc.get_income_tax_config(user.id)
+    if financial_year not in cfg.years:
+        raise HTTPException(status_code=404, detail=f"No config for FY {financial_year}.")
+    if len(cfg.years) == 1:
+        raise HTTPException(status_code=422, detail="Cannot delete the only financial year.")
+    del cfg.years[financial_year]
+    if cfg.default_year == financial_year:
+        cfg.default_year = sorted(cfg.years)[-1]
+    svc.save_income_tax_config(user.id, cfg)
+    return ok(cfg.model_dump(mode="json"))
+
+
+@router.post("/income-tax/reset")
+def reset_income_tax_config(
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    return ok(svc.reset_income_tax_config(user.id).model_dump(mode="json"))
+
+
+# ─── Rule-engine thresholds ───────────────────────────────────────────────────
+
+@router.get("/rule-thresholds")
+def get_rule_thresholds(
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    return ok(svc.get_rule_thresholds(user.id).model_dump(mode="json"))
+
+
+@router.put("/rule-thresholds")
+def save_rule_thresholds(
+    body: RuleThresholdsConfig,
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    svc.save_rule_thresholds(user.id, body)
+    return ok(body.model_dump(mode="json"))
+
+
+@router.post("/rule-thresholds/reset")
+def reset_rule_thresholds(
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(_svc),
+):
+    return ok(svc.reset_rule_thresholds(user.id).model_dump(mode="json"))
 
 
 @router.get("/summary")

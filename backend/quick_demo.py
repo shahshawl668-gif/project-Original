@@ -4,11 +4,11 @@ import requests, json
 BASE = "http://127.0.0.1:8000"
 
 # get token
-r = requests.post(f"{BASE}/api/auth/login", json={"email":"demo@example.com","password":"demopass1"})
+r = requests.post(f"{BASE}/api/auth/login", json={"email":"quickdemo@example.com","password":"demopass1"})
 if r.status_code != 200:
-    requests.post(f"{BASE}/api/auth/signup", json={"email":"demo@example.com","password":"demopass1","company_name":"Demo"})
-    r = requests.post(f"{BASE}/api/auth/login", json={"email":"demo@example.com","password":"demopass1"})
-token = r.json()["access_token"]
+    requests.post(f"{BASE}/api/auth/signup", json={"email":"quickdemo@example.com","password":"demopass1","company_name":"Demo"})
+    r = requests.post(f"{BASE}/api/auth/login", json={"email":"quickdemo@example.com","password":"demopass1"})
+token = r.json()["data"]["access_token"]
 h = {"Authorization": f"Bearer {token}"}
 
 # configure components
@@ -43,7 +43,7 @@ payload = {
     "run_type": "regular", "period_month": "2025-04-01"
 }
 
-resp = requests.post(f"{BASE}/api/payroll/validate", json=payload, headers=h).json()
+resp = requests.post(f"{BASE}/api/payroll/validate", json=payload, headers=h).json()["data"]
 
 print("\n" + "="*70)
 print("  FINDINGS SUMMARY")

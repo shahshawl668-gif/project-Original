@@ -58,6 +58,8 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("slab_rules", "gender", "VARCHAR(8) NOT NULL DEFAULT 'ALL'"),
     ("slab_rules", "applicable_months", "TEXT"),
     ("slab_rules", "employer_amount", "NUMERIC(14, 2)"),
+    ("statutory_config", "income_tax_config", "JSON"),
+    ("statutory_config", "rule_thresholds_config", "JSON"),
 ]
 
 
