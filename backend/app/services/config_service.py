@@ -29,7 +29,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.models.statutory_config import StatutoryConfig
 from app.schemas.income_tax_config import IncomeTaxConfig, TaxYearConfig
@@ -149,28 +149,21 @@ class ConfigService:
     """
     Tenant-isolated config loader for PF, ESIC, and component mapping.
 
-    One instance per request (share the db Session).
+    One instance per request (shares the request's database handle).
     Results are memoised for the lifetime of the instance.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Database):
         self._db = db
         self._cache: dict[str, TenantStatutoryConfig] = {}
 
     # ── private helpers ───────────────────────────────────────────────────────
 
     def _load_row(self, tenant_id: uuid.UUID) -> StatutoryConfig:
-        key = str(tenant_id)
-        row = (
-            self._db.query(StatutoryConfig)
-            .filter(StatutoryConfig.user_id == tenant_id)
-            .first()
-        )
+        row = StatutoryConfig.find_one(self._db, {"user_id": tenant_id})
         if row is None:
-            row = StatutoryConfig(user_id=tenant_id, pf_config={}, esic_config={}, component_mapping_config={})
-            self._db.add(row)
-            self._db.commit()
-            self._db.refresh(row)
+            row = StatutoryConfig(user_id=tenant_id)
+            row.insert(self._db)
         return row
 
     def _load_full(self, tenant_id: uuid.UUID) -> TenantStatutoryConfig:
@@ -207,19 +200,19 @@ class ConfigService:
     def save_pf_config(self, tenant_id: uuid.UUID, pf_cfg: PFConfig) -> None:
         row = self._load_row(tenant_id)
         row.pf_config = pf_cfg.model_dump(mode="json")
-        self._db.commit()
+        row.save(self._db)
         self._cache.pop(str(tenant_id), None)
 
     def save_esic_config(self, tenant_id: uuid.UUID, esic_cfg: ESICConfig) -> None:
         row = self._load_row(tenant_id)
         row.esic_config = esic_cfg.model_dump(mode="json")
-        self._db.commit()
+        row.save(self._db)
         self._cache.pop(str(tenant_id), None)
 
     def save_component_mapping(self, tenant_id: uuid.UUID, mapping: ComponentMappingConfig) -> None:
         row = self._load_row(tenant_id)
         row.component_mapping_config = mapping.model_dump(mode="json")
-        self._db.commit()
+        row.save(self._db)
         self._cache.pop(str(tenant_id), None)
 
     def save_full_config(self, tenant_id: uuid.UUID, cfg: TenantStatutoryConfig) -> None:
@@ -227,7 +220,7 @@ class ConfigService:
         row.pf_config = cfg.pf.model_dump(mode="json")
         row.esic_config = cfg.esic.model_dump(mode="json")
         row.component_mapping_config = cfg.component_mapping.model_dump(mode="json")
-        self._db.commit()
+        row.save(self._db)
         self._cache.pop(str(tenant_id), None)
 
     def reset_to_defaults(self, tenant_id: uuid.UUID) -> TenantStatutoryConfig:
@@ -242,7 +235,7 @@ class ConfigService:
         from app.services.tax_year_defaults import default_income_tax_config
 
         row = self._load_row(tenant_id)
-        raw = getattr(row, "income_tax_config", None)
+        raw = row.income_tax_config
         if not raw:
             return default_income_tax_config()
         return IncomeTaxConfig.model_validate(raw)
@@ -250,7 +243,7 @@ class ConfigService:
     def save_income_tax_config(self, tenant_id: uuid.UUID, cfg: IncomeTaxConfig) -> None:
         row = self._load_row(tenant_id)
         row.income_tax_config = cfg.model_dump(mode="json")
-        self._db.commit()
+        row.save(self._db)
 
     def get_tax_year(
         self, tenant_id: uuid.UUID, financial_year: str | None = None
@@ -269,7 +262,7 @@ class ConfigService:
 
     def get_rule_thresholds(self, tenant_id: uuid.UUID) -> RuleThresholdsConfig:
         row = self._load_row(tenant_id)
-        raw = getattr(row, "rule_thresholds_config", None)
+        raw = row.rule_thresholds_config
         if not raw:
             return RuleThresholdsConfig()
         return RuleThresholdsConfig.model_validate(raw)
@@ -277,7 +270,7 @@ class ConfigService:
     def save_rule_thresholds(self, tenant_id: uuid.UUID, cfg: RuleThresholdsConfig) -> None:
         row = self._load_row(tenant_id)
         row.rule_thresholds_config = cfg.model_dump(mode="json")
-        self._db.commit()
+        row.save(self._db)
 
     def reset_rule_thresholds(self, tenant_id: uuid.UUID) -> RuleThresholdsConfig:
         defaults = RuleThresholdsConfig()

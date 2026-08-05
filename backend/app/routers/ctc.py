@@ -2,7 +2,7 @@ import json
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -19,7 +19,7 @@ router = APIRouter()
 async def upload_ctc(
     file: UploadFile = File(...),
     meta: str = Form(...),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     try:
@@ -29,7 +29,7 @@ async def upload_ctc(
     except (ValueError, json.JSONDecodeError):
         raise HTTPException(status_code=400, detail="Invalid meta JSON")
 
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = ComponentConfig.find_many(db, {"user_id": user.id})
     if not comps:
         raise HTTPException(
             status_code=400,
@@ -75,7 +75,7 @@ async def upload_ctc(
 @router.post("/commit")
 def commit_ctc(
     body: CtcCommitRequest,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     if not body.records:
@@ -89,65 +89,55 @@ def commit_ctc(
         filename=body.filename,
         employee_count=len(body.records),
     )
-    db.add(upload)
-    db.flush()
+    upload.insert(db)
 
+    # (user_id, employee_id, effective_from) is unique — re-uploading the same
+    # effective month updates the existing record rather than duplicating it.
     for rec in body.records:
-        existing = (
-            db.query(CtcRecord)
-            .filter(
-                CtcRecord.user_id == user.id,
-                CtcRecord.employee_id == rec.employee_id,
-                CtcRecord.effective_from == rec.effective_from,
-            )
-            .first()
+        existing = CtcRecord.find_one(
+            db,
+            {
+                "user_id": user.id,
+                "employee_id": rec.employee_id,
+                "effective_from": rec.effective_from,
+            },
         )
         if existing:
             existing.upload_id = upload.id
             existing.employee_name = rec.employee_name
             existing.annual_components = rec.annual_components
             existing.annual_ctc = rec.annual_ctc
-            db.add(existing)
+            existing.save(db)
         else:
-            db.add(
-                CtcRecord(
-                    upload_id=upload.id,
-                    user_id=user.id,
-                    employee_id=rec.employee_id,
-                    employee_name=rec.employee_name,
-                    effective_from=rec.effective_from,
-                    annual_components=rec.annual_components,
-                    annual_ctc=rec.annual_ctc,
-                )
-            )
+            CtcRecord(
+                upload_id=upload.id,
+                user_id=user.id,
+                employee_id=rec.employee_id,
+                employee_name=rec.employee_name,
+                effective_from=rec.effective_from,
+                annual_components=rec.annual_components,
+                annual_ctc=rec.annual_ctc,
+            ).insert(db)
 
-    db.commit()
-    db.refresh(upload)
     return ok(CtcUploadOut.model_validate(upload).model_dump())
 
 
 @router.get("/uploads")
-def list_uploads(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    rows = (
-        db.query(CtcUpload)
-        .filter(CtcUpload.user_id == user.id)
-        .order_by(CtcUpload.created_at.desc())
-        .all()
-    )
+def list_uploads(db: Database = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = CtcUpload.find_many(db, {"user_id": user.id}, sort=[("created_at", -1)])
     return ok([CtcUploadOut.model_validate(r).model_dump() for r in rows])
 
 
 @router.get("/uploads/{upload_id}")
 def list_records(
     upload_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    rows = (
-        db.query(CtcRecord)
-        .filter(CtcRecord.user_id == user.id, CtcRecord.upload_id == upload_id)
-        .order_by(CtcRecord.employee_id)
-        .all()
+    rows = CtcRecord.find_many(
+        db,
+        {"user_id": user.id, "upload_id": upload_id},
+        sort=[("employee_id", 1)],
     )
     return ok([CtcRecordOut.model_validate(r).model_dump() for r in rows])
 
@@ -156,13 +146,13 @@ def list_records(
 def latest_for_employee(
     employee_id: str,
     as_of: date | None = None,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    q = db.query(CtcRecord).filter(CtcRecord.user_id == user.id, CtcRecord.employee_id == employee_id)
+    filt: dict = {"user_id": user.id, "employee_id": employee_id}
     if as_of:
-        q = q.filter(CtcRecord.effective_from <= as_of)
-    row = q.order_by(CtcRecord.effective_from.desc()).first()
+        filt["effective_from"] = {"$lte": as_of}
+    row = CtcRecord.find_one(db, filt, sort=[("effective_from", -1)])
     if row is None:
         return ok(None)
     return ok(CtcRecordOut.model_validate(row).model_dump())

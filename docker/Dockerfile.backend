@@ -8,14 +8,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 curl \
+    && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps. We always include psycopg2 for production Postgres
-# (Render, Railway, RDS, …). SQLite dev still works because the driver is
-# optional at runtime.
-COPY backend/requirements.txt backend/requirements-postgres.txt ./
-RUN pip install -r requirements-postgres.txt
+# PyMongo is a pure-Python driver — no system client libraries needed.
+COPY backend/requirements.txt ./
+RUN pip install -r requirements.txt
 
 COPY backend/app ./app
 

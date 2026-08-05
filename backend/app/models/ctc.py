@@ -1,56 +1,37 @@
+"""CTC upload and per-employee CTC record documents."""
+from __future__ import annotations
+
 import uuid
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import (
-    JSON,
-    Date,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    UniqueConstraint,
-    Uuid,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class CtcUpload(Base):
-    __tablename__ = "ctc_uploads"
+@dataclass
+class CtcUpload(Document):
+    COLLECTION = "ctc_uploads"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
-    filename: Mapped[str | None] = mapped_column(String(512))
-    employee_count: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    records = relationship("CtcRecord", back_populates="upload", cascade="all, delete-orphan")
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    effective_from: date | None = None
+    filename: str | None = None
+    employee_count: int | None = None
+    created_at: datetime = field(default_factory=utcnow)
 
 
-class CtcRecord(Base):
-    __tablename__ = "ctc_records"
-    __table_args__ = (UniqueConstraint("user_id", "employee_id", "effective_from"),)
+@dataclass
+class CtcRecord(Document):
+    COLLECTION = "ctc_records"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    upload_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("ctc_uploads.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    employee_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    employee_name: Mapped[str | None] = mapped_column(String(255))
-    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
-    annual_components: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    annual_ctc: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    upload = relationship("CtcUpload", back_populates="records")
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    upload_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
+    employee_id: str = ""
+    employee_name: str | None = None
+    effective_from: date | None = None
+    annual_components: dict[str, Any] = field(default_factory=dict)
+    annual_ctc: Decimal | None = None
+    created_at: datetime = field(default_factory=utcnow)

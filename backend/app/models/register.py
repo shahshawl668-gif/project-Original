@@ -1,59 +1,45 @@
+"""Stored salary register documents — one register per tenant per month.
+
+Rows live in their own collection rather than embedded in the register: a
+register can hold tens of thousands of employees, and month-on-month rules
+query rows directly by (user_id, period_month, employee_id).
+"""
+from __future__ import annotations
+
 import uuid
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import (
-    JSON,
-    Date,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    UniqueConstraint,
-    Uuid,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class SalaryRegister(Base):
-    __tablename__ = "salary_registers"
-    __table_args__ = (UniqueConstraint("user_id", "period_month"),)
+@dataclass
+class SalaryRegister(Document):
+    COLLECTION = "salary_registers"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    period_month: Mapped[date] = mapped_column(Date, nullable=False)
-    filename: Mapped[str | None] = mapped_column(String(512))
-    employee_count: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    rows = relationship("SalaryRegisterRow", back_populates="register", cascade="all, delete-orphan")
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    period_month: date | None = None
+    filename: str | None = None
+    employee_count: int | None = None
+    created_at: datetime = field(default_factory=utcnow)
 
 
-class SalaryRegisterRow(Base):
-    __tablename__ = "salary_register_rows"
+@dataclass
+class SalaryRegisterRow(Document):
+    COLLECTION = "salary_register_rows"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    register_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("salary_registers.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    period_month: Mapped[date] = mapped_column(Date, nullable=False)
-    employee_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    employee_name: Mapped[str | None] = mapped_column(String(255))
-    paid_days: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
-    lop_days: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
-    components: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    arrears: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    increment_arrear_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), default=Decimal("0"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    register = relationship("SalaryRegister", back_populates="rows")
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    register_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
+    period_month: date | None = None
+    employee_id: str = ""
+    employee_name: str | None = None
+    paid_days: Decimal | None = None
+    lop_days: Decimal | None = None
+    components: dict[str, Any] = field(default_factory=dict)
+    arrears: dict[str, Any] = field(default_factory=dict)
+    increment_arrear_total: Decimal | None = Decimal("0")
+    created_at: datetime = field(default_factory=utcnow)

@@ -1,8 +1,8 @@
 """Seed reference data (PT slabs) on first startup if empty.
 
-These rows are the *month-blind fallback* used by `lookup_pt` when a tenant
-has not imported state slabs (Rule Engine → PT/LWF slabs). They must stay
-accurate for the common case:
+These rows are the *month-blind fallback* used by `lookup_pt` when a tenant has
+not imported state slabs (Rule Engine → PT/LWF slabs). They must stay accurate
+for the common case:
 
   * Maharashtra PT — ₹200/month above ₹10,000 (the February ₹300 top-up is a
     month-specific rule the tenant catalog encodes; a month-blind fallback
@@ -22,82 +22,56 @@ the known-bad legacy values, so operator-edited data is never clobbered.
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.models import LwfRate, PtSlab
 
 _TOP = 999999999
 
 
-def _fix_legacy_reference_rows(db: Session) -> None:
-    changed = False
-
+def _fix_legacy_reference_rows(db: Database) -> None:
     # Maharashtra: legacy builds seeded ₹300/month above ₹20,000 — actual
     # monthly PT is ₹200 above ₹10,000 (Feb top-up handled by tenant slabs).
-    bad_mh = (
-        db.query(PtSlab)
-        .filter(
-            PtSlab.state == "Maharashtra",
-            PtSlab.slab_min == Decimal("20000.01"),
-            PtSlab.amount == Decimal("300"),
-        )
-        .all()
+    PtSlab.update_many(
+        db,
+        {"state": "Maharashtra", "slab_min": Decimal("20000.01"), "amount": Decimal("300")},
+        {"$set": {"amount": Decimal("200")}},
     )
-    for row in bad_mh:
-        row.amount = Decimal("200")
-        changed = True
 
     # Karnataka: exemption threshold moved from ₹15,000 to ₹25,000 (Apr 2025).
-    ka_exempt = (
-        db.query(PtSlab)
-        .filter(
-            PtSlab.state == "Karnataka",
-            PtSlab.slab_min == Decimal("0"),
-            PtSlab.slab_max == Decimal("15000"),
-            PtSlab.amount == Decimal("0"),
-        )
-        .all()
+    PtSlab.update_many(
+        db,
+        {
+            "state": "Karnataka",
+            "slab_min": Decimal("0"),
+            "slab_max": Decimal("15000"),
+            "amount": Decimal("0"),
+        },
+        {"$set": {"slab_max": Decimal("25000")}},
     )
-    for row in ka_exempt:
-        row.slab_max = Decimal("25000")
-        changed = True
-    ka_taxed = (
-        db.query(PtSlab)
-        .filter(
-            PtSlab.state == "Karnataka",
-            PtSlab.slab_min == Decimal("15000.01"),
-            PtSlab.amount == Decimal("200"),
-        )
-        .all()
+    PtSlab.update_many(
+        db,
+        {"state": "Karnataka", "slab_min": Decimal("15000.01"), "amount": Decimal("200")},
+        {"$set": {"slab_min": Decimal("25000.01")}},
     )
-    for row in ka_taxed:
-        row.slab_min = Decimal("25000.01")
-        changed = True
 
     # LWF: legacy monthly-drip fallback rows (₹10/₹20 MH, ₹3/₹6 KA) produce
     # false mismatches every month — remove them; the tenant catalog is the
     # accurate source.
-    legacy_lwf = (
-        db.query(LwfRate)
-        .filter(
-            LwfRate.state.in_(["Maharashtra", "Karnataka"]),
-            LwfRate.employee_rate.in_([Decimal("10"), Decimal("3")]),
-            LwfRate.employer_rate.in_([Decimal("20"), Decimal("6")]),
-        )
-        .all()
+    LwfRate.delete_many(
+        db,
+        {
+            "state": {"$in": ["Maharashtra", "Karnataka"]},
+            "employee_rate": {"$in": [Decimal("10"), Decimal("3")]},
+            "employer_rate": {"$in": [Decimal("20"), Decimal("6")]},
+        },
     )
-    for row in legacy_lwf:
-        db.delete(row)
-        changed = True
-
-    if changed:
-        db.commit()
 
 
-def seed_reference_data(db: Session) -> None:
+def seed_reference_data(db: Database) -> None:
     _fix_legacy_reference_rows(db)
 
-    if db.query(PtSlab).count() == 0:
+    if PtSlab.count(db) == 0:
         slabs = [
             ("Maharashtra", 0, 7500, 0),
             ("Maharashtra", 7500.01, 10000, 175),
@@ -105,8 +79,9 @@ def seed_reference_data(db: Session) -> None:
             ("Karnataka", 0, 25000, 0),
             ("Karnataka", 25000.01, _TOP, 200),
         ]
-        for state, lo, hi, amt in slabs:
-            db.add(
+        PtSlab.insert_many(
+            db,
+            [
                 PtSlab(
                     state=state,
                     slab_min=Decimal(str(lo)),
@@ -114,6 +89,6 @@ def seed_reference_data(db: Session) -> None:
                     amount=Decimal(str(amt)),
                     effective_from=date(2024, 4, 1),
                 )
-            )
-
-    db.commit()
+                for state, lo, hi, amt in slabs
+            ],
+        )

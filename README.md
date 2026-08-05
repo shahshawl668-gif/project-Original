@@ -1,6 +1,6 @@
 # Payroll SaaS (India validation UI + API)
 
-Monorepo: **backend** is FastAPI + SQLAlchemy; **frontend** is Next.js 14 (App Router).
+Monorepo: **backend** is FastAPI + MongoDB (PyMongo); **frontend** is Next.js 14 (App Router).
 
 ## Production layout (peopleopslab.in)
 
@@ -85,7 +85,8 @@ CI runs via `.github/workflows/ci.yml`.
 | Variable | Value |
 |----------|--------|
 | `JWT_SECRET` | Strong random secret |
-| `DATABASE_URL` | Postgres (recommended for production) |
+| `MONGODB_URL` | MongoDB connection string (`mongodb+srv://…` for Atlas) |
+| `MONGODB_DB` | Database name (default `payroll`; a name in the URL path wins) |
 | `CORS_ORIGINS` | Include `https://peopleopslab.in`, `https://www.peopleopslab.in` (required if browsers call the API **directly**; optional if everyone uses **`/api/proxy`**) |
 | `ALLOW_ANONYMOUS_API` | `false` |
 

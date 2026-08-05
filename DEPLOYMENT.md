@@ -6,8 +6,8 @@ document focuses on getting `peopleopslab.in` live end-to-end on:
 | Layer        | Service              | Reason                                              |
 | ------------ | -------------------- | --------------------------------------------------- |
 | Frontend     | **Vercel**           | Native Next.js App Router support                   |
-| Backend API  | **Render** (or Railway) | Docker-friendly, $7 starter, free Postgres add-on |
-| Database     | **Render Postgres**  | Auto-provisioned by `render.yaml`                   |
+| Backend API  | **Render** (or Railway) | Docker-friendly, $7 starter                       |
+| Database     | **MongoDB Atlas**    | Free M0 tier; set `MONGODB_URL` on the API service  |
 
 ---
 
@@ -27,8 +27,8 @@ service + database in one click.
 1. Render dashboard → **New** → **Blueprint** → connect your GitHub repo.
 2. Confirm the proposed services:
    * `payroll-saas-api`  (web, Docker, free SSL)
-   * `payroll-saas-db`   (Postgres 16, free plan)
-3. Render auto-fills `DATABASE_URL`. Confirm these env vars are set:
+3. Create a MongoDB Atlas cluster, then set `MONGODB_URL` on the service.
+   Confirm these env vars are set:
    * `ENV=production`
    * `ALLOW_ANONYMOUS_API=false`
    * `JWT_SECRET` ← Render generates one
@@ -109,7 +109,8 @@ All four must return HTTP 200 with `{"success": true, ...}`.
 | Var                  | Required | Example                                                    |
 | -------------------- | -------- | ---------------------------------------------------------- |
 | `ENV`                | yes      | `production`                                               |
-| `DATABASE_URL`       | yes      | `postgres://...` (Render injects automatically)            |
+| `MONGODB_URL`        | yes      | `mongodb+srv://user:pw@cluster/payroll` (set manually)     |
+| `MONGODB_DB`         | no       | Database name; defaults to `payroll`                       |
 | `JWT_SECRET`         | yes      | `openssl rand -hex 48`                                     |
 | `CORS_ORIGINS`       | yes      | `https://peopleopslab.in,https://www.peopleopslab.in`      |
 | `CORS_ORIGIN_REGEX`  | no       | `^https://.*-myteam\.vercel\.app$` (preview deployments)   |
@@ -134,7 +135,7 @@ All four must return HTTP 200 with `{"success": true, ...}`.
 docker compose -f docker/docker-compose.yml up --build
 # Frontend  http://localhost:3000
 # Backend   http://localhost:8000
-# Postgres  localhost:5432 (payroll/payroll/payroll_db)
+# MongoDB   localhost:27017 (payroll/payroll, db: payroll)
 ```
 
 To run without Docker:
@@ -142,7 +143,7 @@ To run without Docker:
 ```bash
 # backend
 cd backend && python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-postgres.txt
+pip install -r requirements.txt
 uvicorn app.main:app --reload
 
 # frontend (separate shell)
@@ -155,7 +156,7 @@ cd frontend && npm ci && npm run dev
 
 * **Render**: Service → Deploys → click any prior green deploy → **Redeploy**.
 * **Vercel**: Deployments → previous → **Promote to Production**.
-* **Database**: Render Postgres → Backups → **Restore**.
+* **Database**: MongoDB Atlas → Backup → **Restore** (or `mongorestore` from a `mongodump`).
 
 ---
 
@@ -168,6 +169,8 @@ cd frontend && npm ci && npm run dev
   the SPA host. Update the Render env var and redeploy.
 * **502 from Render:** check Render → Service → Logs. Common causes: app
   crashed during startup (missing env), wrong port (must use `$PORT`).
-* **Database connection refused:** confirm `DATABASE_URL` starts with
-  `postgresql://` (not `mysql://` etc.). The `config.py` normaliser converts
-  Render's `postgres://` automatically.
+* **Database connection refused:** confirm `MONGODB_URL` starts with
+  `mongodb://` or `mongodb+srv://` (the settings validator rejects anything
+  else at startup). On Atlas, add the host's outbound IPs to **Network
+  Access** — a blocked IP surfaces as a server-selection timeout, and
+  `/api/health` reports `"database": "unreachable"`.

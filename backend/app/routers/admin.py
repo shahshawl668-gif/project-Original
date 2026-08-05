@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.database import get_db
 from app.deps import SYSTEM_USER_EMAIL, require_admin
@@ -16,24 +16,19 @@ from app.schemas.auth import AdminRoleUpdate, UserOut
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-def _admin_count(db: Session) -> int:
-    return (
-        db.query(User)
-        .filter(User.role == "admin", User.email != SYSTEM_USER_EMAIL)
-        .count()
-    )
+def _admin_count(db: Database) -> int:
+    return User.count(db, {"role": "admin", "email": {"$ne": SYSTEM_USER_EMAIL}})
 
 
 @router.get("/users")
 def list_tenant_users(
     _admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
-    rows = (
-        db.query(User)
-        .filter(User.email != SYSTEM_USER_EMAIL)
-        .order_by(User.created_at.asc())
-        .all()
+    rows = User.find_many(
+        db,
+        {"email": {"$ne": SYSTEM_USER_EMAIL}},
+        sort=[("created_at", 1)],
     )
     return ok([UserOut.model_validate(u).model_dump() for u in rows])
 
@@ -43,7 +38,7 @@ def patch_user_role(
     target_id: uuid.UUID,
     body: AdminRoleUpdate,
     admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     if target_id == admin.id and body.role == "user":
         if _admin_count(db) <= 1:
@@ -52,7 +47,7 @@ def patch_user_role(
                 detail="Cannot demote yourself while you are the only admin.",
             )
 
-    tgt = db.get(User, target_id)
+    tgt = User.find_one(db, {"_id": target_id})
     if not tgt:
         raise HTTPException(status_code=404, detail="User not found")
     if tgt.email == SYSTEM_USER_EMAIL or tgt.role == "system":
@@ -66,7 +61,5 @@ def patch_user_role(
             )
 
     tgt.role = body.role
-    db.add(tgt)
-    db.commit()
-    db.refresh(tgt)
+    tgt.save(db)
     return ok(UserOut.model_validate(tgt).model_dump())

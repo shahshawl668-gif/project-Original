@@ -1,76 +1,151 @@
-from collections.abc import Generator
+"""MongoDB connection, request-scoped handle, and index management.
 
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+Design notes
+------------
+* **Synchronous driver.** Route handlers are sync (`def`, not `async def`), so
+  PyMongo is the right fit — FastAPI runs them in a worker threadpool. Motor
+  would force every handler and the validation service to become async for no
+  throughput gain at this workload.
+
+* **One client per process.** `MongoClient` owns an internal connection pool and
+  is thread-safe; creating one per request would defeat pooling. `get_db()`
+  hands the shared database handle to request scope.
+
+* **Indexes, not schemas.** Mongo has no DDL to run, so startup only ensures
+  indexes. `create_index` is idempotent, so this is safe on every boot.
+
+* **Test injection.** `set_database()` lets the test suite point the app at a
+  `mongomock` database without touching a real server.
+"""
+from __future__ import annotations
+
+import logging
+from collections.abc import Generator
+from typing import Any
+
+from pymongo import ASCENDING, DESCENDING, MongoClient
+from pymongo.database import Database
+from pymongo.errors import PyMongoError
 
 from app.config import settings
 
+logger = logging.getLogger("payroll.db")
 
-class Base(DeclarativeBase):
-    pass
+_client: MongoClient | None = None
+_database: Database | None = None
 
 
-def _make_engine():
-    url = settings.database_url
-    if url.startswith("sqlite"):
-        return create_engine(
-            url,
-            connect_args={"check_same_thread": False},
-            pool_pre_ping=True,
-        )
-    # Postgres / other servers — production pool tuning.
-    return create_engine(
-        url,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=10,
-        pool_recycle=1800,
-        pool_timeout=30,
-        future=True,
+def _make_client() -> MongoClient:
+    return MongoClient(
+        settings.mongodb_url,
+        serverSelectionTimeoutMS=settings.mongodb_timeout_ms,
+        uuidRepresentation="standard",
+        tz_aware=True,
     )
 
 
-engine = _make_engine()
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+def get_client() -> MongoClient:
+    global _client
+    if _client is None:
+        _client = _make_client()
+    return _client
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def get_database() -> Database:
+    """Return the shared database handle, connecting lazily on first use."""
+    global _database
+    if _database is None:
+        _database = get_client()[settings.mongodb_db_name]
+    return _database
+
+
+def set_database(db: Database | None) -> None:
+    """Override the database handle (used by tests to inject mongomock)."""
+    global _database
+    _database = db
+
+
+def get_db() -> Generator[Database, None, None]:
+    """FastAPI dependency — yields the shared database handle.
+
+    There is no per-request session or transaction to close: PyMongo pools
+    connections internally and each operation checks one out for its duration.
+    """
+    yield get_database()
 
 
 # ---------------------------------------------------------------------------
-# Lightweight schema patcher
+# Indexes
 # ---------------------------------------------------------------------------
-# `Base.metadata.create_all` only creates *missing tables*; it does NOT add
-# new columns to an existing table. For the SQLite-based local-dev workflow
-# we don't want to force users to delete `payroll_dev.db` every time we add a
-# column, so we run a tiny "ALTER TABLE ADD COLUMN IF MISSING" pass on
-# startup. Only additive changes are supported here — anything destructive
-# still requires a real migration.
+# (collection, keys, options). Unique indexes encode the constraints that were
+# UniqueConstraint/unique=True under the relational schema, so the database
+# still rejects duplicate tenants' keys rather than trusting callers.
 
-_COLUMN_PATCHES: list[tuple[str, str, str]] = [
-    # (table, column, DDL fragment after `ADD COLUMN`)
-    ("users", "role", "VARCHAR(32) NOT NULL DEFAULT 'user'"),
-    ("slab_rules", "gender", "VARCHAR(8) NOT NULL DEFAULT 'ALL'"),
-    ("slab_rules", "applicable_months", "TEXT"),
-    ("slab_rules", "employer_amount", "NUMERIC(14, 2)"),
-    ("statutory_config", "income_tax_config", "JSON"),
-    ("statutory_config", "rule_thresholds_config", "JSON"),
+_INDEXES: list[tuple[str, Any, dict[str, Any]]] = [
+    ("users", [("email", ASCENDING)], {"unique": True, "name": "uq_user_email"}),
+    ("refresh_tokens", [("user_id", ASCENDING), ("token_hash", ASCENDING)], {"name": "ix_refresh_lookup"}),
+    ("refresh_tokens", [("expires_at", ASCENDING)], {"name": "ix_refresh_expiry"}),
+    ("password_reset_tokens", [("token_hash", ASCENDING)], {"name": "ix_reset_token"}),
+    ("components_config", [("user_id", ASCENDING)], {"name": "ix_components_user"}),
+    (
+        "components_config",
+        [("user_id", ASCENDING), ("component_name", ASCENDING)],
+        {"unique": True, "name": "uq_component_per_tenant"},
+    ),
+    ("statutory_settings", [("user_id", ASCENDING)], {"unique": True, "name": "uq_settings_user"}),
+    ("statutory_config", [("user_id", ASCENDING)], {"unique": True, "name": "uq_config_user"}),
+    ("slab_rules", [("user_id", ASCENDING), ("state", ASCENDING), ("rule_type", ASCENDING)], {"name": "ix_slab_lookup"}),
+    ("pt_slabs", [("state", ASCENDING)], {"name": "ix_pt_state"}),
+    ("lwf_rates", [("state", ASCENDING)], {"name": "ix_lwf_state"}),
+    ("ctc_uploads", [("user_id", ASCENDING), ("created_at", DESCENDING)], {"name": "ix_ctc_upload_user"}),
+    ("ctc_records", [("user_id", ASCENDING), ("employee_id", ASCENDING)], {"name": "ix_ctc_employee"}),
+    (
+        "ctc_records",
+        [("user_id", ASCENDING), ("employee_id", ASCENDING), ("effective_from", ASCENDING)],
+        {"unique": True, "name": "uq_ctc_employee_effective"},
+    ),
+    ("payroll_runs", [("user_id", ASCENDING), ("created_at", DESCENDING)], {"name": "ix_runs_user"}),
+    (
+        "salary_registers",
+        [("user_id", ASCENDING), ("period_month", ASCENDING)],
+        {"unique": True, "name": "uq_register_period"},
+    ),
+    ("salary_register_rows", [("register_id", ASCENDING)], {"name": "ix_rows_register"}),
+    (
+        "salary_register_rows",
+        [("user_id", ASCENDING), ("period_month", ASCENDING), ("employee_id", ASCENDING)],
+        {"name": "ix_rows_lookup"},
+    ),
+    ("rule_formulas", [("user_id", ASCENDING), ("rule_type", ASCENDING)], {"name": "ix_formula_lookup"}),
+    (
+        "tenant_rule_preferences",
+        [("user_id", ASCENDING), ("rule_id", ASCENDING)],
+        {"unique": True, "name": "uq_tenant_rule"},
+    ),
 ]
 
 
-def apply_column_patches() -> None:
-    insp = inspect(engine)
-    existing_tables = set(insp.get_table_names())
-    with engine.begin() as conn:
-        for table, column, ddl in _COLUMN_PATCHES:
-            if table not in existing_tables:
-                continue
-            cols = {c["name"] for c in insp.get_columns(table)}
-            if column in cols:
-                continue
-            conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {ddl}'))
+def init_indexes(db: Database | None = None) -> None:
+    """Ensure all indexes exist. Idempotent; safe to call on every startup."""
+    target = db if db is not None else get_database()
+    for collection, keys, options in _INDEXES:
+        try:
+            target[collection].create_index(keys, **options)
+        except PyMongoError as exc:
+            # A pre-existing index with the same name but different options, or
+            # duplicate data blocking a unique index, must not stop the API from
+            # booting — surface it and continue.
+            logger.warning("Index %s on %s not created: %s", options.get("name"), collection, exc)
+
+
+def ping() -> bool:
+    """Cheap liveness probe for the health endpoint.
+
+    Pings through the *active* database handle so the probe reflects whatever
+    the app is actually querying.
+    """
+    try:
+        get_database().client.admin.command("ping")
+        return True
+    except PyMongoError:
+        return False

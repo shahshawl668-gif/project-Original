@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -27,7 +27,7 @@ from app.services.config_service import ConfigService, safe_eval_expr
 router = APIRouter(prefix="/config/statutory", tags=["Statutory Config"])
 
 
-def _svc(db: Session = Depends(get_db)) -> ConfigService:
+def _svc(db: Database = Depends(get_db)) -> ConfigService:
     return ConfigService(db)
 
 

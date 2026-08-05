@@ -2,7 +2,7 @@
 
 **India Payroll Intelligence & Compliance OS**
 
-This guide explains how to use the full product: **Next.js** web app (sidebar navigation) and **FastAPI** backend with **PostgreSQL** or **SQLite** (local dev).
+This guide explains how to use the full product: **Next.js** web app (sidebar navigation) and **FastAPI** backend with **MongoDB**.
 
 ---
 
@@ -25,8 +25,8 @@ There is **no login** in the current build: a single **system user** owns all da
 | ---------------- | --------------------------------------------------- |
 | Frontend         | Next.js (App Router), React, Tailwind               |
 | Backend          | FastAPI, Pydantic                                   |
-| Database         | PostgreSQL (recommended) or SQLite                  |
-| Statutory config | JSON in DB (**Config-Driven Statutory Engine**)     |
+| Database         | MongoDB (Atlas or self-hosted)                      |
+| Statutory config | Nested documents (**Config-Driven Statutory Engine**) |
 | PT / LWF         | Tenant **SlabRule** rows + optional reference seeds |
 
 

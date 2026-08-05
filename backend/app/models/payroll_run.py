@@ -1,20 +1,22 @@
+"""Payroll run document — one per uploaded/validated register."""
+from __future__ import annotations
+
 import uuid
+from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Uuid, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class PayrollRun(Base):
-    __tablename__ = "payroll_runs"
+@dataclass
+class PayrollRun(Document):
+    COLLECTION = "payroll_runs"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
-    run_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    effective_month_from: Mapped[date | None] = mapped_column(Date)
-    effective_month_to: Mapped[date | None] = mapped_column(Date)
-    filename: Mapped[str | None] = mapped_column(String(512))
-    employee_count: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    run_type: str = "regular"
+    effective_month_from: date | None = None
+    effective_month_to: date | None = None
+    filename: str | None = None
+    employee_count: int | None = None
+    created_at: datetime = field(default_factory=utcnow)

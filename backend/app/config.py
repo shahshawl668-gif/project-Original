@@ -25,8 +25,15 @@ class Settings(BaseSettings):
     # --- Runtime -------------------------------------------------------------
     env: str = "dev"  # "dev" | "staging" | "production"
 
-    # --- Database ------------------------------------------------------------
-    database_url: str = "sqlite:///./payroll_dev.db"
+    # --- Database (MongoDB) --------------------------------------------------
+    # Standard connection string: mongodb://host:27017 or mongodb+srv://... for
+    # Atlas. The database name is taken from `mongodb_db` unless the URL already
+    # carries a path component.
+    mongodb_url: str = "mongodb://localhost:27017"
+    mongodb_db: str = "payroll"
+    # Server-selection timeout (ms) — fail fast instead of hanging a request
+    # when the cluster is unreachable.
+    mongodb_timeout_ms: int = 5000
 
     # --- Auth ----------------------------------------------------------------
     jwt_secret: str = "change-me-in-production-use-long-random-secret"
@@ -55,16 +62,29 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.env.lower() == "production"
 
-    @field_validator("database_url")
+    @field_validator("mongodb_url")
     @classmethod
-    def _normalise_db_url(cls, v: str) -> str:
-        # Render/Heroku style "postgres://" → SQLAlchemy expects "postgresql://"
-        if v.startswith("postgres://"):
-            return "postgresql+psycopg2://" + v[len("postgres://") :]
-        if v.startswith("postgresql://") and "+" not in v.split("://", 1)[0]:
-            # Default to psycopg2 driver when no driver is specified
-            return v.replace("postgresql://", "postgresql+psycopg2://", 1)
+    def _validate_mongo_url(cls, v: str) -> str:
+        v = v.strip()
+        if not v.startswith(("mongodb://", "mongodb+srv://")):
+            raise ValueError(
+                "MONGODB_URL must start with mongodb:// or mongodb+srv:// "
+                f"(got {v.split('://', 1)[0] if '://' in v else v!r})"
+            )
         return v
+
+    @property
+    def mongodb_db_name(self) -> str:
+        """Database name: the URL path when present, else `mongodb_db`.
+
+        Atlas connection strings usually carry the database in the path
+        (`mongodb+srv://user:pw@cluster/payroll?retryWrites=true`), which should
+        win over the separate setting.
+        """
+        after_scheme = self.mongodb_url.split("://", 1)[-1]
+        path = after_scheme.split("/", 1)[1] if "/" in after_scheme else ""
+        name = path.split("?", 1)[0].strip()
+        return name or self.mongodb_db
 
 
 settings = Settings()

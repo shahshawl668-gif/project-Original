@@ -1,10 +1,8 @@
 """Tenant-level validation rule suppression (UI-configurable)."""
 from __future__ import annotations
 
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -16,13 +14,8 @@ router = APIRouter(prefix="/rule-preferences", tags=["rule-preferences"])
 
 
 @router.get("")
-def list_preferences(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    rows = (
-        db.query(TenantRulePreference)
-        .filter(TenantRulePreference.user_id == user.id)
-        .order_by(TenantRulePreference.rule_id)
-        .all()
-    )
+def list_preferences(db: Database = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = TenantRulePreference.find_many(db, {"user_id": user.id}, sort=[("rule_id", 1)])
     data = [
         TenantRulePreferenceOut(rule_id=r.rule_id, suppressed=r.suppressed).model_dump()
         for r in rows
@@ -33,41 +26,29 @@ def list_preferences(db: Session = Depends(get_db), user: User = Depends(get_cur
 @router.put("")
 def upsert_preference(
     body: TenantRulePreferenceUpsert,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     rid = body.rule_id.strip()
-    existing = (
-        db.query(TenantRulePreference)
-        .filter(TenantRulePreference.user_id == user.id, TenantRulePreference.rule_id == rid)
-        .first()
-    )
+    existing = TenantRulePreference.find_one(db, {"user_id": user.id, "rule_id": rid})
     if existing:
         existing.suppressed = body.suppressed
-        db.add(existing)
+        existing.save(db)
     else:
-        db.add(
-            TenantRulePreference(
-                user_id=user.id,
-                rule_id=rid,
-                suppressed=body.suppressed,
-            )
-        )
-    db.commit()
+        TenantRulePreference(
+            user_id=user.id,
+            rule_id=rid,
+            suppressed=body.suppressed,
+        ).insert(db)
     return ok({"rule_id": rid, "suppressed": body.suppressed})
 
 
 @router.delete("/{rule_id}")
 def delete_preference(
     rule_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    q = db.query(TenantRulePreference).filter(
-        TenantRulePreference.user_id == user.id,
-        TenantRulePreference.rule_id == rule_id,
-    )
-    if q.delete() == 0:
+    if TenantRulePreference.delete_many(db, {"user_id": user.id, "rule_id": rule_id}) == 0:
         raise HTTPException(status_code=404, detail="Preference not found")
-    db.commit()
     return ok({"deleted": rule_id})

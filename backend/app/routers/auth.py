@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.config import settings
 from app.database import get_db
@@ -33,28 +33,26 @@ from app.security import (
 router = APIRouter()
 
 
-def _issue_tokens(db: Session, user: User) -> TokenPair:
+def _issue_tokens(db: Database, user: User) -> TokenPair:
     access = create_access_token(str(user.id), extra={"role": user.role})
     refresh = create_refresh_token(str(user.id))
-    rt = RefreshToken(
+    RefreshToken(
         user_id=user.id,
         token_hash=token_fingerprint(refresh),
         expires_at=datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
-    )
-    db.add(rt)
-    db.commit()
+    ).insert(db)
     return TokenPair(access_token=access, refresh_token=refresh)
 
 
 @router.post("/signup")
-def signup(body: SignupRequest, db: Session = Depends(get_db)):
+def signup(body: SignupRequest, db: Database = Depends(get_db)):
     email = body.email.lower().strip()
     if email == SYSTEM_USER_EMAIL:
         raise HTTPException(status_code=400, detail="Reserved email address")
-    if db.query(User).filter(User.email == email).first():
+    if User.find_one(db, {"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    human_count = db.query(User).filter(User.email != SYSTEM_USER_EMAIL).count()
+    human_count = User.count(db, {"email": {"$ne": SYSTEM_USER_EMAIL}})
     role = "admin" if human_count == 0 else "user"
 
     user = User(
@@ -63,16 +61,14 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
         company_name=body.company_name,
         role=role,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user.insert(db)
     tokens = _issue_tokens(db, user)
     return ok(tokens.model_dump())
 
 
 @router.post("/login")
-def login(body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email.lower()).first()
+def login(body: LoginRequest, db: Database = Depends(get_db)):
+    user = User.find_one(db, {"email": body.email.lower()})
     if (
         not user
         or user.email == SYSTEM_USER_EMAIL
@@ -85,7 +81,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh")
-def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
+def refresh_token(body: RefreshRequest, db: Database = Depends(get_db)):
     try:
         payload = decode_token(body.refresh_token)
         if payload.get("type") != "refresh":
@@ -95,28 +91,30 @@ def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
     fp = token_fingerprint(body.refresh_token)
-    row = (
-        db.query(RefreshToken)
-        .filter(RefreshToken.user_id == uid, RefreshToken.token_hash == fp)
-        .filter(RefreshToken.expires_at > datetime.now(timezone.utc))
-        .first()
+    row = RefreshToken.find_one(
+        db,
+        {
+            "user_id": uid,
+            "token_hash": fp,
+            "expires_at": {"$gt": datetime.now(timezone.utc)},
+        },
     )
     if not row:
         raise HTTPException(status_code=401, detail="Refresh token revoked or expired")
 
-    user = db.get(User, uid)
+    user = User.find_one(db, {"_id": uid})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    db.delete(row)
-    db.commit()
+    # Rotate: the presented refresh token is single-use.
+    RefreshToken.delete_one(db, {"_id": row.id})
 
     tokens = _issue_tokens(db, user)
     return ok(tokens.model_dump())
 
 
 @router.post("/logout")
-def logout(body: RefreshRequest, db: Session = Depends(get_db)):
+def logout(body: RefreshRequest, db: Database = Depends(get_db)):
     """Revokes the given refresh token (no access token required)."""
     try:
         payload = decode_token(body.refresh_token)
@@ -127,8 +125,7 @@ def logout(body: RefreshRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid refresh token")
 
     fp = token_fingerprint(body.refresh_token)
-    db.query(RefreshToken).filter(RefreshToken.user_id == uid, RefreshToken.token_hash == fp).delete()
-    db.commit()
+    RefreshToken.delete_many(db, {"user_id": uid, "token_hash": fp})
     return ok({"logged_out": True})
 
 
@@ -138,40 +135,40 @@ def me(user: User = Depends(get_current_user)):
 
 
 @router.post("/password-reset-request")
-def password_reset_request(body: PasswordResetRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email.lower()).first()
+def password_reset_request(body: PasswordResetRequest, db: Database = Depends(get_db)):
+    user = User.find_one(db, {"email": body.email.lower()})
     if not user:
         return ok({"sent": False})
     if user.role == "system":
         return ok({"sent": False})
 
     raw = secrets.token_urlsafe(32)
-    pr = PasswordResetToken(
+    PasswordResetToken(
         user_id=user.id,
         token_hash=token_fingerprint(raw),
         expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-    )
-    db.add(pr)
-    db.commit()
+    ).insert(db)
     return ok({"sent": True})
 
 
 @router.post("/password-reset-confirm")
-def password_reset_confirm(body: PasswordResetConfirm, db: Session = Depends(get_db)):
+def password_reset_confirm(body: PasswordResetConfirm, db: Database = Depends(get_db)):
     fp = token_fingerprint(body.token)
-    row = (
-        db.query(PasswordResetToken)
-        .filter(PasswordResetToken.token_hash == fp, PasswordResetToken.used_at.is_(None))
-        .filter(PasswordResetToken.expires_at > datetime.now(timezone.utc))
-        .first()
+    row = PasswordResetToken.find_one(
+        db,
+        {
+            "token_hash": fp,
+            "used_at": None,
+            "expires_at": {"$gt": datetime.now(timezone.utc)},
+        },
     )
     if not row:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
-    user = db.get(User, row.user_id)
+    user = User.find_one(db, {"_id": row.user_id})
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
     user.password_hash = hash_password(body.new_password)
+    user.save(db)
     row.used_at = datetime.now(timezone.utc)
-    db.add(user)
-    db.commit()
+    row.save(db)
     return ok({"password_updated": True})

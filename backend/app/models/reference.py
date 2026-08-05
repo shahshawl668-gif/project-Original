@@ -1,34 +1,43 @@
+"""Seeded reference data — PT slabs and LWF rates.
+
+These are the month-blind fallbacks used when a tenant has not imported state
+slabs of its own (see `services/pt_defaults.py` and `services/lwf_defaults.py`
+for the richer, importable catalogs).
+"""
+from __future__ import annotations
+
 import uuid
+from dataclasses import dataclass, field
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Numeric, String, Uuid, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class PtSlab(Base):
-    __tablename__ = "pt_slabs"
+@dataclass
+class PtSlab(Document):
+    COLLECTION = "pt_slabs"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    state: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    slab_min: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    slab_max: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
-    effective_to: Mapped[date | None] = mapped_column(Date)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    state: str = ""
+    slab_min: Decimal = Decimal("0")
+    slab_max: Decimal = Decimal("0")
+    amount: Decimal = Decimal("0")
+    effective_from: date | None = None
+    effective_to: date | None = None
+    created_at: datetime = field(default_factory=utcnow)
 
 
-class LwfRate(Base):
-    __tablename__ = "lwf_rates"
+@dataclass
+class LwfRate(Document):
+    COLLECTION = "lwf_rates"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    state: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    wage_band_min: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    wage_band_max: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    employee_rate: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    employer_rate: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
-    effective_from: Mapped[date] = mapped_column(Date, nullable=False)
-    effective_to: Mapped[date | None] = mapped_column(Date)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    state: str = ""
+    wage_band_min: Decimal = Decimal("0")
+    wage_band_max: Decimal = Decimal("0")
+    employee_rate: Decimal = Decimal("0")
+    employer_rate: Decimal = Decimal("0")
+    effective_from: date | None = None
+    effective_to: date | None = None
+    created_at: datetime = field(default_factory=utcnow)

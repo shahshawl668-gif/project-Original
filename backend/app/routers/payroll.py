@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -41,20 +41,15 @@ def _to_first_of_month(d: date | None) -> date | None:
     return d.replace(day=1)
 
 
-def _suppressed_rule_ids(db: Session, user_id: uuid.UUID) -> set[str]:
-    rows = (
-        db.query(TenantRulePreference.rule_id)
-        .filter(
-            TenantRulePreference.user_id == user_id,
-            TenantRulePreference.suppressed.is_(True),
-        )
-        .all()
+def _suppressed_rule_ids(db: Database, user_id: uuid.UUID) -> set[str]:
+    rows = TenantRulePreference.find_many(
+        db, {"user_id": user_id, "suppressed": True}
     )
-    return {r[0] for r in rows}
+    return {r.rule_id for r in rows}
 
 
 def _persist_salary_register(
-    db: Session,
+    db: Database,
     user: User,
     period_month: date,
     filename: str | None,
@@ -63,15 +58,15 @@ def _persist_salary_register(
 ) -> None:
     comp_by_key = _component_key_map(comps)
 
-    existing = (
-        db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id, SalaryRegister.period_month == period_month)
-        .first()
+    existing = SalaryRegister.find_one(
+        db, {"user_id": user.id, "period_month": period_month}
     )
     if existing:
-        db.query(SalaryRegisterRow).filter(SalaryRegisterRow.register_id == existing.id).delete()
+        # Re-uploading a month replaces its rows rather than appending.
+        SalaryRegisterRow.delete_many(db, {"register_id": existing.id})
         existing.filename = filename
         existing.employee_count = len(employees)
+        existing.save(db)
         register = existing
     else:
         register = SalaryRegister(
@@ -80,9 +75,9 @@ def _persist_salary_register(
             filename=filename,
             employee_count=len(employees),
         )
-        db.add(register)
-        db.flush()
+        register.insert(db)
 
+    pending_rows: list[SalaryRegisterRow] = []
     for row in employees:
         eid = (
             row.get("employee_id")
@@ -116,7 +111,7 @@ def _persist_salary_register(
         except Exception:
             lop_days = None
 
-        db.add(
+        pending_rows.append(
             SalaryRegisterRow(
                 register_id=register.id,
                 user_id=user.id,
@@ -131,7 +126,8 @@ def _persist_salary_register(
             )
         )
 
-    db.commit()
+    # One bulk write instead of a document per employee.
+    SalaryRegisterRow.insert_many(db, pending_rows)
 
 
 def _payload_after_validation(rows: list, findings_summary: dict) -> dict:
@@ -160,7 +156,7 @@ def _payload_after_validation(rows: list, findings_summary: dict) -> dict:
 async def upload_payroll(
     file: UploadFile = File(...),
     meta: str = Form(...),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     try:
@@ -183,7 +179,7 @@ async def upload_payroll(
         raise HTTPException(status_code=400, detail=str(e))
 
     columns, employees = dataframe_to_employees(df)
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = ComponentConfig.find_many(db, {"user_id": user.id})
     comp_names = {c.component_name for c in comps}
     missing, warnings = validate_required_columns(columns, comp_names, strict=strict)
 
@@ -197,8 +193,7 @@ async def upload_payroll(
         filename=file.filename,
         employee_count=len(employees),
     )
-    db.add(run)
-    db.commit()
+    run.insert(db)
 
     persist_period = _to_first_of_month(period_month_d or eff_to_d)
     if persist_period and comps and not missing:
@@ -217,10 +212,10 @@ async def upload_payroll(
 @router.post("/validate")
 def validate_payroll(
     body: ValidateRequest,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = ComponentConfig.find_many(db, {"user_id": user.id})
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before validation.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
@@ -243,15 +238,11 @@ def validate_payroll(
 @router.get("/runs")
 def list_payroll_runs(
     limit: int = 20,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    runs = (
-        db.query(PayrollRun)
-        .filter(PayrollRun.user_id == user.id)
-        .order_by(PayrollRun.created_at.desc())
-        .limit(limit)
-        .all()
+    runs = PayrollRun.find_many(
+        db, {"user_id": user.id}, sort=[("created_at", -1)], limit=limit
     )
     data = [
         {
@@ -270,14 +261,11 @@ def list_payroll_runs(
 
 @router.get("/registers")
 def list_salary_registers(
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    regs = (
-        db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id)
-        .order_by(SalaryRegister.period_month.desc())
-        .all()
+    regs = SalaryRegister.find_many(
+        db, {"user_id": user.id}, sort=[("period_month", -1)]
     )
     data = [
         {
@@ -295,23 +283,18 @@ def list_salary_registers(
 @router.get("/registers/{register_id}")
 def get_salary_register(
     register_id: str,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     try:
         rid = uuid.UUID(register_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Register not found")
-    reg = (
-        db.query(SalaryRegister).filter(SalaryRegister.id == rid, SalaryRegister.user_id == user.id).first()
-    )
+    reg = SalaryRegister.find_one(db, {"_id": rid, "user_id": user.id})
     if not reg:
         raise HTTPException(status_code=404, detail="Register not found")
-    rows = (
-        db.query(SalaryRegisterRow)
-        .filter(SalaryRegisterRow.register_id == reg.id)
-        .order_by(SalaryRegisterRow.employee_id)
-        .all()
+    rows = SalaryRegisterRow.find_many(
+        db, {"register_id": reg.id}, sort=[("employee_id", 1)]
     )
     payload = {
         "id": str(reg.id),
@@ -338,7 +321,7 @@ def get_salary_register(
 @router.post("/validate/export-excel")
 def export_findings_excel(
     body: ValidateRequest,
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """Run validation and return findings as an Excel workbook (binary stream, not JSON envelope)."""
@@ -348,7 +331,7 @@ def export_findings_excel(
     except ImportError:
         raise HTTPException(status_code=500, detail="openpyxl not installed.")
 
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = ComponentConfig.find_many(db, {"user_id": user.id})
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before export.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
@@ -484,19 +467,11 @@ def export_findings_excel(
 
 
 @router.get("/dashboard-stats")
-def dashboard_stats(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    n_comp = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).count()
-    last_run = (
-        db.query(PayrollRun)
-        .filter(PayrollRun.user_id == user.id)
-        .order_by(PayrollRun.created_at.desc())
-        .first()
-    )
-    last_register = (
-        db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id)
-        .order_by(SalaryRegister.period_month.desc())
-        .first()
+def dashboard_stats(db: Database = Depends(get_db), user: User = Depends(get_current_user)):
+    n_comp = ComponentConfig.count(db, {"user_id": user.id})
+    last_run = PayrollRun.find_one(db, {"user_id": user.id}, sort=[("created_at", -1)])
+    last_register = SalaryRegister.find_one(
+        db, {"user_id": user.id}, sort=[("period_month", -1)]
     )
     payload = {
         "components_configured": n_comp,

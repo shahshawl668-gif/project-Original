@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -13,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("/states")
-def list_states(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_states(db: Database = Depends(get_db), user: User = Depends(get_current_user)):
     """Return distinct states known to the system.
 
     Sources merged:
@@ -21,27 +20,15 @@ def list_states(db: Session = Depends(get_db), user: User = Depends(get_current_
       * curated PT defaults catalog (selectable for one-click import)
       * tenant-managed `slab_rules` (whatever the user has already configured)
     """
-    seed_pt = {row[0] for row in db.execute(select(PtSlab.state).distinct()).all() if row[0]}
-    seed_lwf = {row[0] for row in db.execute(select(LwfRate.state).distinct()).all() if row[0]}
+    seed_pt = {s for s in PtSlab.distinct(db, "state") if s}
+    seed_lwf = {s for s in LwfRate.distinct(db, "state") if s}
     default_pt = set(list_pt_default_states())
     default_lwf = set(list_lwf_default_states())
     tenant_pt = {
-        row[0]
-        for row in db.execute(
-            select(SlabRule.state)
-            .where(SlabRule.user_id == user.id, SlabRule.rule_type == "PT")
-            .distinct()
-        ).all()
-        if row[0]
+        s for s in SlabRule.distinct(db, "state", {"user_id": user.id, "rule_type": "PT"}) if s
     }
     tenant_lwf = {
-        row[0]
-        for row in db.execute(
-            select(SlabRule.state)
-            .where(SlabRule.user_id == user.id, SlabRule.rule_type == "LWF")
-            .distinct()
-        ).all()
-        if row[0]
+        s for s in SlabRule.distinct(db, "state", {"user_id": user.id, "rule_type": "LWF"}) if s
     }
     pt_states = sorted(seed_pt | default_pt | tenant_pt)
     lwf_states = sorted(seed_lwf | default_lwf | tenant_lwf)

@@ -11,7 +11,7 @@ import uuid
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.config import settings
 from app.database import get_db
@@ -24,11 +24,11 @@ security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
     creds: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> User:
     if settings.allow_anonymous_api and (creds is None or not creds.credentials):
-        user = db.query(User).filter(User.email == SYSTEM_USER_EMAIL).first()
+        user = User.find_one(db, {"email": SYSTEM_USER_EMAIL})
         if user is None:
             raise RuntimeError(
                 "System user not found. Make sure the application startup completed successfully."
@@ -48,7 +48,7 @@ def get_current_user(
     except (JWTError, ValueError, KeyError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
-    user = db.get(User, uid)
+    user = User.find_one(db, {"_id": uid})
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user

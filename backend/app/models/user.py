@@ -1,48 +1,45 @@
+"""User, refresh-token and password-reset documents."""
+from __future__ import annotations
+
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Uuid, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class User(Base):
-    __tablename__ = "users"
+@dataclass
+class User(Document):
+    COLLECTION = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    company_name: Mapped[str | None] = mapped_column(String(255))
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    email: str = ""
+    password_hash: str = ""
+    company_name: str | None = None
     # system | admin | user — system user is the built-in tenant fallback
-    role: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-    components = relationship("ComponentConfig", back_populates="user", cascade="all, delete-orphan")
-    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    role: str = "user"
+    created_at: datetime = field(default_factory=utcnow)
+    updated_at: datetime = field(default_factory=utcnow)
 
 
-class RefreshToken(Base):
-    __tablename__ = "refresh_tokens"
+@dataclass
+class RefreshToken(Document):
+    COLLECTION = "refresh_tokens"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
-    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    user = relationship("User", back_populates="refresh_tokens")
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    token_hash: str = ""
+    expires_at: datetime | None = None
+    created_at: datetime = field(default_factory=utcnow)
 
 
-class PasswordResetToken(Base):
-    __tablename__ = "password_reset_tokens"
+@dataclass
+class PasswordResetToken(Document):
+    COLLECTION = "password_reset_tokens"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
-    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    token_hash: str = ""
+    expires_at: datetime | None = None
+    used_at: datetime | None = None
+    created_at: datetime = field(default_factory=utcnow)

@@ -7,7 +7,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.models import (
     ComponentConfig,
@@ -184,7 +184,7 @@ def _normalize_gender(g: Any) -> str:
 
 
 def lookup_pt(
-    db: Session,
+    db: Database,
     state: str | None,
     wage: Decimal,
     as_of: date,
@@ -215,15 +215,9 @@ def lookup_pt(
     month = run_month if run_month is not None else as_of.month
 
     if user_id is not None:
-        tenant_rows = (
-            db.query(SlabRule)
-            .filter(
-                SlabRule.user_id == user_id,
-                SlabRule.state == state,
-                SlabRule.rule_type == "PT",
-            )
-            .order_by(SlabRule.sort_order, SlabRule.min_salary)
-            .all()
+        tenant_rows = sorted(
+            SlabRule.find_many(db, {"user_id": user_id, "state": state, "rule_type": "PT"}),
+            key=lambda r: (r.sort_order, r.min_salary),
         )
         if tenant_rows:
             best: tuple[int, int, SlabRule, Decimal, str] | None = None
@@ -257,13 +251,16 @@ def lookup_pt(
             # through to seed reference (would be misleading).
             return Decimal("0"), None
 
-    slabs = (
-        db.query(PtSlab)
-        .filter(PtSlab.state == state)
-        .filter(PtSlab.effective_from <= as_of)
-        .filter((PtSlab.effective_to.is_(None)) | (PtSlab.effective_to >= as_of))
-        .order_by(PtSlab.slab_min)
-        .all()
+    slabs = sorted(
+        PtSlab.find_many(
+            db,
+            {
+                "state": state,
+                "effective_from": {"$lte": as_of},
+                "$or": [{"effective_to": None}, {"effective_to": {"$gte": as_of}}],
+            },
+        ),
+        key=lambda r: r.slab_min,
     )
     w = float(wage)
     for s in slabs:
@@ -275,7 +272,7 @@ def lookup_pt(
 
 
 def lookup_lwf(
-    db: Session,
+    db: Database,
     state: str | None,
     wage: Decimal,
     as_of: date,
@@ -297,15 +294,9 @@ def lookup_lwf(
         return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
     if user_id is not None:
-        tenant_rows = (
-            db.query(SlabRule)
-            .filter(
-                SlabRule.user_id == user_id,
-                SlabRule.state == state,
-                SlabRule.rule_type == "LWF",
-            )
-            .order_by(SlabRule.sort_order, SlabRule.min_salary)
-            .all()
+        tenant_rows = sorted(
+            SlabRule.find_many(db, {"user_id": user_id, "state": state, "rule_type": "LWF"}),
+            key=lambda r: (r.sort_order, r.min_salary),
         )
         if tenant_rows:
             for r in tenant_rows:
@@ -320,12 +311,13 @@ def lookup_lwf(
                     return emp_period, er_period, emp_monthly, er_monthly
             return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
-    bands = (
-        db.query(LwfRate)
-        .filter(LwfRate.state == state)
-        .filter(LwfRate.effective_from <= as_of)
-        .filter((LwfRate.effective_to.is_(None)) | (LwfRate.effective_to >= as_of))
-        .all()
+    bands = LwfRate.find_many(
+        db,
+        {
+            "state": state,
+            "effective_from": {"$lte": as_of},
+            "$or": [{"effective_to": None}, {"effective_to": {"$gte": as_of}}],
+        },
     )
     w = float(wage)
     for b in bands:
@@ -444,38 +436,35 @@ def taxable_exposure(components: list[ComponentConfig], regular: dict[str, Decim
     return t
 
 
-def _get_or_default_settings(db: Session, user: User) -> StatutorySettings:
-    row = db.query(StatutorySettings).filter(StatutorySettings.user_id == user.id).first()
+def _get_or_default_settings(db: Database, user: User) -> StatutorySettings:
+    row = StatutorySettings.find_one(db, {"user_id": user.id})
     if row:
         return row
     row = StatutorySettings(user_id=user.id)
-    db.add(row)
-    db.commit()
-    db.refresh(row)
+    row.insert(db)
     return row
 
 
-def _latest_ctcs(db: Session, user_id, employee_id: str, as_of: date) -> list[CtcRecord]:
-    return (
-        db.query(CtcRecord)
-        .filter(CtcRecord.user_id == user_id, CtcRecord.employee_id == employee_id)
-        .filter(CtcRecord.effective_from <= as_of)
-        .order_by(CtcRecord.effective_from.desc())
-        .limit(2)
-        .all()
+def _latest_ctcs(db: Database, user_id, employee_id: str, as_of: date) -> list[CtcRecord]:
+    """Two most recent CTC records on/before `as_of` (current + prior revision)."""
+    return CtcRecord.find_many(
+        db,
+        {
+            "user_id": user_id,
+            "employee_id": employee_id,
+            "effective_from": {"$lte": as_of},
+        },
+        sort=[("effective_from", -1)],
+        limit=2,
     )
 
 
-def _prior_register_rows(db: Session, user_id, period_month: date) -> dict[str, SalaryRegisterRow]:
+def _prior_register_rows(db: Database, user_id, period_month: date) -> dict[str, SalaryRegisterRow]:
     prev = _prev_month(period_month)
-    register = (
-        db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user_id, SalaryRegister.period_month == prev)
-        .first()
-    )
+    register = SalaryRegister.find_one(db, {"user_id": user_id, "period_month": prev})
     if not register:
         return {}
-    rows = db.query(SalaryRegisterRow).filter(SalaryRegisterRow.register_id == register.id).all()
+    rows = SalaryRegisterRow.find_many(db, {"register_id": register.id})
     return {r.employee_id: r for r in rows}
 
 
@@ -730,7 +719,7 @@ def _compare_uploaded(
 
 
 def validate_employees(
-    db: Session,
+    db: Database,
     user: User,
     components: list[ComponentConfig],
     employees: list[dict[str, Any]],

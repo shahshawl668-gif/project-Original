@@ -1,3 +1,4 @@
+from app.models.base import Document
 from app.models.user import PasswordResetToken, RefreshToken, User
 from app.models.component import ComponentConfig
 from app.models.reference import PtSlab, LwfRate
@@ -10,6 +11,7 @@ from app.models.rule_engine import Formula, SlabRule
 from app.models.rule_preferences import TenantRulePreference
 
 __all__ = [
+    "Document",
     "User",
     "RefreshToken",
     "PasswordResetToken",

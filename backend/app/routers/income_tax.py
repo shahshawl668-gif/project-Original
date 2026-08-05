@@ -12,7 +12,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from pymongo.database import Database
 
 from app.database import get_db
 from app.deps import get_current_user
@@ -50,7 +50,7 @@ class CompareRequest(BaseModel):
     financial_year: str | None = Field(None, description="e.g. '2026-27'; defaults to tenant's default FY")
 
 
-def _year_cfg(db: Session, user: User, financial_year: str | None):
+def _year_cfg(db: Database, user: User, financial_year: str | None):
     year_cfg = ConfigService(db).get_tax_year(user.id, financial_year)
     if year_cfg is None:
         raise HTTPException(
@@ -64,7 +64,7 @@ def _year_cfg(db: Session, user: User, financial_year: str | None):
 def compute_tax(
     body: TaxRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     from dataclasses import asdict
 
@@ -82,7 +82,7 @@ def compute_tax(
 def compare(
     body: CompareRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     deds = OldRegimeDeductions(**body.deductions.model_dump()) if body.deductions else None
     res = compare_regimes(
@@ -96,7 +96,7 @@ def compare(
 @router.get("/years")
 def list_years(
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Database = Depends(get_db),
 ):
     cfg = ConfigService(db).get_income_tax_config(user.id)
     return ok(

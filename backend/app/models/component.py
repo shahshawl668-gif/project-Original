@@ -1,31 +1,27 @@
+"""Salary component configuration document."""
+from __future__ import annotations
+
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Uuid, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class ComponentConfig(Base):
-    __tablename__ = "components_config"
+@dataclass
+class ComponentConfig(Document):
+    COLLECTION = "components_config"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    component_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    pf_applicable: Mapped[bool] = mapped_column(Boolean, default=False)
-    esic_applicable: Mapped[bool] = mapped_column(Boolean, default=False)
-    pt_applicable: Mapped[bool] = mapped_column(Boolean, default=False)
-    lwf_applicable: Mapped[bool] = mapped_column(Boolean, default=False)
-    bonus_applicable: Mapped[bool] = mapped_column(Boolean, default=False)
-    included_in_wages: Mapped[bool] = mapped_column(Boolean, default=False)
-    taxable: Mapped[bool] = mapped_column(Boolean, default=False)
-    tax_exemption_type: Mapped[str] = mapped_column(String(20), default="none")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-    user = relationship("User", back_populates="components")
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    component_name: str = ""
+    pf_applicable: bool = False
+    esic_applicable: bool = False
+    pt_applicable: bool = False
+    lwf_applicable: bool = False
+    bonus_applicable: bool = False
+    included_in_wages: bool = False
+    taxable: bool = False
+    tax_exemption_type: str = "none"
+    created_at: datetime = field(default_factory=utcnow)
+    updated_at: datetime = field(default_factory=utcnow)

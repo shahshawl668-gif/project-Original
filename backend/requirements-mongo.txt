@@ -1,0 +1,3 @@
+# Extras for running the test suite without a live MongoDB server.
+-r requirements.txt
+mongomock>=4.3.0

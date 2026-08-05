@@ -1,72 +1,55 @@
+"""Rule-engine documents — user-authored formulas and tenant PT/LWF slabs."""
+from __future__ import annotations
+
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import (
-    JSON,
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    UniqueConstraint,
-    Uuid,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class Formula(Base):
+@dataclass
+class Formula(Document):
     """User-authored PF / ESIC formula. Each save creates a new version."""
 
-    __tablename__ = "rule_formulas"
-    __table_args__ = (UniqueConstraint("user_id", "rule_type", "version"),)
+    COLLECTION = "rule_formulas"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    rule_type: Mapped[str] = mapped_column(String(16), nullable=False)  # PF | ESIC
-    name: Mapped[str | None] = mapped_column(String(120))
-    expression: Mapped[str] = mapped_column(Text, nullable=False)
-    conditions: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
-    version: Mapped[int] = mapped_column(Integer, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    rule_type: str = ""  # PF | ESIC
+    name: str | None = None
+    expression: str = ""
+    conditions: list[dict[str, Any]] = field(default_factory=list)
+    version: int = 1
+    is_active: bool = True
+    created_at: datetime = field(default_factory=utcnow)
 
 
-class SlabRule(Base):
+@dataclass
+class SlabRule(Document):
     """Tenant-managed PT / LWF slab. Replaces seeded reference data when present."""
 
-    __tablename__ = "slab_rules"
+    COLLECTION = "slab_rules"
 
-    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    state: Mapped[str] = mapped_column(String(100), nullable=False)
-    rule_type: Mapped[str] = mapped_column(String(16), nullable=False)  # PT | LWF
-    min_salary: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    max_salary: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
+    state: str = ""
+    rule_type: str = ""  # PT | LWF
+    min_salary: Decimal = Decimal("0")
+    max_salary: Decimal = Decimal("0")
     # For PT: employee deduction. For LWF: employee contribution.
-    deduction_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    # LWF only: employer contribution per period (NULL/0 for PT rows).
-    employer_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
-    frequency: Mapped[str] = mapped_column(String(16), nullable=False, default="monthly")
+    deduction_amount: Decimal = Decimal("0")
+    # LWF only: employer contribution per period (None/0 for PT rows).
+    employer_amount: Decimal | None = None
+    frequency: str = "monthly"
     # Gender filter: "ALL" | "MALE" | "FEMALE". States like Maharashtra publish
-    # different slabs by gender; "ALL" means slab applies regardless of gender.
-    gender: Mapped[str] = mapped_column(String(8), nullable=False, default="ALL")
-    # Optional list of month numbers (1-12) the slab applies to. NULL / empty
-    # means "every month". Used for Feb-only top-up rows in Maharashtra,
-    # Karnataka, etc. that round annual PT up to the legal cap.
-    applicable_months: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
-    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    # different slabs by gender; "ALL" means the slab applies regardless.
+    gender: str = "ALL"
+    # Optional month numbers (1-12) the slab applies to. None/empty means every
+    # month. Used for Feb-only top-up rows that round annual PT to the cap.
+    applicable_months: list[int] | None = None
+    sort_order: int = 0
+    created_at: datetime = field(default_factory=utcnow)
+    updated_at: datetime = field(default_factory=utcnow)

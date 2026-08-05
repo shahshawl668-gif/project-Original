@@ -1,12 +1,11 @@
-# Render Blueprint — provisions the FastAPI service + managed PostgreSQL.
+# Render Blueprint — provisions the FastAPI service.
 # Push the repo to GitHub, then in Render: New → Blueprint → connect this repo.
-
-databases:
-  - name: payroll-saas-db
-    plan: free
-    databaseName: payroll
-    user: payroll
-    postgresMajorVersion: "16"
+#
+# MongoDB is NOT provisioned here: Render has no managed MongoDB. Create a free
+# cluster on MongoDB Atlas (or run your own), then set MONGODB_URL in the
+# service's environment to the connection string, e.g.
+#   mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/payroll?retryWrites=true&w=majority
+# Remember to allow Render's outbound IPs in the Atlas network access list.
 
 services:
   - type: web
@@ -28,7 +27,9 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         value: "https://peopleopslab.in,https://www.peopleopslab.in"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: payroll-saas-db
-          property: connectionString
+      # Set this in the Render dashboard (marked sync:false so the blueprint
+      # never carries the credential).
+      - key: MONGODB_URL
+        sync: false
+      - key: MONGODB_DB
+        value: payroll

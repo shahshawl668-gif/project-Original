@@ -1,44 +1,35 @@
-"""
-StatutoryConfig — config-driven statutory engine table.
+"""StatutoryConfig — config-driven statutory engine document.
 
-Stores PF, ESIC and component-mapping configs as JSON so they can evolve
-without schema migrations.  For PostgreSQL the column type is JSONB; for
-SQLite it falls back to TEXT (SQLAlchemy JSON type handles both).
+Stores PF, ESIC, component-mapping, FY-versioned income tax, and rule-threshold
+configs as nested documents. MongoDB stores these natively, so the config can
+grow new sections without any migration — `ConfigService` reads and writes them
+through typed Pydantic schemas and callers never touch the raw dicts.
 
-One row per tenant (user_id PK).  ConfigService reads and writes this table
-via typed Pydantic schemas — callers never touch raw JSON.
+One document per tenant (`user_id`, unique index).
 """
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, JSON, Uuid, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.database import Base
+from app.models.base import Document, utcnow
 
 
-class StatutoryConfig(Base):
-    __tablename__ = "statutory_config"
+@dataclass
+class StatutoryConfig(Document):
+    COLLECTION = "statutory_config"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    user_id: uuid.UUID | None = None
 
-    # Stored as serialised Pydantic models (JSON/JSONB).
-    # ConfigService is responsible for parsing/dumping.
-    pf_config:               Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    esic_config:             Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    component_mapping_config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    # FY-versioned income-tax parameters (slabs, rebate, surcharge, cess, …)
-    # and tunable rule-engine thresholds. Nullable so existing rows patch in
-    # cleanly; None is treated as "use seeded defaults" by ConfigService.
-    income_tax_config:       Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
-    rule_thresholds_config:  Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    pf_config: dict[str, Any] = field(default_factory=dict)
+    esic_config: dict[str, Any] = field(default_factory=dict)
+    component_mapping_config: dict[str, Any] = field(default_factory=dict)
+    # FY-versioned income-tax parameters and tunable rule-engine thresholds.
+    # None means "use the seeded defaults" (see ConfigService).
+    income_tax_config: dict[str, Any] | None = None
+    rule_thresholds_config: dict[str, Any] | None = None
 
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: datetime = field(default_factory=utcnow)

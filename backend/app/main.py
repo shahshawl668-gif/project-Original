@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.database import Base, SessionLocal, apply_column_patches, engine
+from app.database import get_database, init_indexes, ping
 from app.deps import SYSTEM_USER_EMAIL
 from app.envelope import err_payload, ok
 from app.models import User
@@ -36,36 +36,32 @@ logging.basicConfig(
 
 
 def _ensure_system_user(db) -> None:
-    existing = db.query(User).filter(User.email == SYSTEM_USER_EMAIL).first()
+    existing = User.find_one(db, {"email": SYSTEM_USER_EMAIL})
     if existing:
-        if getattr(existing, "role", None) != "system":
+        if existing.role != "system":
             existing.role = "system"
-            db.add(existing)
-            db.commit()
+            existing.save(db)
         return
-    user = User(
+    User(
         email=SYSTEM_USER_EMAIL,
         password_hash="__no_auth__",
         company_name="PayrollCheck",
         role="system",
-    )
-    db.add(user)
-    db.commit()
+    ).insert(db)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    apply_column_patches()
-    db = SessionLocal()
-    try:
-        seed_reference_data(db)
-        _ensure_system_user(db)
-    finally:
-        db.close()
+    # MongoDB is schemaless: there are no tables to create, only indexes to
+    # ensure (idempotent) plus reference/system-user seeding.
+    db = get_database()
+    init_indexes(db)
+    seed_reference_data(db)
+    _ensure_system_user(db)
     logger.info(
-        "API ready | env=%s | cors_origins=%s | anonymous=%s",
+        "API ready | env=%s | db=%s | cors_origins=%s | anonymous=%s",
         settings.env,
+        settings.mongodb_db_name,
         settings.cors_origins_list,
         settings.allow_anonymous_api,
     )
@@ -162,10 +158,14 @@ async def generic_exception_envelope(_, exc: Exception):
 # ------------------ HEALTH ------------------
 
 def _health_payload():
+    # Report database reachability so a deploy that boots with an unreachable
+    # cluster is visible from the health check rather than only at first query.
+    db_ok = ping()
     return {
-        "status": "ok",
+        "status": "ok" if db_ok else "degraded",
         "version": app.version,
         "env": settings.env,
+        "database": "mongodb" if db_ok else "unreachable",
     }
 
 
