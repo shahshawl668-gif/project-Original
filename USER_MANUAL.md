@@ -8,13 +8,46 @@ This guide explains how to use the full product: **Next.js** web app (sidebar na
 
 ## 1. What this product does
 
-- **Ingests** salary registers and CTC reports (CSV / Excel) with column auto-mapping.
-- **Stores** historical salary registers (one per month) and CTC revisions for comparison and increment-arrear checks.
-- **Validates** PF, ESIC, PT, LWF, gross/net, LOP proration, month-on-month changes, bonus/gratuity awareness, and structural risk (PF avoidance, allowance-heavy mixes).
-- **Scores** each employee with a **0–100 risk score** (LOW / MEDIUM / HIGH).
-- **Exports** an Excel audit workbook (summary, findings, risk scores).
+PayrollCheck is **not** an HRMS and does not run payroll. It sits beside whatever
+system already does — Keka, Darwinbox, ADP, a bureau, or a spreadsheet and a CA —
+and answers two questions about the output.
 
-There is **no login** in the current build: a single **system user** owns all data (multi-tenant isolation is still enforced in the API by that user id).
+**Is this month right?**
+
+- **Ingests** four inputs: the salary register, the employee master, attendance,
+  and the CTC report — each stored with history, so any month can be re-checked
+  against the data as it stood then.
+- **Validates** PF, ESIC, PT, LWF, income tax, gross/net, LOP proration,
+  month-on-month movement, bonus and gratuity, minimum wage, and structural risk.
+- **Compares the register against its inputs** — paid before joining, paid after
+  exit, paid days disagreeing with attendance, PF deducted with no UAN. These are
+  the errors no internal-consistency check can see, because a wrong input
+  processed consistently looks perfectly valid.
+- **Scores** each employee 0–100 (LOW / MEDIUM / HIGH).
+
+**What is this costing and what are we exposed to?**
+
+- **Cost bridge** — why payroll cost moved month on month, split into joiners,
+  leavers, pay changes, attendance and arrears, reconciling exactly to the total.
+- **Statutory exposure** — accumulated shortfall carried from the month it arose
+  with interest and damages accruing by age, so a year-old PF gap reads at what
+  it would actually cost to settle, not at its principal.
+- **Sign-off and evidence pack** — who approved the month, what they saw, what
+  they accepted and why, and which rules and rates were in force at the time.
+
+### Findings are a record, not a report
+
+A finding keeps its identity across months. An exception explained once stays
+explained; a problem in its ninth month says so. Waiving something removes it
+from the worklist but **never** from the exposure — an accepted risk is still a
+risk, and every decision is written to an audit trail that is never rewritten.
+
+### Who it is for
+
+| | |
+|---|---|
+| **A payroll bureau or CA practice** | One login, many client companies. Each client is an *entity* with its own registers, statutory configuration and rate tables; analysts can be scoped to a subset of the book. |
+| **An enterprise** | Simply an organization with one entity. Nothing to configure, no entity header to send — and no migration needed if a second legal employer appears later. |
 
 ---
 
@@ -27,10 +60,18 @@ There is **no login** in the current build: a single **system user** owns all da
 | Backend          | FastAPI, Pydantic                                   |
 | Database         | PostgreSQL (recommended) or SQLite                  |
 | Statutory config | JSON in DB (**Config-Driven Statutory Engine**)     |
-| PT / LWF         | Tenant **SlabRule** rows + optional reference seeds |
+| PT / LWF         | Per-entity **SlabRule** rows + optional reference seeds |
+| Data scope       | **Organization → Entity**; every row carries `entity_id` |
 
 
 **API base URL** (default local): `http://localhost:8000/api`
+
+**Entity scope.** Every request acts on one entity. The web app sends
+`X-Entity-Id`; API clients may do the same. Omitting it falls back to the
+member's stored default, which is what a single-entity company relies on — so an
+enterprise never has to think about the header. Roles are `owner`, `manager`,
+`analyst` and `viewer`: viewers read, analysts write, and only owners and
+managers add entities or sign off a period.
 
 ---
 
@@ -193,7 +234,7 @@ Produces **Summary**, **Findings**, **Risk Scores** sheets.
 
 ## 5. Rule engine overview (what gets checked)
 
-Rules are grouped in layers (data quality → structure → aggregates → statutory → LOP → MoM → advanced). Examples:
+Rules are grouped in layers (data quality → structure → aggregates → statutory → LOP → MoM → advanced). The **MST-\*** and **ATT-\*** families are different in kind: they compare the register against its *inputs* rather than against itself, and they run only for employees the relevant input actually covers — a client who has not uploaded attendance gets silence from them, not false positives. Examples:
 
 
 | Rule ID    | Theme                                                                                                                |
@@ -245,6 +286,142 @@ Shows setup progress, recent activity, and charts driven by last runs/registers.
 
 ---
 
+## 7A. Employee master and attendance
+
+Both upload in two steps: **upload** previews how your column headers were read,
+**commit** stores it. The preview exists because a header that went unrecognised
+silently disables the checks that depend on it — an unmatched "Date of Leaving"
+column means nothing ever gets flagged as paid-after-exit.
+
+Headers are matched against known spellings, so `Emp Code`, `Employee No` and
+`Staff ID` all resolve to the employee id, and `DOJ`, `Joining Date` and
+`Date of Join` all resolve to the joining date. Columns this schema does not
+know are kept rather than dropped. Dates are read **day-first**: `03/04/2025` is
+3 April, because Indian exports are dd/mm/yyyy and reading it the other way is a
+silent eleven-month error.
+
+**Employee master** (`POST /api/workforce/master/commit`, with
+`meta={"effective_from": "YYYY-MM-01"}`) is effective-dated. Upload it again
+whenever it changes; re-validating March reads March's version, so a June exit
+does not make April's register report everyone as paid-after-exit.
+
+| Worth having | Why |
+|---|---|
+| `date_of_joining` | Paid-before-joining, and gratuity service years |
+| `date_of_exit` | Paid-after-exit — the most expensive thing here |
+| `work_state` | PT and LWF follow where the person works, not where the company is registered |
+| `skill_category` | Selects the minimum wage rate |
+| `uan`, `esic_ip_number` | Filing blockers, checked where a deduction implies one |
+
+**Attendance** (`POST /api/workforce/attendance/commit`, with
+`meta={"period_month": "YYYY-MM-01"}`) takes calendar / present / paid / LOP /
+OT days. Give it any two of calendar, paid and LOP and the third is derived — but
+if you state all three and they disagree, that disagreement is reported rather
+than quietly corrected.
+
+Re-committing the same period or effective date **replaces** it, so a corrected
+file is simply sent again.
+
+---
+
+## 7B. Findings worklist
+
+`GET /api/findings` lists what is outstanding, ranked by severity, then by how
+many months it has recurred, then by money. A recurring CRITICAL outranks a
+larger one-off: the first is a process failure, the second is a typo.
+
+Each finding is one *fingerprint* — the same employee, rule and component — held
+steady across months and across changes in amount, so a PF shortfall that varies
+in size is recognised as one ongoing problem rather than a fresh one each month.
+
+`POST /api/findings/{fingerprint}/decision` records a decision:
+
+- **acknowledged** — seen, being chased;
+- **waived** — accepted. Requires a stated reason, and takes an optional expiry
+  so that "accepted once" does not become "invisible forever" across a change of
+  staff or of law;
+- **open** — put it back on the list.
+
+Findings that stop appearing resolve themselves; ones that come back are
+reopened. Every transition is appended to a history that is never rewritten, and
+`GET /api/findings/summary` reports waived exposure **beside** open exposure
+rather than netting it away.
+
+---
+
+## 7C. Business intelligence
+
+| Endpoint | Answers |
+|---|---|
+| `GET /api/bi/cost-bridge?period=YYYY-MM-01` | Why cost moved since last month |
+| `GET /api/bi/trend?months=12` | Cost, headcount and cost per head over time |
+| `GET /api/bi/exposure` | What the accumulated shortfall would cost to settle |
+| `GET/PUT /api/bi/exposure/config` | Interest and damages rates |
+
+**The bridge** splits the change into joiners, leavers, pay changes, attendance
+and arrears. For someone present in both months the attribution order is fixed:
+arrears first, so back-pay cannot look like a rise; then attendance, valued at
+last month's daily rate, so a short month does not read as a pay cut; then the
+residual, which is the real pay change. The bars sum to the net change exactly —
+`unexplained` is rounding, and it is shown rather than hidden so you can see the
+bridge closes.
+
+**Exposure** ages each open shortfall from the month it arose and applies the
+interest and damages its age attracts. The rates are configurable and carry no
+legal force of their own; the defaults follow the rates in common use, and if
+your advisers read them differently, edit them rather than waiting for a
+release. Waived findings stay in the total and are disclosed on their own line.
+
+---
+
+## 7D. Minimum wage
+
+Rates vary by state, by zone, by scheduled employment and by skill, and the VDA
+half is revised twice a year — so no shipped dataset stays correct. **You
+maintain the rates**, per entity, via `POST /api/minimum-wage/rates/import`
+(re-importing a corrected sheet updates rather than duplicates) or the rates
+screen. Record a `source_reference` on each: without one a rate is an assertion
+rather than evidence.
+
+`GET /api/minimum-wage/coverage` names the (state, skill) pairs in your
+workforce that have no rate on file — worth checking before a run, since each
+gap is an employee the tool cannot vouch for.
+
+`POST /api/minimum-wage/check?period=YYYY-MM-01` runs a stored register against
+the table. An employee with no applicable rate, or with no work state or skill on
+the master, produces an **MW-003 "cannot verify"** finding. That is deliberate:
+"no rate configured" and "paid correctly" must never look the same.
+
+Which components count towards the floor is contested, so pick a `basis`:
+`basic_da`, `wages_excl_hra` (default) or `gross`. Every finding states which
+basis produced it. The floor is prorated by paid days.
+
+---
+
+## 7E. Sign-off and the evidence pack
+
+1. `POST /api/signoff/submit` — prepare the period (any analyst).
+2. `POST /api/signoff/sign` — approve it. **Owner or manager only**, and
+   deliberately separate from preparation: whoever ran the payroll should not be
+   the only person who ever looked at it.
+3. `GET /api/signoff/{period}/evidence-pack` — the workbook.
+
+Signing freezes a snapshot: counts, exposure, every outstanding finding, every
+accepted one with its reason, and the statutory config, thresholds and minimum
+wage rates in force. That last part matters — a finding is only defensible
+alongside the rule and the rate that produced it. The snapshot is never
+recomputed, so findings raised later do not rewrite what was approved, and a
+digest lets a later reader confirm the record is the one that was signed.
+
+Reopening is allowed, because corrections happen, but it is an event rather than
+an erasure: the superseded snapshot and the stated reason are both kept.
+
+The evidence pack is built from the signed snapshot where one exists and from
+live data otherwise — and the cover sheet says which, so a draft can never be
+mistaken for an approved record.
+
+---
+
 ## 8. API quick reference
 
 
@@ -264,6 +441,17 @@ Shows setup progress, recent activity, and charts driven by last runs/registers.
 | PUT/DEL  | `/api/config/statutory/income-tax/years/{fy}`           | Add / remove one financial year                           |
 | GET/PUT  | `/api/config/statutory/rule-thresholds`                 | Tunable rule-engine thresholds                            |
 | POST     | `/api/income-tax/compute`, `/api/income-tax/compare`    | Old vs new regime projection (per FY)                     |
+| GET      | `/api/org/context`                                      | Organization, role, entities — what the switcher reads    |
+| GET/POST | `/api/org/entities`                                     | List / add entities (adding: owner or manager)            |
+| POST     | `/api/org/entities/{id}/select`                         | Remember this entity as your default                      |
+| POST     | `/api/workforce/master/upload`, `/master/commit`        | Employee master: preview headers, then store              |
+| POST     | `/api/workforce/attendance/upload`, `/attendance/commit`| Attendance: preview headers, then store                   |
+| GET      | `/api/findings`, `/api/findings/summary`                | Worklist and exposure by lifecycle state                  |
+| POST     | `/api/findings/{fingerprint}/decision`                  | Acknowledge / waive / reopen                              |
+| GET      | `/api/bi/cost-bridge`, `/api/bi/trend`, `/api/bi/exposure` | Cost movement and accumulated exposure                 |
+| GET/POST | `/api/minimum-wage/rates`, `/rates/import`, `/coverage` | Rate table and gaps in it                                 |
+| POST     | `/api/signoff/submit`, `/api/signoff/sign`              | Prepare and approve a period                              |
+| GET      | `/api/signoff/{period}/evidence-pack`                   | Evidence workbook                                         |
 
 
 Health: `**GET /api/health`**
@@ -288,11 +476,23 @@ Health: `**GET /api/health`**
 
 ## 10. Known limitations (roadmap)
 
-- **TDS:** Heuristic only — not full old/new regime computation.
-- **Gratuity:** Cap check present; full service-years validation needs DOJ in HR data.
-- **F&F:** No dedicated leave encashment / notice pay modules yet.
-- **PDF** audit report not built — use **Excel export**.
-- **Multi-user RBAC** not enabled in this build.
+- **Minimum wage rates ship empty.** The engine and the checks are built, but the
+  rate table is yours to load and maintain — see §7D. Coverage gaps are reported
+  rather than passed over, but they are still gaps.
+- **No ECR / challan reconciliation.** Validation compares computed against the
+  register; it does not yet compare either against what was filed or what was
+  paid. That three-way match is the most direct predictor of a notice and is the
+  obvious next thing to build.
+- **TDS:** heuristic risk flags plus regime projection — not a full Form 16
+  computation.
+- **Exposure interest and damages rates** are defaults in common use, not legal
+  advice. Review them against your advisers' reading (§7C).
+- **No payroll recomputation from first principles.** The tool checks and
+  explains; it does not independently recompute gross from CTC and attendance.
+- **F&F:** no dedicated leave encashment / notice pay modules.
+- **PDF** audit report not built — use the **Excel** evidence pack.
+- **Invitations** are not built: members are added to an organization directly
+  in the database rather than by email invite.
 
 ---
 

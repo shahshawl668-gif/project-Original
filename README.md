@@ -1,4 +1,20 @@
-# Payroll SaaS (India validation UI + API)
+# PayrollCheck — India payroll validation & business intelligence
+
+Not an HRMS, and it does not run payroll. It sits beside whatever system does and
+answers two questions about the output: **is this month right**, and **what is it
+costing us**.
+
+- **Validates** PF, ESIC, PT, LWF, income tax, minimum wage and structure — and
+  checks the register against the employee master and attendance, which is what
+  catches a wrong input that was processed consistently.
+- **Explains** month-on-month cost movement, and sizes accumulated statutory
+  exposure with interest and damages by age.
+- **Records** findings across months with a waiver trail, and freezes a signed
+  evidence pack per period.
+
+Data is scoped to an **entity** (one legal employer). A payroll bureau runs many
+under one login; an enterprise is simply an organization with one. See
+`USER_MANUAL.md`.
 
 Monorepo: **backend** is FastAPI + SQLAlchemy; **frontend** is Next.js 14 (App Router).
 
