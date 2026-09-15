@@ -750,7 +750,7 @@ def validate_employees(
     pf_cfg   = cfg_svc.get_pf_config(entity.id)
     esic_cfg = cfg_svc.get_esic_config(entity.id)
     rule_thresholds = cfg_svc.get_rule_thresholds(entity.id)
-    settings = _get_or_default_settings(db, user)   # still used for PT/LWF states
+    settings = _get_or_default_settings(db, entity)  # still used for PT/LWF states
 
     comp_by_key = _component_key_map(components)
     pt_states_cfg: list[str] = list(settings.pt_states or [])
