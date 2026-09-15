@@ -89,6 +89,10 @@ class EmployeeRecord(Base):
     department: Mapped[str | None] = mapped_column(String(255))
     designation: Mapped[str | None] = mapped_column(String(255))
     grade: Mapped[str | None] = mapped_column(String(64))
+    # The reporting line above department — division, vertical, LOB, SBU.
+    business_unit: Mapped[str | None] = mapped_column(String(255))
+    # Where the cost is booked, which is not always where the person sits.
+    cost_center: Mapped[str | None] = mapped_column(String(64))
     # permanent | contract | apprentice | intern | consultant — affects which
     # statutes apply at all.
     employment_type: Mapped[str | None] = mapped_column(String(64))

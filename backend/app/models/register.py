@@ -58,6 +58,11 @@ class SalaryRegisterRow(Base):
     paid_days: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
     lop_days: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
     components: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    # The employee's reporting attributes **as at this period**, copied in when
+    # the register is stored rather than joined from the master at read time.
+    # A reorganisation must not rewrite what last year's payroll cost by
+    # department: cost history has to stay answerable as it was reported then.
+    dimensions: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     arrears: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     increment_arrear_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

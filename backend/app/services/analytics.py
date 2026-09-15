@@ -402,3 +402,183 @@ def statutory_exposure(
         "ageing": {k: float(_q(v)) for k, v in ageing.items()},
         "unclassified_principal": float(_q(unclassified)),
     }
+
+
+# ---------------------------------------------------------------------------
+# Cost analysis
+# ---------------------------------------------------------------------------
+def period_bucket(period: date, granularity: str) -> tuple[str, str]:
+    """(sort key, label) for a period under month, quarter or year granularity."""
+    if granularity == "year":
+        return (f"{period.year}", str(period.year))
+    if granularity == "quarter":
+        # India's financial year runs April to March, so Q1 is Apr–Jun. A payroll
+        # report that called January "Q1" would not reconcile with anything else
+        # the finance team produces.
+        fy_start = period.year if period.month >= 4 else period.year - 1
+        quarter = ((period.month - 4) % 12) // 3 + 1
+        return (f"{fy_start}-Q{quarter}", f"FY{str(fy_start + 1)[-2:]} Q{quarter}")
+    return (period.isoformat(), period.strftime("%b %Y"))
+
+
+def _row_measures(row) -> dict[str, Decimal]:
+    """Every amount one register row contributes, split the way cost is read."""
+    regular = sum((_dec(v) for v in (row.components or {}).values()), Decimal("0"))
+    arrears = sum((_dec(v) for v in (row.arrears or {}).values()), Decimal("0"))
+    arrears += _dec(row.increment_arrear_total)
+    return {
+        "regular": regular,
+        "arrears": arrears,
+        "total": regular + arrears,
+    }
+
+
+def cost_analysis(
+    db: Session,
+    entity_id: uuid.UUID,
+    *,
+    group_by: str = "department",
+    granularity: str = "month",
+    date_from: date | None = None,
+    date_to: date | None = None,
+    filters: dict[str, list[str]] | None = None,
+) -> dict:
+    """
+    Payroll cost sliced by one reporting dimension over time.
+
+    Dimensions are read from the snapshot stored on each register row, not
+    joined from the current master, so a reorganisation cannot rewrite what an
+    earlier month cost by department. See services/dimensions.py.
+    """
+    from app.services.dimensions import DIMENSION_KEYS, DIMENSION_LABELS, UNASSIGNED
+
+    if group_by not in DIMENSION_KEYS:
+        raise ValueError(f"group_by must be one of: {', '.join(DIMENSION_KEYS)}")
+    if granularity not in ("month", "quarter", "year"):
+        raise ValueError("granularity must be month, quarter or year")
+
+    registers = db.query(SalaryRegister).filter(SalaryRegister.entity_id == entity_id)
+    if date_from:
+        registers = registers.filter(SalaryRegister.period_month >= date_from.replace(day=1))
+    if date_to:
+        registers = registers.filter(SalaryRegister.period_month <= date_to.replace(day=1))
+    registers = registers.order_by(SalaryRegister.period_month).all()
+
+    if not registers:
+        return {
+            "group_by": group_by,
+            "group_by_label": DIMENSION_LABELS[group_by],
+            "granularity": granularity,
+            "periods": [], "groups": [], "matrix": [],
+            "totals": {"regular": 0.0, "arrears": 0.0, "total": 0.0, "headcount": 0},
+        }
+
+    by_register = {r.id: r for r in registers}
+    rows = (
+        db.query(SalaryRegisterRow)
+        .filter(SalaryRegisterRow.register_id.in_(list(by_register)))
+        .all()
+    )
+
+    active = {k: set(v) for k, v in (filters or {}).items() if v}
+
+    # period key -> group -> measures
+    cells: dict[tuple[str, str], dict[str, Decimal]] = {}
+    heads: dict[tuple[str, str], set[str]] = {}
+    period_labels: dict[str, str] = {}
+    totals = {"regular": Decimal("0"), "arrears": Decimal("0"), "total": Decimal("0")}
+    all_heads: set[str] = set()
+
+    for row in rows:
+        dims = row.dimensions or {}
+        if any(dims.get(key, UNASSIGNED) not in wanted for key, wanted in active.items()):
+            continue
+
+        register = by_register[row.register_id]
+        key, label = period_bucket(register.period_month, granularity)
+        period_labels[key] = label
+        group = dims.get(group_by) or UNASSIGNED
+
+        measures = _row_measures(row)
+        cell = cells.setdefault((key, group), {"regular": Decimal("0"), "arrears": Decimal("0"), "total": Decimal("0")})
+        for name, value in measures.items():
+            cell[name] += value
+            totals[name] += value
+        heads.setdefault((key, group), set()).add(row.employee_id)
+        all_heads.add(row.employee_id)
+
+    periods = [{"key": k, "label": period_labels[k]} for k in sorted(period_labels)]
+    groups = sorted({group for _, group in cells})
+
+    matrix = []
+    for group in groups:
+        series = []
+        group_total = Decimal("0")
+        for period in periods:
+            cell = cells.get((period["key"], group))
+            amount = cell["total"] if cell else Decimal("0")
+            group_total += amount
+            series.append({
+                "period": period["key"],
+                "total": float(_q(amount)),
+                "regular": float(_q(cell["regular"])) if cell else 0.0,
+                "arrears": float(_q(cell["arrears"])) if cell else 0.0,
+                "headcount": len(heads.get((period["key"], group), set())),
+            })
+        matrix.append({
+            "group": group,
+            "total": float(_q(group_total)),
+            "share_pct": float(_q(group_total / totals["total"] * 100)) if totals["total"] else 0.0,
+            "series": series,
+        })
+
+    matrix.sort(key=lambda g: g["total"], reverse=True)
+
+    return {
+        "group_by": group_by,
+        "group_by_label": DIMENSION_LABELS[group_by],
+        "granularity": granularity,
+        "periods": periods,
+        "groups": [g["group"] for g in matrix],
+        "matrix": matrix,
+        "totals": {
+            "regular": float(_q(totals["regular"])),
+            "arrears": float(_q(totals["arrears"])),
+            "total": float(_q(totals["total"])),
+            "headcount": len(all_heads),
+            "cost_per_head": float(_q(totals["total"] / len(all_heads))) if all_heads else 0.0,
+        },
+    }
+
+
+def dimension_values(db: Session, entity_id: uuid.UUID) -> dict:
+    """
+    The values present for each dimension, so filters offer only real options.
+
+    Read from the stored register snapshots rather than the master: these are
+    the values cost was actually booked against, which is what a filter should
+    be able to select.
+    """
+    from app.services.dimensions import DIMENSIONS, UNASSIGNED
+
+    rows = (
+        db.query(SalaryRegisterRow.dimensions)
+        .filter(SalaryRegisterRow.entity_id == entity_id)
+        .all()
+    )
+    found: dict[str, set[str]] = {key: set() for key, _ in DIMENSIONS}
+    for (dims,) in rows:
+        for key in found:
+            found[key].add((dims or {}).get(key) or UNASSIGNED)
+
+    return {
+        "dimensions": [
+            {
+                "key": key,
+                "label": label,
+                # Unassigned sorts last: it is a gap in the data, not a unit.
+                "values": sorted(found[key], key=lambda v: (v == UNASSIGNED, v.lower())),
+            }
+            for key, label in DIMENSIONS
+        ]
+    }

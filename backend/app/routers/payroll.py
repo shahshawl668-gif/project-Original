@@ -22,6 +22,8 @@ from app.models import (
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
 from app.services import finding_store
+from app.services.dimensions import snapshot as dimension_snapshot
+from app.services.workforce import master_as_of
 from app.services.payroll_parse import (
     dataframe_to_employees,
     parse_payroll_file,
@@ -66,6 +68,10 @@ def _persist_salary_register(
 ) -> None:
     comp_by_key = _component_key_map(comps)
 
+    # The master as it stood at this period, so each row is stamped with the
+    # attributes that applied then rather than whatever they are today.
+    master_rows = master_as_of(db, entity.id, period_month)
+
     existing = (
         db.query(SalaryRegister)
         .filter(SalaryRegister.entity_id == entity.id, SalaryRegister.period_month == period_month)
@@ -108,6 +114,7 @@ def _persist_salary_register(
         regular, arrear_by_base, inc_arrear_total = split_row_amounts(row, comp_by_key)
         components_json = {k: float(v) for k, v in regular.items()}
         arrears_json = {k: float(v) for k, v in arrear_by_base.items()}
+        dimensions_json = dimension_snapshot(master_rows.get(eid), row)
 
         paid_days_raw = row.get("paid_days")
         lop_days_raw = row.get("lop_days") or row.get("lop")
@@ -131,6 +138,7 @@ def _persist_salary_register(
                 paid_days=paid_days,
                 lop_days=lop_days,
                 components=components_json,
+                dimensions=dimensions_json,
                 arrears=arrears_json,
                 increment_arrear_total=inc_arrear_total,
             )

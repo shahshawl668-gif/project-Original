@@ -62,6 +62,62 @@ def cost_trend(
     return ok(analytics.cost_trend(db, entity.id, months))
 
 
+@router.get("/cost-analysis")
+def cost_analysis(
+    group_by: str = Query(default="department"),
+    granularity: str = Query(default="month", pattern="^(month|quarter|year)$"),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    business_unit: list[str] | None = Query(default=None),
+    department: list[str] | None = Query(default=None),
+    cost_center: list[str] | None = Query(default=None),
+    work_location: list[str] | None = Query(default=None),
+    work_state: list[str] | None = Query(default=None),
+    grade: list[str] | None = Query(default=None),
+    designation: list[str] | None = Query(default=None),
+    employment_type: list[str] | None = Query(default=None),
+    skill_category: list[str] | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """
+    Payroll cost by any reporting dimension, over month, quarter or year.
+
+    Filters combine across dimensions and accept several values each, so
+    "engineering and product, in Bangalore, grades M3 and above" is one request.
+    """
+    filters = {
+        "business_unit": business_unit, "department": department, "cost_center": cost_center,
+        "work_location": work_location, "work_state": work_state, "grade": grade,
+        "designation": designation, "employment_type": employment_type,
+        "skill_category": skill_category,
+    }
+    try:
+        return ok(
+            analytics.cost_analysis(
+                db, entity.id,
+                group_by=group_by,
+                granularity=granularity,
+                date_from=_period(date_from, "date_from") if date_from else None,
+                date_to=_period(date_to, "date_to") if date_to else None,
+                filters={k: v for k, v in filters.items() if v},
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/dimensions")
+def dimensions(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Which dimensions exist and what values they hold, for building filters."""
+    return ok(analytics.dimension_values(db, entity.id))
+
+
 @router.get("/exposure")
 def exposure(
     as_of: str | None = Query(default=None),

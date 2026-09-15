@@ -53,7 +53,7 @@ def test_master_rows_are_typed_and_unknown_columns_are_kept():
                 "Employee Name": " Asha Menon ",
                 "DOJ": "15/06/2021",
                 "State": "Karnataka",
-                "Cost Centre": "CC-42",       # not in the schema
+                "Shift Pattern": "Night B",   # genuinely not in the schema
             }
         ]
     )
@@ -66,8 +66,8 @@ def test_master_rows_are_typed_and_unknown_columns_are_kept():
     assert row["date_of_joining"] == date(2021, 6, 15)
     assert row["work_state"] == "Karnataka"
 
-    assert "Cost Centre" in unmapped
-    assert row["extra"]["cost_centre"] == "CC-42"
+    assert "Shift Pattern" in unmapped
+    assert row["extra"]["shift_pattern"] == "Night B"
 
 
 def test_rows_without_an_employee_id_are_dropped():
