@@ -22,11 +22,14 @@ from app.database import Base
 
 class SalaryRegister(Base):
     __tablename__ = "salary_registers"
-    __table_args__ = (UniqueConstraint("user_id", "period_month"),)
+    __table_args__ = (UniqueConstraint("entity_id", "period_month"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
     )
     period_month: Mapped[date] = mapped_column(Date, nullable=False)
     filename: Mapped[str | None] = mapped_column(String(512))
@@ -45,6 +48,9 @@ class SalaryRegisterRow(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
     )
     period_month: Mapped[date] = mapped_column(Date, nullable=False)
     employee_id: Mapped[str] = mapped_column(String(64), nullable=False)

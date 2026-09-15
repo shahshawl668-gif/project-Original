@@ -7,19 +7,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import TenantRulePreference, User
+from app.models import Entity, TenantRulePreference, User
 from app.schemas.rule_preferences import TenantRulePreferenceOut, TenantRulePreferenceUpsert
 
 router = APIRouter(prefix="/rule-preferences", tags=["rule-preferences"])
 
 
 @router.get("")
-def list_preferences(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_preferences(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
     rows = (
         db.query(TenantRulePreference)
-        .filter(TenantRulePreference.user_id == user.id)
+        .filter(TenantRulePreference.entity_id == entity.id)
         .order_by(TenantRulePreference.rule_id)
         .all()
     )
@@ -35,11 +35,12 @@ def upsert_preference(
     body: TenantRulePreferenceUpsert,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     rid = body.rule_id.strip()
     existing = (
         db.query(TenantRulePreference)
-        .filter(TenantRulePreference.user_id == user.id, TenantRulePreference.rule_id == rid)
+        .filter(TenantRulePreference.entity_id == entity.id, TenantRulePreference.rule_id == rid)
         .first()
     )
     if existing:
@@ -49,6 +50,7 @@ def upsert_preference(
         db.add(
             TenantRulePreference(
                 user_id=user.id,
+        entity_id=entity.id,
                 rule_id=rid,
                 suppressed=body.suppressed,
             )
@@ -62,9 +64,10 @@ def delete_preference(
     rule_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     q = db.query(TenantRulePreference).filter(
-        TenantRulePreference.user_id == user.id,
+        TenantRulePreference.entity_id == entity.id,
         TenantRulePreference.rule_id == rule_id,
     )
     if q.delete() == 0:

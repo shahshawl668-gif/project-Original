@@ -7,9 +7,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import Formula, SlabRule, User
+from app.models import Entity, Formula, SlabRule, User
 from app.schemas.rule_engine import (
     FormulaCreate,
     FormulaOut,
@@ -37,12 +37,12 @@ def _defaults_for(rule_type: str):
     raise HTTPException(status_code=400, detail=f"Unsupported rule_type: {rule_type}")
 
 
-def _build_slabs_response(state: str, rule_type: str, db: Session, user: User) -> SlabsResponse:
+def _build_slabs_response(state: str, rule_type: str, db: Session, entity: Entity) -> SlabsResponse:
     rt = rule_type.upper()
     rows = (
         db.query(SlabRule)
         .filter(
-            SlabRule.user_id == user.id,
+            SlabRule.entity_id == entity.id,
             SlabRule.state == state,
             SlabRule.rule_type == rt,
         )
@@ -76,8 +76,9 @@ def list_formulas(
     rule_type: str | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
-    q = db.query(Formula).filter(Formula.user_id == user.id)
+    q = db.query(Formula).filter(Formula.entity_id == entity.id)
     if rule_type:
         q = q.filter(Formula.rule_type == rule_type.upper())
     rows = q.order_by(Formula.rule_type, Formula.version.desc()).all()
@@ -89,6 +90,7 @@ def create_formula(
     body: FormulaCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     try:
         evaluate_formula(body.expression, _sample_vars())
@@ -97,20 +99,21 @@ def create_formula(
 
     next_version = (
         db.query(func.coalesce(func.max(Formula.version), 0))
-        .filter(Formula.user_id == user.id, Formula.rule_type == body.rule_type)
+        .filter(Formula.entity_id == entity.id, Formula.rule_type == body.rule_type)
         .scalar()
         or 0
     ) + 1
 
     if body.activate:
         db.query(Formula).filter(
-            Formula.user_id == user.id,
+            Formula.entity_id == entity.id,
             Formula.rule_type == body.rule_type,
             Formula.is_active == True,  # noqa: E712
         ).update({Formula.is_active: False})
 
     row = Formula(
         user_id=user.id,
+        entity_id=entity.id,
         rule_type=body.rule_type,
         name=body.name,
         expression=body.expression,
@@ -129,16 +132,17 @@ def activate_formula(
     formula_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     try:
         fid = uuid.UUID(formula_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid id")
-    target = db.query(Formula).filter(Formula.id == fid, Formula.user_id == user.id).first()
+    target = db.query(Formula).filter(Formula.id == fid, Formula.entity_id == entity.id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Formula not found")
     db.query(Formula).filter(
-        Formula.user_id == user.id,
+        Formula.entity_id == entity.id,
         Formula.rule_type == target.rule_type,
         Formula.is_active == True,  # noqa: E712
     ).update({Formula.is_active: False})
@@ -154,12 +158,13 @@ def delete_formula(
     formula_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     try:
         fid = uuid.UUID(formula_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid id")
-    row = db.query(Formula).filter(Formula.id == fid, Formula.user_id == user.id).first()
+    row = db.query(Formula).filter(Formula.id == fid, Formula.entity_id == entity.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Formula not found")
     db.delete(row)
@@ -204,7 +209,7 @@ def get_slabs_route(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return ok(_build_slabs_response(state, rule_type, db, user).model_dump())
+    return ok(_build_slabs_response(state, rule_type, db, entity).model_dump())
 
 
 @router.post("/slabs")
@@ -212,6 +217,7 @@ def save_slabs(
     body: SlabSaveRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
 
     def _bucket(s) -> tuple:
@@ -245,7 +251,7 @@ def save_slabs(
             last_max = r.max_salary
 
     db.query(SlabRule).filter(
-        SlabRule.user_id == user.id,
+        SlabRule.entity_id == entity.id,
         SlabRule.state == body.state,
         SlabRule.rule_type == body.rule_type,
     ).delete()
@@ -263,6 +269,7 @@ def save_slabs(
         db.add(
             SlabRule(
                 user_id=user.id,
+        entity_id=entity.id,
                 state=body.state,
                 rule_type=body.rule_type,
                 min_salary=s.min_salary,
@@ -277,12 +284,13 @@ def save_slabs(
         )
     db.commit()
 
-    return ok(_build_slabs_response(body.state, body.rule_type, db, user).model_dump())
+    return ok(_build_slabs_response(body.state, body.rule_type, db, entity).model_dump())
 
 
-def _slab_kwargs(rule_type: str, state: str, idx: int, user_id, s: dict) -> dict:
+def _slab_kwargs(rule_type: str, state: str, idx: int, user_id, entity_id, s: dict) -> dict:
     return dict(
         user_id=user_id,
+        entity_id=entity_id,
         state=state,
         rule_type=rule_type,
         min_salary=s["min_salary"],
@@ -318,6 +326,7 @@ def import_default_slabs(
     overwrite: bool = Query(default=True),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     rt = rule_type.upper()
     catalog, get_state, list_states = _defaults_for(rt)
@@ -333,15 +342,15 @@ def import_default_slabs(
 
     if overwrite:
         db.query(SlabRule).filter(
-            SlabRule.user_id == user.id,
+            SlabRule.entity_id == entity.id,
             SlabRule.state == state,
             SlabRule.rule_type == rt,
         ).delete()
 
     for idx, s in enumerate(defaults):
-        db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, s)))
+        db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, entity.id, s)))
     db.commit()
-    return ok(_build_slabs_response(state, rt, db, user).model_dump())
+    return ok(_build_slabs_response(state, rt, db, entity).model_dump())
 
 
 @router.post("/slabs/reset-defaults")
@@ -349,19 +358,20 @@ def reset_default_slabs(
     rule_type: str = Query(default="PT"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     rt = rule_type.upper()
     catalog, _get, _list = _defaults_for(rt)
 
     deleted = (
         db.query(SlabRule)
-        .filter(SlabRule.user_id == user.id, SlabRule.rule_type == rt)
+        .filter(SlabRule.entity_id == entity.id, SlabRule.rule_type == rt)
         .delete()
     )
     imported: dict[str, int] = {}
     for state, rows in catalog.items():
         for idx, s in enumerate(rows):
-            db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, s)))
+            db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, entity.id, s)))
         imported[state] = len(rows)
     db.commit()
     return ok(
@@ -380,6 +390,7 @@ def import_all_default_slabs(
     overwrite: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     rt = rule_type.upper()
     catalog, _get, _list = _defaults_for(rt)
@@ -388,7 +399,7 @@ def import_all_default_slabs(
     for state, rows in catalog.items():
         if overwrite:
             db.query(SlabRule).filter(
-                SlabRule.user_id == user.id,
+                SlabRule.entity_id == entity.id,
                 SlabRule.state == state,
                 SlabRule.rule_type == rt,
             ).delete()
@@ -396,7 +407,7 @@ def import_all_default_slabs(
             existing = (
                 db.query(SlabRule)
                 .filter(
-                    SlabRule.user_id == user.id,
+                    SlabRule.entity_id == entity.id,
                     SlabRule.state == state,
                     SlabRule.rule_type == rt,
                 )
@@ -406,7 +417,7 @@ def import_all_default_slabs(
                 imported[state] = 0
                 continue
         for idx, s in enumerate(rows):
-            db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, s)))
+            db.add(SlabRule(**_slab_kwargs(rt, state, idx, user.id, entity.id, s)))
         imported[state] = len(rows)
     db.commit()
     return ok(

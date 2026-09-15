@@ -163,11 +163,11 @@ class ConfigService:
         key = str(tenant_id)
         row = (
             self._db.query(StatutoryConfig)
-            .filter(StatutoryConfig.user_id == tenant_id)
+            .filter(StatutoryConfig.entity_id == tenant_id)
             .first()
         )
         if row is None:
-            row = StatutoryConfig(user_id=tenant_id, pf_config={}, esic_config={}, component_mapping_config={})
+            row = StatutoryConfig(entity_id=tenant_id, pf_config={}, esic_config={}, component_mapping_config={})
             self._db.add(row)
             self._db.commit()
             self._db.refresh(row)

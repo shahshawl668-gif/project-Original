@@ -17,8 +17,8 @@ from app.models import (
     SalaryRegister,
     SalaryRegisterRow,
     SlabRule,
+    Entity,
     StatutorySettings,
-    User,
 )
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
@@ -188,7 +188,7 @@ def lookup_pt(
     state: str | None,
     wage: Decimal,
     as_of: date,
-    user_id: Any | None = None,
+    entity_id: Any | None = None,
     gender: str | None = None,
     run_month: int | None = None,
 ) -> tuple[Decimal, str | None]:
@@ -214,11 +214,11 @@ def lookup_pt(
     match_genders = ("ALL", g_norm) if g_norm != "ALL" else ("ALL", "MALE")
     month = run_month if run_month is not None else as_of.month
 
-    if user_id is not None:
+    if entity_id is not None:
         tenant_rows = (
             db.query(SlabRule)
             .filter(
-                SlabRule.user_id == user_id,
+                SlabRule.entity_id == entity_id,
                 SlabRule.state == state,
                 SlabRule.rule_type == "PT",
             )
@@ -279,7 +279,7 @@ def lookup_lwf(
     state: str | None,
     wage: Decimal,
     as_of: date,
-    user_id: Any | None = None,
+    entity_id: Any | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
     """Return (employee_per_period, employer_per_period, employee_monthly, employer_monthly).
 
@@ -296,11 +296,11 @@ def lookup_lwf(
         # deductions for tenants that haven't flagged LWF components.
         return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
-    if user_id is not None:
+    if entity_id is not None:
         tenant_rows = (
             db.query(SlabRule)
             .filter(
-                SlabRule.user_id == user_id,
+                SlabRule.entity_id == entity_id,
                 SlabRule.state == state,
                 SlabRule.rule_type == "LWF",
             )
@@ -444,21 +444,21 @@ def taxable_exposure(components: list[ComponentConfig], regular: dict[str, Decim
     return t
 
 
-def _get_or_default_settings(db: Session, user: User) -> StatutorySettings:
-    row = db.query(StatutorySettings).filter(StatutorySettings.user_id == user.id).first()
+def _get_or_default_settings(db: Session, entity: Entity) -> StatutorySettings:
+    row = db.query(StatutorySettings).filter(StatutorySettings.entity_id == entity.id).first()
     if row:
         return row
-    row = StatutorySettings(user_id=user.id)
+    row = StatutorySettings(entity_id=entity.id)
     db.add(row)
     db.commit()
     db.refresh(row)
     return row
 
 
-def _latest_ctcs(db: Session, user_id, employee_id: str, as_of: date) -> list[CtcRecord]:
+def _latest_ctcs(db: Session, entity_id, employee_id: str, as_of: date) -> list[CtcRecord]:
     return (
         db.query(CtcRecord)
-        .filter(CtcRecord.user_id == user_id, CtcRecord.employee_id == employee_id)
+        .filter(CtcRecord.entity_id == entity_id, CtcRecord.employee_id == employee_id)
         .filter(CtcRecord.effective_from <= as_of)
         .order_by(CtcRecord.effective_from.desc())
         .limit(2)
@@ -466,11 +466,11 @@ def _latest_ctcs(db: Session, user_id, employee_id: str, as_of: date) -> list[Ct
     )
 
 
-def _prior_register_rows(db: Session, user_id, period_month: date) -> dict[str, SalaryRegisterRow]:
+def _prior_register_rows(db: Session, entity_id, period_month: date) -> dict[str, SalaryRegisterRow]:
     prev = _prev_month(period_month)
     register = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user_id, SalaryRegister.period_month == prev)
+        .filter(SalaryRegister.entity_id == entity_id, SalaryRegister.period_month == prev)
         .first()
     )
     if not register:
@@ -731,7 +731,7 @@ def _compare_uploaded(
 
 def validate_employees(
     db: Session,
-    user: User,
+    entity: Entity,
     components: list[ComponentConfig],
     employees: list[dict[str, Any]],
     run_type: str,
@@ -746,9 +746,9 @@ def validate_employees(
     # ConfigService provides the config-driven PF/ESIC settings; we also keep
     # StatutorySettings for PT/LWF state lists which are not yet in ConfigService.
     cfg_svc  = ConfigService(db)
-    pf_cfg   = cfg_svc.get_pf_config(user.id)
-    esic_cfg = cfg_svc.get_esic_config(user.id)
-    rule_thresholds = cfg_svc.get_rule_thresholds(user.id)
+    pf_cfg   = cfg_svc.get_pf_config(entity.id)
+    esic_cfg = cfg_svc.get_esic_config(entity.id)
+    rule_thresholds = cfg_svc.get_rule_thresholds(entity.id)
     settings = _get_or_default_settings(db, user)   # still used for PT/LWF states
 
     comp_by_key = _component_key_map(components)
@@ -769,7 +769,7 @@ def validate_employees(
         days_in_month = calendar.monthrange(as_of.year, as_of.month)[1]
     # Note: individual rows may override days_in_month via total_days / month_days column
 
-    prior_rows = _prior_register_rows(db, user.id, period_month) if period_month else {}
+    prior_rows = _prior_register_rows(db, entity.id, period_month) if period_month else {}
 
     results: list[dict[str, Any]] = []
 
@@ -906,12 +906,12 @@ def validate_employees(
             state_pt,
             pt_base,
             as_of,
-            user_id=user.id,
+            entity_id=entity.id,
             gender=emp_gender,
             run_month=run_month,
         )
         lwf_erate, lwf_orate, lwf_eamt, lwf_oamt = lookup_lwf(
-            db, state_lwf, lwf_base, as_of, user_id=user.id
+            db, state_lwf, lwf_base, as_of, entity_id=entity.id
         )
 
         msg = _compare_uploaded(row, ["pt", "pt_amount"], pt_due, "PT")
@@ -951,22 +951,22 @@ def validate_employees(
                     )
 
                 pt_due_m, _ = lookup_pt(
-                    db, state_pt, m_pt, as_of, user_id=user.id,
+                    db, state_pt, m_pt, as_of, entity_id=entity.id,
                     gender=emp_gender, run_month=run_month,
                 )
                 pt_due_base, _ = lookup_pt(
-                    db, state_pt, pt_base, as_of, user_id=user.id,
+                    db, state_pt, pt_base, as_of, entity_id=entity.id,
                     gender=emp_gender, run_month=run_month,
                 )
                 if pt_due_m != pt_due_base:
                     errors.append(f"PT slab may change for {label} when arrears are included.")
 
-                _, _, lwf_e_m, _ = lookup_lwf(db, state_lwf, m_lwf, as_of, user_id=user.id)
+                _, _, lwf_e_m, _ = lookup_lwf(db, state_lwf, m_lwf, as_of, entity_id=entity.id)
                 if lwf_e_m != lwf_eamt:
                     errors.append(f"LWF employee amount may change for {label} due to wage band shift.")
 
         # CTC-driven LOP & increment arrear checks
-        ctcs = _latest_ctcs(db, user.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
+        ctcs = _latest_ctcs(db, entity.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
         ctc_monthly: dict[str, Decimal] = {}
         if ctcs:
             for k, v in (ctcs[0].annual_components or {}).items():
@@ -1012,7 +1012,7 @@ def validate_employees(
                 from app.services.tax_year_defaults import fy_label_for_date
 
                 fy = fy_label_for_date(period_month or as_of)
-                year_cfg = cfg_svc.get_tax_year(user.id, fy)
+                year_cfg = cfg_svc.get_tax_year(entity.id, fy)
                 regime_raw = str(row.get("tax_regime") or row.get("regime") or "new").strip().lower()
                 regime = "old" if regime_raw.startswith("old") else "new"
                 if year_cfg is not None:

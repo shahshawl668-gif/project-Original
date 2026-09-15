@@ -6,6 +6,7 @@ from app.routers import (
     components,
     ctc,
     income_tax,
+    org,
     payroll,
     reference,
     rule_engine,
@@ -19,6 +20,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router)
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(org.router, prefix="/org", tags=["org"])
 api_router.include_router(components.router, prefix="/components", tags=["components"])
 api_router.include_router(statutory.router, prefix="/settings/statutory", tags=["statutory"])
 api_router.include_router(reference.router, prefix="/reference", tags=["reference"])

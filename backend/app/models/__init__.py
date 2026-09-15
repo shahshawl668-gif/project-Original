@@ -1,4 +1,5 @@
 from app.models.user import PasswordResetToken, RefreshToken, User
+from app.models.org import Entity, EntityAccess, OrgMembership, Organization
 from app.models.component import ComponentConfig
 from app.models.reference import PtSlab, LwfRate
 from app.models.payroll_run import PayrollRun
@@ -11,6 +12,10 @@ from app.models.rule_preferences import TenantRulePreference
 
 __all__ = [
     "User",
+    "Organization",
+    "Entity",
+    "OrgMembership",
+    "EntityAccess",
     "RefreshToken",
     "PasswordResetToken",
     "ComponentConfig",

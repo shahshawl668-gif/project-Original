@@ -22,6 +22,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import Base, SessionLocal, apply_column_patches, engine
+from app.migrations import run_migrations
+from app.services import tenancy
 from app.deps import SYSTEM_USER_EMAIL
 from app.envelope import err_payload, ok
 from app.models import User
@@ -36,12 +38,15 @@ logging.basicConfig(
 
 
 def _ensure_system_user(db) -> None:
+    """Create the anonymous-dev fallback user, with an organization to work in."""
     existing = db.query(User).filter(User.email == SYSTEM_USER_EMAIL).first()
     if existing:
         if getattr(existing, "role", None) != "system":
             existing.role = "system"
             db.add(existing)
-            db.commit()
+        if tenancy.get_membership(db, existing) is None:
+            tenancy.provision_org_for_user(db, existing, org_name="PayrollCheck")
+        db.commit()
         return
     user = User(
         email=SYSTEM_USER_EMAIL,
@@ -50,6 +55,8 @@ def _ensure_system_user(db) -> None:
         role="system",
     )
     db.add(user)
+    db.flush()
+    tenancy.provision_org_for_user(db, user, org_name="PayrollCheck")
     db.commit()
 
 
@@ -57,6 +64,7 @@ def _ensure_system_user(db) -> None:
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     apply_column_patches()
+    run_migrations(engine)
     db = SessionLocal()
     try:
         seed_reference_data(db)

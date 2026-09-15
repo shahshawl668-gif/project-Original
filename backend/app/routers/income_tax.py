@@ -15,9 +15,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import User
+from app.models import Entity, User
 from app.services.config_service import ConfigService
 from app.services.income_tax_engine import (
     OldRegimeDeductions,
@@ -51,7 +51,7 @@ class CompareRequest(BaseModel):
 
 
 def _year_cfg(db: Session, user: User, financial_year: str | None):
-    year_cfg = ConfigService(db).get_tax_year(user.id, financial_year)
+    year_cfg = ConfigService(db).get_tax_year(entity.id, financial_year)
     if year_cfg is None:
         raise HTTPException(
             status_code=422,
@@ -95,10 +95,10 @@ def compare(
 
 @router.get("/years")
 def list_years(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     db: Session = Depends(get_db),
 ):
-    cfg = ConfigService(db).get_income_tax_config(user.id)
+    cfg = ConfigService(db).get_income_tax_config(entity.id)
     return ok(
         {
             "default_year": cfg.default_year,

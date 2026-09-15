@@ -9,10 +9,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import (
     ComponentConfig,
+    Entity,
     PayrollRun,
     SalaryRegister,
     SalaryRegisterRow,
@@ -41,11 +42,11 @@ def _to_first_of_month(d: date | None) -> date | None:
     return d.replace(day=1)
 
 
-def _suppressed_rule_ids(db: Session, user_id: uuid.UUID) -> set[str]:
+def _suppressed_rule_ids(db: Session, entity_id: uuid.UUID) -> set[str]:
     rows = (
         db.query(TenantRulePreference.rule_id)
         .filter(
-            TenantRulePreference.user_id == user_id,
+            TenantRulePreference.entity_id == entity_id,
             TenantRulePreference.suppressed.is_(True),
         )
         .all()
@@ -56,6 +57,7 @@ def _suppressed_rule_ids(db: Session, user_id: uuid.UUID) -> set[str]:
 def _persist_salary_register(
     db: Session,
     user: User,
+    entity: Entity,
     period_month: date,
     filename: str | None,
     employees: list[dict],
@@ -65,7 +67,7 @@ def _persist_salary_register(
 
     existing = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id, SalaryRegister.period_month == period_month)
+        .filter(SalaryRegister.entity_id == entity.id, SalaryRegister.period_month == period_month)
         .first()
     )
     if existing:
@@ -76,6 +78,7 @@ def _persist_salary_register(
     else:
         register = SalaryRegister(
             user_id=user.id,
+        entity_id=entity.id,
             period_month=period_month,
             filename=filename,
             employee_count=len(employees),
@@ -120,6 +123,7 @@ def _persist_salary_register(
             SalaryRegisterRow(
                 register_id=register.id,
                 user_id=user.id,
+        entity_id=entity.id,
                 period_month=period_month,
                 employee_id=eid,
                 employee_name=ename if isinstance(ename, str) else None,
@@ -162,6 +166,7 @@ async def upload_payroll(
     meta: str = Form(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     try:
         payload = json.loads(meta)
@@ -183,7 +188,7 @@ async def upload_payroll(
         raise HTTPException(status_code=400, detail=str(e))
 
     columns, employees = dataframe_to_employees(df)
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     comp_names = {c.component_name for c in comps}
     missing, warnings = validate_required_columns(columns, comp_names, strict=strict)
 
@@ -191,6 +196,7 @@ async def upload_payroll(
 
     run = PayrollRun(
         user_id=user.id,
+        entity_id=entity.id,
         run_type=run_type,
         effective_month_from=eff_from_d,
         effective_month_to=eff_to_d,
@@ -202,7 +208,7 @@ async def upload_payroll(
 
     persist_period = _to_first_of_month(period_month_d or eff_to_d)
     if persist_period and comps and not missing:
-        _persist_salary_register(db, user, persist_period, file.filename, employees, comps)
+        _persist_salary_register(db, user, entity, persist_period, file.filename, employees, comps)
 
     out = UploadParseResponse(
         columns=columns,
@@ -219,8 +225,9 @@ def validate_payroll(
     body: ValidateRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before validation.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
@@ -245,10 +252,11 @@ def list_payroll_runs(
     limit: int = 20,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     runs = (
         db.query(PayrollRun)
-        .filter(PayrollRun.user_id == user.id)
+        .filter(PayrollRun.entity_id == entity.id)
         .order_by(PayrollRun.created_at.desc())
         .limit(limit)
         .all()
@@ -272,10 +280,11 @@ def list_payroll_runs(
 def list_salary_registers(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     regs = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id)
+        .filter(SalaryRegister.entity_id == entity.id)
         .order_by(SalaryRegister.period_month.desc())
         .all()
     )
@@ -297,13 +306,14 @@ def get_salary_register(
     register_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     try:
         rid = uuid.UUID(register_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Register not found")
     reg = (
-        db.query(SalaryRegister).filter(SalaryRegister.id == rid, SalaryRegister.user_id == user.id).first()
+        db.query(SalaryRegister).filter(SalaryRegister.id == rid, SalaryRegister.entity_id == entity.id).first()
     )
     if not reg:
         raise HTTPException(status_code=404, detail="Register not found")
@@ -340,6 +350,7 @@ def export_findings_excel(
     body: ValidateRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     """Run validation and return findings as an Excel workbook (binary stream, not JSON envelope)."""
     try:
@@ -348,7 +359,7 @@ def export_findings_excel(
     except ImportError:
         raise HTTPException(status_code=500, detail="openpyxl not installed.")
 
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before export.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
@@ -484,17 +495,17 @@ def export_findings_excel(
 
 
 @router.get("/dashboard-stats")
-def dashboard_stats(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    n_comp = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).count()
+def dashboard_stats(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    n_comp = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).count()
     last_run = (
         db.query(PayrollRun)
-        .filter(PayrollRun.user_id == user.id)
+        .filter(PayrollRun.entity_id == entity.id)
         .order_by(PayrollRun.created_at.desc())
         .first()
     )
     last_register = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id)
+        .filter(SalaryRegister.entity_id == entity.id)
         .order_by(SalaryRegister.period_month.desc())
         .first()
     )

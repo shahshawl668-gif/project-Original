@@ -11,6 +11,7 @@ from app.database import get_db
 from app.deps import SYSTEM_USER_EMAIL, get_current_user
 from app.envelope import ok
 from app.models import RefreshToken, User
+from app.services import tenancy
 from app.models.user import PasswordResetToken
 from app.schemas.auth import (
     LoginRequest,
@@ -64,6 +65,13 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
         role=role,
     )
     db.add(user)
+    db.flush()
+
+    # Every user needs somewhere to put data. A fresh signup gets an
+    # organization with one entity; a practice adds the rest of its client
+    # book afterwards and flips org_type from the settings screen.
+    tenancy.provision_org_for_user(db, user, org_name=body.company_name)
+
     db.commit()
     db.refresh(user)
     tokens = _issue_tokens(db, user)
