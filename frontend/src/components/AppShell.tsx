@@ -26,6 +26,7 @@ import {
   ChevronDown,
   Building2,
   Command,
+  IndianRupee,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -38,7 +39,10 @@ import { PageTransition } from "@/components/motion/PageTransition";
 const navGroups = [
   {
     label: "Overview",
-    items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/cost", label: "Cost analysis", icon: IndianRupee },
+    ],
   },
   {
     label: "Payroll",
