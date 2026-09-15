@@ -313,7 +313,9 @@ doc.push(
   bullet("Scores every employee 0–100 and classifies the register by risk."),
   h3("What is it costing, and what are we exposed to?"),
   bullet("A cost bridge decomposing month-on-month movement into joiners, leavers, pay changes, attendance and arrears, reconciling exactly to the observed change."),
+  bullet("The full Indian cost taxonomy — earnings split as Basic & DA, HRA, allowances, variable pay and arrears; employer EPF, EDLI and admin, ESI, the gratuity accrual and LWF on top; employee EPF, ESI, PT and TDS inside gross — sliced by any of nine reporting dimensions over months, quarters or financial-year quarters, and compared between any two months."),
   bullet("A statutory exposure ledger carrying each open shortfall from the month it arose, with interest and damages accruing by age."),
+  bullet("Filing readiness against the statutory calendar: the due date for each obligation arising from a wage month, and what would make the filing wrong. Readiness, never confirmation — nothing here can see a portal."),
   bullet("Period sign-off and an evidence pack recording who approved the month, what they saw, what they accepted and on what grounds, and which rules and rates were in force."),
 
   h2("1.1 The structural position"),
@@ -560,6 +562,7 @@ const RULE_FAMILIES = {
   TDS: ["Tax deducted", "20% minimum without PAN under section 206AA; monthly TDS against an annualised projection for the declared regime."],
   MST: ["Against the master", "Absent from the employee master; paid before joining; paid after exit; PF deducted without a UAN; ESIC deducted without an IP number."],
   ATT: ["Against attendance", "Paid days and LOP disagreeing with the attendance register; paid with no attendance row; paid days exceeding the month's calendar days."],
+  ARR: ["Arrears", "Arrear pay checked in the same pass as regular pay: the arrear window against the CTC effective date, per-month recomputation of PT and LWF across the window, and statutory contributions on the arrear itself. Silent on a row that carries no arrear."],
   MW: ["Minimum wage", "Wages below the applicable floor; or no rate on file — reported as unverifiable rather than passed."],
 };
 
@@ -677,7 +680,10 @@ const LISTINGS = [
     ["backend/app/services/finding_store.py", "Fingerprinting and state reconciliation"],
   ]],
   ["7.6 Business intelligence", [
-    ["backend/app/services/analytics.py", "Cost bridge and statutory exposure"],
+    ["backend/app/services/analytics.py", "Cost bridge, exposure, dimensional cost analysis and period comparison"],
+    ["backend/app/services/cost_model.py", "The Indian cost taxonomy and the CTC identity"],
+    ["backend/app/services/dimensions.py", "The reporting attributes cost is analysed by, snapshotted per period"],
+    ["backend/app/services/compliance_calendar.py", "Statutory due dates and filing readiness"],
     ["backend/app/schemas/exposure_config.py", "Interest and damages configuration"],
   ]],
   ["7.7 Minimum wage", [
@@ -688,7 +694,12 @@ const LISTINGS = [
     ["backend/app/models/signoff.py", "Period sign-off and its event log"],
     ["backend/app/services/signoff.py", "Snapshot assembly and state transitions"],
   ]],
-  ["7.9 Frontend entity context", [
+  ["7.9 One-pass validation and the PF basis", [
+    ["backend/app/services/row_composition.py", "What one register row is made of, and over what window"],
+    ["backend/app/services/pf_basis.py", "Whether an employee's PF is restricted to the ceiling"],
+    ["backend/app/services/finding_taxonomy.py", "Missing, mismatch or issue — the shape of the report"],
+  ]],
+  ["7.10 Frontend entity context", [
     ["frontend/src/context/EntityContext.tsx", "Entity provider"],
     ["frontend/src/components/EntitySwitcher.tsx", "Client switcher"],
   ]],
@@ -725,6 +736,12 @@ doc.push(pageBreak());
  */
 const SUITE_NOTES = {
   "test_analytics.py": "Cost bridge reconciliation and exposure arithmetic",
+  "test_compliance_calendar.py": "Statutory due dates, blockers, and that no status can read as filed",
+  "test_cost_analysis.py": "Dimension snapshotting, grouping, granularity, filters, reconciliation",
+  "test_cost_taxonomy.py": "The CTC identity, reported-over-computed precedence, period comparison",
+  "test_pf_basis.py": "Per-employee restriction: source precedence and tri-state flags",
+  "test_unified_validation.py": "Regular, arrear and increment validated in one pass",
+  "test_validate_endpoint.py": "The validate route end to end, against the 500 it once returned",
   "test_entity_isolation.py": "The access boundary, roles and header resolution",
   "test_entity_migration.py": "Upgrade of a database built on the pre-entity schema",
   "test_finding_lifecycle.py": "Recurrence, resolution, waivers, expiry, audit trail",
@@ -736,6 +753,7 @@ const SUITE_NOTES = {
   "test_workforce_ingest.py": "Upload, preview, commit and effective dating",
   "test_workforce_parse.py": "Header aliasing, day-first dates, typing, derivation",
   "test_workforce_rules.py": "MST-*, ATT-*, GRAT-004/005, including silence conditions",
+
 };
 
 const undocumentedSuites = Object.keys(tests.suites).filter((f) => !SUITE_NOTES[f]).sort();
@@ -847,7 +865,9 @@ doc.push(
       ["Minimum wage rates ship empty", "The engine and checks are built; the rate table is tenant-maintained. Rates vary by state, zone, scheduled employment and skill, and the VDA component is revised twice yearly, so no shipped dataset stays correct. Coverage gaps are reported rather than passed over — but they remain gaps."],
       ["No ECR or challan reconciliation", "Validation compares computed against the register. It does not compare either against what was filed or what was paid. That three-way match is the most direct predictor of a notice and is the obvious next build."],
       ["No recomputation from first principles", "The product checks and explains; it does not independently recompute gross from CTC and attendance."],
-      ["TDS is heuristic", "Risk flags plus a regime projection, not a full Form 16 computation."],
+      ["TDS is heuristic", "Risk flags plus a regime projection, not a full Form 16 computation. On the cost dashboard TDS is whatever the register reported, or nothing: projecting a month's tax needs the whole year's declarations, which a cost query does not have and must not guess at."],
+      ["Filing readiness is not filing status", "The compliance panel reports the statutory due date and what would make a filing wrong. It has no connection to EPFO, ESIC, a state PT portal or TRACES, so it cannot know that a return was submitted — and never says so."],
+      ["Professional tax due dates vary by state", "The readiness calendar uses the 20th as the common case and says on the row that it varies. PT is state law, and quoting one date as though it were uniform would be wrong more often than it was right."],
       ["Exposure rates are defaults, not advice", "The interest and damages parameters reflect rates in common use. They are configurable per entity and carry no legal force of their own."],
       ["No full-and-final module", "Leave encashment and notice pay have no dedicated handling."],
       ["No PDF report", "The evidence pack is an Excel workbook."],

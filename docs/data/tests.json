@@ -1,17 +1,23 @@
 {
  "suites": {
   "test_analytics.py": 17,
+  "test_compliance_calendar.py": 18,
+  "test_cost_analysis.py": 21,
+  "test_cost_taxonomy.py": 37,
   "test_entity_isolation.py": 10,
   "test_entity_migration.py": 5,
   "test_finding_lifecycle.py": 11,
   "test_income_tax_engine.py": 18,
   "test_minimum_wage.py": 12,
+  "test_pf_basis.py": 38,
   "test_pf_esic_engines.py": 10,
   "test_signoff.py": 12,
   "test_spec_rules.py": 19,
+  "test_unified_validation.py": 23,
+  "test_validate_endpoint.py": 6,
   "test_workforce_ingest.py": 8,
   "test_workforce_parse.py": 8,
   "test_workforce_rules.py": 14
  },
- "total": 144
+ "total": 287
 }

@@ -26,11 +26,17 @@ auth	/api/auth/password-reset-confirm	POST	Password Reset Confirm
 auth	/api/auth/password-reset-request	POST	Password Reset Request	
 auth	/api/auth/refresh	POST	Refresh Token	
 auth	/api/auth/signup	POST	Signup	
+bi	/api/bi/compliance	GET	Compliance	Filing readiness against the statutory calendar.
+bi	/api/bi/cost-analysis	GET	Cost Analysis	Payroll cost by any reporting dimension, over month, quarter or year.
 bi	/api/bi/cost-bridge	GET	Cost Bridge	Why payroll cost moved between two months.
+bi	/api/bi/cost-compare	GET	Cost Compare	Two wage months side by side, across the taxonomy and by one dimension.
+bi	/api/bi/dimensions	GET	Dimensions	Which dimensions exist and what values they hold, for building filters.
 bi	/api/bi/exposure	GET	Exposure	Accumulated statutory shortfall, aged, with interest and damages.
 bi	/api/bi/exposure/config	GET	Get Exposure Config	
 bi	/api/bi/exposure/config	PUT	Put Exposure Config	
 bi	/api/bi/exposure/config/reset	POST	Reset Exposure Config	
+bi	/api/bi/measures	GET	Measures	The cost taxonomy — every measure, its layer and what it means.
+bi	/api/bi/periods	GET	Periods	Months that hold a register, so a comparison can only name a real one.
 bi	/api/bi/trend	GET	Cost Trend	
 components	/api/components	GET	List Components	
 components	/api/components	POST	Create Component	

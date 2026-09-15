@@ -435,6 +435,16 @@
    },
    {
     "flags": "",
+    "name": "business_unit",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "cost_center",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
     "name": "employment_type",
     "type": "VARCHAR(64)"
    },
@@ -442,6 +452,11 @@
     "flags": "",
     "name": "skill_category",
     "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "pf_restricted",
+    "type": "BOOLEAN"
    },
    {
     "flags": "",
@@ -1460,8 +1475,23 @@
    },
    {
     "flags": "NOT NULL",
+    "name": "dimensions",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
     "name": "arrears",
     "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "deductions",
+    "type": "JSON"
+   },
+   {
+    "flags": "",
+    "name": "pf_restricted",
+    "type": "BOOLEAN"
    },
    {
     "flags": "",
