@@ -1,0 +1,404 @@
+"""
+Payroll business intelligence.
+
+Validation answers "is this month right?". These answer the questions an HR head
+actually gets asked and usually cannot evidence:
+
+* *why did payroll cost move?* — a bridge that decomposes the month-on-month
+  change into joiners, leavers, pay changes, attendance and arrears;
+* *what are we exposed to?* — under-deduction carried forward with interest and
+  damages accruing by age, which is how a PF or ESIC notice is actually sized.
+
+The bridge is built so its components sum exactly to the observed change. A
+decomposition that leaves an unexplained remainder is worse than none: it
+invites the reader to trust a number that has quietly lost some of the money.
+"""
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field
+from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.models import FindingState, SalaryRegister, SalaryRegisterRow
+
+CENT = Decimal("0.01")
+
+
+def _q(value: Decimal) -> Decimal:
+    return value.quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def _dec(value: Any) -> Decimal:
+    if value in (None, ""):
+        return Decimal("0")
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
+
+
+def previous_month(period: date) -> date:
+    return (period.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+
+@dataclass
+class EmployeeMonth:
+    """One employee's pay in one month, split the way the bridge needs it."""
+
+    employee_id: str
+    employee_name: str | None
+    regular: Decimal
+    arrears: Decimal
+    paid_days: Decimal | None
+
+    @property
+    def total(self) -> Decimal:
+        return self.regular + self.arrears
+
+
+def _load_month(db: Session, entity_id: uuid.UUID, period: date) -> dict[str, EmployeeMonth]:
+    register = (
+        db.query(SalaryRegister)
+        .filter(
+            SalaryRegister.entity_id == entity_id,
+            SalaryRegister.period_month == period.replace(day=1),
+        )
+        .first()
+    )
+    if register is None:
+        return {}
+
+    rows = db.query(SalaryRegisterRow).filter(SalaryRegisterRow.register_id == register.id).all()
+    out: dict[str, EmployeeMonth] = {}
+    for row in rows:
+        regular = sum((_dec(v) for v in (row.components or {}).values()), Decimal("0"))
+        arrears = sum((_dec(v) for v in (row.arrears or {}).values()), Decimal("0"))
+        arrears += _dec(row.increment_arrear_total)
+        out[row.employee_id] = EmployeeMonth(
+            employee_id=row.employee_id,
+            employee_name=row.employee_name,
+            regular=regular,
+            arrears=arrears,
+            paid_days=_dec(row.paid_days) if row.paid_days is not None else None,
+        )
+    return out
+
+
+@dataclass
+class BridgeEffect:
+    """One bar of the waterfall."""
+
+    key: str
+    label: str
+    amount: Decimal = Decimal("0")
+    employee_count: int = 0
+    contributors: list[dict] = field(default_factory=list)
+
+    def as_dict(self, top_n: int = 5) -> dict:
+        ranked = sorted(self.contributors, key=lambda c: abs(c["amount"]), reverse=True)[:top_n]
+        return {
+            "key": self.key,
+            "label": self.label,
+            "amount": float(_q(self.amount)),
+            "employee_count": self.employee_count,
+            "top_contributors": [
+                {**c, "amount": float(_q(c["amount"]))} for c in ranked
+            ],
+        }
+
+
+def cost_bridge(
+    db: Session, entity_id: uuid.UUID, period: date, compare_to: date | None = None
+) -> dict:
+    """
+    Decompose the change in total payroll cost between two months.
+
+    For someone present in both months the change is attributed in a fixed
+    order, because the alternative is an arbitrary split:
+
+    1. **arrears** — what was paid for earlier periods, taken out first so it
+       cannot masquerade as a pay rise;
+    2. **attendance** — the prior month's daily rate applied to the change in
+       paid days, so a short month does not read as a pay cut;
+    3. **pay change** — the residual, which is what actually changed about the
+       person's pay.
+
+    Joiners and leavers are attributed whole, since there is no prior or
+    subsequent figure to compare them against.
+    """
+    period = period.replace(day=1)
+    prior_period = (compare_to or previous_month(period)).replace(day=1)
+
+    current = _load_month(db, entity_id, period)
+    prior = _load_month(db, entity_id, prior_period)
+
+    effects = {
+        "joiners": BridgeEffect("joiners", "New joiners"),
+        "leavers": BridgeEffect("leavers", "Leavers"),
+        "pay_change": BridgeEffect("pay_change", "Pay changes"),
+        "attendance": BridgeEffect("attendance", "Attendance / LOP"),
+        "arrears": BridgeEffect("arrears", "Arrears & one-time"),
+    }
+
+    for employee_id, row in current.items():
+        if employee_id in prior:
+            continue
+        effect = effects["joiners"]
+        effect.amount += row.total
+        effect.employee_count += 1
+        effect.contributors.append(
+            {"employee_id": employee_id, "employee_name": row.employee_name, "amount": row.total}
+        )
+
+    for employee_id, row in prior.items():
+        if employee_id in current:
+            continue
+        effect = effects["leavers"]
+        effect.amount -= row.total
+        effect.employee_count += 1
+        effect.contributors.append(
+            {"employee_id": employee_id, "employee_name": row.employee_name, "amount": -row.total}
+        )
+
+    for employee_id, now in current.items():
+        was = prior.get(employee_id)
+        if was is None:
+            continue
+
+        arrear_delta = now.arrears - was.arrears
+
+        # Attendance is only separable when the prior month gives a daily rate
+        # to value the change at. Without it the whole regular movement is a
+        # pay change, which is the honest attribution rather than a guess.
+        attendance_delta = Decimal("0")
+        if was.paid_days and was.paid_days > 0 and now.paid_days is not None:
+            daily = was.regular / was.paid_days
+            attendance_delta = daily * (now.paid_days - was.paid_days)
+
+        pay_delta = (now.regular - was.regular) - attendance_delta
+
+        for key, amount in (
+            ("arrears", arrear_delta),
+            ("attendance", attendance_delta),
+            ("pay_change", pay_delta),
+        ):
+            if amount == 0:
+                continue
+            effect = effects[key]
+            effect.amount += amount
+            effect.employee_count += 1
+            effect.contributors.append(
+                {"employee_id": employee_id, "employee_name": now.employee_name, "amount": amount}
+            )
+
+    opening = sum((r.total for r in prior.values()), Decimal("0"))
+    closing = sum((r.total for r in current.values()), Decimal("0"))
+    explained = sum((e.amount for e in effects.values()), Decimal("0"))
+
+    return {
+        "period": period.isoformat(),
+        "compare_to": prior_period.isoformat(),
+        "opening_cost": float(_q(opening)),
+        "closing_cost": float(_q(closing)),
+        "net_change": float(_q(closing - opening)),
+        "effects": [effects[k].as_dict() for k in
+                    ("joiners", "leavers", "pay_change", "attendance", "arrears")],
+        # Rounding only; the decomposition is exact by construction. Surfaced
+        # rather than hidden so the reader can see the bridge closes.
+        "unexplained": float(_q((closing - opening) - explained)),
+        "headcount": {
+            "opening": len(prior),
+            "closing": len(current),
+            "joiners": effects["joiners"].employee_count,
+            "leavers": effects["leavers"].employee_count,
+        },
+    }
+
+
+def cost_trend(db: Session, entity_id: uuid.UUID, months: int = 12) -> dict:
+    """Total cost, headcount and cost per head for the most recent periods."""
+    registers = (
+        db.query(SalaryRegister)
+        .filter(SalaryRegister.entity_id == entity_id)
+        .order_by(SalaryRegister.period_month.desc())
+        .limit(months)
+        .all()
+    )
+    points = []
+    for register in sorted(registers, key=lambda r: r.period_month):
+        rows = _load_month(db, entity_id, register.period_month)
+        total = sum((r.total for r in rows.values()), Decimal("0"))
+        arrears = sum((r.arrears for r in rows.values()), Decimal("0"))
+        headcount = len(rows)
+        points.append(
+            {
+                "period": register.period_month.isoformat(),
+                "total_cost": float(_q(total)),
+                "regular_cost": float(_q(total - arrears)),
+                "arrears": float(_q(arrears)),
+                "headcount": headcount,
+                "cost_per_head": float(_q(total / headcount)) if headcount else 0.0,
+            }
+        )
+    return {"points": points}
+
+
+# ---------------------------------------------------------------------------
+# Statutory exposure
+# ---------------------------------------------------------------------------
+def _months_between(start: date, end: date) -> int:
+    """Whole months from ``start`` to ``end``, floored at zero."""
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    if end.day < start.day:
+        months -= 1
+    return max(months, 0)
+
+
+def _damages_rate(config, months_delayed: int) -> Decimal:
+    """The graded damages rate applicable to a delay of ``months_delayed``."""
+    for slab in config.damages_slabs:
+        if slab.up_to_months is None or months_delayed <= slab.up_to_months:
+            return slab.annual_rate_pct
+    return config.damages_slabs[-1].annual_rate_pct if config.damages_slabs else Decimal("0")
+
+
+def _classify(rule_id: str, config) -> str | None:
+    """Which statute a rule's shortfall belongs to, if any."""
+    for head, prefixes in (
+        ("pf", config.pf_rule_prefixes),
+        ("esic", config.esic_rule_prefixes),
+        ("pt", config.pt_rule_prefixes),
+        ("tds", config.tds_rule_prefixes),
+    ):
+        if any(rule_id.startswith(prefix) for prefix in prefixes):
+            return head
+    return None
+
+
+def statutory_exposure(
+    db: Session,
+    entity_id: uuid.UUID,
+    config,
+    as_of: date | None = None,
+) -> dict:
+    """
+    Size the accumulated statutory shortfall, aged.
+
+    Each still-outstanding shortfall is carried from the month it arose and
+    grown by the interest and damages its age attracts. Two consequences worth
+    stating plainly, because both are deliberate:
+
+    * **waived findings are included.** A waiver is a decision not to act, not a
+      reason the money stops being owed. They are reported in their own line so
+      the reader can see what has been accepted;
+    * **findings that later resolved are excluded**, since the underlying
+      shortfall was corrected.
+    """
+    as_of = as_of or date.today()
+
+    states = (
+        db.query(FindingState)
+        .filter(
+            FindingState.entity_id == entity_id,
+            FindingState.state.in_(("open", "acknowledged", "waived")),
+        )
+        .all()
+    )
+
+    heads: dict[str, dict] = {
+        head: {
+            "head": head,
+            "principal": Decimal("0"),
+            "interest": Decimal("0"),
+            "damages": Decimal("0"),
+            "finding_count": 0,
+            "oldest_period": None,
+        }
+        for head in ("pf", "esic", "pt", "tds")
+    }
+    waived_principal = Decimal("0")
+    ageing: dict[str, Decimal] = {"0-3m": Decimal("0"), "3-6m": Decimal("0"), "6-12m": Decimal("0"), "12m+": Decimal("0")}
+    unclassified = Decimal("0")
+
+    for state in states:
+        head = _classify(state.rule_id, config)
+        principal = _dec(state.last_financial_impact)
+        if principal <= 0:
+            continue
+        if head is None:
+            unclassified += principal
+            continue
+
+        # Contributions fall due the month after the wage month, which is where
+        # the delay starts running from.
+        due_from = state.first_seen_period
+        months_delayed = _months_between(due_from, as_of)
+        years = Decimal(months_delayed) / Decimal("12")
+
+        interest = Decimal("0")
+        damages = Decimal("0")
+        if head == "pf":
+            interest = principal * config.pf.interest_annual_pct / Decimal("100") * years
+            rate = _damages_rate(config.pf, months_delayed)
+            damages = principal * rate / Decimal("100") * years
+            cap = principal * config.pf.damages_cap_pct_of_arrears / Decimal("100")
+            damages = min(damages, cap)
+        elif head == "esic":
+            interest = principal * config.esic.interest_annual_pct / Decimal("100") * years
+
+        bucket = heads[head]
+        bucket["principal"] += principal
+        bucket["interest"] += interest
+        bucket["damages"] += damages
+        bucket["finding_count"] += 1
+        if bucket["oldest_period"] is None or due_from < bucket["oldest_period"]:
+            bucket["oldest_period"] = due_from
+
+        if state.state == "waived":
+            waived_principal += principal
+
+        if months_delayed < 3:
+            ageing["0-3m"] += principal
+        elif months_delayed < 6:
+            ageing["3-6m"] += principal
+        elif months_delayed < 12:
+            ageing["6-12m"] += principal
+        else:
+            ageing["12m+"] += principal
+
+    by_head = []
+    total_principal = total_interest = total_damages = Decimal("0")
+    for head in ("pf", "esic", "pt", "tds"):
+        bucket = heads[head]
+        total_principal += bucket["principal"]
+        total_interest += bucket["interest"]
+        total_damages += bucket["damages"]
+        by_head.append(
+            {
+                "head": head,
+                "principal": float(_q(bucket["principal"])),
+                "interest": float(_q(bucket["interest"])),
+                "damages": float(_q(bucket["damages"])),
+                "total": float(_q(bucket["principal"] + bucket["interest"] + bucket["damages"])),
+                "finding_count": bucket["finding_count"],
+                "oldest_period": bucket["oldest_period"].isoformat() if bucket["oldest_period"] else None,
+            }
+        )
+
+    return {
+        "as_of": as_of.isoformat(),
+        "by_head": by_head,
+        "total_principal": float(_q(total_principal)),
+        "total_interest": float(_q(total_interest)),
+        "total_damages": float(_q(total_damages)),
+        "total_exposure": float(_q(total_principal + total_interest + total_damages)),
+        # Included in the totals above, and shown separately so an accepted
+        # exposure is visible rather than implied.
+        "waived_principal_included": float(_q(waived_principal)),
+        "ageing": {k: float(_q(v)) for k, v in ageing.items()},
+        "unclassified_principal": float(_q(unclassified)),
+    }

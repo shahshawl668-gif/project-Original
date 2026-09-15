@@ -60,6 +60,7 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("slab_rules", "employer_amount", "NUMERIC(14, 2)"),
     ("statutory_config", "income_tax_config", "JSON"),
     ("statutory_config", "rule_thresholds_config", "JSON"),
+    ("statutory_config", "exposure_config", "JSON"),
 ]
 
 

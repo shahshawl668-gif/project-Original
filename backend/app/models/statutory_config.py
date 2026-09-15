@@ -38,6 +38,8 @@ class StatutoryConfig(Base):
     # cleanly; None is treated as "use seeded defaults" by ConfigService.
     income_tax_config:       Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
     rule_thresholds_config:  Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    # Interest and damages rates used to size accumulated statutory exposure.
+    exposure_config:         Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
