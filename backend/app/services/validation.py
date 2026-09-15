@@ -25,6 +25,7 @@ from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
 from app.services.pf_engine import compute_pf, compute_pf_wage
 from app.services.risk_scoring import compute_risk, risk_distribution
+from app.services.workforce_rules import check_against_inputs
 from app.services.rule_engine_v2 import (
     ValidationFinding,
     batch_findings,
@@ -1091,6 +1092,8 @@ def validate_employees(
                 "paid_days": float(paid_days) if paid_days is not None else None,
                 "lop_days": float(lop_days) if lop_days is not None else None,
                 "days_in_month": days_in_month,
+                "gross_total": float(sum(regular.values(), Decimal("0"))),
+                "gratuity_paid": float(regular.get("gratuity", Decimal("0"))),
                 "lop_check": {
                     "checked": bool(ctc_monthly) and (paid_days is not None or lop_days is not None),
                     "diffs": lop_diffs,
@@ -1123,6 +1126,33 @@ def validate_employees(
         extra = batch_by_eid.get(rec["employee_id"], [])
         if extra:
             rec["findings"] = [f.to_dict() for f in extra] + rec["findings"]
+
+    # Compare the register against its inputs — the employee master and the
+    # attendance register. These are the only checks that can see a wrong input
+    # processed consistently, so they lead the list.
+    if period_month:
+        input_findings = check_against_inputs(
+            db,
+            entity.id,
+            period_month=period_month,
+            rows=[
+                {
+                    "employee_id": rec["employee_id"],
+                    "employee_name": rec.get("employee_name"),
+                    "paid_days": rec.get("paid_days"),
+                    "lop_days": rec.get("lop_days"),
+                    "gross": rec.get("gross_total"),
+                    "pf_employee": rec.get("pf_amount_employee"),
+                    "esic_employee": rec.get("esic_employee"),
+                    "gratuity": rec.get("gratuity_paid"),
+                }
+                for rec in results
+            ],
+        )
+        for rec in results:
+            found = input_findings.get(rec["employee_id"])
+            if found:
+                rec["findings"] = found + rec["findings"]
 
     summary = recompute_risk_and_summary(results)
     return results, summary
