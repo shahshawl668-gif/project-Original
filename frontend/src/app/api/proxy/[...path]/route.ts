@@ -11,6 +11,10 @@ const SAFE_FORWARD_HEADERS = new Set([
   "user-agent",
   "x-request-id",
   "x-tenant-id",
+  // Names the entity a request acts on. Dropping it here would silently send
+  // every proxied request to the caller's default entity, which on a practice
+  // account means quietly writing one client's data against another.
+  "x-entity-id",
 ]);
 
 function backendOrigin(): string {

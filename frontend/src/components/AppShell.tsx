@@ -31,6 +31,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { ApiHealthBadge } from "@/components/ApiHealthBadge";
+import { EntitySwitcher } from "@/components/EntitySwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageTransition } from "@/components/motion/PageTransition";
 
@@ -372,6 +373,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="ml-auto flex items-center gap-2">
+              <EntitySwitcher />
               <ThemeToggle />
               <button
                 type="button"
