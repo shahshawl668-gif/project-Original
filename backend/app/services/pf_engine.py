@@ -91,6 +91,7 @@ def compute_pf(
     pf_wage: Decimal,
     pf_cfg: PFConfig,
     voluntary_wage: Decimal = Decimal("0"),
+    restrict_override: bool | None = None,
     employment_type: str = "employee",
 ) -> dict[str, Any]:
     """
@@ -105,8 +106,14 @@ def compute_pf(
     wage_cfg = pf_cfg.wage
     ceiling  = wage_cfg.wage_ceiling
 
+    # Restriction is settled per employee, not per employer. Two people on the
+    # same payroll can legitimately sit on different bases: one capped at the
+    # ceiling, one contributing on full wage. ``restrict_override`` carries that
+    # decision in; None means fall back to the entity's configured default.
+    restrict = wage_cfg.restrict_to_ceiling if restrict_override is None else bool(restrict_override)
+
     # Ceiling / voluntary logic
-    if wage_cfg.restrict_to_ceiling:
+    if restrict:
         capped = min(pf_wage, ceiling)
         pf_type = "restricted" if pf_wage > ceiling else "unrestricted"
     else:
@@ -143,9 +150,11 @@ def compute_pf(
         "pf_edli":           float(edli),
         "pf_admin":          float(admin),
         "pf_voluntary_employee": float(vol_emp),
-        # Used by rule_engine_v2 for STAT-001/002/003 checks
+        # Used by rule_engine_v2 for STAT-001/002/003 and PF-009 checks
         "_ceiling":          float(ceiling),
-        "_restrict":         wage_cfg.restrict_to_ceiling,
+        # The wage before any cap, so a rule can test the opposite basis.
+        "_pf_wage_full":     float(pf_wage),
+        "_restrict":         restrict,
         "_emp_rate":         float(rates.employee_rate),
         "_er_rate":          float(rates.employer_rate),
     }

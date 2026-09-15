@@ -41,6 +41,8 @@ EMPLOYEE_MASTER_ALIASES: dict[str, tuple[str, ...]] = {
     "grade": ("grade", "band", "level", "job_grade"),
     "employment_type": ("employment_type", "emp_type", "employee_type", "worker_type", "category", "nature_of_employment"),
     "skill_category": ("skill_category", "skill", "skill_level", "skill_type", "minimum_wage_category"),
+    "pf_restricted": ("pf_restricted", "pf_restriction", "pf_capped", "pf_cap", "restrict_pf",
+                      "pf_ceiling_applied", "pf_limit_applied", "pf_basis"),
     "pan": ("pan", "pan_no", "pan_number", "income_tax_pan"),
     "aadhaar": ("aadhaar", "aadhar", "aadhaar_no", "aadhar_no", "aadhaar_number", "uidai"),
     "uan": ("uan", "uan_no", "uan_number", "universal_account_number"),
@@ -64,6 +66,7 @@ ATTENDANCE_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 DATE_FIELDS = {"date_of_joining", "date_of_exit", "date_of_birth"}
+BOOLEAN_FIELDS = {"pf_restricted"}
 DECIMAL_FIELDS = {
     "calendar_days", "present_days", "paid_days", "lop_days",
     "paid_leave_days", "weekly_off_days", "holiday_days", "overtime_hours",
@@ -182,6 +185,10 @@ def _rows_from_frame(
                 record[canonical] = parse_date(value)
             elif canonical in DECIMAL_FIELDS:
                 record[canonical] = parse_decimal(value)
+            elif canonical in BOOLEAN_FIELDS:
+                from app.services.pf_basis import parse_flag
+
+                record[canonical] = parse_flag(value)
             else:
                 record[canonical] = _clean_text(value)
 

@@ -48,8 +48,8 @@ router = APIRouter()
 MASTER_FIELDS = (
     "employee_name", "date_of_joining", "date_of_exit", "date_of_birth",
     "gender", "work_state", "work_location", "department", "designation",
-    "grade", "employment_type", "skill_category", "pan", "aadhaar", "uan",
-    "pf_number", "esic_ip_number", "bank_account", "ifsc",
+    "grade", "employment_type", "skill_category", "pf_restricted",
+    "pan", "aadhaar", "uan", "pf_number", "esic_ip_number", "bank_account", "ifsc",
 )
 
 ATTENDANCE_FIELDS = (

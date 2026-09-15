@@ -21,6 +21,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -93,6 +94,11 @@ class EmployeeRecord(Base):
     employment_type: Mapped[str | None] = mapped_column(String(64))
     # Minimum-wage classification: unskilled | semi-skilled | skilled | highly-skilled.
     skill_category: Mapped[str | None] = mapped_column(String(64))
+
+    # Whether PF is capped at the statutory ceiling for this person. Nullable on
+    # purpose: "not stated" must fall through to the entity default rather than
+    # silently meaning unrestricted. See services/pf_basis.py.
+    pf_restricted: Mapped[bool | None] = mapped_column(Boolean)
 
     # Statutory identifiers, validated against their own check rules.
     pan: Mapped[str | None] = mapped_column(String(16))

@@ -23,8 +23,10 @@ from app.models import (
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
+from app.services.pf_basis import PFBasis, resolve as resolve_pf_basis
 from app.services.pf_engine import compute_pf, compute_pf_wage
 from app.services.risk_scoring import compute_risk, risk_distribution
+from app.services.workforce import master_as_of
 from app.services.workforce_rules import check_against_inputs
 from app.services.rule_engine_v2 import (
     ValidationFinding,
@@ -772,6 +774,10 @@ def validate_employees(
 
     prior_rows = _prior_register_rows(db, entity.id, period_month) if period_month else {}
 
+    # The master as it stood at period end — used for the PF basis and for the
+    # cost dimensions snapshotted onto each result row.
+    master_rows = master_as_of(db, entity.id, period_month or as_of) if (period_month or as_of) else {}
+
     results: list[dict[str, Any]] = []
 
     for row in employees:
@@ -853,7 +859,25 @@ def validate_employees(
         # (e.g. no components have pf_applicable=True but config says use flag).
         effective_pf_wage = pf_wage_cfg if pf_wage_cfg > Decimal("0") else pf_wage
 
-        pf_calc  = compute_pf(effective_pf_wage, pf_cfg, pf_vol_wage, employment_type)
+        # PF restriction is settled per employee: register row, then master,
+        # then the entity default. Two people on one payroll can sit on
+        # different bases, and applying one switch to both mis-states PF for
+        # whoever is on the other — compounding every month.
+        master_record = master_rows.get(eid)
+        pf_basis = resolve_pf_basis(
+            row,
+            master_record.pf_restricted if master_record is not None else None,
+            pf_cfg.wage.restrict_to_ceiling,
+        )
+        pf_calc  = compute_pf(
+            effective_pf_wage, pf_cfg, pf_vol_wage,
+            restrict_override=pf_basis.restricted,
+            employment_type=employment_type,
+        )
+        # Carried so a finding can say where the basis came from, not just what
+        # it was — "entity default" and "stated on the register" call for
+        # different corrections.
+        pf_calc["_basis_source"] = pf_basis.source
 
         # Step 2: Recompute ESIC wage using config.
         esic_wage_cfg = compute_esic_wage(regular, comp_by_key, esic_cfg)
@@ -1066,6 +1090,8 @@ def validate_employees(
                 "employee_name": ename if isinstance(ename, str) else None,
                 "pf_wage": float(pf_wage),
                 "pf_type": pf_calc["pf_type"],
+                "pf_restricted": pf_basis.restricted,
+                "pf_basis_source": pf_basis.source,
                 "pf_amount_employee": pf_calc["pf_employee"],
                 "pf_amount_employer": pf_calc["pf_employer_total"],
                 "pf_breakup": {

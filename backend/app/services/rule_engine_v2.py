@@ -111,6 +111,36 @@ class ValidationFinding:
 
 # ── main builder ─────────────────────────────────────────────────────────────
 
+def _alternate_basis_match(
+    actual: Decimal,
+    pf_calc: dict[str, Any],
+    rate_pct: float,
+    tolerance: Decimal,
+) -> tuple[str, str] | None:
+    """
+    Does ``actual`` equal PF computed on the opposite restriction basis?
+
+    Returns (basis_used, basis_configured) when it does, else None. Only the
+    two bases are compared — an amount that matches neither is an ordinary
+    miscalculation and is reported as one.
+    """
+    full_wage = _dec(pf_calc.get("_pf_wage_full", pf_calc.get("pf_wage_capped", 0)))
+    ceiling = _dec(pf_calc.get("_ceiling", 0))
+    if full_wage <= 0 or ceiling <= 0 or full_wage <= ceiling:
+        return None  # below the ceiling the two bases give the same answer
+
+    rate = Decimal(str(rate_pct)) / Decimal("100")
+    restricted_amt = _q(ceiling * rate)
+    unrestricted_amt = _q(full_wage * rate)
+
+    restricted_now = bool(pf_calc.get("_restrict", True))
+    if restricted_now and (actual - unrestricted_amt).copy_abs() <= tolerance:
+        return ("unrestricted (full wage)", "restricted to the ceiling")
+    if not restricted_now and (actual - restricted_amt).copy_abs() <= tolerance:
+        return ("restricted to the ceiling", "unrestricted (full wage)")
+    return None
+
+
 def build_findings(
     employee_id: str,
     employee_name: str | None,
@@ -337,12 +367,29 @@ def build_findings(
         pf_emp_actual = _dec(pf_emp_raw)
         diff_pf = (pf_emp_actual - pf_emp_exp).copy_abs()
         if diff_pf > tol_stat:
-            fail("STAT-001", "PF Employee Contribution Mismatch", "pf_employee",
-                 pf_emp_exp, pf_emp_actual, "CRITICAL",
-                 f"PF employee ({_fmt(pf_emp_actual)}) ≠ computed ({_fmt(pf_emp_exp)}) "
-                 f"[PF wage {_fmt(pf_capped)} × {pf_emp_rate_pct:.2f}%]. PF type: {pf_calc.get('pf_type','?')}.",
-                 f"Correct pf_employee to ₹{_fmt(pf_emp_exp)}. Verify PF wage = {_fmt(pf_capped)}.",
-                 float(diff_pf))
+            # Before calling it a miscalculation, check whether the figure is
+            # simply the *other* restriction basis computed correctly. That
+            # turns "PF is wrong by ₹1,438" into "PF was computed unrestricted
+            # but this employee is on the restricted basis" — a different
+            # problem with a different fix, and the one that actually recurs.
+            alt = _alternate_basis_match(pf_emp_actual, pf_calc, pf_emp_rate_pct, tol_stat)
+            if alt is not None:
+                used, should_be = alt
+                fail("PF-009", "PF Restriction Basis Mismatch", "pf_employee",
+                     pf_emp_exp, pf_emp_actual, "CRITICAL",
+                     f"PF employee ({_fmt(pf_emp_actual)}) matches the {used} basis, but this "
+                     f"employee is set to {should_be} "
+                     f"(source: {pf_calc.get('_basis_source', 'entity default')}).",
+                     f"Either correct the deduction to ₹{_fmt(pf_emp_exp)}, or change this "
+                     f"employee's PF basis to {used} if that is the agreed position.",
+                     float(diff_pf))
+            else:
+                fail("STAT-001", "PF Employee Contribution Mismatch", "pf_employee",
+                     pf_emp_exp, pf_emp_actual, "CRITICAL",
+                     f"PF employee ({_fmt(pf_emp_actual)}) ≠ computed ({_fmt(pf_emp_exp)}) "
+                     f"[PF wage {_fmt(pf_capped)} × {pf_emp_rate_pct:.2f}%]. PF type: {pf_calc.get('pf_type','?')}.",
+                     f"Correct pf_employee to ₹{_fmt(pf_emp_exp)}. Verify PF wage = {_fmt(pf_capped)}.",
+                     float(diff_pf))
         else:
             pass_("STAT-001", "PF Employee Contribution", "pf_employee", pf_emp_actual)
     elif pf_emp_exp > Decimal("0"):
