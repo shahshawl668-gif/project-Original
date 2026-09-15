@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
   Table, TableRow, TableCell, WidthType, ShadingType, BorderStyle,
@@ -8,7 +9,8 @@ const {
 } = require("docx");
 
 const REPO = path.resolve(__dirname, "..");
-const SCRATCH = path.join(__dirname, "data");
+const DATA = path.join(__dirname, "data");
+const OUT = path.join(__dirname, "PayrollCheck-Architecture-Reference.docx");
 
 // ---------------------------------------------------------------- palette
 const INK = "1A2327";
@@ -21,8 +23,71 @@ const CODE_BG = "F6F8F8";
 const CONTENT_W = 10080; // Letter 12240 - 2*1080 margins
 
 // ---------------------------------------------------------------- helpers
-const read = (p) => fs.readFileSync(path.join(REPO, p), "utf8");
-const readScratch = (p) => fs.readFileSync(path.join(SCRATCH, p), "utf8");
+function fail(message, remedy) {
+  console.error(`\nerror: ${message}`);
+  if (remedy) console.error(`       ${remedy}`);
+  process.exit(1);
+}
+
+/** Read a source file for the listings in section 7, naming it if it is gone. */
+function read(rel) {
+  try {
+    return fs.readFileSync(path.join(REPO, rel), "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      fail(
+        `section 7 lists "${rel}", which does not exist.`,
+        "It was renamed or removed — update LISTINGS in this script."
+      );
+    }
+    throw e;
+  }
+}
+
+/** Read a generated input, pointing at the script that produces it. */
+function readData(name) {
+  try {
+    return fs.readFileSync(path.join(DATA, name), "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      fail(`missing generated input docs/data/${name}.`, "Run ./docs/data/regenerate.sh first.");
+    }
+    throw e;
+  }
+}
+
+/**
+ * Digest of the sources the generated inputs were derived from.
+ *
+ * Must match the recipe in regenerate.sh exactly. Comparing the two is what
+ * makes a document built from stale inputs impossible rather than merely
+ * unlikely — the failure mode this guards against is a confidently wrong
+ * document, which is worse than no document at all.
+ */
+function sourceDigest() {
+  const digest = crypto.createHash("sha256");
+  const roots = [
+    ["backend/app", [".py"]],
+    ["frontend/src", [".ts", ".tsx"]],
+  ];
+  for (const [root, exts] of roots) {
+    const found = [];
+    (function walk(dir) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === "__pycache__") continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (exts.includes(path.extname(entry.name))) found.push(full);
+      }
+    })(path.join(REPO, root));
+    // Sorted by the repo-relative path, matching pathlib.rglob + sorted().
+    for (const full of found.map((f) => path.relative(REPO, f)).sort()) {
+      digest.update(full);
+      digest.update(fs.readFileSync(path.join(REPO, full)));
+    }
+  }
+  return digest.digest("hex");
+}
 
 function h1(text) {
   return new Paragraph({
@@ -155,16 +220,55 @@ function pageBreak() {
 }
 
 // ---------------------------------------------------------------- data
-const schema = JSON.parse(readScratch("schema.json"));
-const apiRows = readScratch("api.tsv").trim().split("\n").map((l) => l.split("\t"));
-const inventory = readScratch("inventory.txt").trim().split("\n").map((l) => {
-  const m = l.match(/^(\S+)\s+(\d+)\s*(.*)$/);
-  return m ? { file: m[1], lines: m[2], desc: m[3].trim() } : null;
-}).filter(Boolean);
-const feRows = readScratch("fe.txt").trim().split("\n").map((l) => {
-  const m = l.match(/^(\S+)\s+(\d+)$/);
-  return m ? { file: m[1], lines: m[2] } : null;
-}).filter(Boolean);
+const meta = JSON.parse(readData("meta.json"));
+const schema = JSON.parse(readData("schema.json"));
+const rules = JSON.parse(readData("rules.json"));
+const tests = JSON.parse(readData("tests.json"));
+const apiRows = readData("api.tsv").trim().split("\n").map((l) => l.split("\t"));
+const inventory = readData("inventory.tsv").trim().split("\n").map((l) => {
+  const [file, lines, desc] = l.split("\t");
+  return { file, lines, desc: (desc || "").trim() };
+});
+const feRows = readData("frontend.tsv").trim().split("\n").map((l) => {
+  const [file, lines] = l.split("\t");
+  return { file, lines };
+});
+
+// Refuse to document a tree the inputs were not derived from.
+if (sourceDigest() !== meta.source_digest) {
+  fail(
+    "the generated inputs in docs/data are stale — the source has changed since they were produced.",
+    "Run ./docs/data/regenerate.sh, then build again."
+  );
+}
+
+// Every table must be classified. An unclassified one is a documentation gap,
+// so say so rather than filing it under a catch-all nobody reads.
+const ungrouped = Object.keys(schema).filter((t) => !schema[t].group).sort();
+if (ungrouped.length) {
+  fail(
+    `${ungrouped.length} table(s) are not assigned to a group: ${ungrouped.join(", ")}.`,
+    "Add them to GROUPS in docs/data/regenerate.sh, then regenerate."
+  );
+}
+
+// ---------------------------------------------------------------- counts
+const tableCount = Object.keys(schema).length;
+const columnCount = Object.values(schema).reduce((n, t) => n + t.columns.length, 0);
+const endpointCount = apiRows.length;
+const ruleCount = Object.values(rules).reduce((n, ids) => n + ids.length, 0);
+const ruleFamilyCount = Object.keys(rules).length;
+const backendFileCount = inventory.length;
+const sourceFileCount = backendFileCount + feRows.length;
+const suiteCount = Object.keys(tests.suites).length;
+const codebaseLines =
+  inventory.reduce((n, r) => n + Number(r.lines), 0) +
+  feRows.reduce((n, r) => n + Number(r.lines), 0);
+
+const builtFrom = meta.dirty ? `${meta.commit} (modified tree)` : meta.commit;
+const builtDate = new Date(meta.commit_date || Date.now()).toLocaleDateString("en-GB", {
+  day: "numeric", month: "long", year: "numeric",
+});
 
 const doc = [];
 
@@ -179,12 +283,15 @@ doc.push(
   new Paragraph({
     border: { top: { style: BorderStyle.SINGLE, size: 12, color: ACCENT, space: 12 } },
     spacing: { after: 240 }, children: [] }),
-  runs([{ t: "Repository   ", c: MUTED }, { t: "shahshawl668-gif/project-Original", mono: true }], { after: 60 }),
-  runs([{ t: "Branch       ", c: MUTED }, { t: "claude/indian-payroll-validation-bi-34wfz2", mono: true }], { after: 60 }),
-  runs([{ t: "Commit       ", c: MUTED }, { t: "7772a59", mono: true }], { after: 60 }),
-  runs([{ t: "Date         ", c: MUTED }, { t: "15 September 2026", mono: true }], { after: 60 }),
-  runs([{ t: "Scope        ", c: MUTED }, { t: "31 tables · 108 endpoints · 74 rules · 145 source files · 144 tests", mono: true }], { after: 600 }),
+  runs([{ t: "Repository   ", c: MUTED }, { t: meta.repository, mono: true }], { after: 60 }),
+  runs([{ t: "Branch       ", c: MUTED }, { t: meta.branch, mono: true }], { after: 60 }),
+  runs([{ t: "Commit       ", c: MUTED }, { t: builtFrom, mono: true }], { after: 60 }),
+  runs([{ t: "Date         ", c: MUTED }, { t: builtDate, mono: true }], { after: 60 }),
+  runs([{ t: "Scope        ", c: MUTED }, {
+    t: `${tableCount} tables · ${endpointCount} endpoints · ${ruleCount} rules · `
+     + `${sourceFileCount} source files · ${tests.total} tests`, mono: true }], { after: 600 }),
   p("This document is a reference for engineers, reviewers and auditors. It describes the complete system architecture, every database table and column, every API endpoint, every validation rule, and the full source of the modules that carry the product's logic. Source for the remaining modules is in the repository at the commit named above.", { color: MUTED, size: 19 }),
+  p("It is generated from the codebase, not written by hand: the schema comes from live ORM metadata, the endpoints from the generated OpenAPI spec, the rule catalogue from the rule identifiers in the source, the test inventory from pytest's own collection, and the module map from each file's docstring. The build refuses to run against inputs that do not match the source tree, so these figures cannot have drifted from the commit above.", { color: MUTED, size: 19 }),
   pageBreak()
 );
 
@@ -340,17 +447,27 @@ doc.push(
 
 // ================================================================ 3. DATA MODEL
 doc.push(h1("3. Data model"));
-doc.push(p("31 tables, 347 columns. Grouped by role below. Every tenant-scoped table carries entity_id; user_id where present records who created the row."));
+doc.push(p(`${tableCount} tables, ${columnCount} columns. Grouped by role below. Every tenant-scoped table carries entity_id; user_id where present records who created the row.`));
 
-const GROUP_ORDER = ["Tenancy", "Identity", "Configuration", "Payroll inputs", "Findings & assurance", "Other"];
+const GROUP_ORDER = ["Tenancy", "Identity", "Configuration", "Payroll inputs", "Findings & assurance"];
 const GROUP_NOTES = {
   "Tenancy": "The access boundary. Everything else hangs off Entity.",
   "Identity": "Accounts and token storage. Unchanged by the entity work except that provisioning now creates an organization at signup.",
   "Configuration": "What each entity's rules are. All FY- or date-versioned so an old month validates against the rules that applied then.",
   "Payroll inputs": "The four ingested datasets and their upload metadata. Master and CTC records are effective-dated; registers and attendance are keyed by period.",
   "Findings & assurance": "What validation produced, what humans decided about it, and the frozen record of approval.",
-  "Other": "Tables not otherwise grouped.",
 };
+
+// Any group produced by regenerate.sh must have a note here, or the section
+// renders a silent blank where an explanation should be.
+for (const group of new Set(Object.values(schema).map((t) => t.group))) {
+  if (!GROUP_ORDER.includes(group)) {
+    fail(`schema group "${group}" has no ordering entry.`, "Add it to GROUP_ORDER in this script.");
+  }
+  if (!GROUP_NOTES[group]) {
+    fail(`schema group "${group}" has no description.`, "Add it to GROUP_NOTES in this script.");
+  }
+}
 
 let secNo = 0;
 for (const g of GROUP_ORDER) {
@@ -382,7 +499,7 @@ doc.push(pageBreak());
 // ================================================================ 4. API
 doc.push(
   h1("4. API surface"),
-  p("108 endpoints. Every route is also mounted under /api/v1 as a versioned alias. All JSON responses use the envelope { success, data, error }; the evidence pack and the Excel audit export return binary streams instead."),
+  p(`${endpointCount} endpoints. Every route is also mounted under /api/v1 as a versioned alias. All JSON responses use the envelope { success, data, error }; the evidence pack and the Excel audit export return binary streams instead.`),
   p("Unless noted, endpoints resolve an entity via get_current_entity and are therefore scoped to one employer. Mutating endpoints additionally require role ≥ analyst; entity management and sign-off require role ≥ manager.")
 );
 
@@ -417,33 +534,76 @@ for (const tag of TAG_ORDER) {
 doc.push(pageBreak());
 
 // ================================================================ 5. RULES
-const RULE_FAMILIES = [
-  ["DATA-001…009", "Data quality", "Missing employee id, negative values, duplicate employee ids, all-zero components, negative deductions, and duplicate PAN / UAN / Aadhaar / bank account across employees."],
-  ["COMP-001/002", "Component mapping", "Columns present in the register that map to no configured component; configured components with no column."],
-  ["STRUCT-001/002", "Structure risk", "PF wage below a configured share of gross (possible PF avoidance); allowance-heavy pay design above a configured threshold."],
-  ["AGG-001…004", "Aggregates", "Gross versus the sum of earnings; net versus gross less statutory deductions, within configurable rupee tolerances."],
-  ["STAT-001…014", "Statutory amounts", "PF, ESIC, PT and LWF expected versus actual; bonus eligibility; gratuity exemption cap; TDS risk on a high-income month."],
-  ["PF-004/008", "PF specifics", "EPS split against the ceiling; EPS zero for post-September-2014 joiners above the wage ceiling; EPS stopping at 58; international workers not capped."],
-  ["ESI-005/006", "ESIC specifics", "Disability coverage ceiling; daily-wage employee-share exemption."],
-  ["PT-002/003", "Professional tax", "Article 276 annual cap of ₹2,500; PT deducted in a state that levies none."],
-  ["LOP-001…003", "Loss of pay", "paid_days + lop_days against the denominator; component proration against CTC monthly × paid / total."],
-  ["MOM-001…006", "Month on month", "New joiner; component spike or drop against the prior month; components appearing or disappearing; increment arrears against CTC."],
-  ["ADV-001…003", "Trend", "Salary spikes and drops measured against prior gross."],
-  ["ID-001…008", "Identity", "PAN format and section 206AA, Aadhaar Verhoeff checksum, UAN, ESI number and IFSC formats, working age, pay before joining or after exit."],
-  ["BON-001/002", "Bonus", "Payment of Bonus Act eligibility at ₹21,000 and the 8.33–20% band on min(Basic + DA, ₹7,000)."],
-  ["GRAT-002…005", "Gratuity", "Service gate of five years, waived on death or disablement; the 15/26 formula; service years computed from the master's joining date; and an explicit finding when that date is absent."],
-  ["TDS-001/002", "Tax deducted", "20% minimum without PAN under section 206AA; monthly TDS against an annualised projection for the declared regime."],
-  ["MST-001…005", "Against the master", "Absent from the employee master; paid before joining; paid after exit; PF deducted without a UAN; ESIC deducted without an IP number."],
-  ["ATT-001…004", "Against attendance", "Paid days and LOP disagreeing with the attendance register; paid with no attendance row; paid days exceeding the month's calendar days."],
-  ["MW-001/003", "Minimum wage", "Wages below the applicable floor; or no rate on file — reported as unverifiable rather than passed."],
-];
+/**
+ * What each rule family checks.
+ *
+ * The identifiers themselves are scanned out of the source by regenerate.sh, so
+ * this map only supplies the prose. A family appearing in the code with no entry
+ * here fails the build — which is what stops a new rule from quietly going
+ * undocumented, the failure mode that matters most in a compliance product.
+ */
+const RULE_FAMILIES = {
+  DATA: ["Data quality", "Missing employee id, negative values, duplicate employee ids, all-zero components, negative deductions, and duplicate PAN / UAN / Aadhaar / bank account across employees."],
+  COMP: ["Component mapping", "Columns present in the register that map to no configured component; configured components with no column."],
+  STRUCT: ["Structure risk", "PF wage below a configured share of gross (possible PF avoidance); allowance-heavy pay design above a configured threshold."],
+  AGG: ["Aggregates", "Gross versus the sum of earnings; net versus gross less statutory deductions, within configurable rupee tolerances."],
+  STAT: ["Statutory amounts", "PF, ESIC, PT and LWF expected versus actual; bonus eligibility; gratuity exemption cap; TDS risk on a high-income month."],
+  PF: ["PF specifics", "EPS split against the ceiling; EPS zero for post-September-2014 joiners above the wage ceiling; EPS stopping at 58; international workers not capped."],
+  ESI: ["ESIC specifics", "Disability coverage ceiling; daily-wage employee-share exemption."],
+  PT: ["Professional tax", "Article 276 annual cap of ₹2,500; PT deducted in a state that levies none."],
+  LOP: ["Loss of pay", "paid_days + lop_days against the denominator; component proration against CTC monthly × paid / total."],
+  MOM: ["Month on month", "New joiner; component spike or drop against the prior month; components appearing or disappearing; increment arrears against CTC."],
+  ADV: ["Trend", "Salary spikes and drops measured against prior gross."],
+  ID: ["Identity", "PAN format and section 206AA, Aadhaar Verhoeff checksum, UAN, ESI number and IFSC formats, working age, pay before joining or after exit."],
+  BON: ["Bonus", "Payment of Bonus Act eligibility at ₹21,000 and the 8.33–20% band on min(Basic + DA, ₹7,000)."],
+  GRAT: ["Gratuity", "Service gate of five years, waived on death or disablement; the 15/26 formula; service years computed from the master's joining date; and an explicit finding when that date is absent."],
+  TDS: ["Tax deducted", "20% minimum without PAN under section 206AA; monthly TDS against an annualised projection for the declared regime."],
+  MST: ["Against the master", "Absent from the employee master; paid before joining; paid after exit; PF deducted without a UAN; ESIC deducted without an IP number."],
+  ATT: ["Against attendance", "Paid days and LOP disagreeing with the attendance register; paid with no attendance row; paid days exceeding the month's calendar days."],
+  MW: ["Minimum wage", "Wages below the applicable floor; or no rate on file — reported as unverifiable rather than passed."],
+};
+
+/** "001", "002", "003" → "001…003"; sparse sets stay enumerated. */
+function idRange(numbers) {
+  if (numbers.length === 1) return numbers[0];
+  const asInts = numbers.map(Number);
+  const contiguous = asInts.every((n, i) => i === 0 || n === asInts[i - 1] + 1);
+  if (contiguous) return `${numbers[0]}\u2026${numbers[numbers.length - 1]}`;
+  return numbers.join("/");
+}
+
+const undocumentedFamilies = Object.keys(rules).filter((f) => !RULE_FAMILIES[f]).sort();
+if (undocumentedFamilies.length) {
+  fail(
+    `rule famil${undocumentedFamilies.length === 1 ? "y" : "ies"} found in the source with no `
+      + `description: ${undocumentedFamilies.join(", ")}.`,
+    "Add an entry to RULE_FAMILIES in this script so the catalogue stays complete."
+  );
+}
+
+const staleFamilies = Object.keys(RULE_FAMILIES).filter((f) => !rules[f]).sort();
+if (staleFamilies.length) {
+  fail(
+    `RULE_FAMILIES describes famil${staleFamilies.length === 1 ? "y" : "ies"} no longer in the `
+      + `source: ${staleFamilies.join(", ")}.`,
+    "Remove the entr" + (staleFamilies.length === 1 ? "y" : "ies") + " from this script."
+  );
+}
+
+// Rendered in the order the families are described, which reads as a pipeline:
+// data quality, then structure, then statutory, then the input comparisons.
+const RULE_ROWS = Object.entries(RULE_FAMILIES).map(([family, [name, desc]]) => [
+  `${family}-${idRange(rules[family])}`,
+  name,
+  desc,
+]);
 doc.push(
   h1("5. Rule catalogue"),
-  p("74 rule identifiers across 18 families. Severity is CRITICAL, WARNING or INFO; each finding carries an expected value, an actual value, a difference, a reason, a suggested fix and a financial impact where one can be computed."),
+  p(`${ruleCount} rule identifiers across ${ruleFamilyCount} families. Severity is CRITICAL, WARNING or INFO; each finding carries an expected value, an actual value, a difference, a reason, a suggested fix and a financial impact where one can be computed.`),
   p("Every threshold these rules use is configurable per entity and versioned by financial year. The values quoted below are the seeded defaults, which reflect common India payroll audit practice and carry no legal force of their own."),
   table(
     ["Rule IDs", "Family", "What it checks"],
-    RULE_FAMILIES.map((r) => [r[0], r[1], r[2]]),
+    RULE_ROWS,
     [1750, 2000, 6330],
     [0]
   ),
@@ -534,10 +694,16 @@ const LISTINGS = [
   ]],
 ];
 
+const LISTING_FILES = LISTINGS.flatMap(([, files]) => files.map(([rel]) => rel));
+const LISTING_FILE_COUNT = LISTING_FILES.length;
+const LISTING_LINE_COUNT = LISTING_FILES.reduce(
+  (n, rel) => n + read(rel).split("\n").length, 0
+);
+
 doc.push(
   h1("7. Source listings"),
-  p("Full source of the modules that carry the product's logic — the tenancy model and its migration, the four ingestion paths, the rules that compare the register against its inputs, the findings lifecycle, the analytics, minimum wage, and sign-off."),
-  p("The remaining modules are either pre-existing statutory engines (rule_engine_v2.py, validation.py, the PF, ESIC and income-tax engines) or presentation code. They are inventoried in §6 and their source is in the repository at commit 7772a59.", { color: MUTED })
+  p(`Full source of ${LISTING_FILE_COUNT} modules totalling ${LISTING_LINE_COUNT.toLocaleString("en-GB")} lines — those that carry the product's logic — the tenancy model and its migration, the four ingestion paths, the rules that compare the register against its inputs, the findings lifecycle, the analytics, minimum wage, and sign-off. The codebase is ${codebaseLines.toLocaleString("en-GB")} lines in total; the rest is inventoried in section 6 rather than pasted.`),
+  p("The remaining modules are either pre-existing statutory engines (rule_engine_v2.py, validation.py, the PF, ESIC and income-tax engines) or presentation code. They are inventoried in §6 and their source is in the repository at the commit on the cover.", { color: MUTED })
 );
 for (const [section, files] of LISTINGS) {
   doc.push(h2(section));
@@ -549,26 +715,49 @@ for (const [section, files] of LISTINGS) {
 }
 doc.push(pageBreak());
 
+
+/**
+ * What each test suite pins down.
+ *
+ * Counts come from pytest's own collection, so they cannot disagree with what
+ * runs; this map supplies only the prose. A new suite with no entry fails the
+ * build rather than appearing as a blank row.
+ */
+const SUITE_NOTES = {
+  "test_analytics.py": "Cost bridge reconciliation and exposure arithmetic",
+  "test_entity_isolation.py": "The access boundary, roles and header resolution",
+  "test_entity_migration.py": "Upgrade of a database built on the pre-entity schema",
+  "test_finding_lifecycle.py": "Recurrence, resolution, waivers, expiry, audit trail",
+  "test_income_tax_engine.py": "Old and new regime (inherited)",
+  "test_minimum_wage.py": "Lookup precedence, proration, basis, coverage gaps",
+  "test_pf_esic_engines.py": "PF and ESIC engines (inherited)",
+  "test_signoff.py": "Snapshot immutability, role gate, workbook contents",
+  "test_spec_rules.py": "Statutory rule spec (inherited)",
+  "test_workforce_ingest.py": "Upload, preview, commit and effective dating",
+  "test_workforce_parse.py": "Header aliasing, day-first dates, typing, derivation",
+  "test_workforce_rules.py": "MST-*, ATT-*, GRAT-004/005, including silence conditions",
+};
+
+const undocumentedSuites = Object.keys(tests.suites).filter((f) => !SUITE_NOTES[f]).sort();
+if (undocumentedSuites.length) {
+  fail(
+    `test suite${undocumentedSuites.length === 1 ? "" : "s"} with no description: `
+      + undocumentedSuites.join(", ") + ".",
+    "Add an entry to SUITE_NOTES in this script."
+  );
+}
+
+const SUITE_ROWS = Object.entries(tests.suites)
+  .sort((a, b) => b[1] - a[1])
+  .map(([file, count]) => [file, String(count), SUITE_NOTES[file]]);
+
 // ================================================================ 8. TESTS
 doc.push(
   h1("8. Test architecture"),
-  p("144 scenarios across 12 suites, all passing at commit 7772a59 in roughly 27 seconds."),
+  p(`${tests.total} scenarios across ${suiteCount} suites, all passing at the commit on the cover.`),
   table(
     ["Suite", "Count", "What it pins"],
-    [
-      ["test_entity_migration.py", "5", "Upgrade of a database built on the pre-entity schema"],
-      ["test_entity_isolation.py", "10", "The access boundary, roles and header resolution"],
-      ["test_workforce_parse.py", "8", "Header aliasing, day-first dates, typing, derivation"],
-      ["test_workforce_ingest.py", "8", "Upload, preview, commit and effective dating"],
-      ["test_workforce_rules.py", "14", "MST-*, ATT-*, GRAT-004/005, including silence conditions"],
-      ["test_finding_lifecycle.py", "11", "Recurrence, resolution, waivers, expiry, audit trail"],
-      ["test_analytics.py", "17", "Cost bridge reconciliation and exposure arithmetic"],
-      ["test_minimum_wage.py", "12", "Lookup precedence, proration, basis, coverage gaps"],
-      ["test_signoff.py", "12", "Snapshot immutability, role gate, workbook contents"],
-      ["test_spec_rules.py", "19", "Statutory rule spec (inherited)"],
-      ["test_income_tax_engine.py", "18", "Old and new regime (inherited)"],
-      ["test_pf_esic_engines.py", "10", "PF and ESIC engines (inherited)"],
-    ],
+    SUITE_ROWS,
     [3200, 900, 5980],
     [0, 1]
   ),
@@ -678,8 +867,15 @@ doc.push(
 );
 
 // ================================================================ BUILD
+// Pinned to the commit date rather than "now", so an unchanged rebuild produces
+// an identical file. A binary that differs on every build is a permanent diff in
+// review and trains people to stop looking at it.
+const BUILD_TIME = new Date(meta.commit_date || 0);
+
 const document = new Document({
   creator: "PayrollCheck",
+  created: BUILD_TIME,
+  modified: BUILD_TIME,
   title: "PayrollCheck — Architecture & Code Reference",
   description: "Complete architecture, data model, API surface, rule catalogue and core source listings.",
   numbering: {
@@ -719,7 +915,7 @@ const document = new Document({
         children: [new Paragraph({
           alignment: AlignmentType.CENTER,
           children: [
-            new TextRun({ text: "commit 7772a59   ·   ", font: "Consolas", size: 15, color: MUTED }),
+            new TextRun({ text: `commit ${builtFrom}   \u00b7   `, font: "Consolas", size: 15, color: MUTED }),
             new TextRun({ children: [PageNumber.CURRENT], font: "Calibri", size: 15, color: MUTED }),
           ],
         })],
@@ -729,9 +925,61 @@ const document = new Document({
   }],
 });
 
-Packer.toBuffer(document).then((buf) => {
-  const out = path.join(REPO, "docs", "PayrollCheck-Architecture-Reference.docx");
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, buf);
-  console.log("wrote", out, (buf.length / 1024).toFixed(0) + " KB");
-});
+/**
+ * Repackage the document with every timestamp pinned to the commit date.
+ *
+ * Two things otherwise move on every build: the created/modified properties in
+ * docProps/core.xml (docx-js writes "now" and offers no option to override it),
+ * and the DOS timestamp on each zip entry. Left alone, an unchanged rebuild
+ * produces a different binary — which makes the committed file a permanent diff
+ * in review and trains people to stop looking at it.
+ */
+async function repackageDeterministically(buf, when) {
+  const JSZip = require("jszip");
+  const source = await JSZip.loadAsync(buf);
+  const iso = when.toISOString().replace(/\.\d+Z$/, "Z");
+
+  const out = new JSZip();
+  // Insertion order is preserved, and [Content_Types].xml must stay first.
+  const names = Object.keys(source.files).sort((a, b) =>
+    a === "[Content_Types].xml" ? -1 : b === "[Content_Types].xml" ? 1 : 0
+  );
+  for (const name of names) {
+    const entry = source.files[name];
+    if (entry.dir) continue;
+    let content = await entry.async("nodebuffer");
+    if (name === "docProps/core.xml") {
+      content = Buffer.from(
+        content
+          .toString("utf8")
+          .replace(/(<dcterms:created[^>]*>)[^<]*(<)/, `$1${iso}$2`)
+          .replace(/(<dcterms:modified[^>]*>)[^<]*(<)/, `$1${iso}$2`),
+        "utf8"
+      );
+    }
+    out.file(name, content, { date: when, createFolders: false });
+  }
+  return out.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+    compressionOptions: { level: 6 },
+  });
+}
+
+Packer.toBuffer(document)
+  .then((buf) => repackageDeterministically(buf, BUILD_TIME))
+  .then((out) => {
+    fs.mkdirSync(path.dirname(OUT), { recursive: true });
+    fs.writeFileSync(OUT, out);
+
+    console.log(`\nWrote ${path.relative(REPO, OUT)}  (${(out.length / 1024).toFixed(0)} KB)`);
+    console.log(`  built from   ${builtFrom} on ${meta.branch}`);
+    console.log(`  documents    ${tableCount} tables \u00b7 ${endpointCount} endpoints \u00b7 `
+              + `${ruleCount} rules \u00b7 ${sourceFileCount} files \u00b7 ${tests.total} tests`);
+    console.log(`  embeds       ${LISTING_FILE_COUNT} source files, `
+              + `${LISTING_LINE_COUNT.toLocaleString("en-GB")} lines`);
+    if (meta.dirty) {
+      console.log("  note         built from a modified working tree");
+    }
+  })
+  .catch((e) => fail(e.message));

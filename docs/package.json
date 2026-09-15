@@ -1,0 +1,14 @@
+{
+  "name": "payrollcheck-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generates the architecture and code reference document from the codebase.",
+  "scripts": {
+    "build": "./data/regenerate.sh && node build-architecture-doc.js && node validate-doc.js",
+    "build:only": "node build-architecture-doc.js && node validate-doc.js",
+    "validate": "node validate-doc.js"
+  },
+  "dependencies": {
+    "docx": "^9.0.0"
+  }
+}
