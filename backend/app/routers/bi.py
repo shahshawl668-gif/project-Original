@@ -18,7 +18,7 @@ from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import Entity, User
 from app.schemas.exposure_config import ExposureConfig
-from app.services import analytics
+from app.services import analytics, compliance_calendar
 from app.services.config_service import ConfigService
 
 router = APIRouter()
@@ -62,10 +62,21 @@ def cost_trend(
     return ok(analytics.cost_trend(db, entity.id, months))
 
 
+DIMENSION_FILTERS = (
+    "business_unit", "department", "cost_center", "work_location", "work_state",
+    "grade", "designation", "employment_type", "skill_category",
+)
+
+
+def _filters(**kwargs) -> dict[str, list[str]]:
+    return {k: v for k, v in kwargs.items() if v}
+
+
 @router.get("/cost-analysis")
 def cost_analysis(
     group_by: str = Query(default="department"),
     granularity: str = Query(default="month", pattern="^(month|quarter|year)$"),
+    measure: str = Query(default="ctc"),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
     business_unit: list[str] | None = Query(default=None),
@@ -84,28 +95,115 @@ def cost_analysis(
     """
     Payroll cost by any reporting dimension, over month, quarter or year.
 
+    Every response carries the whole cost taxonomy — earnings, employer
+    contributions, employee deductions and the CTC roll-up — so changing which
+    figure is on screen is a client-side choice rather than another round trip.
+    ``measure`` only selects what the series and the ranking are drawn on.
+
     Filters combine across dimensions and accept several values each, so
     "engineering and product, in Bangalore, grades M3 and above" is one request.
     """
-    filters = {
-        "business_unit": business_unit, "department": department, "cost_center": cost_center,
-        "work_location": work_location, "work_state": work_state, "grade": grade,
-        "designation": designation, "employment_type": employment_type,
-        "skill_category": skill_category,
-    }
     try:
         return ok(
             analytics.cost_analysis(
                 db, entity.id,
                 group_by=group_by,
                 granularity=granularity,
+                measure=measure,
                 date_from=_period(date_from, "date_from") if date_from else None,
                 date_to=_period(date_to, "date_to") if date_to else None,
-                filters={k: v for k, v in filters.items() if v},
+                filters=_filters(
+                    business_unit=business_unit, department=department,
+                    cost_center=cost_center, work_location=work_location,
+                    work_state=work_state, grade=grade, designation=designation,
+                    employment_type=employment_type, skill_category=skill_category,
+                ),
             )
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/cost-compare")
+def cost_compare(
+    period_a: str = Query(...),
+    period_b: str = Query(...),
+    group_by: str = Query(default="department"),
+    measure: str = Query(default="ctc"),
+    business_unit: list[str] | None = Query(default=None),
+    department: list[str] | None = Query(default=None),
+    cost_center: list[str] | None = Query(default=None),
+    work_location: list[str] | None = Query(default=None),
+    work_state: list[str] | None = Query(default=None),
+    grade: list[str] | None = Query(default=None),
+    designation: list[str] | None = Query(default=None),
+    employment_type: list[str] | None = Query(default=None),
+    skill_category: list[str] | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """
+    Two wage months side by side, across the taxonomy and by one dimension.
+
+    The pair is free, which is what makes one endpoint answer both questions
+    that get asked: two months in the same year, and the same month a year
+    apart.
+    """
+    try:
+        return ok(
+            analytics.cost_compare(
+                db, entity.id,
+                period_a=_period(period_a, "period_a"),
+                period_b=_period(period_b, "period_b"),
+                group_by=group_by,
+                measure=measure,
+                filters=_filters(
+                    business_unit=business_unit, department=department,
+                    cost_center=cost_center, work_location=work_location,
+                    work_state=work_state, grade=grade, designation=designation,
+                    employment_type=employment_type, skill_category=skill_category,
+                ),
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/measures")
+def measures():
+    """The cost taxonomy — every measure, its layer and what it means."""
+    return ok(analytics.measure_catalogue())
+
+
+@router.get("/periods")
+def periods(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Months that hold a register, so a comparison can only name a real one."""
+    return ok(analytics.available_periods(db, entity.id))
+
+
+@router.get("/compliance")
+def compliance(
+    period: str | None = Query(default=None),
+    months: int = Query(default=6, ge=1, le=24),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """
+    Filing readiness against the statutory calendar.
+
+    Readiness, not confirmation: this product does not connect to EPFO, ESIC,
+    state PT portals or TRACES, so it reports the due date and what would make a
+    filing wrong — never that one happened.
+    """
+    if period:
+        return ok(compliance_calendar.filing_readiness(db, entity.id, _period(period)))
+    return ok(compliance_calendar.filing_calendar(db, entity.id, months))
 
 
 @router.get("/dimensions")

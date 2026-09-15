@@ -65,6 +65,8 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("employee_records", "business_unit", "VARCHAR(255)"),
     ("employee_records", "cost_center", "VARCHAR(64)"),
     ("salary_register_rows", "dimensions", "JSON"),
+    ("salary_register_rows", "deductions", "JSON"),
+    ("salary_register_rows", "pf_restricted", "BOOLEAN"),
 ]
 
 

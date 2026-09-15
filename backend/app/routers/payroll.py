@@ -22,7 +22,9 @@ from app.models import (
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
 from app.services import finding_store
+from app.services.cost_model import capture_reported
 from app.services.dimensions import snapshot as dimension_snapshot
+from app.services.pf_basis import from_row as pf_flag_from_row
 from app.services.workforce import master_as_of
 from app.services.payroll_parse import (
     dataframe_to_employees,
@@ -115,6 +117,12 @@ def _persist_salary_register(
         components_json = {k: float(v) for k, v in regular.items()}
         arrears_json = {k: float(v) for k, v in arrear_by_base.items()}
         dimensions_json = dimension_snapshot(master_rows.get(eid), row)
+        # What the payroll system said it deducted and contributed, and its view
+        # of this employee's PF basis. Both are captured here rather than
+        # recomputed later: they are the register's own testimony about the
+        # month, and a cost report built on them is one the client recognises.
+        deductions_json = capture_reported(row)
+        pf_restricted_flag = pf_flag_from_row(row)
 
         paid_days_raw = row.get("paid_days")
         lop_days_raw = row.get("lop_days") or row.get("lop")
@@ -140,6 +148,8 @@ def _persist_salary_register(
                 components=components_json,
                 dimensions=dimensions_json,
                 arrears=arrears_json,
+                deductions=deductions_json,
+                pf_restricted=pf_restricted_flag,
                 increment_arrear_total=inc_arrear_total,
             )
         )

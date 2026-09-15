@@ -4,6 +4,10 @@ Payroll cost by dimension.
 The property that matters most is that a breakdown always sums to the total.
 A chart whose parts do not reconcile to the payroll everyone already agrees on
 is worse than no chart — it gets argued with instead of acted on.
+
+Grouping is asserted on gross, because that is the figure a register states and
+so the one a reader can tie back to it by hand. The taxonomy on top of it —
+employer contributions, deductions, CTC — has its own suite.
 """
 from __future__ import annotations
 
@@ -70,6 +74,8 @@ def _dims(**kw) -> dict:
 
 
 def _analyse(entity, **kw):
+    """Analyse on gross unless a test says otherwise — see the module docstring."""
+    kw.setdefault("measure", "gross")
     db = SessionLocal()
     try:
         return analytics.cost_analysis(db, entity.id, **kw)
@@ -121,8 +127,8 @@ def test_a_breakdown_sums_to_the_total(workspace):
     _register(entity, user, date(2026, 4, 1), APRIL)
 
     result = _analyse(entity, group_by="department")
-    assert result["totals"]["total"] == 100000.0
-    assert sum(g["total"] for g in result["matrix"]) == result["totals"]["total"]
+    assert result["totals"]["gross"] == 100000.0
+    assert sum(g["total"] for g in result["matrix"]) == result["totals"]["gross"]
 
 
 def test_groups_are_ranked_by_cost(workspace):
@@ -200,7 +206,7 @@ def test_a_date_range_narrows_the_result(workspace):
     result = _analyse(entity, group_by="department",
                       date_from=date(2026, 5, 1), date_to=date(2026, 6, 1))
     assert len(result["periods"]) == 2
-    assert result["totals"]["total"] == 20000.0
+    assert result["totals"]["gross"] == 20000.0
 
 
 # ── filters ─────────────────────────────────────────────────────────────────
@@ -210,7 +216,7 @@ def test_a_filter_narrows_to_matching_rows(workspace):
     _register(entity, user, date(2026, 4, 1), APRIL)
 
     result = _analyse(entity, group_by="department", filters={"work_location": ["Bangalore"]})
-    assert result["totals"]["total"] == 70000.0
+    assert result["totals"]["gross"] == 70000.0
     assert {g["group"] for g in result["matrix"]} == {"Engineering", "Sales"}
 
 
@@ -220,7 +226,7 @@ def test_filters_combine_across_dimensions(workspace):
 
     result = _analyse(entity, group_by="department",
                       filters={"work_location": ["Bangalore"], "business_unit": ["Technology"]})
-    assert result["totals"]["total"] == 50000.0   # E1 only
+    assert result["totals"]["gross"] == 50000.0   # E1 only
 
 
 def test_a_filter_accepts_several_values(workspace):
@@ -228,7 +234,7 @@ def test_a_filter_accepts_several_values(workspace):
     _register(entity, user, date(2026, 4, 1), APRIL)
 
     result = _analyse(entity, group_by="grade", filters={"work_location": ["Bangalore", "Pune"]})
-    assert result["totals"]["total"] == 100000.0
+    assert result["totals"]["gross"] == 100000.0
 
 
 # ── measures ────────────────────────────────────────────────────────────────
@@ -242,9 +248,9 @@ def test_arrears_are_reported_apart_from_regular_pay(workspace):
     ])
 
     result = _analyse(entity, group_by="department")
-    assert result["totals"]["regular"] == 40000.0
+    assert result["totals"]["basic_da"] == 40000.0
     assert result["totals"]["arrears"] == 15000.0
-    assert result["totals"]["total"] == 55000.0
+    assert result["totals"]["gross"] == 55000.0
 
 
 def test_headcount_counts_people_not_rows(workspace):
@@ -254,14 +260,18 @@ def test_headcount_counts_people_not_rows(workspace):
 
     result = _analyse(entity, group_by="department")
     assert result["totals"]["headcount"] == 3          # not 6
-    assert result["totals"]["cost_per_head"] == round(200000 / 3, 2)
+    assert result["totals"]["gross"] == 200000.0
+    # Cost per head is CTC per head, not gross per head: what a person costs
+    # includes what the employer pays on top of what they are paid.
+    assert result["totals"]["cost_per_head"] == round(result["totals"]["ctc"] / 3, 2)
 
 
 def test_an_entity_with_no_registers_returns_an_empty_shape(workspace):
     entity, _, _ = workspace
     result = _analyse(entity, group_by="department")
     assert result["matrix"] == []
-    assert result["totals"]["total"] == 0.0
+    assert result["totals"]["gross"] == 0.0
+    assert result["totals"]["ctc"] == 0.0
 
 
 # ── through the API ─────────────────────────────────────────────────────────
@@ -271,11 +281,11 @@ def test_the_endpoint_serves_a_filtered_breakdown(client, workspace):
     _register(entity, user, date(2026, 4, 1), APRIL)
 
     r = client.get("/api/bi/cost-analysis?group_by=grade&granularity=month"
-                   "&work_location=Bangalore", headers=headers)
+                   "&measure=gross&work_location=Bangalore", headers=headers)
     assert r.status_code == 200, r.text
     data = r.json()["data"]
     assert data["group_by_label"] == "Grade"
-    assert data["totals"]["total"] == 70000.0
+    assert data["totals"]["gross"] == 70000.0
 
 
 def test_an_invalid_dimension_is_a_400(client, workspace):
@@ -302,4 +312,4 @@ def test_cost_analysis_does_not_leak_between_entities(client, workspace):
 
     data = client.get("/api/bi/cost-analysis?group_by=department",
                       headers={**headers, "X-Entity-Id": other}).json()["data"]
-    assert data["totals"]["total"] == 0.0
+    assert data["totals"]["gross"] == 0.0

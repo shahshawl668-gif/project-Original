@@ -421,15 +421,82 @@ def period_bucket(period: date, granularity: str) -> tuple[str, str]:
     return (period.isoformat(), period.strftime("%b %Y"))
 
 
-def _row_measures(row) -> dict[str, Decimal]:
-    """Every amount one register row contributes, split the way cost is read."""
-    regular = sum((_dec(v) for v in (row.components or {}).values()), Decimal("0"))
-    arrears = sum((_dec(v) for v in (row.arrears or {}).values()), Decimal("0"))
-    arrears += _dec(row.increment_arrear_total)
+
+
+def _register_rows(
+    db: Session,
+    entity_id: uuid.UUID,
+    date_from: date | None,
+    date_to: date | None,
+) -> tuple[list, dict]:
+    """Every stored register row in a period window, with its register."""
+    registers = db.query(SalaryRegister).filter(SalaryRegister.entity_id == entity_id)
+    if date_from:
+        registers = registers.filter(SalaryRegister.period_month >= date_from.replace(day=1))
+    if date_to:
+        registers = registers.filter(SalaryRegister.period_month <= date_to.replace(day=1))
+    registers = registers.order_by(SalaryRegister.period_month).all()
+    if not registers:
+        return [], {}
+
+    by_register = {r.id: r for r in registers}
+    rows = (
+        db.query(SalaryRegisterRow)
+        .filter(SalaryRegisterRow.register_id.in_(list(by_register)))
+        .all()
+    )
+    return rows, by_register
+
+
+class _Costing:
+    """Costs rows, resolving each employee's PF basis from the right month."""
+
+    def __init__(self, db: Session, entity_id: uuid.UUID):
+        from app.services.cost_model import CostContext
+
+        self.db = db
+        self.entity_id = entity_id
+        self.context = CostContext(db, entity_id)
+        self._masters: dict[date, dict] = {}
+
+    def _master_flag(self, period: date, employee_id: str) -> bool | None:
+        if period not in self._masters:
+            from app.services.workforce import master_as_of
+
+            self._masters[period] = master_as_of(self.db, self.entity_id, period)
+        record = self._masters[period].get(employee_id)
+        return getattr(record, "pf_restricted", None) if record is not None else None
+
+    def cost(self, row):
+        return self.context.cost_row(
+            row, pf_restricted=self._master_flag(row.period_month, row.employee_id)
+        )
+
+
+def _accumulate(into: dict[str, Decimal], measures: dict[str, Decimal]) -> None:
+    for key, value in measures.items():
+        into[key] = into.get(key, Decimal("0")) + value
+
+
+def _as_floats(values: dict[str, Decimal]) -> dict[str, float]:
+    from app.services.cost_model import with_derived
+
+    return {k: float(_q(v)) for k, v in with_derived(values).items()}
+
+
+def measure_catalogue() -> dict:
+    """The taxonomy itself, so the UI never hard-codes a label or a layer."""
+    from app.services.cost_model import DERIVED, MEASURES
+
     return {
-        "regular": regular,
-        "arrears": arrears,
-        "total": regular + arrears,
+        "measures": [
+            {"key": m.key, "label": m.label, "layer": m.layer, "hint": m.hint}
+            for m in MEASURES
+        ],
+        "derived": [
+            {"key": key, "label": label, "parts": list(parts)} for key, label, parts in DERIVED
+        ]
+        + [{"key": "net", "label": "Net pay", "parts": ["gross", "-deductions"]}],
     }
 
 
@@ -439,6 +506,7 @@ def cost_analysis(
     *,
     group_by: str = "department",
     granularity: str = "month",
+    measure: str = "ctc",
     date_from: date | None = None,
     date_to: date | None = None,
     filters: dict[str, list[str]] | None = None,
@@ -446,48 +514,63 @@ def cost_analysis(
     """
     Payroll cost sliced by one reporting dimension over time.
 
+    Every row is costed through the full taxonomy — earnings, employer
+    contributions, employee deductions — so one pass answers "what did
+    engineering cost?" and "what was the employer's EPF bill?" from the same
+    numbers. ``measure`` chooses which of those figures the series and the
+    ranking are drawn on; the whole taxonomy comes back regardless, because a
+    dashboard that has to re-query to change a dropdown is a slow dashboard.
+
     Dimensions are read from the snapshot stored on each register row, not
     joined from the current master, so a reorganisation cannot rewrite what an
     earlier month cost by department. See services/dimensions.py.
     """
+    from app.services.cost_model import (
+        ALL_MEASURE_KEYS,
+        DERIVED_LABELS,
+        MEASURE_BY_KEY,
+        zero_measures,
+    )
     from app.services.dimensions import DIMENSION_KEYS, DIMENSION_LABELS, UNASSIGNED
 
     if group_by not in DIMENSION_KEYS:
         raise ValueError(f"group_by must be one of: {', '.join(DIMENSION_KEYS)}")
     if granularity not in ("month", "quarter", "year"):
         raise ValueError("granularity must be month, quarter or year")
+    if measure not in ALL_MEASURE_KEYS:
+        raise ValueError(f"measure must be one of: {', '.join(ALL_MEASURE_KEYS)}")
 
-    registers = db.query(SalaryRegister).filter(SalaryRegister.entity_id == entity_id)
-    if date_from:
-        registers = registers.filter(SalaryRegister.period_month >= date_from.replace(day=1))
-    if date_to:
-        registers = registers.filter(SalaryRegister.period_month <= date_to.replace(day=1))
-    registers = registers.order_by(SalaryRegister.period_month).all()
+    measure_label = (
+        MEASURE_BY_KEY[measure].label
+        if measure in MEASURE_BY_KEY
+        else DERIVED_LABELS.get(measure, "Net pay")
+    )
 
-    if not registers:
+    rows, by_register = _register_rows(db, entity_id, date_from, date_to)
+    if not rows:
         return {
             "group_by": group_by,
             "group_by_label": DIMENSION_LABELS[group_by],
             "granularity": granularity,
-            "periods": [], "groups": [], "matrix": [],
-            "totals": {"regular": 0.0, "arrears": 0.0, "total": 0.0, "headcount": 0},
+            "measure": measure,
+            "measure_label": measure_label,
+            "periods": [], "groups": [], "matrix": [], "period_totals": [],
+            "totals": {**_as_floats(zero_measures()), "headcount": 0, "cost_per_head": 0.0},
+            "sources": {"reported": 0.0, "computed": 0.0},
         }
 
-    by_register = {r.id: r for r in registers}
-    rows = (
-        db.query(SalaryRegisterRow)
-        .filter(SalaryRegisterRow.register_id.in_(list(by_register)))
-        .all()
-    )
-
     active = {k: set(v) for k, v in (filters or {}).items() if v}
+    costing = _Costing(db, entity_id)
 
-    # period key -> group -> measures
     cells: dict[tuple[str, str], dict[str, Decimal]] = {}
     heads: dict[tuple[str, str], set[str]] = {}
+    period_measures: dict[str, dict[str, Decimal]] = {}
+    period_heads: dict[str, set[str]] = {}
     period_labels: dict[str, str] = {}
-    totals = {"regular": Decimal("0"), "arrears": Decimal("0"), "total": Decimal("0")}
+    totals = zero_measures()
     all_heads: set[str] = set()
+    reported_amount = Decimal("0")
+    statutory_amount = Decimal("0")
 
     for row in rows:
         dims = row.dimensions or {}
@@ -499,54 +582,226 @@ def cost_analysis(
         period_labels[key] = label
         group = dims.get(group_by) or UNASSIGNED
 
-        measures = _row_measures(row)
-        cell = cells.setdefault((key, group), {"regular": Decimal("0"), "arrears": Decimal("0"), "total": Decimal("0")})
-        for name, value in measures.items():
-            cell[name] += value
-            totals[name] += value
+        costed = costing.cost(row)
+        measures = costed.measures
+
+        _accumulate(cells.setdefault((key, group), zero_measures()), measures)
+        _accumulate(totals, measures)
+        _accumulate(period_measures.setdefault(key, zero_measures()), measures)
+
         heads.setdefault((key, group), set()).add(row.employee_id)
+        period_heads.setdefault(key, set()).add(row.employee_id)
         all_heads.add(row.employee_id)
 
+        reported_amount += costed.reported_amount
+        statutory_amount += sum(
+            (measures[k] for k in MEASURE_BY_KEY if MEASURE_BY_KEY[k].layer != "earnings"),
+            Decimal("0"),
+        )
+
     periods = [{"key": k, "label": period_labels[k]} for k in sorted(period_labels)]
-    groups = sorted({group for _, group in cells})
+    total_values = _as_floats(totals)
+    denominator = total_values.get(measure, 0.0)
 
     matrix = []
-    for group in groups:
+    for group in sorted({g for _, g in cells}):
         series = []
-        group_total = Decimal("0")
+        group_measures = zero_measures()
         for period in periods:
             cell = cells.get((period["key"], group))
-            amount = cell["total"] if cell else Decimal("0")
-            group_total += amount
+            values = _as_floats(cell) if cell else _as_floats(zero_measures())
+            if cell:
+                _accumulate(group_measures, cell)
             series.append({
                 "period": period["key"],
-                "total": float(_q(amount)),
-                "regular": float(_q(cell["regular"])) if cell else 0.0,
-                "arrears": float(_q(cell["arrears"])) if cell else 0.0,
+                "value": values[measure],
                 "headcount": len(heads.get((period["key"], group), set())),
+                "measures": values,
             })
+        group_values = _as_floats(group_measures)
         matrix.append({
             "group": group,
-            "total": float(_q(group_total)),
-            "share_pct": float(_q(group_total / totals["total"] * 100)) if totals["total"] else 0.0,
+            "total": group_values[measure],
+            "share_pct": (
+                float(_q(Decimal(str(group_values[measure])) / Decimal(str(denominator)) * 100))
+                if denominator else 0.0
+            ),
+            "measures": group_values,
             "series": series,
         })
 
     matrix.sort(key=lambda g: g["total"], reverse=True)
 
+    period_totals = [
+        {
+            "period": period["key"],
+            "label": period["label"],
+            "headcount": len(period_heads.get(period["key"], set())),
+            "measures": _as_floats(period_measures.get(period["key"], zero_measures())),
+        }
+        for period in periods
+    ]
+
     return {
         "group_by": group_by,
         "group_by_label": DIMENSION_LABELS[group_by],
         "granularity": granularity,
+        "measure": measure,
+        "measure_label": measure_label,
         "periods": periods,
         "groups": [g["group"] for g in matrix],
         "matrix": matrix,
+        "period_totals": period_totals,
         "totals": {
-            "regular": float(_q(totals["regular"])),
-            "arrears": float(_q(totals["arrears"])),
-            "total": float(_q(totals["total"])),
+            **total_values,
             "headcount": len(all_heads),
-            "cost_per_head": float(_q(totals["total"] / len(all_heads))) if all_heads else 0.0,
+            "cost_per_head": (
+                float(_q(Decimal(str(total_values["ctc"])) / Decimal(len(all_heads))))
+                if all_heads else 0.0
+            ),
+        },
+        # How much of the statutory total was the payroll system's own figure
+        # rather than this engine's. A reader deciding how far to trust a
+        # contribution total should be able to see that without asking.
+        "sources": {
+            "reported": float(_q(reported_amount)),
+            "computed": float(_q(statutory_amount - reported_amount)),
+        },
+    }
+
+
+def cost_compare(
+    db: Session,
+    entity_id: uuid.UUID,
+    *,
+    period_a: date,
+    period_b: date,
+    group_by: str = "department",
+    measure: str = "ctc",
+    filters: dict[str, list[str]] | None = None,
+) -> dict:
+    """
+    Two periods side by side, across the whole taxonomy and by one dimension.
+
+    Both directions of the question the user actually asks are the same
+    operation: *May against June* and *June this year against June last year*
+    differ only in which two months are named. So there is one comparison, and
+    the caller chooses the pair.
+
+    Each period is costed independently and the difference reported per measure
+    and per group, including groups present in only one of the two — a
+    department that closed is exactly what a comparison is for, and dropping it
+    would make the parts stop summing to the change.
+    """
+    from app.services.cost_model import MEASURES, MEASURE_BY_KEY, DERIVED_LABELS, ALL_MEASURE_KEYS, zero_measures
+    from app.services.dimensions import DIMENSION_KEYS, DIMENSION_LABELS, UNASSIGNED
+
+    if group_by not in DIMENSION_KEYS:
+        raise ValueError(f"group_by must be one of: {', '.join(DIMENSION_KEYS)}")
+    if measure not in ALL_MEASURE_KEYS:
+        raise ValueError(f"measure must be one of: {', '.join(ALL_MEASURE_KEYS)}")
+
+    period_a = period_a.replace(day=1)
+    period_b = period_b.replace(day=1)
+    active = {k: set(v) for k, v in (filters or {}).items() if v}
+    costing = _Costing(db, entity_id)
+
+    sides: dict[str, dict] = {}
+    for name, period in (("a", period_a), ("b", period_b)):
+        rows, by_register = _register_rows(db, entity_id, period, period)
+        totals = zero_measures()
+        by_group: dict[str, dict[str, Decimal]] = {}
+        group_heads: dict[str, set[str]] = {}
+        headcount: set[str] = set()
+        for row in rows:
+            dims = row.dimensions or {}
+            if any(dims.get(key, UNASSIGNED) not in wanted for key, wanted in active.items()):
+                continue
+            group = dims.get(group_by) or UNASSIGNED
+            measures = costing.cost(row).measures
+            _accumulate(totals, measures)
+            _accumulate(by_group.setdefault(group, zero_measures()), measures)
+            group_heads.setdefault(group, set()).add(row.employee_id)
+            headcount.add(row.employee_id)
+        sides[name] = {
+            "period": period.isoformat(),
+            "label": period.strftime("%b %Y"),
+            "present": bool(rows),
+            "totals": totals,
+            "by_group": by_group,
+            "group_heads": group_heads,
+            "headcount": len(headcount),
+        }
+
+    a, b = sides["a"], sides["b"]
+
+    def delta_row(label: str, key: str, layer: str, va: Decimal, vb: Decimal) -> dict:
+        change = vb - va
+        return {
+            "key": key,
+            "label": label,
+            "layer": layer,
+            "a": float(_q(va)),
+            "b": float(_q(vb)),
+            "delta": float(_q(change)),
+            # Percentage change is meaningless against a zero base — a
+            # department that did not exist last month has not grown by
+            # infinity. Null, and the UI says "new" rather than a number.
+            "delta_pct": float(_q(change / va * 100)) if va else None,
+        }
+
+    a_values = _as_floats(a["totals"])
+    b_values = _as_floats(b["totals"])
+
+    by_measure = [
+        delta_row(m.label, m.key, m.layer, a["totals"][m.key], b["totals"][m.key])
+        for m in MEASURES
+    ]
+    by_derived = [
+        delta_row(DERIVED_LABELS[key], key, "derived",
+                  Decimal(str(a_values[key])), Decimal(str(b_values[key])))
+        for key in ("gross", "employer_cost", "ctc", "deductions")
+    ] + [
+        delta_row("Net pay", "net", "derived",
+                  Decimal(str(a_values["net"])), Decimal(str(b_values["net"])))
+    ]
+
+    def group_value(side: dict, group: str) -> Decimal:
+        cell = side["by_group"].get(group)
+        return Decimal(str(_as_floats(cell)[measure])) if cell else Decimal("0")
+
+    groups = sorted(set(a["by_group"]) | set(b["by_group"]))
+    by_group = [
+        {
+            **delta_row(group, group, "group", group_value(a, group), group_value(b, group)),
+            "group": group,
+            "headcount_a": len(a["group_heads"].get(group, set())),
+            "headcount_b": len(b["group_heads"].get(group, set())),
+        }
+        for group in groups
+    ]
+    by_group.sort(key=lambda g: abs(g["delta"]), reverse=True)
+
+    return {
+        "group_by": group_by,
+        "group_by_label": DIMENSION_LABELS[group_by],
+        "measure": measure,
+        "measure_label": (
+            MEASURE_BY_KEY[measure].label
+            if measure in MEASURE_BY_KEY
+            else DERIVED_LABELS.get(measure, "Net pay")
+        ),
+        "a": {"period": a["period"], "label": a["label"], "present": a["present"],
+              "headcount": a["headcount"], "measures": a_values},
+        "b": {"period": b["period"], "label": b["label"], "present": b["present"],
+              "headcount": b["headcount"], "measures": b_values},
+        "by_measure": by_measure,
+        "by_derived": by_derived,
+        "by_group": by_group,
+        "headcount": {
+            "a": a["headcount"],
+            "b": b["headcount"],
+            "delta": b["headcount"] - a["headcount"],
         },
     }
 
@@ -580,5 +835,21 @@ def dimension_values(db: Session, entity_id: uuid.UUID) -> dict:
                 "values": sorted(found[key], key=lambda v: (v == UNASSIGNED, v.lower())),
             }
             for key, label in DIMENSIONS
+        ]
+    }
+
+
+def available_periods(db: Session, entity_id: uuid.UUID) -> dict:
+    """Which months hold a register, so a comparison can only name a real one."""
+    rows = (
+        db.query(SalaryRegister.period_month)
+        .filter(SalaryRegister.entity_id == entity_id)
+        .order_by(SalaryRegister.period_month.desc())
+        .all()
+    )
+    return {
+        "periods": [
+            {"period": period.isoformat(), "label": period.strftime("%b %Y")}
+            for (period,) in rows
         ]
     }

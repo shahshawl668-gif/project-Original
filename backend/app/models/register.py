@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -64,6 +65,18 @@ class SalaryRegisterRow(Base):
     # department: cost history has to stay answerable as it was reported then.
     dimensions: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     arrears: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    # The statutory figures the payroll system stated for itself this month —
+    # employer and employee PF, ESI, PT, LWF and TDS. Kept apart from
+    # ``components`` because they are not earnings: folding them in would
+    # inflate gross by the amount that was deducted from it. The cost dashboard
+    # reports these in preference to its own arithmetic; where the two disagree,
+    # that disagreement is a finding rather than a quiet substitution.
+    deductions: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    # The register's own view of whether this employee's PF is capped at the
+    # ceiling. Stored per row because it is a per-employee fact that can change
+    # month to month, and because it is the most specific of the three sources
+    # that can settle it (see services/pf_basis.py).
+    pf_restricted: Mapped[bool | None] = mapped_column(Boolean)
     increment_arrear_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
