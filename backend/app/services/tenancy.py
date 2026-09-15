@@ -71,7 +71,14 @@ def provision_org_for_user(
         is_active=True,
     )
     db.add(entity)
-    db.add(OrgMembership(org_id=org.id, user_id=user.id, role="owner"))
+    db.add(
+        OrgMembership(
+            org_id=org.id,
+            user_id=user.id,
+            role="owner",
+            default_entity_id=entity.id,
+        )
+    )
     db.flush()
     return org, entity
 
@@ -102,6 +109,45 @@ def accessible_entities(db: Session, user: User) -> list[Entity]:
         query = query.filter(Entity.id.in_(restricted))
 
     return query.order_by(Entity.name).all()
+
+
+def default_entity(db: Session, user: User) -> Entity | None:
+    """
+    The entity a request targets when it names none.
+
+    Deliberately the *oldest* accessible entity — the one provisioned at signup
+    — rather than the first by name. Ordering this by name would mean adding a
+    client called "Alpha" silently redirects every header-less request away
+    from the entity that had been receiving them.
+    """
+    entities = accessible_entities(db, user)
+    if not entities:
+        return None
+
+    membership = get_membership(db, user)
+    if membership is not None and membership.default_entity_id is not None:
+        chosen = next((e for e in entities if e.id == membership.default_entity_id), None)
+        if chosen is not None:
+            return chosen
+
+    # No stored default (or it points somewhere they can no longer reach):
+    # fall back to the oldest entity and remember it, so the answer is stable
+    # from here on.
+    fallback = min(entities, key=lambda e: (e.created_at is None, e.created_at, str(e.id)))
+    if membership is not None:
+        membership.default_entity_id = fallback.id
+        db.add(membership)
+        db.flush()
+    return fallback
+
+
+def set_default_entity(db: Session, user: User, entity: Entity) -> None:
+    """Remember the member's entity choice for requests that send no header."""
+    membership = get_membership(db, user)
+    if membership is None or membership.org_id != entity.org_id:
+        return
+    membership.default_entity_id = entity.id
+    db.add(membership)
 
 
 def can_access_entity(db: Session, user: User, entity: Entity) -> bool:

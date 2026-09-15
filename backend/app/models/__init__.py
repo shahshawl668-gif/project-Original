@@ -7,6 +7,12 @@ from app.models.statutory import StatutorySettings
 from app.models.statutory_config import StatutoryConfig
 from app.models.ctc import CtcUpload, CtcRecord
 from app.models.register import SalaryRegister, SalaryRegisterRow
+from app.models.workforce import (
+    AttendanceRegister,
+    AttendanceRow,
+    EmployeeMasterUpload,
+    EmployeeRecord,
+)
 from app.models.rule_engine import Formula, SlabRule
 from app.models.rule_preferences import TenantRulePreference
 
@@ -28,6 +34,10 @@ __all__ = [
     "CtcRecord",
     "SalaryRegister",
     "SalaryRegisterRow",
+    "EmployeeMasterUpload",
+    "EmployeeRecord",
+    "AttendanceRegister",
+    "AttendanceRow",
     "Formula",
     "SlabRule",
     "TenantRulePreference",

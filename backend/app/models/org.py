@@ -103,6 +103,13 @@ class OrgMembership(Base):
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="owner")
+    # Which entity this member's requests act on when they name none. Explicit
+    # rather than inferred: deriving it from creation order or name would let
+    # adding a client silently redirect a header-less request to a different
+    # employer. Doubles as the switcher's remembered selection.
+    default_entity_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     org = relationship("Organization", back_populates="memberships")

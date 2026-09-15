@@ -14,6 +14,7 @@ from app.routers import (
     statutory,
     statutory_config,
     users,
+    workforce,
 )
 
 api_router = APIRouter()
@@ -26,6 +27,7 @@ api_router.include_router(statutory.router, prefix="/settings/statutory", tags=[
 api_router.include_router(reference.router, prefix="/reference", tags=["reference"])
 api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
+api_router.include_router(workforce.router, prefix="/workforce", tags=["workforce"])
 api_router.include_router(rule_engine.router, prefix="/rule-engine", tags=["rule-engine"])
 api_router.include_router(income_tax.router, prefix="/income-tax", tags=["income-tax"])
 # Config-Driven Statutory Engine (router has its own /api/config prefix)

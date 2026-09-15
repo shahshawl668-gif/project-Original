@@ -75,7 +75,7 @@ def get_current_entity(
 
     The client names it with an ``X-Entity-Id`` header. When it doesn't — a
     single-entity enterprise, or a first-load before the switcher has mounted —
-    the user's first accessible entity is used, which keeps the enterprise case
+    the user's default entity is used, which keeps the enterprise case
     header-free while still letting a practice switch clients per request.
 
     A user with no membership at all is provisioned one on the spot, so accounts
@@ -93,9 +93,9 @@ def get_current_entity(
             raise HTTPException(status_code=404, detail="Entity not found")
         return entity
 
-    entities = tenancy.accessible_entities(db, user)
-    if entities:
-        return entities[0]
+    entity = tenancy.default_entity(db, user)
+    if entity is not None:
+        return entity
 
     _, entity = tenancy.provision_org_for_user(db, user)
     db.commit()

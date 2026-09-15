@@ -429,6 +429,34 @@ def enforce_entity_not_null(conn: Connection) -> None:
         conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN entity_id SET NOT NULL"))
 
 
+def set_membership_defaults(conn: Connection) -> None:
+    """
+    Add ``org_memberships.default_entity_id`` and point it at the org's oldest
+    entity for members who have none.
+    """
+    tables = _table_names(conn)
+    if not {"org_memberships", "entities"} <= tables:
+        return
+    if "default_entity_id" not in _columns(conn, "org_memberships"):
+        conn.execute(
+            text(f"ALTER TABLE org_memberships ADD COLUMN default_entity_id {_uuid_type(conn)}")
+        )
+    conn.execute(
+        text(
+            """
+            UPDATE org_memberships
+            SET default_entity_id = (
+                SELECT e.id FROM entities e
+                WHERE e.org_id = org_memberships.org_id
+                ORDER BY e.created_at, e.id
+                LIMIT 1
+            )
+            WHERE default_entity_id IS NULL
+            """
+        )
+    )
+
+
 def run_migrations(engine: Engine) -> None:
     """Run every step in order, inside one transaction per step."""
     steps = (
@@ -438,6 +466,7 @@ def run_migrations(engine: Engine) -> None:
         rekey_config_tables,
         rescope_unique_constraints,
         enforce_entity_not_null,
+        set_membership_defaults,
     )
     for step in steps:
         with engine.begin() as conn:

@@ -102,6 +102,27 @@ def update_entity(
     return ok(EntityOut.model_validate(entity).model_dump(mode="json"))
 
 
+@router.post("/entities/{entity_id}/select")
+def select_entity(
+    entity_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Remember this entity as the caller's default.
+
+    Requests may always override with ``X-Entity-Id``; this is what the switcher
+    calls so the choice survives a reload, and so a header-less request from
+    another client of theirs still lands where they expect.
+    """
+    entity = db.get(Entity, entity_id)
+    if entity is None or not tenancy.can_access_entity(db, user, entity):
+        raise HTTPException(status_code=404, detail="Entity not found")
+    tenancy.set_default_entity(db, user, entity)
+    db.commit()
+    return ok(EntityOut.model_validate(entity).model_dump(mode="json"))
+
+
 @router.get("/members")
 def list_members(db: Session = Depends(get_db), user: User = Depends(require_org_admin)):
     membership = tenancy.get_membership(db, user)

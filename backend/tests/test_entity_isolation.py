@@ -146,3 +146,39 @@ def test_creating_entities_requires_manager_or_owner(client):
     assert client.post("/api/components", json=_component_payload("Basic"), headers=h).status_code == 201
     # ...but does not get to add clients to the practice.
     assert client.post("/api/org/entities", json={"name": "Nope Ltd"}, headers=h).status_code == 403
+
+
+def test_adding_an_entity_does_not_move_the_header_less_default(client):
+    """
+    A request that names no entity must keep landing on the same employer.
+
+    Ordering the default by name would break this the moment a client whose
+    name sorts earlier is added — and it would move data silently.
+    """
+    h = _signup(client, "seven@seventh-example.com", "Zulu Industries")
+    original = _context(client, h)["active_entity"]["id"]
+
+    # "Alpha" sorts before "Zulu" and is created later.
+    client.post("/api/org/entities", json={"name": "Alpha Traders"}, headers=h)
+
+    assert _context(client, h)["active_entity"]["id"] == original
+
+    r = client.post("/api/components", json=_component_payload("Conveyance"), headers=h)
+    assert r.status_code == 201
+    scoped = client.get("/api/components", headers={**h, "X-Entity-Id": original}).json()["data"]
+    assert "Conveyance" in [c["component_name"] for c in scoped]
+
+
+def test_selecting_an_entity_persists_it_as_the_default(client):
+    h = _signup(client, "eight@eighth-example.com", "Bureau Eight")
+    second = client.post(
+        "/api/org/entities", json={"name": "Second Client"}, headers=h
+    ).json()["data"]["id"]
+
+    assert client.post(f"/api/org/entities/{second}/select", headers=h).status_code == 200
+    assert _context(client, h)["active_entity"]["id"] == second
+
+    # A header-less write now lands on the selected entity.
+    client.post("/api/components", json=_component_payload("Special Allowance"), headers=h)
+    scoped = client.get("/api/components", headers={**h, "X-Entity-Id": second}).json()["data"]
+    assert [c["component_name"] for c in scoped] == ["Special Allowance"]
