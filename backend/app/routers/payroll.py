@@ -21,6 +21,7 @@ from app.models import (
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
+from app.services import finding_store
 from app.services.payroll_parse import (
     dataframe_to_employees,
     parse_payroll_file,
@@ -233,7 +234,7 @@ def validate_payroll(
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
     rows, findings_summary = validate_employees(
         db,
-        user,
+        entity,
         comps,
         body.employees,
         body.run_type,
@@ -242,9 +243,35 @@ def validate_payroll(
         body.as_of_date,
         period_month=period_month,
     )
-    suppressed = _suppressed_rule_ids(db, user.id)
+    suppressed = _suppressed_rule_ids(db, entity.id)
     findings_summary = apply_suppressed_rules(rows, suppressed)
-    return ok(_payload_after_validation(rows, findings_summary))
+
+    lifecycle: dict = {}
+    if period_month:
+        # Persisting the run is what turns validation from a one-off report into
+        # a record: waivers carry forward, recurrence becomes countable, and the
+        # exposure history survives the browser tab.
+        all_findings = [f for row in rows for f in row.get("findings", [])]
+        run = finding_store.record_run(
+            db,
+            entity_id=entity.id,
+            user_id=user.id,
+            period_month=period_month,
+            findings=all_findings,
+            employee_count=len(rows),
+            summary=findings_summary,
+        )
+        db.commit()
+        lifecycle = {
+            "run_id": str(run.id),
+            "period_month": period_month.isoformat(),
+            "gross_financial_impact": float(run.total_financial_impact),
+            "open_financial_impact": float(run.open_financial_impact),
+        }
+
+    payload = _payload_after_validation(rows, findings_summary)
+    payload["lifecycle"] = lifecycle
+    return ok(payload)
 
 
 @router.get("/runs")
@@ -365,7 +392,7 @@ def export_findings_excel(
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
     rows, findings_summary = validate_employees(
         db,
-        user,
+        entity,
         comps,
         body.employees,
         body.run_type,
@@ -374,7 +401,7 @@ def export_findings_excel(
         body.as_of_date,
         period_month=period_month,
     )
-    suppressed = _suppressed_rule_ids(db, user.id)
+    suppressed = _suppressed_rule_ids(db, entity.id)
     findings_summary = apply_suppressed_rules(rows, suppressed)
 
     wb = openpyxl.Workbook()

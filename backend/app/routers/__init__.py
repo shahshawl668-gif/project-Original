@@ -5,6 +5,7 @@ from app.routers import (
     auth,
     components,
     ctc,
+    findings,
     income_tax,
     org,
     payroll,
@@ -27,6 +28,7 @@ api_router.include_router(statutory.router, prefix="/settings/statutory", tags=[
 api_router.include_router(reference.router, prefix="/reference", tags=["reference"])
 api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
+api_router.include_router(findings.router, prefix="/findings", tags=["findings"])
 api_router.include_router(workforce.router, prefix="/workforce", tags=["workforce"])
 api_router.include_router(rule_engine.router, prefix="/rule-engine", tags=["rule-engine"])
 api_router.include_router(income_tax.router, prefix="/income-tax", tags=["income-tax"])

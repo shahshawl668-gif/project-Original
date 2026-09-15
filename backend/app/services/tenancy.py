@@ -71,6 +71,10 @@ def provision_org_for_user(
         is_active=True,
     )
     db.add(entity)
+    # Flush before reading entity.id: the primary key comes from a Python-side
+    # default applied at INSERT, so it is still None on the pending object.
+    db.flush()
+
     db.add(
         OrgMembership(
             org_id=org.id,

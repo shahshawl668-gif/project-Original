@@ -15,6 +15,12 @@ from app.models.workforce import (
 )
 from app.models.rule_engine import Formula, SlabRule
 from app.models.rule_preferences import TenantRulePreference
+from app.models.findings import (
+    FindingRecord,
+    FindingState,
+    FindingStateEvent,
+    ValidationRun,
+)
 
 __all__ = [
     "User",
@@ -41,4 +47,8 @@ __all__ = [
     "Formula",
     "SlabRule",
     "TenantRulePreference",
+    "ValidationRun",
+    "FindingRecord",
+    "FindingState",
+    "FindingStateEvent",
 ]
