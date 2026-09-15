@@ -2,6 +2,7 @@ from app.models.user import PasswordResetToken, RefreshToken, User
 from app.models.org import Entity, EntityAccess, OrgMembership, Organization
 from app.models.component import ComponentConfig
 from app.models.reference import PtSlab, LwfRate
+from app.models.minimum_wage import MinimumWageRate
 from app.models.payroll_run import PayrollRun
 from app.models.statutory import StatutorySettings
 from app.models.statutory_config import StatutoryConfig
@@ -32,6 +33,7 @@ __all__ = [
     "PasswordResetToken",
     "ComponentConfig",
     "PtSlab",
+    "MinimumWageRate",
     "LwfRate",
     "PayrollRun",
     "StatutorySettings",
