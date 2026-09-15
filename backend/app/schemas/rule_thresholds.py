@@ -55,8 +55,12 @@ class TrendThresholds(BaseModel):
         Decimal("3"), description="ADV-002: gross > this multiple of prior month")
     salary_drop_ratio: Decimal = Field(
         Decimal("0.25"), description="ADV-003: gross < this fraction of prior month")
+    max_arrear_months: Decimal = Field(
+        Decimal("12"),
+        description="ARR-003: arrears spanning more than this many months are flagged for review")
 
-    @field_validator("component_change_pct", "salary_spike_ratio", "salary_drop_ratio", mode="before")
+    @field_validator("component_change_pct", "salary_spike_ratio", "salary_drop_ratio",
+                     "max_arrear_months", mode="before")
     @classmethod
     def _parse(cls, v):
         return _dec(v)

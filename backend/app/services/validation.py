@@ -24,6 +24,7 @@ from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
 from app.services.pf_basis import PFBasis, resolve as resolve_pf_basis
+from app.services.row_composition import describe as describe_row
 from app.services.pf_engine import compute_pf, compute_pf_wage
 from app.services.risk_scoring import compute_risk, risk_distribution
 from app.services.workforce import master_as_of
@@ -80,6 +81,56 @@ def recompute_risk_and_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             }
         if f.get("status") == "FAIL":
             rule_counts[rid]["fail_count"] += 1
+
+    # Grouped by what the reader must do about it, not only by how much it
+    # matters. "Missing" leads because until it is supplied, the checks that
+    # depend on it are not being performed — and a clean report over absent
+    # input is the most dangerous thing this product can produce.
+    from app.services.finding_taxonomy import CATEGORY_LABELS, CATEGORY_MEANING, CATEGORY_ORDER
+
+    by_category: dict[str, dict] = {}
+    for key in CATEGORY_ORDER:
+        by_category[key] = {
+            "key": key,
+            "label": CATEGORY_LABELS[key],
+            "meaning": CATEGORY_MEANING[key],
+            "count": 0,
+            "employees": set(),
+            "financial_impact": 0.0,
+            "rules": {},
+        }
+    for f in flat:
+        if f.get("status") != "FAIL":
+            continue
+        bucket = by_category.get(f.get("category") or "issue")
+        if bucket is None:
+            continue
+        bucket["count"] += 1
+        bucket["employees"].add(f.get("employee_id", ""))
+        bucket["financial_impact"] += float(f.get("financial_impact", 0) or 0)
+        rule = bucket["rules"].setdefault(
+            f.get("rule_id", ""),
+            {
+                "rule_id": f.get("rule_id", ""),
+                "rule_name": f.get("rule_name", ""),
+                "severity": f.get("severity", ""),
+                "count": 0,
+                # The remediation the engine already states, surfaced once per
+                # rule so the report reads as a work list rather than a log.
+                "solution": f.get("suggested_fix", ""),
+            },
+        )
+        rule["count"] += 1
+
+    summary["by_category"] = [
+        {
+            **{k: v for k, v in bucket.items() if k not in ("employees", "rules")},
+            "employee_count": len(bucket["employees"] - {""}),
+            "financial_impact": round(bucket["financial_impact"], 2),
+            "rules": sorted(bucket["rules"].values(), key=lambda r: r["count"], reverse=True),
+        }
+        for bucket in (by_category[k] for k in CATEGORY_ORDER)
+    ]
 
     summary["rules_triggered"] = sorted(
         [v for v in rule_counts.values() if v["fail_count"] > 0],
@@ -949,12 +1000,32 @@ def validate_employees(
         if msg:
             errors.append(msg)
 
-        # Arrear period checks (existing PF/ESIC band shift logic)
-        arrear_months_count = len(month_labels) if month_labels else 0
-        if run_type in ("arrear", "increment_arrear") and (effective_from is None or effective_to is None):
-            errors.append("effective_month_from and effective_month_to are required for arrear runs.")
+        # Loaded before the row is classified: a CTC revision's effective date
+        # is one of the sources for this employee's arrear window.
+        ctcs = _latest_ctcs(db, entity.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
 
-        if run_type in ("arrear", "increment_arrear") and effective_from and effective_to:
+        # Every register is validated in one pass. What a row contains is read
+        # from the row, so an operator never has to split a file or declare a
+        # mode that would suppress the right checks on everyone else.
+        composition = describe_row(
+            row,
+            regular,
+            arrear_by_base,
+            inc_arrear_total,
+            ctc_effective_from=ctcs[0].effective_from if ctcs else None,
+            period_month=period_month,
+            run_effective_from=effective_from,
+            run_effective_to=effective_to,
+        )
+        # This employee's own window, falling back to the file-level range only
+        # when the row and their CTC say nothing.
+        arrear_months_count = (
+            composition.arrear_months
+            if composition.arrear_months is not None
+            else (len(month_labels) if month_labels else 0)
+        )
+
+        if composition.any_arrear and effective_from and effective_to:
             per_m_pf = pf_arrear / Decimal(months)
             per_m_esic = esic_arrear / Decimal(months)
             per_m_pt = pt_arrear / Decimal(months)
@@ -991,7 +1062,6 @@ def validate_employees(
                     errors.append(f"LWF employee amount may change for {label} due to wage band shift.")
 
         # CTC-driven LOP & increment arrear checks
-        ctcs = _latest_ctcs(db, entity.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
         ctc_monthly: dict[str, Decimal] = {}
         if ctcs:
             for k, v in (ctcs[0].annual_components or {}).items():
@@ -1010,7 +1080,7 @@ def validate_employees(
         inc_info, inc_errors = _increment_arrears(
             ctcs,
             period_month,
-            effective_from,
+            composition.arrear_from or effective_from,
             arrear_by_base,
             inc_arrear_total,
             comp_by_key,
@@ -1082,6 +1152,7 @@ def validate_employees(
             thresholds=rule_thresholds,
             period_month=period_month or as_of,
             expected_monthly_tds=expected_monthly_tds,
+            composition=composition,
         )
 
         results.append(
@@ -1127,6 +1198,14 @@ def validate_employees(
                 "increment_arrear": inc_info,
                 "prior_month": prior_info,
                 "run_type": run_type,
+                "row_kinds": composition.kinds,
+                "row_kind_label": composition.label,
+                "arrear_window": {
+                    "from": composition.arrear_from.isoformat() if composition.arrear_from else None,
+                    "to": composition.arrear_to.isoformat() if composition.arrear_to else None,
+                    "months": composition.arrear_months,
+                    "source": composition.window_source,
+                },
                 "arrear_months": arrear_months_count,
                 "arrear_total": float(arrear_total),
                 "increment_arrear_total": float(inc_arrear_total),
