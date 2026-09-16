@@ -26,14 +26,19 @@ import {
   Layers,
   LayoutGrid,
   Receipt,
+  Scale,
   ShieldCheck,
+  Target,
   Users,
   Wallet,
 } from "lucide-react";
 
+import { BudgetView } from "@/components/cost/BudgetView";
 import { ComparePanel } from "@/components/cost/ComparePanel";
+import { CompensationView } from "@/components/cost/CompensationView";
 import { CompliancePanel } from "@/components/cost/CompliancePanel";
 import { ActiveFilters, FilterMenu } from "@/components/cost/FilterMenu";
+import { HeadcountMovement } from "@/components/cost/HeadcountMovement";
 import { Menu, MenuItem } from "@/components/cost/Menu";
 import { CostTooltip, MeasureTable, Panel, StatTile } from "@/components/cost/pieces";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -45,8 +50,10 @@ import { useTheme } from "@/providers/ThemeProvider";
 import {
   capSeries,
   fetchCostAnalysis,
+  fetchCompensation,
   fetchCostCompare,
   fetchDimensions,
+  fetchHeadcountMovement,
   fetchMeasures,
   fetchPeriods,
   fetchReadiness,
@@ -70,14 +77,18 @@ import { cn } from "@/lib/utils";
  * layers and four or five questions asked of it; showing every one at once
  * means none of them is answered clearly.
  */
-type ViewKey = "overview" | "earnings" | "employer" | "deduction" | "headcount" | "compliance";
+type ViewKey =
+  | "overview" | "earnings" | "employer" | "deduction"
+  | "headcount" | "compensation" | "budget" | "compliance";
 
 const VIEWS: { key: ViewKey; label: string; hint: string; icon: typeof LayoutGrid }[] = [
   { key: "overview", label: "Overview", hint: "CTC, where it goes, and by whom", icon: LayoutGrid },
   { key: "earnings", label: "Earnings", hint: "Basic & DA, HRA, allowances, variable pay", icon: Wallet },
   { key: "employer", label: "Employer contributions", hint: "EPF, ESI, gratuity, LWF", icon: Landmark },
   { key: "deduction", label: "Deductions & net", hint: "TDS, PT, employee EPF and ESI", icon: Receipt },
-  { key: "headcount", label: "Headcount & variance", hint: "Cost per head, month on month", icon: Users },
+  { key: "headcount", label: "Headcount & variance", hint: "Joiners, exits, cost per head", icon: Users },
+  { key: "compensation", label: "Compensation & benefits", hint: "Median, spread, fixed vs variable", icon: Scale },
+  { key: "budget", label: "Budget & forecast", hint: "Actual against approved budget, scenarios", icon: Target },
   { key: "compliance", label: "Filing readiness", hint: "EPF ECR, ESIC, PT, Form 24Q", icon: ShieldCheck },
 ];
 
@@ -139,6 +150,18 @@ export default function CostAnalysisPage() {
         filters,
       }),
     enabled: comparing && Boolean(periodA && periodB),
+  });
+
+  const movement = useQuery({
+    queryKey: ["bi", "movement", filters],
+    queryFn: () => fetchHeadcountMovement({ filters }),
+    enabled: view === "headcount",
+  });
+
+  const compensation = useQuery({
+    queryKey: ["bi", "compensation", groupBy, filters],
+    queryFn: () => fetchCompensation({ groupBy, filters }),
+    enabled: view === "compensation",
   });
 
   const readiness = useQuery({
@@ -229,11 +252,11 @@ export default function CostAnalysisPage() {
   // it is one that should not be there. Filing readiness is entity-wide and by
   // wage month; the headcount view is a time series of the whole population.
   const shows = {
-    groupBy: view !== "compliance" && view !== "headcount",
-    period: view !== "compliance",
+    groupBy: !["compliance", "headcount", "budget"].includes(view),
+    period: !["compliance", "compensation", "budget"].includes(view),
     measure: view === "overview",
     filters: view !== "compliance",
-    compare: view !== "compliance",
+    compare: !["compliance", "compensation", "budget", "headcount"].includes(view),
   };
   const controlCount = 1 + Number(shows.groupBy) + Number(shows.period)
     + Number(shows.measure) + Number(shows.filters);
@@ -459,6 +482,16 @@ export default function CostAnalysisPage() {
             error={readiness.error as Error | null}
           />
         </div>
+      ) : view === "compensation" ? (
+        <CompensationView
+          data={compensation.data}
+          isLoading={compensation.isLoading}
+          error={compensation.error as Error | null}
+          palette={palette}
+          isDark={isDark}
+        />
+      ) : view === "budget" ? (
+        <BudgetView filters={filters} palette={palette} isDark={isDark} />
       ) : (
         <>
           {/* ── the figures ───────────────────────────────────────── */}
@@ -704,6 +737,16 @@ export default function CostAnalysisPage() {
               >
                 <VarianceTable points={points} />
               </Panel>
+
+              {movement.isLoading ? (
+                <Skeleton className="h-64" />
+              ) : movement.data ? (
+                <HeadcountMovement
+                  points={movement.data.periods}
+                  note={movement.data.denominator_note}
+                  masked={movement.data.identity.masked}
+                />
+              ) : null}
             </>
           )}
         </>

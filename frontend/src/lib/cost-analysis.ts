@@ -275,3 +275,258 @@ export function capSeries(matrix: CostGroup[], limit = 8): CostGroup[] {
   };
   return [...head, folded];
 }
+
+// ---------------------------------------------------------------------------
+// Headcount movement
+// ---------------------------------------------------------------------------
+export type MovementPoint = {
+  period: string;
+  label: string;
+  opening: number | null;
+  joiners: number;
+  exits: number;
+  closing: number;
+  net_change: number | null;
+  average_headcount: number;
+  total_ctc: number;
+  cost_per_head_closing: number;
+  cost_per_head_average: number;
+  joiner_ids: string[];
+  exit_ids: string[];
+  master_says: { joiners: number; exits: number };
+  master_agrees: boolean;
+};
+
+export type HeadcountMovement = {
+  periods: MovementPoint[];
+  totals: {
+    opening: number | null;
+    closing: number;
+    joiners: number;
+    exits: number;
+    periods_counted: number;
+  };
+  denominator_note: string;
+  identity: { masked: boolean; reason: string };
+};
+
+export function fetchHeadcountMovement(params: {
+  filters: Record<string, string[]>;
+}): Promise<HeadcountMovement> {
+  return apiFetch(`/api/bi/headcount-movement?${query({}, params.filters)}`).then((r) =>
+    parseEnvelopeResponse<HeadcountMovement>(r),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Compensation
+// ---------------------------------------------------------------------------
+export type Stats = {
+  count: number;
+  mean: number;
+  median: number;
+  p25: number;
+  p75: number;
+  p90: number;
+  min: number;
+  max: number;
+  range_ratio: number | null;
+  total: number;
+};
+
+export type Compensation = {
+  period: string | null;
+  period_label: string | null;
+  group_by: string;
+  group_by_label: string;
+  basis: string;
+  overall: Stats;
+  groups: (Stats & { group: string; label: string })[];
+  distribution: { from: number; to: number; count: number }[];
+  mix: { fixed: number; variable: number; fixed_pct: number; variable_pct: number };
+  employees: {
+    employee_id: string;
+    employee_name: string | null;
+    group: string;
+    annual_ctc: number;
+    fixed: number;
+    variable: number;
+    masked?: boolean;
+  }[];
+  identity: { masked: boolean; reason: string };
+};
+
+export function fetchCompensation(params: {
+  groupBy: string;
+  period?: string;
+  filters: Record<string, string[]>;
+}): Promise<Compensation> {
+  const q = query({ group_by: params.groupBy, period: params.period }, params.filters);
+  return apiFetch(`/api/bi/compensation?${q}`).then((r) =>
+    parseEnvelopeResponse<Compensation>(r),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Budget and forecast
+// ---------------------------------------------------------------------------
+export type BudgetVersionMeta = {
+  id: string;
+  name: string;
+  state: "draft" | "approved";
+  financial_year: string | null;
+  scope_key: string;
+  scope_label: string;
+  measure: string;
+  is_current: boolean;
+  line_count: number;
+  source_filename: string | null;
+  note: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string | null;
+};
+
+export type BudgetVariance = {
+  version: {
+    id: string;
+    name: string;
+    financial_year: string | null;
+    scope_key: string;
+    measure: string;
+    approved_by: string | null;
+    approved_at: string | null;
+  } | null;
+  measure?: string;
+  periods: {
+    period: string;
+    label: string;
+    actual: number;
+    budget: number | null;
+    has_actual: boolean;
+    has_budget: boolean;
+    variance: number | null;
+    variance_pct: number | null;
+    utilisation_pct: number | null;
+  }[];
+  scopes: {
+    scope: string;
+    actual: number;
+    budget: number | null;
+    variance: number | null;
+    variance_pct: number | null;
+    utilisation_pct: number | null;
+  }[];
+  totals: {
+    actual: number;
+    budget: number | null;
+    variance: number | null;
+    variance_pct: number | null;
+    utilisation_pct: number | null;
+  };
+  unbudgeted_periods: string[];
+  unspent_periods: string[];
+  note?: string;
+};
+
+export type Forecast = {
+  base: { period: string; label: string; actual: number; headcount: number; note: string } | null;
+  measure?: string;
+  forecast: {
+    period: string;
+    label: string;
+    forecast: number;
+    is_forecast: true;
+    headcount: number;
+    components: {
+      run_rate: number;
+      increment: number;
+      joiners: number;
+      exits: number;
+      bonus: number;
+    };
+  }[];
+  assumptions: Record<string, string | number | null>;
+  disclaimer?: string;
+  note?: string;
+};
+
+export type ForecastInput = {
+  months: number;
+  incrementPct: number;
+  incrementFrom?: string;
+  newHiresPerMonth: number;
+  exitsPerMonth: number;
+  bonusMonth?: string;
+  bonusAmount: number;
+};
+
+export function fetchBudgetVersions(): Promise<{ versions: BudgetVersionMeta[] }> {
+  return apiFetch("/api/budget/versions").then((r) =>
+    parseEnvelopeResponse<{ versions: BudgetVersionMeta[] }>(r),
+  );
+}
+
+export function fetchBudgetVariance(params: {
+  filters: Record<string, string[]>;
+}): Promise<BudgetVariance> {
+  return apiFetch(`/api/budget/variance?${query({}, params.filters)}`).then((r) =>
+    parseEnvelopeResponse<BudgetVariance>(r),
+  );
+}
+
+export function fetchForecast(input: ForecastInput): Promise<Forecast> {
+  const q = query(
+    {
+      months: String(input.months),
+      increment_pct: String(input.incrementPct),
+      increment_from: input.incrementFrom,
+      new_hires_per_month: String(input.newHiresPerMonth),
+      exits_per_month: String(input.exitsPerMonth),
+      bonus_month: input.bonusMonth,
+      bonus_amount: String(input.bonusAmount),
+    },
+    {},
+  );
+  return apiFetch(`/api/budget/forecast?${q}`).then((r) => parseEnvelopeResponse<Forecast>(r));
+}
+
+export function approveBudget(id: string): Promise<{ id: string; state: string }> {
+  return apiFetch(`/api/budget/versions/${id}/approve`, { method: "POST" }).then((r) =>
+    parseEnvelopeResponse<{ id: string; state: string }>(r),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reports and the audit trail
+// ---------------------------------------------------------------------------
+export type ReportMeta = { key: string; title: string; description: string };
+
+export function fetchReports(): Promise<{ reports: ReportMeta[] }> {
+  return apiFetch("/api/reports").then((r) =>
+    parseEnvelopeResponse<{ reports: ReportMeta[] }>(r),
+  );
+}
+
+export type AuditEvent = {
+  id: string;
+  action: string;
+  object_type: string;
+  object_id: string | null;
+  summary: string;
+  detail: Record<string, unknown>;
+  user_email: string | null;
+  created_at: string | null;
+};
+
+export function fetchAudit(params: { limit?: number; action?: string }): Promise<{
+  events: AuditEvent[];
+}> {
+  const q = query(
+    { limit: String(params.limit ?? 100), action: params.action },
+    {},
+  );
+  return apiFetch(`/api/audit?${q}`).then((r) =>
+    parseEnvelopeResponse<{ events: AuditEvent[] }>(r),
+  );
+}

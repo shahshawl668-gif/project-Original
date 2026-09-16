@@ -27,6 +27,9 @@ import {
   Building2,
   Command,
   IndianRupee,
+  FileDown,
+  ScrollText,
+  Target,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -42,6 +45,7 @@ const navGroups = [
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/cost", label: "Cost analysis", icon: IndianRupee },
+      { href: "/reports", label: "Reports", icon: FileDown },
     ],
   },
   {
@@ -50,6 +54,7 @@ const navGroups = [
       { href: "/payroll/upload", label: "Upload & validate", icon: UploadCloud },
       { href: "/payroll/results", label: "Results", icon: ClipboardCheck },
       { href: "/payroll/history", label: "Register history", icon: History },
+      { href: "/budget/upload", label: "Upload budget", icon: Target },
     ],
   },
   {
@@ -66,6 +71,7 @@ const navGroups = [
       { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
       { href: "/config/components", label: "Salary components", icon: Layers },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
+      { href: "/audit", label: "Audit trail", icon: ScrollText },
     ],
   },
   {
