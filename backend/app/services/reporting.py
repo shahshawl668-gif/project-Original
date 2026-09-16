@@ -380,6 +380,55 @@ def _employee_cost(db, entity_id, ctx, wb) -> None:
     _sheet(wb, "Employee cost", headers, out)
 
 
+def _pay_equity(db, entity_id, ctx, wb) -> None:
+    from app.services.pay_equity import GENDER_LABELS, pay_equity
+
+    result = pay_equity(
+        db, entity_id, period=ctx["date_to"], group_by=ctx["group_by"],
+        filters=ctx["filters"],
+    )
+    coverage = result["coverage"]
+    _sheet(wb, "Coverage", ["Category", "Employees"],
+           [[row["label"], row["count"]] for row in coverage["by_gender"]]
+           + [["Total", coverage["total"]],
+              ["Gender recorded", coverage["recorded"]],
+              ["Coverage %", coverage["recorded_pct"]],
+              ["Period", result["period_label"]],
+              ["Basis", result["basis"]],
+              ["Minimum group size", result["min_group_size"]]])
+
+    headline = result["headline"] or {}
+    _sheet(wb, "Headline gap", ["Measure", "Value"], [
+        ["Median gap %", headline.get("median_gap_pct")],
+        ["Mean gap %", headline.get("mean_gap_pct")],
+        ["Variable pay median gap %", headline.get("variable_gap_pct")],
+        ["Women — median", (headline.get("women") or {}).get("median")],
+        ["Women — count", (headline.get("women") or {}).get("count")],
+        ["Men — median", (headline.get("men") or {}).get("median")],
+        ["Men — count", (headline.get("men") or {}).get("count")],
+        ["Direction", result["direction"]],
+        ["Comparable", "yes" if headline.get("comparable") else "no"],
+        ["Why not", headline.get("reason")],
+    ])
+
+    _sheet(wb, "Pay quartiles",
+           ["Band", "Employees", "Women", "Men", "Other", "Not recorded",
+            "Women % of known", "Pay from", "Pay to"],
+           [[q["band"], q["count"], q["counts"]["female"], q["counts"]["male"],
+             q["counts"]["other"], q["counts"]["not_recorded"], q["female_pct"],
+             q["pay_from"], q["pay_to"]] for q in result["quartiles"]])
+
+    _sheet(wb, "Like for like",
+           [result["group_by_label"], "Women", "Men", "Women median", "Men median",
+            "Median gap %", "Mean gap %", "Comparable", "Why not"],
+           [[g["group"], g["women"]["count"], g["men"]["count"],
+             g["women"]["median"], g["men"]["median"], g["median_gap_pct"],
+             g["mean_gap_pct"], "yes" if g["comparable"] else "no", g["reason"]]
+            for g in result["like_for_like"]])
+
+    _sheet(wb, "How to read this", ["Caveat"], [[c] for c in result["caveats"]])
+
+
 REPORTS: dict[str, tuple[str, str, Callable]] = {
     "management-summary": ("Management summary",
                            "Totals, month by month, and the full component list.",
@@ -408,7 +457,15 @@ REPORTS: dict[str, tuple[str, str, Callable]] = {
     "employee-cost": ("Employee payroll cost",
                       "One row per employee per month, fully costed.",
                       _employee_cost),
+    "pay-equity": ("Gender pay gap",
+                   "Unadjusted and like-for-like, with pay quartiles. Aggregate only; "
+                   "small groups withheld.",
+                   _pay_equity),
 }
+
+# Reports that carry data about a protected characteristic. These are not served
+# by role alone — the entity must also have authorised the analysis.
+RESTRICTED_REPORTS = {"pay-equity"}
 
 
 def catalogue() -> list[dict]:

@@ -25,6 +25,7 @@ import {
   Landmark,
   Layers,
   LayoutGrid,
+  Equal,
   Receipt,
   Scale,
   ShieldCheck,
@@ -40,6 +41,7 @@ import { CompliancePanel } from "@/components/cost/CompliancePanel";
 import { ActiveFilters, FilterMenu } from "@/components/cost/FilterMenu";
 import { HeadcountMovement } from "@/components/cost/HeadcountMovement";
 import { Menu, MenuItem } from "@/components/cost/Menu";
+import { PayEquityView } from "@/components/cost/PayEquityView";
 import { CostTooltip, MeasureTable, Panel, StatTile } from "@/components/cost/pieces";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
@@ -79,7 +81,7 @@ import { cn } from "@/lib/utils";
  */
 type ViewKey =
   | "overview" | "earnings" | "employer" | "deduction"
-  | "headcount" | "compensation" | "budget" | "compliance";
+  | "headcount" | "compensation" | "pay_equity" | "budget" | "compliance";
 
 const VIEWS: { key: ViewKey; label: string; hint: string; icon: typeof LayoutGrid }[] = [
   { key: "overview", label: "Overview", hint: "CTC, where it goes, and by whom", icon: LayoutGrid },
@@ -88,6 +90,7 @@ const VIEWS: { key: ViewKey; label: string; hint: string; icon: typeof LayoutGri
   { key: "deduction", label: "Deductions & net", hint: "TDS, PT, employee EPF and ESI", icon: Receipt },
   { key: "headcount", label: "Headcount & variance", hint: "Joiners, exits, cost per head", icon: Users },
   { key: "compensation", label: "Compensation & benefits", hint: "Median, spread, fixed vs variable", icon: Scale },
+  { key: "pay_equity", label: "Pay equity", hint: "Gender pay gap, unadjusted and like for like", icon: Equal },
   { key: "budget", label: "Budget & forecast", hint: "Actual against approved budget, scenarios", icon: Target },
   { key: "compliance", label: "Filing readiness", hint: "EPF ECR, ESIC, PT, Form 24Q", icon: ShieldCheck },
 ];
@@ -253,10 +256,10 @@ export default function CostAnalysisPage() {
   // wage month; the headcount view is a time series of the whole population.
   const shows = {
     groupBy: !["compliance", "headcount", "budget"].includes(view),
-    period: !["compliance", "compensation", "budget"].includes(view),
+    period: !["compliance", "compensation", "pay_equity", "budget"].includes(view),
     measure: view === "overview",
     filters: view !== "compliance",
-    compare: !["compliance", "compensation", "budget", "headcount"].includes(view),
+    compare: !["compliance", "compensation", "pay_equity", "budget", "headcount"].includes(view),
   };
   const controlCount = 1 + Number(shows.groupBy) + Number(shows.period)
     + Number(shows.measure) + Number(shows.filters);
@@ -457,6 +460,11 @@ export default function CostAnalysisPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}
         </div>
+      ) : view === "pay_equity" ? (
+        // Reachable before the first register: authorising the analysis is a
+        // governance step someone sets up while configuring the workspace, not
+        // something they should have to upload payroll to find.
+        <PayEquityView groupBy={groupBy} filters={filters} palette={palette} isDark={isDark} />
       ) : !hasData ? (
         <EmptyState
           icon={Layers}

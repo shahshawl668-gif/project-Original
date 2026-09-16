@@ -8,17 +8,26 @@ product are one dataset, not two.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, get_identity, require_entity_write
+from app.deps import (
+    get_current_entity,
+    get_current_user,
+    get_identity,
+    require_entity_write,
+    require_org_admin,
+    require_pay_equity,
+)
 from app.envelope import ok
 from app.models import Entity, User
 from app.schemas.exposure_config import ExposureConfig
-from app.services import analytics, compliance_calendar, workforce_analytics
+from app.services import analytics, audit, compliance_calendar, pay_equity, workforce_analytics
+from app.services import tenancy
 from app.services.config_service import ConfigService
 
 router = APIRouter()
@@ -261,6 +270,125 @@ def compensation(
 
     result["employees"] = [identity.apply(row) for row in result["employees"]]
     result["identity"] = identity.as_dict()
+    return ok(result)
+
+
+@router.get("/pay-equity/settings")
+def pay_equity_settings(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Whether the analysis is switched on for this entity, and who switched it on."""
+    return ok({
+        "enabled": bool(getattr(entity, "pay_equity_enabled", False)),
+        "enabled_by": getattr(entity, "pay_equity_enabled_by", None),
+        "enabled_at": (
+            entity.pay_equity_enabled_at.isoformat()
+            if getattr(entity, "pay_equity_enabled_at", None) else None
+        ),
+        "can_change": tenancy.role_at_least(db, user, "manager"),
+        "minimum_group_size": pay_equity.MIN_GROUP_SIZE,
+    })
+
+
+class PayEquityToggle(BaseModel):
+    enabled: bool
+    # Free text, stored on the audit entry rather than the entity: the record of
+    # *why* an employer authorised this belongs in the trail, not in a column
+    # someone can quietly edit later.
+    authorisation_note: str | None = None
+
+
+@router.put("/pay-equity/settings")
+def set_pay_equity_settings(
+    body: PayEquityToggle,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_org_admin),
+    entity: Entity = Depends(get_current_entity),
+):
+    """
+    Switch the gender pay gap analysis on or off for this entity.
+
+    Owner or manager only, and recorded either way. Turning it on is an
+    authorisation, and an authorisation nobody can point to afterwards is not
+    one.
+    """
+    entity.pay_equity_enabled = bool(body.enabled)
+    if body.enabled:
+        entity.pay_equity_enabled_by = user.email
+        entity.pay_equity_enabled_at = datetime.now(timezone.utc)
+    audit.record(
+        db, entity_id=entity.id, user=user,
+        action="pay_equity.enabled" if body.enabled else "pay_equity.disabled",
+        object_type="entity", object_id=str(entity.id),
+        summary=(
+            "Authorised gender pay gap analysis for this entity"
+            if body.enabled else
+            "Withdrew authorisation for gender pay gap analysis"
+        ),
+        detail={"note": (body.authorisation_note or "").strip()[:500]},
+    )
+    db.commit()
+    db.refresh(entity)
+    return ok({
+        "enabled": entity.pay_equity_enabled,
+        "enabled_by": entity.pay_equity_enabled_by,
+        "enabled_at": entity.pay_equity_enabled_at.isoformat()
+                      if entity.pay_equity_enabled_at else None,
+    })
+
+
+@router.get("/pay-equity")
+def pay_equity_analysis(
+    period: str | None = Query(default=None),
+    group_by: str = Query(default="grade"),
+    min_group_size: int = Query(default=pay_equity.MIN_GROUP_SIZE, ge=1, le=500),
+    business_unit: list[str] | None = Query(default=None),
+    department: list[str] | None = Query(default=None),
+    cost_center: list[str] | None = Query(default=None),
+    work_location: list[str] | None = Query(default=None),
+    work_state: list[str] | None = Query(default=None),
+    grade: list[str] | None = Query(default=None),
+    designation: list[str] | None = Query(default=None),
+    employment_type: list[str] | None = Query(default=None),
+    skill_category: list[str] | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_pay_equity),
+):
+    """
+    The gender pay gap, unadjusted and like-for-like, for one wage month.
+
+    Aggregate only — no individual appears at any permission level. Groups below
+    the minimum size are withheld and reported as withheld. Every request is
+    written to the audit trail, because who looked at this is itself a
+    governance question.
+    """
+    filters = _filters(
+        business_unit=business_unit, department=department, cost_center=cost_center,
+        work_location=work_location, work_state=work_state, grade=grade,
+        designation=designation, employment_type=employment_type,
+        skill_category=skill_category,
+    )
+    try:
+        result = pay_equity.pay_equity(
+            db, entity.id,
+            period=_period(period, "period") if period else None,
+            group_by=group_by,
+            min_group_size=min_group_size,
+            filters=filters,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    audit.record(
+        db, entity_id=entity.id, user=user, action="pay_equity.viewed",
+        object_type="analysis", object_id=result.get("period"),
+        summary=f"Viewed the gender pay gap analysis for {result.get('period_label') or 'no period'}",
+        detail={"group_by": group_by, "filters": filters},
+    )
+    db.commit()
     return ok(result)
 
 

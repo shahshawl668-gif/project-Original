@@ -106,7 +106,9 @@ def test_every_report_in_the_catalogue_can_be_generated(client, workspace):
     _seed(entity, user)
 
     listed = client.get("/api/reports", headers=headers).json()["data"]["reports"]
-    assert len(listed) == len(reporting.REPORTS)
+    # Restricted reports are absent until the entity authorises them, so the
+    # catalogue is the unrestricted set rather than everything that exists.
+    assert {r["key"] for r in listed} == set(reporting.REPORTS) - reporting.RESTRICTED_REPORTS
 
     for report in listed:
         r = client.get(f"/api/reports/{report['key']}.xlsx", headers=headers)
@@ -118,6 +120,22 @@ def test_every_report_in_the_catalogue_can_be_generated(client, workspace):
 def test_an_unknown_report_is_a_404(client, workspace):
     _, _, headers = workspace
     assert client.get("/api/reports/vibes.xlsx", headers=headers).status_code == 404
+
+
+def test_a_restricted_report_is_not_listed_until_it_is_authorised(client, workspace):
+    """Offering a card that always 403s teaches people to ignore errors."""
+    entity, user, headers = workspace
+    _seed(entity, user)
+
+    keys = {r["key"] for r in client.get("/api/reports", headers=headers).json()["data"]["reports"]}
+    assert "pay-equity" not in keys
+    assert client.get("/api/reports/pay-equity.xlsx", headers=headers).status_code == 403
+
+    client.put("/api/bi/pay-equity/settings", json={"enabled": True}, headers=headers)
+
+    keys = {r["key"] for r in client.get("/api/reports", headers=headers).json()["data"]["reports"]}
+    assert "pay-equity" in keys
+    assert client.get("/api/reports/pay-equity.xlsx", headers=headers).status_code == 200
 
 
 # ── provenance ──────────────────────────────────────────────────────────────

@@ -530,3 +530,114 @@ export function fetchAudit(params: { limit?: number; action?: string }): Promise
     parseEnvelopeResponse<{ events: AuditEvent[] }>(r),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Pay equity
+// ---------------------------------------------------------------------------
+export type GenderSummary = {
+  count: number;
+  suppressed: boolean;
+  median: number | null;
+  mean: number | null;
+  variable_median: number | null;
+  variable_receipt_pct: number | null;
+};
+
+export type PayEquityComparison = {
+  comparable: boolean;
+  reason: string | null;
+  median_gap_pct: number | null;
+  mean_gap_pct: number | null;
+  variable_gap_pct: number | null;
+};
+
+export type PayEquityGroup = PayEquityComparison & {
+  group: string;
+  total: number;
+  women: GenderSummary;
+  men: GenderSummary;
+};
+
+export type PayQuartile = {
+  band: string;
+  count: number;
+  counts: Record<string, number>;
+  female_pct: number | null;
+  male_pct: number | null;
+  known: number;
+  pay_from: number | null;
+  pay_to: number | null;
+};
+
+export type PayEquity = {
+  period: string | null;
+  period_label: string | null;
+  group_by: string;
+  group_by_label: string;
+  min_group_size: number;
+  basis: string;
+  coverage: {
+    total: number;
+    recorded: number;
+    recorded_pct: number;
+    by_gender: { key: string; label: string; count: number }[];
+  };
+  headline:
+    | (PayEquityComparison & { women: GenderSummary; men: GenderSummary; other: GenderSummary })
+    | null;
+  quartiles: PayQuartile[];
+  like_for_like: PayEquityGroup[];
+  suppressed_groups: { group: string; women: number; men: number; reason: string }[];
+  direction: string;
+  caveats: string[];
+};
+
+export type PayEquitySettings = {
+  enabled: boolean;
+  enabled_by: string | null;
+  enabled_at: string | null;
+  can_change: boolean;
+  minimum_group_size: number;
+};
+
+export function fetchPayEquitySettings(): Promise<PayEquitySettings> {
+  return apiFetch("/api/bi/pay-equity/settings").then((r) =>
+    parseEnvelopeResponse<PayEquitySettings>(r),
+  );
+}
+
+export function setPayEquityEnabled(
+  enabled: boolean,
+  authorisationNote?: string,
+): Promise<PayEquitySettings> {
+  return apiFetch("/api/bi/pay-equity/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled, authorisation_note: authorisationNote || null }),
+  }).then((r) => parseEnvelopeResponse<PayEquitySettings>(r));
+}
+
+export function fetchPayEquity(params: {
+  groupBy: string;
+  minGroupSize?: number;
+  filters: Record<string, string[]>;
+}): Promise<PayEquity> {
+  const q = query(
+    {
+      group_by: params.groupBy,
+      min_group_size: params.minGroupSize ? String(params.minGroupSize) : undefined,
+    },
+    params.filters,
+  );
+  return apiFetch(`/api/bi/pay-equity?${q}`).then((r) => parseEnvelopeResponse<PayEquity>(r));
+}
+
+/** A gap, with its direction spelled out rather than left to the sign. */
+export function describeGap(pct: number | null): { text: string; tone: "gap" | "reverse" | "level" | "none" } {
+  if (pct === null || !Number.isFinite(pct)) return { text: "—", tone: "none" };
+  if (Math.abs(pct) < 0.05) return { text: "level", tone: "level" };
+  const magnitude = `${Math.abs(pct).toFixed(1)}%`;
+  return pct > 0
+    ? { text: `${magnitude} less`, tone: "gap" }
+    : { text: `${magnitude} more`, tone: "reverse" };
+}

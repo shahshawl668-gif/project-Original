@@ -138,6 +138,36 @@ def get_identity(
     return Identity(entity.id, False, "visible to your role")
 
 
+def require_pay_equity(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+) -> Entity:
+    """
+    The gate on the gender pay gap analysis.
+
+    Two conditions, both required. The entity must have the analysis switched
+    on, because India mandates no gender pay reporting and running it is the
+    employer's decision rather than the product's — and on a bureau's login one
+    client authorising it must not enable it across the book. And the caller
+    must be an owner or a manager: this is population-level pay data about a
+    protected characteristic, and the analyst tier that can see individual
+    salaries is deliberately *not* the tier that can see this.
+    """
+    if not getattr(entity, "pay_equity_enabled", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Pay equity analysis is not enabled for this entity. An owner or "
+                   "manager can turn it on, and who did so is recorded.",
+        )
+    if not tenancy.role_at_least(db, user, "manager"):
+        raise HTTPException(
+            status_code=403,
+            detail="Pay equity analysis is restricted to owners and managers.",
+        )
+    return entity
+
+
 def require_org_admin(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),

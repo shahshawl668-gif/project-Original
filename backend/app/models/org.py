@@ -28,6 +28,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
+from sqlalchemy.sql import false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -78,6 +79,20 @@ class Entity(Base):
     cin: Mapped[str | None] = mapped_column(String(32))
     # Registered state — the fallback for PT/LWF when a row carries no work state.
     primary_state: Mapped[str | None] = mapped_column(String(100))
+
+    # Pay equity analysis is off until someone with authority turns it on, and
+    # who turned it on is recorded. India mandates no gender pay reporting, so
+    # running the analysis is a decision the employer takes rather than one the
+    # product takes for them — and on a bureau's login, one client authorising
+    # it must not enable it for the rest of the book.
+    # A server-side default as well as a Python one: the entity migration
+    # inserts rows with raw SQL that names only the columns it knows about,
+    # and a NOT NULL column with no server default breaks it.
+    pay_equity_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    pay_equity_enabled_by: Mapped[str | None] = mapped_column(String(255))
+    pay_equity_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

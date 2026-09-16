@@ -17,7 +17,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, get_identity
 from app.envelope import ok
 from app.models import Entity, User
-from app.services import audit, reporting
+from app.services import audit, reporting, tenancy
 from app.services.budgeting import parse_period
 
 router = APIRouter()
@@ -26,9 +26,25 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @router.get("")
-def catalogue():
-    """Which reports exist and what each one covers."""
-    return ok({"reports": reporting.catalogue()})
+def catalogue(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """
+    Which reports exist and what each one covers.
+
+    A report the caller cannot download is not listed: offering a card that
+    always 403s teaches people to ignore errors.
+    """
+    allowed = getattr(entity, "pay_equity_enabled", False) and tenancy.role_at_least(
+        db, user, "manager"
+    )
+    reports = [
+        report for report in reporting.catalogue()
+        if report["key"] not in reporting.RESTRICTED_REPORTS or allowed
+    ]
+    return ok({"reports": reports})
 
 
 @router.get("/{kind}.xlsx")
@@ -51,6 +67,21 @@ def download(
     entity: Entity = Depends(get_current_entity),
     identity = Depends(get_identity),
 ):
+    if kind in reporting.RESTRICTED_REPORTS:
+        # The same two conditions the screen enforces: the entity has authorised
+        # the analysis, and the caller is an owner or manager. An export must not
+        # be the way around a gate.
+        if not getattr(entity, "pay_equity_enabled", False):
+            raise HTTPException(
+                status_code=403,
+                detail="Pay equity analysis is not enabled for this entity.",
+            )
+        if not tenancy.role_at_least(db, user, "manager"):
+            raise HTTPException(
+                status_code=403,
+                detail="Pay equity analysis is restricted to owners and managers.",
+            )
+
     filters = {
         "business_unit": business_unit, "department": department, "cost_center": cost_center,
         "work_location": work_location, "work_state": work_state, "grade": grade,
