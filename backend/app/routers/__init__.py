@@ -2,8 +2,10 @@ from fastapi import APIRouter
 
 from app.routers import (
     admin,
+    audit,
     auth,
     bi,
+    budget,
     components,
     ctc,
     findings,
@@ -12,6 +14,7 @@ from app.routers import (
     org,
     payroll,
     reference,
+    reports,
     rule_engine,
     rule_preferences,
     signoff,
@@ -33,6 +36,9 @@ api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 api_router.include_router(findings.router, prefix="/findings", tags=["findings"])
 api_router.include_router(bi.router, prefix="/bi", tags=["bi"])
+api_router.include_router(budget.router, prefix="/budget", tags=["budget"])
+api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
+api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(minimum_wage.router, prefix="/minimum-wage", tags=["minimum-wage"])
 api_router.include_router(signoff.router, prefix="/signoff", tags=["signoff"])
 api_router.include_router(workforce.router, prefix="/workforce", tags=["workforce"])

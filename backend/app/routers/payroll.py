@@ -21,7 +21,7 @@ from app.models import (
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
-from app.services import finding_store
+from app.services import audit, finding_store
 from app.services.cost_model import capture_reported
 from app.services.dimensions import snapshot as dimension_snapshot
 from app.services.pf_basis import from_row as pf_flag_from_row
@@ -228,6 +228,18 @@ async def upload_payroll(
     persist_period = _to_first_of_month(period_month_d or eff_to_d)
     if persist_period and comps and not missing:
         _persist_salary_register(db, user, entity, persist_period, file.filename, employees, comps)
+        # Months later, when a figure is challenged, the only useful answer is
+        # who uploaded which file, and when.
+        audit.record(
+            db, entity_id=entity.id, user=user, action="register.uploaded",
+            object_type="salary_register", object_id=persist_period.isoformat(),
+            summary=(
+                f"Uploaded the salary register for {persist_period:%b %Y} — "
+                f"{len(employees)} employees from {file.filename}"
+            ),
+            detail={"warnings": warnings[:20], "run_type": run_type},
+        )
+        db.commit()
 
     out = UploadParseResponse(
         columns=columns,

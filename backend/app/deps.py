@@ -114,6 +114,30 @@ def require_entity_write(
     return entity
 
 
+def get_identity(
+    x_mask_identity: str | None = Header(default=None, alias="X-Mask-Identity"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """
+    Whether this request may see who earns what.
+
+    Masked by default for anyone below analyst — a business-unit head reading
+    their own cost should not thereby learn every salary in their team. Any
+    caller can ask for masking explicitly with ``X-Mask-Identity: on``, which is
+    what someone presenting to a room wants; nobody can ask their way *out* of
+    it, because that decision belongs to their role.
+    """
+    from app.services.masking import Identity
+
+    if (x_mask_identity or "").strip().lower() in {"1", "on", "true", "yes"}:
+        return Identity(entity.id, True, "requested for this session")
+    if not tenancy.role_at_least(db, user, "analyst"):
+        return Identity(entity.id, True, "your role does not include employee-level pay")
+    return Identity(entity.id, False, "visible to your role")
+
+
 def require_org_admin(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),

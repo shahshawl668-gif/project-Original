@@ -14,6 +14,8 @@ from app.models.workforce import (
     EmployeeMasterUpload,
     EmployeeRecord,
 )
+from app.models.audit import AuditEvent
+from app.models.budget import BudgetLine, BudgetVersion, ENTITY_SCOPE
 from app.models.rule_engine import Formula, SlabRule
 from app.models.rule_preferences import TenantRulePreference
 from app.models.signoff import PeriodSignOff, SignOffEvent
@@ -56,4 +58,8 @@ __all__ = [
     "FindingStateEvent",
     "PeriodSignOff",
     "SignOffEvent",
+    "AuditEvent",
+    "BudgetVersion",
+    "BudgetLine",
+    "ENTITY_SCOPE",
 ]

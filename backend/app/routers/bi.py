@@ -14,11 +14,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write
+from app.deps import get_current_entity, get_current_user, get_identity, require_entity_write
 from app.envelope import ok
 from app.models import Entity, User
 from app.schemas.exposure_config import ExposureConfig
-from app.services import analytics, compliance_calendar
+from app.services import analytics, compliance_calendar, workforce_analytics
 from app.services.config_service import ConfigService
 
 router = APIRouter()
@@ -168,6 +168,100 @@ def cost_compare(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/headcount-movement")
+def headcount_movement(
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    business_unit: list[str] | None = Query(default=None),
+    department: list[str] | None = Query(default=None),
+    cost_center: list[str] | None = Query(default=None),
+    work_location: list[str] | None = Query(default=None),
+    work_state: list[str] | None = Query(default=None),
+    grade: list[str] | None = Query(default=None),
+    designation: list[str] | None = Query(default=None),
+    employment_type: list[str] | None = Query(default=None),
+    skill_category: list[str] | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+    identity = Depends(get_identity),
+):
+    """
+    Opening, joiners, exits and closing headcount for each stored month.
+
+    Movement is measured by presence on the register, because that is a verified
+    statement — the money moved. Joining and exit dates from the employee master
+    are reported alongside as corroboration, never instead of it.
+    """
+    filters = _filters(
+        business_unit=business_unit, department=department, cost_center=cost_center,
+        work_location=work_location, work_state=work_state, grade=grade,
+        designation=designation, employment_type=employment_type,
+        skill_category=skill_category,
+    )
+    result = workforce_analytics.headcount_movement(
+        db, entity.id,
+        date_from=_period(date_from, "date_from") if date_from else None,
+        date_to=_period(date_to, "date_to") if date_to else None,
+        filters=filters,
+    )
+    for point in result["periods"]:
+        point["joiner_ids"] = [
+            identity.employee(eid)["employee_id"] for eid in point["joiner_ids"]
+        ]
+        point["exit_ids"] = [
+            identity.employee(eid)["employee_id"] for eid in point["exit_ids"]
+        ]
+    result["identity"] = identity.as_dict()
+    return ok(result)
+
+
+@router.get("/compensation")
+def compensation(
+    period: str | None = Query(default=None),
+    group_by: str = Query(default="grade"),
+    business_unit: list[str] | None = Query(default=None),
+    department: list[str] | None = Query(default=None),
+    cost_center: list[str] | None = Query(default=None),
+    work_location: list[str] | None = Query(default=None),
+    work_state: list[str] | None = Query(default=None),
+    grade: list[str] | None = Query(default=None),
+    designation: list[str] | None = Query(default=None),
+    employment_type: list[str] | None = Query(default=None),
+    skill_category: list[str] | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+    identity = Depends(get_identity),
+):
+    """
+    How pay is distributed, for one month, on annualised CTC.
+
+    The median and the quartiles rather than the average alone: one large
+    package moves an average and nothing else does, which is why a C&B team
+    does not reason with one.
+    """
+    filters = _filters(
+        business_unit=business_unit, department=department, cost_center=cost_center,
+        work_location=work_location, work_state=work_state, grade=grade,
+        designation=designation, employment_type=employment_type,
+        skill_category=skill_category,
+    )
+    try:
+        result = workforce_analytics.compensation_analysis(
+            db, entity.id,
+            period=_period(period, "period") if period else None,
+            group_by=group_by,
+            filters=filters,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    result["employees"] = [identity.apply(row) for row in result["employees"]]
+    result["identity"] = identity.as_dict()
+    return ok(result)
 
 
 @router.get("/measures")
