@@ -316,7 +316,11 @@ doc.push(
   bullet("The full Indian cost taxonomy — earnings split as Basic & DA, HRA, allowances, variable pay and arrears; employer EPF, EDLI and admin, ESI, the gratuity accrual and LWF on top; employee EPF, ESI, PT and TDS inside gross — sliced by any of nine reporting dimensions over months, quarters or financial-year quarters, and compared between any two months."),
   bullet("A statutory exposure ledger carrying each open shortfall from the month it arose, with interest and damages accruing by age."),
   bullet("Filing readiness against the statutory calendar: the due date for each obligation arising from a wage month, and what would make the filing wrong. Readiness, never confirmation — nothing here can see a portal."),
+  bullet("Actual against an approved budget, by month and by scope, on the measure the budget was approved on \u2014 and a scenario forecast that is carried separately from both, because the most damaging thing this layer could do is let a projection be read as a result."),
+  bullet("Headcount movement measured by presence on the register, and pay distribution reported on the median and the quartiles rather than the average alone."),
+  bullet("Nine downloadable workbooks, each opening with its own provenance: what it covered, which filters applied, how fresh the registers were, and who generated it."),
   bullet("Period sign-off and an evidence pack recording who approved the month, what they saw, what they accepted and on what grounds, and which rules and rates were in force."),
+  bullet("Identity masking below analyst, and an append-only trail of every upload, approval and export."),
 
   h2("1.1 The structural position"),
   p("The product's defensibility rests on one constraint: it never runs payroll. A vendor auditing its own output is not an audit. Because PayrollCheck computes nothing that anyone pays out, it can act as an independent second opinion on any payroll system — and that is a position no payroll vendor can occupy for its own customers."),
@@ -451,13 +455,15 @@ doc.push(
 doc.push(h1("3. Data model"));
 doc.push(p(`${tableCount} tables, ${columnCount} columns. Grouped by role below. Every tenant-scoped table carries entity_id; user_id where present records who created the row.`));
 
-const GROUP_ORDER = ["Tenancy", "Identity", "Configuration", "Payroll inputs", "Findings & assurance"];
+const GROUP_ORDER = ["Tenancy", "Identity", "Configuration", "Payroll inputs",
+                     "Findings & assurance", "Planning & governance"];
 const GROUP_NOTES = {
   "Tenancy": "The access boundary. Everything else hangs off Entity.",
   "Identity": "Accounts and token storage. Unchanged by the entity work except that provisioning now creates an organization at signup.",
   "Configuration": "What each entity's rules are. All FY- or date-versioned so an old month validates against the rules that applied then.",
   "Payroll inputs": "The four ingested datasets and their upload metadata. Master and CTC records are effective-dated; registers and attendance are keyed by period.",
   "Findings & assurance": "What validation produced, what humans decided about it, and the frozen record of approval.",
+  "Planning & governance": "The approved budget a month is measured against, versioned by approval rather than overwritten, and the append-only record of who uploaded, approved or exported anything.",
 };
 
 // Any group produced by regenerate.sh must have a note here, or the section
@@ -683,23 +689,30 @@ const LISTINGS = [
     ["backend/app/services/analytics.py", "Cost bridge, exposure, dimensional cost analysis and period comparison"],
     ["backend/app/services/cost_model.py", "The Indian cost taxonomy and the CTC identity"],
     ["backend/app/services/dimensions.py", "The reporting attributes cost is analysed by, snapshotted per period"],
+    ["backend/app/services/workforce_analytics.py", "Headcount movement and pay distribution"],
     ["backend/app/services/compliance_calendar.py", "Statutory due dates and filing readiness"],
     ["backend/app/schemas/exposure_config.py", "Interest and damages configuration"],
   ]],
-  ["7.7 Minimum wage", [
+  ["7.7 Planning and governance", [
+    ["backend/app/models/budget.py", "Approved budget, versioned by approval"],
+    ["backend/app/services/budgeting.py", "Budget parsing, approval, variance and forecast"],
+    ["backend/app/models/audit.py", "The append-only record of who did what"],
+    ["backend/app/services/masking.py", "Showing cost without showing who earns it"],
+  ]],
+  ["7.8 Minimum wage", [
     ["backend/app/models/minimum_wage.py", "Rate table"],
     ["backend/app/services/minimum_wage.py", "Lookup, proration and the compliance check"],
   ]],
-  ["7.8 Sign-off and evidence", [
+  ["7.9 Sign-off and evidence", [
     ["backend/app/models/signoff.py", "Period sign-off and its event log"],
     ["backend/app/services/signoff.py", "Snapshot assembly and state transitions"],
   ]],
-  ["7.9 One-pass validation and the PF basis", [
+  ["7.10 One-pass validation and the PF basis", [
     ["backend/app/services/row_composition.py", "What one register row is made of, and over what window"],
     ["backend/app/services/pf_basis.py", "Whether an employee's PF is restricted to the ceiling"],
     ["backend/app/services/finding_taxonomy.py", "Missing, mismatch or issue — the shape of the report"],
   ]],
-  ["7.10 Frontend entity context", [
+  ["7.11 Frontend entity context", [
     ["frontend/src/context/EntityContext.tsx", "Entity provider"],
     ["frontend/src/components/EntitySwitcher.tsx", "Client switcher"],
   ]],
@@ -736,10 +749,12 @@ doc.push(pageBreak());
  */
 const SUITE_NOTES = {
   "test_analytics.py": "Cost bridge reconciliation and exposure arithmetic",
+  "test_budget_and_forecast.py": "Draft vs approved, variance arithmetic, and that a forecast never reads as a result",
   "test_compliance_calendar.py": "Statutory due dates, blockers, and that no status can read as filed",
   "test_cost_analysis.py": "Dimension snapshotting, grouping, granularity, filters, reconciliation",
   "test_cost_taxonomy.py": "The CTC identity, reported-over-computed precedence, period comparison",
   "test_pf_basis.py": "Per-employee restriction: source precedence and tri-state flags",
+  "test_reports_and_audit.py": "Provenance on every workbook, masking in exports, an append-only trail",
   "test_unified_validation.py": "Regular, arrear and increment validated in one pass",
   "test_validate_endpoint.py": "The validate route end to end, against the 500 it once returned",
   "test_entity_isolation.py": "The access boundary, roles and header resolution",
@@ -750,6 +765,7 @@ const SUITE_NOTES = {
   "test_pf_esic_engines.py": "PF and ESIC engines (inherited)",
   "test_signoff.py": "Snapshot immutability, role gate, workbook contents",
   "test_spec_rules.py": "Statutory rule spec (inherited)",
+  "test_workforce_analytics.py": "Headcount movement by register presence, pay distribution, masking",
   "test_workforce_ingest.py": "Upload, preview, commit and effective dating",
   "test_workforce_parse.py": "Header aliasing, day-first dates, typing, derivation",
   "test_workforce_rules.py": "MST-*, ATT-*, GRAT-004/005, including silence conditions",
@@ -869,6 +885,9 @@ doc.push(
       ["Filing readiness is not filing status", "The compliance panel reports the statutory due date and what would make a filing wrong. It has no connection to EPFO, ESIC, a state PT portal or TRACES, so it cannot know that a return was submitted — and never says so."],
       ["Professional tax due dates vary by state", "The readiness calendar uses the 20th as the common case and says on the row that it varies. PT is state law, and quoting one date as though it were uniform would be wrong more often than it was right."],
       ["Exposure rates are defaults, not advice", "The interest and damages parameters reflect rates in common use. They are configurable per entity and carry no legal force of their own."],
+      ["No bank file or journal voucher reconciliation", "Payroll cost, the bank file total and the JV total are not tied to one another. With ECR and challan reconciliation this is the phase-two build."],
+      ["No data retention policy engine", "Retention and consent records are not implemented. Required before a DPDP-conscious production rollout."],
+      ["No gender pay analysis", "Gender is captured and masked, but the analysis is deliberately not built pending written authorisation and its own access rule."],
       ["No full-and-final module", "Leave encashment and notice pay have no dedicated handling."],
       ["No PDF report", "The evidence pack is an Excel workbook."],
       ["No email invitations", "Members are added to an organization directly in the database rather than by invite."],

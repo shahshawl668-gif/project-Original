@@ -55,6 +55,7 @@ GROUPS = {
                        "attendance_registers", "attendance_rows", "payroll_runs"],
     "Findings & assurance": ["validation_runs", "finding_records", "finding_states",
                              "finding_state_events", "period_signoffs", "signoff_events"],
+    "Planning & governance": ["budget_versions", "budget_lines", "audit_events"],
 }
 
 out = {}

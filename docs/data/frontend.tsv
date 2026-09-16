@@ -1,9 +1,11 @@
 frontend/src/app/(app)/admin/users/page.tsx	172
+frontend/src/app/(app)/audit/page.tsx	139
+frontend/src/app/(app)/budget/upload/page.tsx	324
 frontend/src/app/(app)/config/components/page.tsx	328
 frontend/src/app/(app)/config/rules/page.tsx	147
 frontend/src/app/(app)/config/statutory/page.tsx	725
 frontend/src/app/(app)/config/tax/page.tsx	636
-frontend/src/app/(app)/cost/page.tsx	881
+frontend/src/app/(app)/cost/page.tsx	924
 frontend/src/app/(app)/ctc/history/page.tsx	224
 frontend/src/app/(app)/ctc/upload/page.tsx	353
 frontend/src/app/(app)/dashboard/page.tsx	887
@@ -13,6 +15,7 @@ frontend/src/app/(app)/payroll/history/RegisterHistoryContent.tsx	427
 frontend/src/app/(app)/payroll/history/page.tsx	52
 frontend/src/app/(app)/payroll/results/page.tsx	1172
 frontend/src/app/(app)/payroll/upload/page.tsx	573
+frontend/src/app/(app)/reports/page.tsx	234
 frontend/src/app/(app)/rule-engine/formula/page.tsx	259
 frontend/src/app/(app)/rule-engine/slabs/page.tsx	381
 frontend/src/app/(auth)/login/page.tsx	162
@@ -22,13 +25,16 @@ frontend/src/app/error.tsx	45
 frontend/src/app/layout.tsx	53
 frontend/src/app/page.tsx	5
 frontend/src/components/ApiHealthBadge.tsx	57
-frontend/src/components/AppShell.tsx	402
+frontend/src/components/AppShell.tsx	408
 frontend/src/components/EntitySwitcher.tsx	116
 frontend/src/components/ThemeToggle.tsx	35
 frontend/src/components/auth/AuthShell.tsx	155
+frontend/src/components/cost/BudgetView.tsx	496
 frontend/src/components/cost/ComparePanel.tsx	199
+frontend/src/components/cost/CompensationView.tsx	267
 frontend/src/components/cost/CompliancePanel.tsx	142
 frontend/src/components/cost/FilterMenu.tsx	179
+frontend/src/components/cost/HeadcountMovement.tsx	142
 frontend/src/components/cost/Menu.tsx	129
 frontend/src/components/cost/pieces.tsx	203
 frontend/src/components/layout/PageHeader.tsx	46
@@ -58,7 +64,7 @@ frontend/src/context/AuthContext.tsx	183
 frontend/src/context/EntityContext.tsx	131
 frontend/src/lib/admin.ts	23
 frontend/src/lib/api.ts	377
-frontend/src/lib/cost-analysis.ts	277
+frontend/src/lib/cost-analysis.ts	532
 frontend/src/lib/export.ts	34
 frontend/src/lib/rule-engine.ts	163
 frontend/src/lib/statutory-config.ts	346

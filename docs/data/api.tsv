@@ -19,6 +19,8 @@ Statutory Config	/api/config/statutory/summary	GET	Config Summary
 Statutory Config	/api/config/statutory/test-expression	POST	Test Expression	
 admin	/api/admin/users	GET	List Tenant Users	
 admin	/api/admin/users/{target_id}/role	PATCH	Patch User Role	
+audit	/api/audit	GET	Trail	Who uploaded, approved, changed or exported what.
+audit	/api/audit/actions	GET	Actions	The action names the trail uses, so a filter can offer real options.
 auth	/api/auth/login	POST	Login	
 auth	/api/auth/logout	POST	Logout	Revokes the given refresh token (no access token required).
 auth	/api/auth/me	GET	Me	
@@ -26,6 +28,7 @@ auth	/api/auth/password-reset-confirm	POST	Password Reset Confirm
 auth	/api/auth/password-reset-request	POST	Password Reset Request	
 auth	/api/auth/refresh	POST	Refresh Token	
 auth	/api/auth/signup	POST	Signup	
+bi	/api/bi/compensation	GET	Compensation	How pay is distributed, for one month, on annualised CTC.
 bi	/api/bi/compliance	GET	Compliance	Filing readiness against the statutory calendar.
 bi	/api/bi/cost-analysis	GET	Cost Analysis	Payroll cost by any reporting dimension, over month, quarter or year.
 bi	/api/bi/cost-bridge	GET	Cost Bridge	Why payroll cost moved between two months.
@@ -35,9 +38,19 @@ bi	/api/bi/exposure	GET	Exposure	Accumulated statutory shortfall, aged, with int
 bi	/api/bi/exposure/config	GET	Get Exposure Config	
 bi	/api/bi/exposure/config	PUT	Put Exposure Config	
 bi	/api/bi/exposure/config/reset	POST	Reset Exposure Config	
+bi	/api/bi/headcount-movement	GET	Headcount Movement	Opening, joiners, exits and closing headcount for each stored month.
 bi	/api/bi/measures	GET	Measures	The cost taxonomy — every measure, its layer and what it means.
 bi	/api/bi/periods	GET	Periods	Months that hold a register, so a comparison can only name a real one.
 bi	/api/bi/trend	GET	Cost Trend	
+budget	/api/budget/forecast	GET	Forecast	Project cost forward from stated assumptions.
+budget	/api/budget/preview	POST	Preview	Read an uploaded budget and show what it says before anything is stored.
+budget	/api/budget/scopes	GET	Scopes	The levels a budget can be approved at.
+budget	/api/budget/template.csv	GET	Template	A budget file in the shape this product reads, for a finance team to fill in.
+budget	/api/budget/variance	GET	Variance	Actual payroll cost against the approved budget.
+budget	/api/budget/versions	GET	List Versions	
+budget	/api/budget/versions	POST	Create Version	Store a budget as a draft. It is not a comparison until someone approves it.
+budget	/api/budget/versions/{version_id}	DELETE	Delete Version	Remove a draft. An approved budget is never deleted — history depends on it.
+budget	/api/budget/versions/{version_id}/approve	POST	Approve Version	Approve a budget.
 components	/api/components	GET	List Components	
 components	/api/components	POST	Create Component	
 components	/api/components/{component_id}	DELETE	Delete Component	
@@ -78,6 +91,8 @@ payroll	/api/payroll/upload	POST	Upload Payroll
 payroll	/api/payroll/validate	POST	Validate Payroll	
 payroll	/api/payroll/validate/export-excel	POST	Export Findings Excel	Run validation and return findings as an Excel workbook (binary stream, not JSON envelope).
 reference	/api/reference/states	GET	List States	Return distinct states known to the system.
+reports	/api/reports	GET	Catalogue	Which reports exist and what each one covers.
+reports	/api/reports/{kind}.xlsx	GET	Download	
 rule-engine	/api/rule-engine/defaults/lwf-states	GET	Get Lwf Default States	
 rule-engine	/api/rule-engine/defaults/pt-states	GET	Get Pt Default States	
 rule-engine	/api/rule-engine/defaults/states	GET	Get All Default States	

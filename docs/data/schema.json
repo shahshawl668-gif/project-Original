@@ -135,6 +135,203 @@
    "UNIQUE (register_id, employee_id)"
   ]
  },
+ "audit_events": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "user_email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "action",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "object_type",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "object_id",
+    "type": "VARCHAR(128)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "summary",
+    "type": "TEXT"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "detail",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Planning & governance",
+  "unique": []
+ },
+ "budget_lines": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 budget_versions.id, NOT NULL, indexed",
+    "name": "version_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "scope_value",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "amount",
+    "type": "NUMERIC(16, 2)"
+   },
+   {
+    "flags": "",
+    "name": "headcount",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "",
+    "name": "note",
+    "type": "TEXT"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "extra",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Planning & governance",
+  "unique": [
+   "UNIQUE (version_id, period_month, scope_value)"
+  ]
+ },
+ "budget_versions": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "name",
+    "type": "VARCHAR(120)"
+   },
+   {
+    "flags": "",
+    "name": "financial_year",
+    "type": "VARCHAR(9)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "state",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "scope_key",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "measure",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "note",
+    "type": "TEXT"
+   },
+   {
+    "flags": "",
+    "name": "source_filename",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "created_by_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "approved_by_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "approved_by_email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "approved_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "is_current",
+    "type": "BOOLEAN"
+   }
+  ],
+  "group": "Planning & governance",
+  "unique": [
+   "UNIQUE (entity_id, name)"
+  ]
+ },
  "components_config": {
   "columns": [
    {
