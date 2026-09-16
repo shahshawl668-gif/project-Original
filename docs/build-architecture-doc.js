@@ -321,6 +321,7 @@ doc.push(
   bullet("Nine downloadable workbooks, each opening with its own provenance: what it covered, which filters applied, how fresh the registers were, and who generated it."),
   bullet("Period sign-off and an evidence pack recording who approved the month, what they saw, what they accepted and on what grounds, and which rules and rates were in force."),
   bullet("Identity masking below analyst, and an append-only trail of every upload, approval and export."),
+  bullet("A gender pay gap analysis that runs only once the employer authorises it per entity, is readable by owners and managers rather than the tier that can see individual salaries, emits no individual at any permission level, and withholds any group small enough that a median would disclose someone\u2019s pay."),
 
   h2("1.1 The structural position"),
   p("The product's defensibility rests on one constraint: it never runs payroll. A vendor auditing its own output is not an audit. Because PayrollCheck computes nothing that anyone pays out, it can act as an independent second opinion on any payroll system — and that is a position no payroll vendor can occupy for its own customers."),
@@ -698,6 +699,7 @@ const LISTINGS = [
     ["backend/app/services/budgeting.py", "Budget parsing, approval, variance and forecast"],
     ["backend/app/models/audit.py", "The append-only record of who did what"],
     ["backend/app/services/masking.py", "Showing cost without showing who earns it"],
+    ["backend/app/services/pay_equity.py", "The gender pay gap, and what it refuses to disclose"],
   ]],
   ["7.8 Minimum wage", [
     ["backend/app/models/minimum_wage.py", "Rate table"],
@@ -753,6 +755,7 @@ const SUITE_NOTES = {
   "test_compliance_calendar.py": "Statutory due dates, blockers, and that no status can read as filed",
   "test_cost_analysis.py": "Dimension snapshotting, grouping, granularity, filters, reconciliation",
   "test_cost_taxonomy.py": "The CTC identity, reported-over-computed precedence, period comparison",
+  "test_pay_equity.py": "Authorisation, role gate, suppression of small groups, and that no individual is emitted",
   "test_pf_basis.py": "Per-employee restriction: source precedence and tri-state flags",
   "test_reports_and_audit.py": "Provenance on every workbook, masking in exports, an append-only trail",
   "test_unified_validation.py": "Regular, arrear and increment validated in one pass",
@@ -887,7 +890,7 @@ doc.push(
       ["Exposure rates are defaults, not advice", "The interest and damages parameters reflect rates in common use. They are configurable per entity and carry no legal force of their own."],
       ["No bank file or journal voucher reconciliation", "Payroll cost, the bank file total and the JV total are not tied to one another. With ECR and challan reconciliation this is the phase-two build."],
       ["No data retention policy engine", "Retention and consent records are not implemented. Required before a DPDP-conscious production rollout."],
-      ["No gender pay analysis", "Gender is captured and masked, but the analysis is deliberately not built pending written authorisation and its own access rule."],
+      ["Gender pay analysis cannot conclude anything", "The gap is a measurement. It is not a finding of discrimination, its absence is not proof of fairness, and the reporting dimension used for the like-for-like comparison is a proxy rather than the legal test in section 3 of the Code on Wages, which turns on the job."],
       ["No full-and-final module", "Leave encashment and notice pay have no dedicated handling."],
       ["No PDF report", "The evidence pack is an Excel workbook."],
       ["No email invitations", "Members are added to an organization directly in the database rather than by invite."],

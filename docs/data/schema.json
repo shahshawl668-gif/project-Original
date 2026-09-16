@@ -765,6 +765,21 @@
    },
    {
     "flags": "NOT NULL",
+    "name": "pay_equity_enabled",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "",
+    "name": "pay_equity_enabled_by",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "pay_equity_enabled_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
     "name": "is_active",
     "type": "BOOLEAN"
    },

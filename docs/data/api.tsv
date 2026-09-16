@@ -40,6 +40,9 @@ bi	/api/bi/exposure/config	PUT	Put Exposure Config
 bi	/api/bi/exposure/config/reset	POST	Reset Exposure Config	
 bi	/api/bi/headcount-movement	GET	Headcount Movement	Opening, joiners, exits and closing headcount for each stored month.
 bi	/api/bi/measures	GET	Measures	The cost taxonomy — every measure, its layer and what it means.
+bi	/api/bi/pay-equity	GET	Pay Equity Analysis	The gender pay gap, unadjusted and like-for-like, for one wage month.
+bi	/api/bi/pay-equity/settings	GET	Pay Equity Settings	Whether the analysis is switched on for this entity, and who switched it on.
+bi	/api/bi/pay-equity/settings	PUT	Set Pay Equity Settings	Switch the gender pay gap analysis on or off for this entity.
 bi	/api/bi/periods	GET	Periods	Months that hold a register, so a comparison can only name a real one.
 bi	/api/bi/trend	GET	Cost Trend	
 budget	/api/budget/forecast	GET	Forecast	Project cost forward from stated assumptions.

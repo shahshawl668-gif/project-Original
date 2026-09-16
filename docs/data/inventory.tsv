@@ -1,7 +1,7 @@
 backend/app/__init__.py	1	
 backend/app/config.py	93	Runtime configuration.
-backend/app/database.py	83	
-backend/app/deps.py	148	Tenant context and JWT auth.
+backend/app/database.py	86	
+backend/app/deps.py	178	Tenant context and JWT auth.
 backend/app/envelope.py	23	Standard API response envelope for all JSON endpoints.
 backend/app/main.py	200	FastAPI application entrypoint.
 backend/app/middleware/__init__.py	3	
@@ -14,7 +14,7 @@ backend/app/models/component.py	34
 backend/app/models/ctc.py	62	
 backend/app/models/findings.py	225	Persisted findings and their lifecycle.
 backend/app/models/minimum_wage.py	94	Minimum wage rates.
-backend/app/models/org.py	140	Organizations, entities and membership.
+backend/app/models/org.py	155	Organizations, entities and membership.
 backend/app/models/payroll_run.py	23	
 backend/app/models/reference.py	34	
 backend/app/models/register.py	83	
@@ -29,7 +29,7 @@ backend/app/routers/__init__.py	49
 backend/app/routers/admin.py	72	Admin-only tenant user management.
 backend/app/routers/audit.py	46	The audit trail.
 backend/app/routers/auth.py	185	
-backend/app/routers/bi.py	353	Business intelligence endpoints.
+backend/app/routers/bi.py	481	Business intelligence endpoints.
 backend/app/routers/budget.py	333	Budget upload, approval, variance and forecast.
 backend/app/routers/components.py	103	
 backend/app/routers/ctc.py	174	
@@ -39,7 +39,7 @@ backend/app/routers/minimum_wage.py	201	Minimum wage rates and compliance.
 backend/app/routers/org.py	160	Organization and entity management.
 backend/app/routers/payroll.py	576	
 backend/app/routers/reference.py	49	
-backend/app/routers/reports.py	87	Report downloads.
+backend/app/routers/reports.py	118	Report downloads.
 backend/app/routers/rule_engine.py	429	
 backend/app/routers/rule_preferences.py	76	Tenant-level validation rule suppression (UI-configurable).
 backend/app/routers/signoff.py	361	Period sign-off and the evidence pack.
@@ -83,11 +83,12 @@ backend/app/services/income_tax_engine.py	207	India income-tax engine — old vs
 backend/app/services/lwf_defaults.py	138	Curated Labour Welfare Fund (LWF) defaults per state.
 backend/app/services/masking.py	89	Showing a cost report without showing who earns what.
 backend/app/services/minimum_wage.py	348	Minimum wage lookup and compliance checks.
+backend/app/services/pay_equity.py	416	The gender pay gap, measured the way it has to be measured to be safe to read.
 backend/app/services/payroll_parse.py	79	
 backend/app/services/pf_basis.py	95	Whether an employee's PF is restricted to the statutory ceiling.
 backend/app/services/pf_engine.py	160	Config-Driven PF Engine
 backend/app/services/pt_defaults.py	248	Curated PT slab defaults per state, importable into a tenant's slab_rules.
-backend/app/services/reporting.py	473	Downloadable reports, each one able to say where it came from.
+backend/app/services/reporting.py	530	Downloadable reports, each one able to say where it came from.
 backend/app/services/risk_scoring.py	105	Risk Scoring Engine
 backend/app/services/row_composition.py	166	What one register row actually contains.
 backend/app/services/rule_engine_v2.py	1088	India Payroll Intelligence & Compliance OS — Rule Engine v2

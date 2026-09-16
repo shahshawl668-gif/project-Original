@@ -5,7 +5,7 @@ frontend/src/app/(app)/config/components/page.tsx	328
 frontend/src/app/(app)/config/rules/page.tsx	147
 frontend/src/app/(app)/config/statutory/page.tsx	725
 frontend/src/app/(app)/config/tax/page.tsx	636
-frontend/src/app/(app)/cost/page.tsx	924
+frontend/src/app/(app)/cost/page.tsx	932
 frontend/src/app/(app)/ctc/history/page.tsx	224
 frontend/src/app/(app)/ctc/upload/page.tsx	353
 frontend/src/app/(app)/dashboard/page.tsx	887
@@ -36,6 +36,7 @@ frontend/src/components/cost/CompliancePanel.tsx	142
 frontend/src/components/cost/FilterMenu.tsx	179
 frontend/src/components/cost/HeadcountMovement.tsx	142
 frontend/src/components/cost/Menu.tsx	129
+frontend/src/components/cost/PayEquityView.tsx	471
 frontend/src/components/cost/pieces.tsx	203
 frontend/src/components/layout/PageHeader.tsx	46
 frontend/src/components/motion/PageTransition.tsx	22
@@ -64,7 +65,7 @@ frontend/src/context/AuthContext.tsx	183
 frontend/src/context/EntityContext.tsx	131
 frontend/src/lib/admin.ts	23
 frontend/src/lib/api.ts	377
-frontend/src/lib/cost-analysis.ts	532
+frontend/src/lib/cost-analysis.ts	643
 frontend/src/lib/export.ts	34
 frontend/src/lib/rule-engine.ts	163
 frontend/src/lib/statutory-config.ts	346
