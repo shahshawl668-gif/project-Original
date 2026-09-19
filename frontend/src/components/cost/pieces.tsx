@@ -155,12 +155,15 @@ export function CostTooltip({
   label,
   isDark,
   single,
+  plain,
 }: {
   active?: boolean;
   payload?: { name: string; value: number; color: string }[];
   label?: string;
   isDark: boolean;
   single?: boolean;
+  /** The values are counts, not money — headcount does not wear a rupee sign. */
+  plain?: boolean;
 }) {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((n, p) => n + (p.value ?? 0), 0);
@@ -187,7 +190,9 @@ export function CostTooltip({
                     {p.name}
                   </span>
                 </td>
-                <td className="text-right font-medium">{formatINR(p.value ?? 0, true)}</td>
+                <td className="text-right font-medium">
+                  {plain ? (p.value ?? 0).toLocaleString("en-IN") : formatINR(p.value ?? 0, true)}
+                </td>
               </tr>
             ))}
           {!single && payload.length > 1 && (
@@ -199,5 +204,95 @@ export function CostTooltip({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * A pay range as one mark: the middle half filled, the whole span whiskered,
+ * the median ticked.
+ *
+ * This is the chart a compensation team actually reads. A bar of medians alone
+ * hides the spread, which is the thing a grade structure is judged on — two
+ * departments can share a median and have completely different bands.
+ *
+ * The bar itself spans P25 to P75, so its pixel width is a known number of
+ * rupees; everything else is placed by scaling from that. The axis is linear,
+ * so the arithmetic is exact rather than approximate.
+ */
+export function RangeBar(props: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  payload?: { p25: number; p75: number; median: number; min: number; max: number };
+  surface: string;
+  ink: string;
+}) {
+  const { x = 0, y = 0, width = 0, height = 0, fill, payload, surface, ink } = props;
+  if (!payload) return null;
+
+  const span = payload.p75 - payload.p25;
+  const mid = y + height / 2;
+  const cap = Math.max(4, height * 0.38);
+
+  // A group whose middle half is a single value — most often a group of one —
+  // has no width to scale from. It gets a tick at its pay rather than a blank
+  // row, because "one person, paid this" is an answer and an empty row is not.
+  if (span <= 0 || width <= 0) {
+    return (
+      <g>
+        <line x1={x} x2={x} y1={mid - cap} y2={mid + cap} stroke={fill} strokeWidth={3} />
+      </g>
+    );
+  }
+
+  const perRupee = width / span;
+  const at = (value: number) => x + (value - payload.p25) * perRupee;
+  const medianX = at(payload.median);
+
+  return (
+    <g>
+      {/* Whiskers to the extremes, hairline so the filled range still leads. */}
+      <line x1={at(payload.min)} x2={x} y1={mid} y2={mid} stroke={fill} strokeWidth={1.5} opacity={0.55} />
+      <line x1={x + width} x2={at(payload.max)} y1={mid} y2={mid} stroke={fill} strokeWidth={1.5} opacity={0.55} />
+      <line x1={at(payload.min)} x2={at(payload.min)} y1={mid - cap} y2={mid + cap}
+            stroke={fill} strokeWidth={1.5} opacity={0.55} />
+      <line x1={at(payload.max)} x2={at(payload.max)} y1={mid - cap} y2={mid + cap}
+            stroke={fill} strokeWidth={1.5} opacity={0.55} />
+      <rect x={x} y={y} width={width} height={height} rx={3} fill={fill} fillOpacity={0.85} />
+      {/* The median, in surface colour so it reads as a division of the range
+          rather than as another series. */}
+      <line x1={medianX} x2={medianX} y1={y} y2={y + height} stroke={surface} strokeWidth={2.5} />
+      <line x1={medianX} x2={medianX} y1={y} y2={y + height} stroke={ink} strokeWidth={1} opacity={0.5} />
+    </g>
+  );
+}
+
+/**
+ * A bar that reads its sign: one hue each side of a zero line, neutral at rest.
+ *
+ * Used only where a number has a direction — a variance, a gap — never to tell
+ * two categories apart.
+ */
+export function DivergingBar(props: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  value?: number;
+  palette: { negative: string; neutral: string; positive: string };
+}) {
+  const { x = 0, y = 0, width = 0, height = 0, value = 0, palette } = props;
+  const fill = Math.abs(value) < 0.05 ? palette.neutral : value > 0 ? palette.positive : palette.negative;
+  return <rect x={x} y={y} width={width} height={height} rx={3} fill={fill} fillOpacity={0.9} />;
+}
+
+/** A one-line hint that a chart responds to being clicked. */
+export function ClickHint({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="pb-2 text-[11px] text-ink-500 dark:text-ink-400">
+      <span aria-hidden>↘ </span>{children}
+    </p>
   );
 }

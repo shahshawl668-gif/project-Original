@@ -7,6 +7,8 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  Cell,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,12 +16,15 @@ import {
 } from "recharts";
 import { EyeOff, Info, Lock, ScaleIcon, ShieldCheck, Users } from "lucide-react";
 
-import { Panel } from "@/components/cost/pieces";
+import { ClickHint, DivergingBar, Panel } from "@/components/cost/pieces";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  chartTheme,
   describeGap,
+  DIVERGING_DARK,
+  DIVERGING_LIGHT,
   fetchPayEquity,
   fetchPayEquitySettings,
   formatINR,
@@ -42,11 +47,13 @@ export function PayEquityView({
   filters,
   palette,
   isDark,
+  onSelectGroup,
 }: {
   groupBy: string;
   filters: Record<string, string[]>;
   palette: string[];
   isDark: boolean;
+  onSelectGroup?: (group: string) => void;
 }) {
   const settings = useQuery({
     queryKey: ["pay-equity", "settings"],
@@ -71,7 +78,10 @@ export function PayEquityView({
   }
   if (analysis.isLoading || !analysis.data) return <Skeleton className="h-64" />;
 
-  return <Analysis data={analysis.data} settings={settings.data} palette={palette} isDark={isDark} />;
+  return (
+    <Analysis data={analysis.data} settings={settings.data} palette={palette}
+              isDark={isDark} onSelectGroup={onSelectGroup} />
+  );
 }
 
 /* ── the gate ─────────────────────────────────────────────────────────── */
@@ -151,11 +161,13 @@ function Analysis({
   settings,
   palette,
   isDark,
+  onSelectGroup,
 }: {
   data: PayEquity;
   settings?: { enabled_by: string | null; can_change: boolean };
   palette: string[];
   isDark: boolean;
+  onSelectGroup?: (group: string) => void;
 }) {
   const queryClient = useQueryClient();
   const disable = useMutation({
@@ -169,8 +181,10 @@ function Analysis({
   const variable = describeGap(headline?.variable_gap_pct ?? null);
   const coverage = data.coverage;
 
-  const axisTick = { fill: isDark ? "#7c8597" : "#5b6478", fontSize: 11 };
-  const gridColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(14,18,32,0.07)";
+  const chrome = chartTheme(isDark);
+  const axisTick = chrome.tick;
+  const gridColor = chrome.grid;
+  const diverging = isDark ? DIVERGING_DARK : DIVERGING_LIGHT;
   const quartileData = data.quartiles.map((q) => ({
     band: q.band,
     Women: q.counts.female,
@@ -289,10 +303,13 @@ function Analysis({
                 }}
               />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-              <Bar dataKey="Women" stackId="q" fill={palette[0]} />
-              <Bar dataKey="Men" stackId="q" fill={palette[4]} />
-              <Bar dataKey="Other / self-described" stackId="q" fill={palette[2]} />
-              <Bar dataKey="Not recorded" stackId="q" fill={isDark ? "#98a2b3" : "#667085"} />
+              {/* A 2px stroke in the surface colour, so adjacent segments are
+                  separated by a gap rather than by hue alone — which is what
+                  keeps them apart for a reader with colour-vision deficiency. */}
+              <Bar dataKey="Women" stackId="q" fill={palette[0]} stroke={chrome.surface} strokeWidth={2} />
+              <Bar dataKey="Men" stackId="q" fill={palette[4]} stroke={chrome.surface} strokeWidth={2} />
+              <Bar dataKey="Other / self-described" stackId="q" fill={palette[2]} stroke={chrome.surface} strokeWidth={2} />
+              <Bar dataKey="Not recorded" stackId="q" fill={isDark ? "#98a2b3" : "#667085"} stroke={chrome.surface} strokeWidth={2} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -331,6 +348,70 @@ function Analysis({
         </div>
       </Panel>
 
+      {/* ── the gap itself, as a signed quantity ───────────────────── */}
+      <Panel
+        title={`Gap by ${data.group_by_label.toLowerCase()}`}
+        description="Each comparable group's median gap, measured from zero. Bars to the right are groups where women are paid less; bars to the left, more."
+      >
+        {comparable.length === 0 ? (
+          <div className="rounded-lg border border-ink-200/70 bg-ink-50 px-3.5 py-3 text-sm text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-300">
+            <p className="font-medium text-ink-800 dark:text-ink-100">Nothing can be charted yet.</p>
+            <p className="mt-1">
+              None of the {data.like_for_like.length} groups has at least {data.min_group_size} of
+              each gender, so every median would disclose someone&rsquo;s pay. A like-for-like
+              comparison needs a few hundred employees before many groups clear that bar — the
+              headline gap and the quartiles above are the measures that work at this size.
+            </p>
+          </div>
+        ) : (
+          <>
+            {onSelectGroup && (
+              <ClickHint>
+                Click a bar to filter the page to that {data.group_by_label.toLowerCase()}.
+              </ClickHint>
+            )}
+            <div style={{ height: Math.max(180, comparable.length * 44) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={comparable.map((g) => ({ name: g.group, gap: g.median_gap_pct ?? 0 }))}
+                  layout="vertical"
+                  margin={{ top: 8, right: 24, left: 8, bottom: 4 }}
+                >
+                  <CartesianGrid stroke={gridColor} horizontal={false} />
+                  <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false}
+                         tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v}%`} />
+                  <YAxis type="category" dataKey="name" width={124} tick={axisTick}
+                         tickLine={false} axisLine={false} />
+                  <Tooltip cursor={{ fill: chrome.cursor }} content={<GapTooltip chrome={chrome} />} />
+                  {/* Zero is the thing the eye measures from, so it gets a rule
+                      of its own rather than blending into the grid. */}
+                  <ReferenceLine x={0} stroke={chrome.muted} strokeWidth={1.5} />
+                  <Bar
+                    dataKey="gap"
+                    barSize={20}
+                    cursor={onSelectGroup ? "pointer" : undefined}
+                    onClick={(entry: { name?: string }) => entry?.name && onSelectGroup?.(entry.name)}
+                    shape={(props: { x?: number; y?: number; width?: number; height?: number; payload?: unknown }) => (
+                      <DivergingBar
+                        x={props.x}
+                        y={props.y}
+                        width={props.width}
+                        height={props.height}
+                        value={(props.payload as { gap: number } | undefined)?.gap ?? 0}
+                        palette={diverging}
+                      />
+                    )}
+                  >
+                    {comparable.map((g) => <Cell key={g.group} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="pt-2 text-xs text-ink-500 dark:text-ink-400">{data.direction}</p>
+          </>
+        )}
+      </Panel>
+
       {/* ── like for like ──────────────────────────────────────────── */}
       <Panel
         title={`Like for like, by ${data.group_by_label.toLowerCase()}`}
@@ -352,9 +433,15 @@ function Analysis({
               {data.like_for_like.map((group) => {
                 const gap = describeGap(group.median_gap_pct);
                 return (
-                  <tr key={group.group}
-                      className={cn("border-b border-ink-100 last:border-0 dark:border-white/5",
-                        !group.comparable && "text-ink-400 dark:text-ink-500")}>
+                  <tr
+                    key={group.group}
+                    onClick={() => onSelectGroup?.(group.group)}
+                    className={cn(
+                      "border-b border-ink-100 last:border-0 dark:border-white/5",
+                      !group.comparable && "text-ink-400 dark:text-ink-500",
+                      onSelectGroup && "cursor-pointer hover:bg-ink-50 dark:hover:bg-white/[0.04]",
+                    )}
+                  >
                     <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{group.group}</td>
                     <td className="py-2 text-right">{group.women.count}</td>
                     <td className="py-2 text-right">{group.men.count}</td>
@@ -466,6 +553,31 @@ function GenderCard({
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+function GapTooltip({
+  active,
+  payload,
+  chrome,
+}: {
+  active?: boolean;
+  payload?: { payload: { name: string; gap: number } }[];
+  chrome: ReturnType<typeof chartTheme>;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  const gap = describeGap(row.gap);
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 text-xs shadow-lg"
+      style={{ background: chrome.surface, borderColor: chrome.border, color: chrome.ink }}
+    >
+      <p className="font-semibold">{row.name}</p>
+      <p className="pt-0.5">
+        Women paid <span className="font-semibold">{gap.text}</span> at the median
+      </p>
     </div>
   );
 }

@@ -12,11 +12,32 @@ import {
 } from "recharts";
 import { EyeOff, Scale, TrendingUp, Users } from "lucide-react";
 
-import { Panel, StatTile } from "@/components/cost/pieces";
+import { ClickHint, Panel, RangeBar, StatTile } from "@/components/cost/pieces";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatINR, type Compensation } from "@/lib/cost-analysis";
+import { chartTheme, formatINR, type Compensation } from "@/lib/cost-analysis";
+import { cn } from "@/lib/utils";
+
+/** What Recharts hands a custom bar shape, narrowed to the parts used here. */
+type BarShapeLike = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  payload?: unknown;
+};
+
+type RangePoint = {
+  name: string;
+  p25: number;
+  p75: number;
+  median: number;
+  min: number;
+  max: number;
+  count: number;
+};
 
 /**
  * How pay is distributed, for one month.
@@ -32,12 +53,15 @@ export function CompensationView({
   error,
   palette,
   isDark,
+  onSelectGroup,
 }: {
   data?: Compensation;
   isLoading: boolean;
   error?: Error | null;
   palette: string[];
   isDark: boolean;
+  /** Clicking a group filters the whole page to it. */
+  onSelectGroup?: (group: string) => void;
 }) {
   if (error) {
     return (
@@ -57,8 +81,29 @@ export function CompensationView({
     );
   }
 
-  const axisTick = { fill: isDark ? "#7c8597" : "#5b6478", fontSize: 11 };
-  const gridColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(14,18,32,0.07)";
+  const chrome = chartTheme(isDark);
+  const axisTick = chrome.tick;
+  const gridColor = chrome.grid;
+  const ranges = data.groups.map((g) => ({
+    name: g.group,
+    // The bar spans the middle half; the shape scales the whiskers and the
+    // median tick from it, which is exact because the axis is linear.
+    base: g.p25,
+    iqr: Math.max(g.p75 - g.p25, 0),
+    p25: g.p25,
+    p75: g.p75,
+    median: g.median,
+    min: g.min,
+    max: g.max,
+    count: g.count,
+  }));
+  // The bar stacks from zero, so Recharts would size the axis to the highest
+  // P75 and draw every max whisker outside the plot. The domain is set from the
+  // extremes the chart actually reaches.
+  const rangeDomain: [number, number] = [
+    0,
+    Math.max(...ranges.map((r) => r.max), 0) * 1.04,
+  ];
   const bands = data.distribution.map((b) => ({
     band: `${formatINR(b.from, true)}–${formatINR(b.to, true)}`,
     Employees: b.count,
@@ -156,6 +201,57 @@ export function CompensationView({
       </div>
 
       <Panel
+        title={`Pay ranges by ${data.group_by_label.toLowerCase()}`}
+        description="The filled bar is the middle half of the group — 25th to 75th percentile. The notch is the median, the whiskers reach the lowest and highest paid. Two groups can share a median and have completely different bands, which is the thing a grade structure is judged on."
+      >
+        {onSelectGroup && (
+          <ClickHint>
+            Click a range to filter the page to that {data.group_by_label.toLowerCase()}.
+          </ClickHint>
+        )}
+        <div style={{ height: Math.max(220, ranges.length * 46) }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={ranges} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 4 }}>
+              <CartesianGrid stroke={gridColor} horizontal={false} />
+              <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false}
+                     domain={rangeDomain} allowDataOverflow={false}
+                     tickFormatter={(v: number) => formatINR(v, true)} />
+              <YAxis type="category" dataKey="name" width={124} tick={axisTick}
+                     tickLine={false} axisLine={false} />
+              <Tooltip cursor={{ fill: chrome.cursor }} content={<RangeTooltip chrome={chrome} />} />
+              {/* An invisible bar carries the offset to P25 so the visible one
+                  starts there. Stacking is the only way to give a Recharts bar
+                  a floor that is not zero. */}
+              <Bar dataKey="base" stackId="range" fill="transparent" isAnimationActive={false} />
+              <Bar
+                dataKey="iqr"
+                stackId="range"
+                barSize={20}
+                cursor={onSelectGroup ? "pointer" : undefined}
+                onClick={(entry: { name?: string }) => entry?.name && onSelectGroup?.(entry.name)}
+                shape={(props: BarShapeLike) => (
+                  <RangeBar
+                    x={props.x}
+                    y={props.y}
+                    width={props.width}
+                    height={props.height}
+                    fill={props.fill}
+                    payload={props.payload as RangePoint}
+                    surface={chrome.surface}
+                    ink={chrome.ink}
+                  />
+                )}
+              >
+                {ranges.map((r, index) => (
+                  <Cell key={r.name} fill={palette[index % palette.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Panel>
+
+      <Panel
         title={`By ${data.group_by_label.toLowerCase()}`}
         description="Ranked by median. The median and the quartiles, because an average on its own tells a C&B team very little."
       >
@@ -176,7 +272,14 @@ export function CompensationView({
             </thead>
             <tbody className="tabular-nums">
               {data.groups.map((group, index) => (
-                <tr key={group.group} className="border-b border-ink-100 last:border-0 dark:border-white/5">
+                <tr
+                  key={group.group}
+                  onClick={() => onSelectGroup?.(group.group)}
+                  className={cn(
+                    "border-b border-ink-100 last:border-0 dark:border-white/5",
+                    onSelectGroup && "cursor-pointer hover:bg-ink-50 dark:hover:bg-white/[0.04]",
+                  )}
+                >
                   <td className="py-2 pr-3">
                     <span className="flex items-center gap-2">
                       <span aria-hidden className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
@@ -262,6 +365,47 @@ export function CompensationView({
           </p>
         )}
       </Panel>
+    </div>
+  );
+}
+
+function RangeTooltip({
+  active,
+  payload,
+  chrome,
+}: {
+  active?: boolean;
+  payload?: { payload: RangePoint }[];
+  chrome: ReturnType<typeof chartTheme>;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  const lines: [string, number][] = [
+    ["Highest", row.max],
+    ["75th percentile", row.p75],
+    ["Median", row.median],
+    ["25th percentile", row.p25],
+    ["Lowest", row.min],
+  ];
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 text-xs shadow-lg"
+      style={{ background: chrome.surface, borderColor: chrome.border, color: chrome.ink }}
+    >
+      <p className="pb-1.5 font-semibold">
+        {row.name}
+        <span className="ml-2 font-normal opacity-70">{row.count} employees</span>
+      </p>
+      <table className="tabular-nums">
+        <tbody>
+          {lines.map(([label, value]) => (
+            <tr key={label}>
+              <td className="pr-3 opacity-75">{label}</td>
+              <td className="text-right font-medium">{formatINR(value, true)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

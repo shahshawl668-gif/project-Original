@@ -9,9 +9,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ComposedChart,
   Legend,
   Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -42,7 +42,7 @@ import { ActiveFilters, FilterMenu } from "@/components/cost/FilterMenu";
 import { HeadcountMovement } from "@/components/cost/HeadcountMovement";
 import { Menu, MenuItem } from "@/components/cost/Menu";
 import { PayEquityView } from "@/components/cost/PayEquityView";
-import { CostTooltip, MeasureTable, Panel, StatTile } from "@/components/cost/pieces";
+import { ClickHint, CostTooltip, MeasureTable, Panel, StatTile } from "@/components/cost/pieces";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +51,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "@/providers/ThemeProvider";
 import {
   capSeries,
+  chartTheme,
   fetchCostAnalysis,
   fetchCompensation,
   fetchCostCompare,
@@ -208,6 +209,20 @@ export default function CostAnalysisPage() {
     return ((latest.measures[key] - previous.measures[key]) / previous.measures[key]) * 100;
   };
 
+  /**
+   * Clicking a mark filters on what it represents.
+   *
+   * The behaviour every reader of a BI tool expects, and the one thing that
+   * turns a chart from a picture into a question you can ask. It goes through
+   * the same filter state as the menu, so what a click did is visible as a chip
+   * and undone the same way — a click that filtered invisibly would leave
+   * someone staring at a total they cannot explain.
+   */
+  function filterFromChart(value: string | undefined, key: string = groupBy) {
+    if (!value || value === OTHER_LABEL) return;
+    toggleFilter(key, value);
+  }
+
   function toggleFilter(key: string, value: string) {
     setFilters((current) => {
       const existing = current[key] ?? [];
@@ -222,6 +237,14 @@ export default function CostAnalysisPage() {
 
   const axisTick = { fill: isDark ? "#7c8597" : "#5b6478", fontSize: 11 };
   const gridColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(14,18,32,0.07)";
+
+  // A selected group stays fully painted and the rest recede. Colour still
+  // follows the entity — nothing is repainted, only dimmed — so a reader who
+  // learned which hue is Engineering is not misled by a filter.
+  const chrome = chartTheme(isDark);
+  const selected = filters[groupBy] ?? [];
+  const isFiltered = (group: string) => selected.length === 0 || selected.includes(group);
+  const dimmed = (group: string) => (isFiltered(group) ? 1 : 0.28);
 
   const groupChartData = useMemo(() => {
     const periodList = analysis.data?.periods ?? [];
@@ -464,7 +487,13 @@ export default function CostAnalysisPage() {
         // Reachable before the first register: authorising the analysis is a
         // governance step someone sets up while configuring the workspace, not
         // something they should have to upload payroll to find.
-        <PayEquityView groupBy={groupBy} filters={filters} palette={palette} isDark={isDark} />
+        <PayEquityView
+          groupBy={groupBy}
+          filters={filters}
+          palette={palette}
+          isDark={isDark}
+          onSelectGroup={(group) => filterFromChart(group)}
+        />
       ) : !hasData ? (
         <EmptyState
           icon={Layers}
@@ -497,6 +526,7 @@ export default function CostAnalysisPage() {
           error={compensation.error as Error | null}
           palette={palette}
           isDark={isDark}
+          onSelectGroup={(group) => filterFromChart(group)}
         />
       ) : view === "budget" ? (
         <BudgetView filters={filters} palette={palette} isDark={isDark} />
@@ -556,9 +586,9 @@ export default function CostAnalysisPage() {
                           type="monotone"
                           dataKey={g.group}
                           stackId="cost"
+                          // The band's own top line, which is what separates one
+                          // fill from the next on a stacked area.
                           stroke={colorFor(g.group, i)}
-                          // A 2px surface gap between stacked fills, so adjacent
-                          // bands stay separable for colour-vision deficiency.
                           strokeWidth={2}
                           fill={colorFor(g.group, i)}
                           fillOpacity={0.82}
@@ -575,6 +605,9 @@ export default function CostAnalysisPage() {
                   title={`Total by ${analysis.data?.group_by_label.toLowerCase()}`}
                   description={`Ranked on ${analysis.data?.measure_label} across the selected periods.`}
                 >
+                  <ClickHint>
+                    Click a bar to filter everything on this page to that {analysis.data?.group_by_label.toLowerCase()}.
+                  </ClickHint>
                   <div style={{ height: Math.max(220, groups.length * 42) }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
@@ -591,9 +624,16 @@ export default function CostAnalysisPage() {
                           cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)" }}
                           content={<CostTooltip isDark={isDark} single />}
                         />
-                        <Bar dataKey="total" radius={[0, 4, 4, 0]} barSize={18}>
+                        <Bar
+                          dataKey="total"
+                          radius={[0, 4, 4, 0]}
+                          barSize={18}
+                          cursor="pointer"
+                          onClick={(entry: { name?: string }) => filterFromChart(entry?.name)}
+                        >
                           {groups.map((g, i) => (
-                            <Cell key={g.group} fill={colorFor(g.group, i)} />
+                            <Cell key={g.group} fill={colorFor(g.group, i)}
+                                  opacity={isFiltered(g.group) ? 1 : dimmed(g.group)} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -677,6 +717,9 @@ export default function CostAnalysisPage() {
                   title={`By ${analysis.data?.group_by_label.toLowerCase()}`}
                   description={`${currentView.label} across the selected periods.`}
                 >
+                  <ClickHint>
+                    Click a bar to filter everything on this page to that {analysis.data?.group_by_label.toLowerCase()}.
+                  </ClickHint>
                   <div style={{ height: Math.max(220, groups.length * 42) }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
@@ -693,9 +736,16 @@ export default function CostAnalysisPage() {
                           cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)" }}
                           content={<CostTooltip isDark={isDark} single />}
                         />
-                        <Bar dataKey="total" radius={[0, 4, 4, 0]} barSize={18}>
+                        <Bar
+                          dataKey="total"
+                          radius={[0, 4, 4, 0]}
+                          barSize={18}
+                          cursor="pointer"
+                          onClick={(entry: { name?: string }) => filterFromChart(entry?.name)}
+                        >
                           {groups.map((g, i) => (
-                            <Cell key={g.group} fill={colorFor(g.group, i)} />
+                            <Cell key={g.group} fill={colorFor(g.group, i)}
+                                  opacity={isFiltered(g.group) ? 1 : dimmed(g.group)} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -708,36 +758,57 @@ export default function CostAnalysisPage() {
 
           {view === "headcount" && (
             <>
-              <Panel
-                title="Headcount against cost per head"
-                description="Bars are people, the line is what each one costs. They diverge when pay moves without the establishment changing — which is the movement worth explaining."
-              >
-                <div className="h-[320px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart
-                      data={points.map((p) => ({
-                        period: p.label,
-                        Headcount: p.headcount,
-                        "Cost per head": p.headcount ? p.measures.ctc / p.headcount : 0,
-                      }))}
-                      margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid stroke={gridColor} vertical={false} />
-                      <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
-                      <YAxis yAxisId="left" tick={axisTick} tickLine={false} axisLine={false} width={40} />
-                      <YAxis yAxisId="right" orientation="right" tick={axisTick} tickLine={false}
-                             axisLine={false} width={70}
-                             tickFormatter={(v: number) => formatINR(v, true)} />
-                      <Tooltip content={<CostTooltip isDark={isDark} single />} />
-                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                      <Bar yAxisId="left" dataKey="Headcount" fill={palette[4]} radius={[4, 4, 0, 0]}
-                           barSize={26} fillOpacity={0.75} />
-                      <Line yAxisId="right" type="monotone" dataKey="Cost per head"
-                            stroke={palette[2]} strokeWidth={2.5} dot={{ r: 3 }} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </Panel>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {/* Two charts rather than two y-axes on one. Plotting people
+                    against rupees on a shared plot invents a correlation out of
+                    where the two scales happen to be pinned. */}
+                <Panel
+                  title="Headcount"
+                  description="People on the register each period."
+                >
+                  <div className="h-[260px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={points.map((p) => ({ period: p.label, Headcount: p.headcount }))}
+                        margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                      >
+                        <CartesianGrid stroke={gridColor} vertical={false} />
+                        <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
+                        <YAxis tick={axisTick} tickLine={false} axisLine={false} width={40}
+                               allowDecimals={false} />
+                        <Tooltip cursor={{ fill: chrome.cursor }}
+                                 content={<CostTooltip isDark={isDark} single plain />} />
+                        <Bar dataKey="Headcount" fill={palette[4]} radius={[4, 4, 0, 0]} barSize={26} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Panel>
+
+                <Panel
+                  title="Cost per head"
+                  description="Total CTC divided by average headcount. It moves when pay moves without the establishment changing — which is the movement worth explaining."
+                >
+                  <div className="h-[260px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={points.map((p) => ({
+                          period: p.label,
+                          "Cost per head": p.headcount ? p.measures.ctc / p.headcount : 0,
+                        }))}
+                        margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                      >
+                        <CartesianGrid stroke={gridColor} vertical={false} />
+                        <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
+                        <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
+                               tickFormatter={(v: number) => formatINR(v, true)} />
+                        <Tooltip content={<CostTooltip isDark={isDark} single />} />
+                        <Line type="monotone" dataKey="Cost per head" stroke={palette[2]}
+                              strokeWidth={2.5} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Panel>
+              </div>
 
               <Panel
                 title="Period on period"

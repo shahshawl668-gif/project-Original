@@ -641,3 +641,28 @@ export function describeGap(pct: number | null): { text: string; tone: "gap" | "
     ? { text: `${magnitude} less`, tone: "gap" }
     : { text: `${magnitude} more`, tone: "reverse" };
 }
+
+/**
+ * The diverging pair, for polarity rather than identity.
+ *
+ * Blue against red: warm and cool poles that read as opposite, with a neutral
+ * grey midpoint so "no gap" reads as nothing rather than as a third category.
+ * Both poles are drawn from the validated categorical set, so they keep their
+ * contrast and CVD separation against either surface — but they are only ever
+ * used where a number has a *sign*, never to tell two series apart.
+ */
+export const DIVERGING_LIGHT = { negative: "#0086c9", neutral: "#d6dae3", positive: "#b42318" };
+export const DIVERGING_DARK = { negative: "#0284c7", neutral: "#3a4351", positive: "#e11d48" };
+
+/** Chart chrome, from the theme rather than from a literal. */
+export function chartTheme(isDark: boolean) {
+  return {
+    tick: { fill: isDark ? "#7c8597" : "#5b6478", fontSize: 11 },
+    grid: isDark ? "rgba(255,255,255,0.07)" : "rgba(14,18,32,0.07)",
+    surface: isDark ? "#151b2b" : "#ffffff",
+    border: isDark ? "rgba(255,255,255,0.12)" : "#d6dae3",
+    ink: isDark ? "#eceef3" : "#1b2030",
+    muted: isDark ? "#8592a4" : "#667085",
+    cursor: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)",
+  };
+}
