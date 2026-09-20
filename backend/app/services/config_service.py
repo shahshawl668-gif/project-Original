@@ -41,6 +41,7 @@ from app.schemas.statutory_config import (
     PFConfig,
     TenantStatutoryConfig,
 )
+from app.services.formula_eval import MAX_EXPRESSION_LENGTH, safe_power
 
 
 # ─── Safe expression evaluator ───────────────────────────────────────────────
@@ -52,12 +53,12 @@ _SAFE_OPS: dict[type, Any] = {
     ast.Div: _op.truediv,
     ast.FloorDiv: _op.floordiv,
     ast.Mod: _op.mod,
-    ast.Pow: _op.pow,
+    ast.Pow: safe_power,
     ast.UAdd: _op.pos,
     ast.USub: _op.neg,
     ast.And: None,
     ast.Or: None,
-    ast.Not: None,
+    ast.Not: _op.not_,
     ast.Eq: _op.eq,
     ast.NotEq: _op.ne,
     ast.Lt: _op.lt,
@@ -72,6 +73,20 @@ _SAFE_FUNCS: dict[str, Any] = {
     "int": int, "float": float, "bool": bool, "str": str,
     "True": True, "False": False,
 }
+
+
+def _number(value: Any, what: str) -> Any:
+    """
+    Arithmetic is for numbers.
+
+    Strings have to stay legal as *values* — an eligibility expression compares
+    ``employee_type != 'contractor'`` — but they must never reach an arithmetic
+    operator: ``'a' * 100000000`` is a hundred megabytes, and the expression box
+    is tenant-editable.
+    """
+    if isinstance(value, bool) or isinstance(value, (int, float)):
+        return value
+    raise ValueError(f"{what} needs a number, got {type(value).__name__}")
 
 
 def _safe_eval(node: ast.AST, ctx: dict[str, Any]) -> Any:
@@ -91,12 +106,20 @@ def _safe_eval(node: ast.AST, ctx: dict[str, Any]) -> Any:
         fn = _SAFE_OPS.get(type(node.op))
         if fn is None:
             raise ValueError(f"Unsupported binary op {node.op!r}")
-        return fn(_safe_eval(node.left, ctx), _safe_eval(node.right, ctx))
+        name = type(node.op).__name__
+        return fn(
+            _number(_safe_eval(node.left, ctx), name),
+            _number(_safe_eval(node.right, ctx), name),
+        )
     if isinstance(node, ast.UnaryOp):
         fn = _SAFE_OPS.get(type(node.op))
         if fn is None:
             raise ValueError(f"Unsupported unary op {node.op!r}")
-        return fn(_safe_eval(node.operand, ctx))
+        operand = _safe_eval(node.operand, ctx)
+        # `not` is the one unary that reads a truth value rather than a number.
+        if isinstance(node.op, ast.Not):
+            return fn(operand)
+        return fn(_number(operand, type(node.op).__name__))
     if isinstance(node, ast.Compare):
         left = _safe_eval(node.left, ctx)
         for op_node, comp in zip(node.ops, node.comparators):
@@ -117,11 +140,16 @@ def _safe_eval(node: ast.AST, ctx: dict[str, Any]) -> Any:
         test = _safe_eval(node.test, ctx)
         return _safe_eval(node.body, ctx) if test else _safe_eval(node.orelse, ctx)
     if isinstance(node, ast.Call):
+        if node.keywords:
+            raise ValueError("Keyword arguments are not allowed")
         func = _safe_eval(node.func, ctx)
-        args = [_safe_eval(a, ctx) for a in node.args]
-        return func(*args)
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-        return not _safe_eval(node.operand, ctx)
+        # The allow-list, actually enforced. Without this the only thing
+        # standing between a caller and an arbitrary call is that no dangerous
+        # callable happens to be in the context — which is a property of every
+        # caller, present and future, rather than of this evaluator.
+        if func not in _SAFE_FUNCS.values():
+            raise ValueError("Function not allowed")
+        return func(*[_safe_eval(a, ctx) for a in node.args])
     raise TypeError(f"Unsupported AST node {type(node).__name__}")
 
 
@@ -134,12 +162,21 @@ def safe_eval_expr(expression: str, context: dict[str, Any]) -> Any:
     """
     if not expression or not expression.strip():
         return True
+    if len(expression) > MAX_EXPRESSION_LENGTH:
+        raise ValueError(
+            f"Expression is too long ({len(expression)} characters; "
+            f"the limit is {MAX_EXPRESSION_LENGTH})"
+        )
     try:
         tree = ast.parse(expression.strip(), mode="eval")
     except SyntaxError as e:
         raise ValueError(f"Expression syntax error: {e}") from e
+    except (MemoryError, RecursionError) as e:
+        raise ValueError("Expression is nested too deeply") from e
     try:
         return _safe_eval(tree, context)
+    except RecursionError as e:
+        raise ValueError("Expression is nested too deeply") from e
     except Exception as e:
         raise ValueError(f"Expression evaluation error: {e}") from e
 
