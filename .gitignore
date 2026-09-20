@@ -45,3 +45,5 @@ backend/e2e_test_report.txt
 
 # Logs
 *.log
+frontend/tsconfig.tsbuildinfo
+docs/node_modules/

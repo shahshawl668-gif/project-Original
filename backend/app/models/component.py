@@ -14,6 +14,9 @@ class ComponentConfig(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     component_name: Mapped[str] = mapped_column(String(100), nullable=False)
     pf_applicable: Mapped[bool] = mapped_column(Boolean, default=False)
     esic_applicable: Mapped[bool] = mapped_column(Boolean, default=False)

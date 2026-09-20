@@ -1,0 +1,102 @@
+backend/app/__init__.py	1	
+backend/app/config.py	93	Runtime configuration.
+backend/app/database.py	86	
+backend/app/deps.py	178	Tenant context and JWT auth.
+backend/app/envelope.py	23	Standard API response envelope for all JSON endpoints.
+backend/app/main.py	200	FastAPI application entrypoint.
+backend/app/middleware/__init__.py	3	
+backend/app/middleware/tenant.py	25	
+backend/app/migrations.py	473	Ordered, idempotent schema migrations.
+backend/app/models/__init__.py	65	
+backend/app/models/audit.py	44	What happened, who did it, and when.
+backend/app/models/budget.py	99	Approved payroll budget, and the trail of who changed it.
+backend/app/models/component.py	34	
+backend/app/models/ctc.py	62	
+backend/app/models/findings.py	225	Persisted findings and their lifecycle.
+backend/app/models/minimum_wage.py	94	Minimum wage rates.
+backend/app/models/org.py	155	Organizations, entities and membership.
+backend/app/models/payroll_run.py	23	
+backend/app/models/reference.py	34	
+backend/app/models/register.py	83	
+backend/app/models/rule_engine.py	78	
+backend/app/models/rule_preferences.py	31	Tenant-level rule toggles — suppress findings by rule_id in validation output.
+backend/app/models/signoff.py	109	Period sign-off.
+backend/app/models/statutory.py	44	
+backend/app/models/statutory_config.py	46	StatutoryConfig — config-driven statutory engine table.
+backend/app/models/user.py	48	
+backend/app/models/workforce.py	174	Employee master and attendance — the payroll *inputs*.
+backend/app/routers/__init__.py	49	
+backend/app/routers/admin.py	72	Admin-only tenant user management.
+backend/app/routers/audit.py	46	The audit trail.
+backend/app/routers/auth.py	185	
+backend/app/routers/bi.py	481	Business intelligence endpoints.
+backend/app/routers/budget.py	333	Budget upload, approval, variance and forecast.
+backend/app/routers/components.py	103	
+backend/app/routers/ctc.py	174	
+backend/app/routers/findings.py	204	The findings worklist.
+backend/app/routers/income_tax.py	107	Income tax estimation endpoints.
+backend/app/routers/minimum_wage.py	201	Minimum wage rates and compliance.
+backend/app/routers/org.py	160	Organization and entity management.
+backend/app/routers/payroll.py	576	
+backend/app/routers/reference.py	49	
+backend/app/routers/reports.py	118	Report downloads.
+backend/app/routers/rule_engine.py	429	
+backend/app/routers/rule_preferences.py	76	Tenant-level validation rule suppression (UI-configurable).
+backend/app/routers/signoff.py	361	Period sign-off and the evidence pack.
+backend/app/routers/statutory.py	42	
+backend/app/routers/statutory_config.py	279	/api/config/statutory  — CRUD for the Config-Driven Statutory Engine.
+backend/app/routers/users.py	29	
+backend/app/routers/workforce.py	359	Employee master and attendance ingestion.
+backend/app/schemas/__init__.py	28	
+backend/app/schemas/auth.py	51	
+backend/app/schemas/component.py	41	
+backend/app/schemas/ctc.py	48	
+backend/app/schemas/exposure_config.py	84	Configurable parameters for statutory exposure.
+backend/app/schemas/findings.py	67	
+backend/app/schemas/income_tax_config.py	119	Pydantic schemas for the configurable income-tax engine.
+backend/app/schemas/minimum_wage.py	43	
+backend/app/schemas/org.py	80	
+backend/app/schemas/payroll.py	59	
+backend/app/schemas/rule_engine.py	109	
+backend/app/schemas/rule_preferences.py	11	
+backend/app/schemas/rule_thresholds.py	197	Configurable thresholds used by the validation rule engine.
+backend/app/schemas/statutory.py	47	
+backend/app/schemas/statutory_config.py	204	Pydantic schemas for the Config-Driven Statutory Engine.
+backend/app/schemas/workforce.py	78	
+backend/app/security.py	40	
+backend/app/seed.py	119	Seed reference data (PT slabs) on first startup if empty.
+backend/app/services/__init__.py	1	
+backend/app/services/analytics.py	855	Payroll business intelligence.
+backend/app/services/audit.py	67	Append-only record of who did what.
+backend/app/services/budgeting.py	524	Approved budget, actual against it, and a forecast that never pretends to be either.
+backend/app/services/compliance_calendar.py	264	Filing readiness against the statutory calendar.
+backend/app/services/config_service.py	355	ConfigService — reads, writes, and caches per-tenant statutory configs.
+backend/app/services/cost_model.py	446	The Indian payroll cost taxonomy.
+backend/app/services/ctc_parse.py	123	
+backend/app/services/dimensions.py	91	The reporting attributes payroll cost is analysed by.
+backend/app/services/esic_engine.py	143	Config-Driven ESIC Engine
+backend/app/services/finding_store.py	272	Persisting findings and advancing their lifecycle.
+backend/app/services/finding_taxonomy.py	113	What kind of problem a finding is.
+backend/app/services/formula_eval.py	156	Safe formula evaluator for the Rule Engine.
+backend/app/services/identity_checks.py	178	Identity & data-quality validators (pure functions, no I/O).
+backend/app/services/income_tax_engine.py	207	India income-tax engine — old vs new regime, fully config-driven.
+backend/app/services/lwf_defaults.py	138	Curated Labour Welfare Fund (LWF) defaults per state.
+backend/app/services/masking.py	89	Showing a cost report without showing who earns what.
+backend/app/services/minimum_wage.py	348	Minimum wage lookup and compliance checks.
+backend/app/services/pay_equity.py	416	The gender pay gap, measured the way it has to be measured to be safe to read.
+backend/app/services/payroll_parse.py	79	
+backend/app/services/pf_basis.py	95	Whether an employee's PF is restricted to the statutory ceiling.
+backend/app/services/pf_engine.py	160	Config-Driven PF Engine
+backend/app/services/pt_defaults.py	248	Curated PT slab defaults per state, importable into a tenant's slab_rules.
+backend/app/services/reporting.py	530	Downloadable reports, each one able to say where it came from.
+backend/app/services/risk_scoring.py	105	Risk Scoring Engine
+backend/app/services/row_composition.py	166	What one register row actually contains.
+backend/app/services/rule_engine_v2.py	1088	India Payroll Intelligence & Compliance OS — Rule Engine v2
+backend/app/services/signoff.py	283	Building, signing and evidencing a period.
+backend/app/services/tax_year_defaults.py	119	Seed catalog of income-tax parameters per financial year.
+backend/app/services/tenancy.py	182	Organization / entity provisioning and access resolution.
+backend/app/services/validation.py	1263	
+backend/app/services/workforce.py	74	Point-in-time access to employee master and attendance.
+backend/app/services/workforce_analytics.py	353	Who was on the payroll, and what they are paid.
+backend/app/services/workforce_parse.py	236	Parsing for employee master and attendance files.
+backend/app/services/workforce_rules.py	319	Rules that compare the salary register against its inputs.

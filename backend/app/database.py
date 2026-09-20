@@ -60,6 +60,16 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("slab_rules", "employer_amount", "NUMERIC(14, 2)"),
     ("statutory_config", "income_tax_config", "JSON"),
     ("statutory_config", "rule_thresholds_config", "JSON"),
+    ("statutory_config", "exposure_config", "JSON"),
+    ("employee_records", "pf_restricted", "BOOLEAN"),
+    ("employee_records", "business_unit", "VARCHAR(255)"),
+    ("employee_records", "cost_center", "VARCHAR(64)"),
+    ("salary_register_rows", "dimensions", "JSON"),
+    ("salary_register_rows", "deductions", "JSON"),
+    ("salary_register_rows", "pf_restricted", "BOOLEAN"),
+    ("entities", "pay_equity_enabled", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("entities", "pay_equity_enabled_by", "VARCHAR(255)"),
+    ("entities", "pay_equity_enabled_at", "TIMESTAMP"),
 ]
 
 

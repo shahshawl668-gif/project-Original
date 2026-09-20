@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import ComponentConfig, CtcRecord, CtcUpload, User
+from app.models import ComponentConfig, CtcRecord, CtcUpload, Entity, User
 from app.schemas.ctc import CtcCommitRequest, CtcParseResponse, CtcRecordOut, CtcUploadOut
 from app.services.ctc_parse import parse_ctc_file
 from app.services.payroll_parse import normalize_col
@@ -21,6 +21,7 @@ async def upload_ctc(
     meta: str = Form(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     try:
         payload = json.loads(meta)
@@ -29,7 +30,7 @@ async def upload_ctc(
     except (ValueError, json.JSONDecodeError):
         raise HTTPException(status_code=400, detail="Invalid meta JSON")
 
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     if not comps:
         raise HTTPException(
             status_code=400,
@@ -77,6 +78,7 @@ def commit_ctc(
     body: CtcCommitRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     if not body.records:
         raise HTTPException(status_code=400, detail="No records to commit.")
@@ -85,6 +87,7 @@ def commit_ctc(
 
     upload = CtcUpload(
         user_id=user.id,
+        entity_id=entity.id,
         effective_from=eff,
         filename=body.filename,
         employee_count=len(body.records),
@@ -96,7 +99,7 @@ def commit_ctc(
         existing = (
             db.query(CtcRecord)
             .filter(
-                CtcRecord.user_id == user.id,
+                CtcRecord.entity_id == entity.id,
                 CtcRecord.employee_id == rec.employee_id,
                 CtcRecord.effective_from == rec.effective_from,
             )
@@ -113,6 +116,7 @@ def commit_ctc(
                 CtcRecord(
                     upload_id=upload.id,
                     user_id=user.id,
+        entity_id=entity.id,
                     employee_id=rec.employee_id,
                     employee_name=rec.employee_name,
                     effective_from=rec.effective_from,
@@ -127,10 +131,10 @@ def commit_ctc(
 
 
 @router.get("/uploads")
-def list_uploads(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_uploads(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
     rows = (
         db.query(CtcUpload)
-        .filter(CtcUpload.user_id == user.id)
+        .filter(CtcUpload.entity_id == entity.id)
         .order_by(CtcUpload.created_at.desc())
         .all()
     )
@@ -142,10 +146,11 @@ def list_records(
     upload_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     rows = (
         db.query(CtcRecord)
-        .filter(CtcRecord.user_id == user.id, CtcRecord.upload_id == upload_id)
+        .filter(CtcRecord.entity_id == entity.id, CtcRecord.upload_id == upload_id)
         .order_by(CtcRecord.employee_id)
         .all()
     )
@@ -158,8 +163,9 @@ def latest_for_employee(
     as_of: date | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
-    q = db.query(CtcRecord).filter(CtcRecord.user_id == user.id, CtcRecord.employee_id == employee_id)
+    q = db.query(CtcRecord).filter(CtcRecord.entity_id == entity.id, CtcRecord.employee_id == employee_id)
     if as_of:
         q = q.filter(CtcRecord.effective_from <= as_of)
     row = q.order_by(CtcRecord.effective_from.desc()).first()

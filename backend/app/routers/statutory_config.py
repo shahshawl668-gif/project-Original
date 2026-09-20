@@ -1,7 +1,7 @@
 """
 /api/config/statutory  — CRUD for the Config-Driven Statutory Engine.
 
-All endpoints are tenant-scoped — get_current_user() provides isolation.
+All endpoints are entity-scoped — get_current_entity() provides isolation.
 """
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import User
+from app.models import Entity, User
 from app.schemas.income_tax_config import IncomeTaxConfig, TaxYearConfig, TaxYearUpsert
 from app.schemas.rule_thresholds import RuleThresholdsConfig
 from app.schemas.statutory_config import (
@@ -33,13 +33,13 @@ def _svc(db: Session = Depends(get_db)) -> ConfigService:
 
 @router.get("")
 def get_statutory_config(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     svc: ConfigService = Depends(_svc),
 ):
-    cfg = svc.get_full_config(user.id)
-    db_row = svc._load_row(user.id)
+    cfg = svc.get_full_config(entity.id)
+    db_row = svc._load_row(entity.id)
     resp = StatutoryConfigResponse(
-        tenant_id=str(user.id),
+        tenant_id=str(entity.id),
         pf=cfg.pf,
         esic=cfg.esic,
         component_mapping=cfg.component_mapping,
@@ -51,13 +51,13 @@ def get_statutory_config(
 @router.put("")
 def save_statutory_config(
     body: TenantStatutoryConfig,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    svc.save_full_config(user.id, body)
-    db_row = svc._load_row(user.id)
+    svc.save_full_config(entity.id, body)
+    db_row = svc._load_row(entity.id)
     resp = StatutoryConfigResponse(
-        tenant_id=str(user.id),
+        tenant_id=str(entity.id),
         pf=body.pf,
         esic=body.esic,
         component_mapping=body.component_mapping,
@@ -68,67 +68,67 @@ def save_statutory_config(
 
 @router.get("/pf")
 def get_pf_config(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     svc: ConfigService = Depends(_svc),
 ):
-    return ok(svc.get_pf_config(user.id).model_dump())
+    return ok(svc.get_pf_config(entity.id).model_dump())
 
 
 @router.put("/pf")
 def save_pf_config(
     body: PFConfig,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    svc.save_pf_config(user.id, body)
+    svc.save_pf_config(entity.id, body)
     return ok(body.model_dump())
 
 
 @router.get("/esic")
 def get_esic_config(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     svc: ConfigService = Depends(_svc),
 ):
-    return ok(svc.get_esic_config(user.id).model_dump())
+    return ok(svc.get_esic_config(entity.id).model_dump())
 
 
 @router.put("/esic")
 def save_esic_config(
     body: ESICConfig,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    svc.save_esic_config(user.id, body)
+    svc.save_esic_config(entity.id, body)
     return ok(body.model_dump())
 
 
 @router.get("/component-mapping")
 def get_component_mapping(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     svc: ConfigService = Depends(_svc),
 ):
-    return ok(svc.get_component_mapping(user.id).model_dump())
+    return ok(svc.get_component_mapping(entity.id).model_dump())
 
 
 @router.put("/component-mapping")
 def save_component_mapping(
     body: ComponentMappingConfig,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    svc.save_component_mapping(user.id, body)
+    svc.save_component_mapping(entity.id, body)
     return ok(body.model_dump())
 
 
 @router.post("/reset")
 def reset_to_defaults(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    cfg = svc.reset_to_defaults(user.id)
-    db_row = svc._load_row(user.id)
+    cfg = svc.reset_to_defaults(entity.id)
+    db_row = svc._load_row(entity.id)
     resp = StatutoryConfigResponse(
-        tenant_id=str(user.id),
+        tenant_id=str(entity.id),
         pf=cfg.pf,
         esic=cfg.esic,
         component_mapping=cfg.component_mapping,
@@ -154,21 +154,21 @@ def test_expression(body: dict, user: User = Depends(get_current_user)):
 
 @router.get("/income-tax")
 def get_income_tax_config(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     svc: ConfigService = Depends(_svc),
 ):
-    return ok(svc.get_income_tax_config(user.id).model_dump(mode="json"))
+    return ok(svc.get_income_tax_config(entity.id).model_dump(mode="json"))
 
 
 @router.put("/income-tax")
 def save_income_tax_config(
     body: IncomeTaxConfig,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
     if body.default_year and body.default_year not in body.years:
         raise HTTPException(status_code=422, detail=f"default_year '{body.default_year}' has no entry in years.")
-    svc.save_income_tax_config(user.id, body)
+    svc.save_income_tax_config(entity.id, body)
     return ok(body.model_dump(mode="json"))
 
 
@@ -176,26 +176,26 @@ def save_income_tax_config(
 def upsert_tax_year(
     financial_year: str,
     body: TaxYearUpsert,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
     """Add or replace one financial year's parameters."""
-    cfg = svc.get_income_tax_config(user.id)
+    cfg = svc.get_income_tax_config(entity.id)
     year = body.year.model_copy(update={"financial_year": financial_year})
     cfg.years[financial_year] = year
     if body.make_default or not cfg.default_year:
         cfg.default_year = financial_year
-    svc.save_income_tax_config(user.id, cfg)
+    svc.save_income_tax_config(entity.id, cfg)
     return ok(cfg.model_dump(mode="json"))
 
 
 @router.delete("/income-tax/years/{financial_year}")
 def delete_tax_year(
     financial_year: str,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    cfg = svc.get_income_tax_config(user.id)
+    cfg = svc.get_income_tax_config(entity.id)
     if financial_year not in cfg.years:
         raise HTTPException(status_code=404, detail=f"No config for FY {financial_year}.")
     if len(cfg.years) == 1:
@@ -203,53 +203,53 @@ def delete_tax_year(
     del cfg.years[financial_year]
     if cfg.default_year == financial_year:
         cfg.default_year = sorted(cfg.years)[-1]
-    svc.save_income_tax_config(user.id, cfg)
+    svc.save_income_tax_config(entity.id, cfg)
     return ok(cfg.model_dump(mode="json"))
 
 
 @router.post("/income-tax/reset")
 def reset_income_tax_config(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    return ok(svc.reset_income_tax_config(user.id).model_dump(mode="json"))
+    return ok(svc.reset_income_tax_config(entity.id).model_dump(mode="json"))
 
 
 # ─── Rule-engine thresholds ───────────────────────────────────────────────────
 
 @router.get("/rule-thresholds")
 def get_rule_thresholds(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     svc: ConfigService = Depends(_svc),
 ):
-    return ok(svc.get_rule_thresholds(user.id).model_dump(mode="json"))
+    return ok(svc.get_rule_thresholds(entity.id).model_dump(mode="json"))
 
 
 @router.put("/rule-thresholds")
 def save_rule_thresholds(
     body: RuleThresholdsConfig,
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    svc.save_rule_thresholds(user.id, body)
+    svc.save_rule_thresholds(entity.id, body)
     return ok(body.model_dump(mode="json"))
 
 
 @router.post("/rule-thresholds/reset")
 def reset_rule_thresholds(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
-    return ok(svc.reset_rule_thresholds(user.id).model_dump(mode="json"))
+    return ok(svc.reset_rule_thresholds(entity.id).model_dump(mode="json"))
 
 
 @router.get("/summary")
 def config_summary(
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     svc: ConfigService = Depends(_svc),
 ):
-    pf = svc.get_pf_config(user.id)
-    esic = svc.get_esic_config(user.id)
+    pf = svc.get_pf_config(entity.id)
+    esic = svc.get_esic_config(entity.id)
     return ok(
         {
             "pf": {

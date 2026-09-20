@@ -5,7 +5,7 @@ Stores PF, ESIC and component-mapping configs as JSON so they can evolve
 without schema migrations.  For PostgreSQL the column type is JSONB; for
 SQLite it falls back to TEXT (SQLAlchemy JSON type handles both).
 
-One row per tenant (user_id PK).  ConfigService reads and writes this table
+One row per entity (entity_id PK).  ConfigService reads and writes this table
 via typed Pydantic schemas — callers never touch raw JSON.
 """
 from __future__ import annotations
@@ -22,9 +22,9 @@ from app.database import Base
 class StatutoryConfig(Base):
     __tablename__ = "statutory_config"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    entity_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("entities.id", ondelete="CASCADE"),
         primary_key=True,
     )
 
@@ -38,6 +38,8 @@ class StatutoryConfig(Base):
     # cleanly; None is treated as "use seeded defaults" by ConfigService.
     income_tax_config:       Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
     rule_thresholds_config:  Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    # Interest and damages rates used to size accumulated statutory exposure.
+    exposure_config:         Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

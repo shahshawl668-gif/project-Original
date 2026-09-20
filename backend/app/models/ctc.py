@@ -27,6 +27,9 @@ class CtcUpload(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     filename: Mapped[str | None] = mapped_column(String(512))
     employee_count: Mapped[int | None] = mapped_column(Integer)
@@ -37,7 +40,7 @@ class CtcUpload(Base):
 
 class CtcRecord(Base):
     __tablename__ = "ctc_records"
-    __table_args__ = (UniqueConstraint("user_id", "employee_id", "effective_from"),)
+    __table_args__ = (UniqueConstraint("entity_id", "employee_id", "effective_from"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     upload_id: Mapped[uuid.UUID] = mapped_column(
@@ -45,6 +48,9 @@ class CtcRecord(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
     )
     employee_id: Mapped[str] = mapped_column(String(64), nullable=False)
     employee_name: Mapped[str | None] = mapped_column(String(255))

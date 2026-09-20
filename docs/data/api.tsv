@@ -1,0 +1,132 @@
+Statutory Config	/api/config/statutory	GET	Get Statutory Config	
+Statutory Config	/api/config/statutory	PUT	Save Statutory Config	
+Statutory Config	/api/config/statutory/component-mapping	GET	Get Component Mapping	
+Statutory Config	/api/config/statutory/component-mapping	PUT	Save Component Mapping	
+Statutory Config	/api/config/statutory/esic	GET	Get Esic Config	
+Statutory Config	/api/config/statutory/esic	PUT	Save Esic Config	
+Statutory Config	/api/config/statutory/income-tax	GET	Get Income Tax Config	
+Statutory Config	/api/config/statutory/income-tax	PUT	Save Income Tax Config	
+Statutory Config	/api/config/statutory/income-tax/reset	POST	Reset Income Tax Config	
+Statutory Config	/api/config/statutory/income-tax/years/{financial_year}	DELETE	Delete Tax Year	
+Statutory Config	/api/config/statutory/income-tax/years/{financial_year}	PUT	Upsert Tax Year	Add or replace one financial year's parameters.
+Statutory Config	/api/config/statutory/pf	GET	Get Pf Config	
+Statutory Config	/api/config/statutory/pf	PUT	Save Pf Config	
+Statutory Config	/api/config/statutory/reset	POST	Reset To Defaults	
+Statutory Config	/api/config/statutory/rule-thresholds	GET	Get Rule Thresholds	
+Statutory Config	/api/config/statutory/rule-thresholds	PUT	Save Rule Thresholds	
+Statutory Config	/api/config/statutory/rule-thresholds/reset	POST	Reset Rule Thresholds	
+Statutory Config	/api/config/statutory/summary	GET	Config Summary	
+Statutory Config	/api/config/statutory/test-expression	POST	Test Expression	
+admin	/api/admin/users	GET	List Tenant Users	
+admin	/api/admin/users/{target_id}/role	PATCH	Patch User Role	
+audit	/api/audit	GET	Trail	Who uploaded, approved, changed or exported what.
+audit	/api/audit/actions	GET	Actions	The action names the trail uses, so a filter can offer real options.
+auth	/api/auth/login	POST	Login	
+auth	/api/auth/logout	POST	Logout	Revokes the given refresh token (no access token required).
+auth	/api/auth/me	GET	Me	
+auth	/api/auth/password-reset-confirm	POST	Password Reset Confirm	
+auth	/api/auth/password-reset-request	POST	Password Reset Request	
+auth	/api/auth/refresh	POST	Refresh Token	
+auth	/api/auth/signup	POST	Signup	
+bi	/api/bi/compensation	GET	Compensation	How pay is distributed, for one month, on annualised CTC.
+bi	/api/bi/compliance	GET	Compliance	Filing readiness against the statutory calendar.
+bi	/api/bi/cost-analysis	GET	Cost Analysis	Payroll cost by any reporting dimension, over month, quarter or year.
+bi	/api/bi/cost-bridge	GET	Cost Bridge	Why payroll cost moved between two months.
+bi	/api/bi/cost-compare	GET	Cost Compare	Two wage months side by side, across the taxonomy and by one dimension.
+bi	/api/bi/dimensions	GET	Dimensions	Which dimensions exist and what values they hold, for building filters.
+bi	/api/bi/exposure	GET	Exposure	Accumulated statutory shortfall, aged, with interest and damages.
+bi	/api/bi/exposure/config	GET	Get Exposure Config	
+bi	/api/bi/exposure/config	PUT	Put Exposure Config	
+bi	/api/bi/exposure/config/reset	POST	Reset Exposure Config	
+bi	/api/bi/headcount-movement	GET	Headcount Movement	Opening, joiners, exits and closing headcount for each stored month.
+bi	/api/bi/measures	GET	Measures	The cost taxonomy — every measure, its layer and what it means.
+bi	/api/bi/pay-equity	GET	Pay Equity Analysis	The gender pay gap, unadjusted and like-for-like, for one wage month.
+bi	/api/bi/pay-equity/settings	GET	Pay Equity Settings	Whether the analysis is switched on for this entity, and who switched it on.
+bi	/api/bi/pay-equity/settings	PUT	Set Pay Equity Settings	Switch the gender pay gap analysis on or off for this entity.
+bi	/api/bi/periods	GET	Periods	Months that hold a register, so a comparison can only name a real one.
+bi	/api/bi/trend	GET	Cost Trend	
+budget	/api/budget/forecast	GET	Forecast	Project cost forward from stated assumptions.
+budget	/api/budget/preview	POST	Preview	Read an uploaded budget and show what it says before anything is stored.
+budget	/api/budget/scopes	GET	Scopes	The levels a budget can be approved at.
+budget	/api/budget/template.csv	GET	Template	A budget file in the shape this product reads, for a finance team to fill in.
+budget	/api/budget/variance	GET	Variance	Actual payroll cost against the approved budget.
+budget	/api/budget/versions	GET	List Versions	
+budget	/api/budget/versions	POST	Create Version	Store a budget as a draft. It is not a comparison until someone approves it.
+budget	/api/budget/versions/{version_id}	DELETE	Delete Version	Remove a draft. An approved budget is never deleted — history depends on it.
+budget	/api/budget/versions/{version_id}/approve	POST	Approve Version	Approve a budget.
+components	/api/components	GET	List Components	
+components	/api/components	POST	Create Component	
+components	/api/components/{component_id}	DELETE	Delete Component	
+components	/api/components/{component_id}	PATCH	Update Component	
+ctc	/api/ctc/commit	POST	Commit Ctc	
+ctc	/api/ctc/latest	GET	Latest For Employee	
+ctc	/api/ctc/upload	POST	Upload Ctc	
+ctc	/api/ctc/uploads	GET	List Uploads	
+ctc	/api/ctc/uploads/{upload_id}	GET	List Records	
+findings	/api/findings	GET	List Findings	Outstanding findings, worst first.
+findings	/api/findings/runs	GET	List Runs	
+findings	/api/findings/summary	GET	Findings Summary	Counts and exposure by lifecycle state.
+findings	/api/findings/{fingerprint}	GET	Get Finding	
+findings	/api/findings/{fingerprint}/decision	POST	Decide	Record a decision: acknowledge it, waive it, or put it back on the list.
+health	/api/health	GET	Health Root	
+health	/health	GET	Health Plain	
+income-tax	/api/income-tax/compare	POST	Compare	
+income-tax	/api/income-tax/compute	POST	Compute Tax	
+income-tax	/api/income-tax/years	GET	List Years	
+minimum-wage	/api/minimum-wage/check	POST	Check Period	Run the stored register for ``period`` against the rate table.
+minimum-wage	/api/minimum-wage/coverage	GET	Coverage	Which (state, skill) pairs in the workforce have no rate on file.
+minimum-wage	/api/minimum-wage/rates	GET	List Rates	
+minimum-wage	/api/minimum-wage/rates	POST	Create Rate	
+minimum-wage	/api/minimum-wage/rates/import	POST	Import Rates	
+minimum-wage	/api/minimum-wage/rates/{rate_id}	DELETE	Delete Rate	
+org	/api/org	PATCH	Update Org	
+org	/api/org/context	GET	Get Context	
+org	/api/org/entities	GET	List Entities	
+org	/api/org/entities	POST	Create Entity	
+org	/api/org/entities/{entity_id}	PATCH	Update Entity	
+org	/api/org/entities/{entity_id}/select	POST	Select Entity	Remember this entity as the caller's default.
+org	/api/org/members	GET	List Members	
+payroll	/api/payroll/dashboard-stats	GET	Dashboard Stats	
+payroll	/api/payroll/registers	GET	List Salary Registers	
+payroll	/api/payroll/registers/{register_id}	GET	Get Salary Register	
+payroll	/api/payroll/runs	GET	List Payroll Runs	
+payroll	/api/payroll/upload	POST	Upload Payroll	
+payroll	/api/payroll/validate	POST	Validate Payroll	
+payroll	/api/payroll/validate/export-excel	POST	Export Findings Excel	Run validation and return findings as an Excel workbook (binary stream, not JSON envelope).
+reference	/api/reference/states	GET	List States	Return distinct states known to the system.
+reports	/api/reports	GET	Catalogue	Which reports exist and what each one covers.
+reports	/api/reports/{kind}.xlsx	GET	Download	
+rule-engine	/api/rule-engine/defaults/lwf-states	GET	Get Lwf Default States	
+rule-engine	/api/rule-engine/defaults/pt-states	GET	Get Pt Default States	
+rule-engine	/api/rule-engine/defaults/states	GET	Get All Default States	
+rule-engine	/api/rule-engine/formula	POST	Create Formula	
+rule-engine	/api/rule-engine/formula/{formula_id}	DELETE	Delete Formula	
+rule-engine	/api/rule-engine/formula/{formula_id}/activate	POST	Activate Formula	
+rule-engine	/api/rule-engine/formulas	GET	List Formulas	
+rule-engine	/api/rule-engine/slabs	GET	Get Slabs Route	
+rule-engine	/api/rule-engine/slabs	POST	Save Slabs	
+rule-engine	/api/rule-engine/slabs/import-defaults	POST	Import Default Slabs	
+rule-engine	/api/rule-engine/slabs/import-defaults/all	POST	Import All Default Slabs	
+rule-engine	/api/rule-engine/slabs/reset-defaults	POST	Reset Default Slabs	
+rule-engine	/api/rule-engine/test-formula	POST	Test Formula	
+rule-preferences	/api/rule-preferences	GET	List Preferences	
+rule-preferences	/api/rule-preferences	PUT	Upsert Preference	
+rule-preferences	/api/rule-preferences/{rule_id}	DELETE	Delete Preference	
+signoff	/api/signoff	GET	List Signoffs	
+signoff	/api/signoff/reopen	POST	Reopen	
+signoff	/api/signoff/sign	POST	Sign	Approve a period.
+signoff	/api/signoff/submit	POST	Submit	
+signoff	/api/signoff/{period}	GET	Get Signoff	
+signoff	/api/signoff/{period}/evidence-pack	GET	Evidence Pack	The period as a workbook: what was checked, found, accepted and by whom.
+signoff	/api/signoff/{period}/preview	GET	Preview	What signing this period would commit to, without committing to it.
+statutory	/api/settings/statutory	GET	Get Statutory	
+statutory	/api/settings/statutory	PUT	Update Statutory	
+users	/api/users/me	PATCH	Update Me	
+workforce	/api/workforce/attendance	GET	List Attendance Registers	
+workforce	/api/workforce/attendance/commit	POST	Commit Attendance	
+workforce	/api/workforce/attendance/upload	POST	Upload Attendance	
+workforce	/api/workforce/attendance/{register_id}	GET	Get Attendance Register	
+workforce	/api/workforce/master	GET	List Master Records	The master as it stood on ``as_of`` (default: today).
+workforce	/api/workforce/master/commit	POST	Commit Master	
+workforce	/api/workforce/master/upload	POST	Upload Master	Parse a master file and report how it was read, without storing anything.
+workforce	/api/workforce/master/uploads	GET	List Master Uploads	

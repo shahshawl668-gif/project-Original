@@ -12,6 +12,9 @@ class PayrollRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"))
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     run_type: Mapped[str] = mapped_column(String(32), nullable=False)
     effective_month_from: Mapped[date | None] = mapped_column(Date)
     effective_month_to: Mapped[date | None] = mapped_column(Date)

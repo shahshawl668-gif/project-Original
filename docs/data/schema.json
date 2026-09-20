@@ -1,0 +1,2189 @@
+{
+ "attendance_registers": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "filename",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "",
+    "name": "employee_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": [
+   "UNIQUE (entity_id, period_month)"
+  ]
+ },
+ "attendance_rows": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 attendance_registers.id, NOT NULL, indexed",
+    "name": "register_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "employee_id",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "employee_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "calendar_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "present_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "paid_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "lop_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "paid_leave_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "weekly_off_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "holiday_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "overtime_hours",
+    "type": "NUMERIC(8, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "extra",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": [
+   "UNIQUE (register_id, employee_id)"
+  ]
+ },
+ "audit_events": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "user_email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "action",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "object_type",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "object_id",
+    "type": "VARCHAR(128)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "summary",
+    "type": "TEXT"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "detail",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Planning & governance",
+  "unique": []
+ },
+ "budget_lines": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 budget_versions.id, NOT NULL, indexed",
+    "name": "version_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "scope_value",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "amount",
+    "type": "NUMERIC(16, 2)"
+   },
+   {
+    "flags": "",
+    "name": "headcount",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "",
+    "name": "note",
+    "type": "TEXT"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "extra",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Planning & governance",
+  "unique": [
+   "UNIQUE (version_id, period_month, scope_value)"
+  ]
+ },
+ "budget_versions": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "name",
+    "type": "VARCHAR(120)"
+   },
+   {
+    "flags": "",
+    "name": "financial_year",
+    "type": "VARCHAR(9)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "state",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "scope_key",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "measure",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "note",
+    "type": "TEXT"
+   },
+   {
+    "flags": "",
+    "name": "source_filename",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "created_by_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "approved_by_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "approved_by_email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "approved_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "is_current",
+    "type": "BOOLEAN"
+   }
+  ],
+  "group": "Planning & governance",
+  "unique": [
+   "UNIQUE (entity_id, name)"
+  ]
+ },
+ "components_config": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "component_name",
+    "type": "VARCHAR(100)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_applicable",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "esic_applicable",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pt_applicable",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "lwf_applicable",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "bonus_applicable",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "included_in_wages",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "taxable",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "tax_exemption_type",
+    "type": "VARCHAR(20)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": []
+ },
+ "ctc_records": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 ctc_uploads.id, NOT NULL, indexed",
+    "name": "upload_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "employee_id",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "employee_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "effective_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "annual_components",
+    "type": "JSON"
+   },
+   {
+    "flags": "",
+    "name": "annual_ctc",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": [
+   "UNIQUE (entity_id, employee_id, effective_from)"
+  ]
+ },
+ "ctc_uploads": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "effective_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "filename",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "",
+    "name": "employee_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": []
+ },
+ "employee_master_uploads": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "effective_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "filename",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "",
+    "name": "employee_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": []
+ },
+ "employee_records": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 employee_master_uploads.id, NOT NULL, indexed",
+    "name": "upload_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "employee_id",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "effective_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "employee_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "date_of_joining",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "date_of_exit",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "date_of_birth",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "gender",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "work_state",
+    "type": "VARCHAR(100)"
+   },
+   {
+    "flags": "",
+    "name": "work_location",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "department",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "designation",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "grade",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "business_unit",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "cost_center",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "employment_type",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "skill_category",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "pf_restricted",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "",
+    "name": "pan",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "aadhaar",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "uan",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "pf_number",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "esic_ip_number",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "bank_account",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "ifsc",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "extra",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": [
+   "UNIQUE (entity_id, employee_id, effective_from)"
+  ]
+ },
+ "entities": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 organizations.id, NOT NULL, indexed",
+    "name": "org_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "legal_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "code",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "pf_establishment_code",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "esic_employer_code",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "tan",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "pan",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "cin",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "primary_state",
+    "type": "VARCHAR(100)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pay_equity_enabled",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "",
+    "name": "pay_equity_enabled_by",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "pay_equity_enabled_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "is_active",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "",
+    "name": "archived_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Tenancy",
+  "unique": [
+   "UNIQUE (org_id, code)"
+  ]
+ },
+ "entity_access": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 organizations.id, NOT NULL, indexed",
+    "name": "org_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Tenancy",
+  "unique": [
+   "UNIQUE (user_id, entity_id)"
+  ]
+ },
+ "finding_records": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 validation_runs.id, NOT NULL, indexed",
+    "name": "run_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "fingerprint",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "employee_id",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "employee_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "rule_id",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "rule_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "component",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "severity",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "status",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "expected_value",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "actual_value",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "difference",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "financial_impact",
+    "type": "NUMERIC(16, 2)"
+   },
+   {
+    "flags": "",
+    "name": "reason",
+    "type": "TEXT"
+   },
+   {
+    "flags": "",
+    "name": "suggested_fix",
+    "type": "TEXT"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "was_waived",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Findings & assurance",
+  "unique": []
+ },
+ "finding_state_events": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 finding_states.id, NOT NULL, indexed",
+    "name": "state_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "from_state",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "to_state",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "reason",
+    "type": "TEXT"
+   },
+   {
+    "flags": "",
+    "name": "waived_until",
+    "type": "DATE"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "actor_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "actor_email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Findings & assurance",
+  "unique": []
+ },
+ "finding_states": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "fingerprint",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "employee_id",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "employee_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "rule_id",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "rule_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "component",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "severity",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "state",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "first_seen_period",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "last_seen_period",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "occurrence_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "last_financial_impact",
+    "type": "NUMERIC(16, 2)"
+   },
+   {
+    "flags": "",
+    "name": "resolved_period",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "note",
+    "type": "TEXT"
+   },
+   {
+    "flags": "",
+    "name": "waiver_reason",
+    "type": "TEXT"
+   },
+   {
+    "flags": "",
+    "name": "waived_until",
+    "type": "DATE"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "decided_by_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "decided_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Findings & assurance",
+  "unique": [
+   "UNIQUE (entity_id, fingerprint)"
+  ]
+ },
+ "lwf_rates": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "state",
+    "type": "VARCHAR(100)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "wage_band_min",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "wage_band_max",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "employee_rate",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "employer_rate",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "effective_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "effective_to",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": []
+ },
+ "minimum_wage_rates": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "state",
+    "type": "VARCHAR(100)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "zone",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "scheduled_employment",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "skill_category",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "basic_per_month",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "vda_per_month",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "working_days_basis",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "effective_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "effective_to",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "source_reference",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": []
+ },
+ "org_memberships": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 organizations.id, NOT NULL, indexed",
+    "name": "org_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "role",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id",
+    "name": "default_entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Tenancy",
+  "unique": [
+   "UNIQUE (org_id, user_id)"
+  ]
+ },
+ "organizations": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "org_type",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Tenancy",
+  "unique": []
+ },
+ "password_reset_tokens": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "token_hash",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "expires_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "",
+    "name": "used_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Identity",
+  "unique": []
+ },
+ "payroll_runs": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "run_type",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "effective_month_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "effective_month_to",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "filename",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "",
+    "name": "employee_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": []
+ },
+ "period_signoffs": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "state",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "prepared_by_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "prepared_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "signed_by_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "signed_by_email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "signed_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "snapshot",
+    "type": "JSON"
+   },
+   {
+    "flags": "",
+    "name": "snapshot_digest",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "employee_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "open_findings",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "accepted_exposure",
+    "type": "NUMERIC(16, 2)"
+   },
+   {
+    "flags": "",
+    "name": "notes",
+    "type": "TEXT"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Findings & assurance",
+  "unique": [
+   "UNIQUE (entity_id, period_month)"
+  ]
+ },
+ "pt_slabs": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "state",
+    "type": "VARCHAR(100)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "slab_min",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "slab_max",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "amount",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "effective_from",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "effective_to",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": []
+ },
+ "refresh_tokens": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "token_hash",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "expires_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Identity",
+  "unique": []
+ },
+ "rule_formulas": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "rule_type",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "",
+    "name": "name",
+    "type": "VARCHAR(120)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "expression",
+    "type": "TEXT"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "conditions",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "version",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "is_active",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": [
+   "UNIQUE (entity_id, rule_type, version)"
+  ]
+ },
+ "salary_register_rows": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 salary_registers.id, NOT NULL, indexed",
+    "name": "register_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "employee_id",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "employee_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "paid_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "",
+    "name": "lop_days",
+    "type": "NUMERIC(6, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "components",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "dimensions",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "arrears",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "deductions",
+    "type": "JSON"
+   },
+   {
+    "flags": "",
+    "name": "pf_restricted",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "",
+    "name": "increment_arrear_total",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": []
+ },
+ "salary_registers": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "",
+    "name": "filename",
+    "type": "VARCHAR(512)"
+   },
+   {
+    "flags": "",
+    "name": "employee_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Payroll inputs",
+  "unique": [
+   "UNIQUE (entity_id, period_month)"
+  ]
+ },
+ "signoff_events": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 period_signoffs.id, NOT NULL, indexed",
+    "name": "signoff_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "from_state",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "to_state",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "reason",
+    "type": "TEXT"
+   },
+   {
+    "flags": "",
+    "name": "snapshot_digest",
+    "type": "VARCHAR(64)"
+   },
+   {
+    "flags": "",
+    "name": "superseded_snapshot",
+    "type": "JSON"
+   },
+   {
+    "flags": "FK \u2192 users.id",
+    "name": "actor_user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "",
+    "name": "actor_email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Findings & assurance",
+  "unique": []
+ },
+ "slab_rules": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "state",
+    "type": "VARCHAR(100)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "rule_type",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "min_salary",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "max_salary",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "deduction_amount",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "",
+    "name": "employer_amount",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "frequency",
+    "type": "VARCHAR(16)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "gender",
+    "type": "VARCHAR(8)"
+   },
+   {
+    "flags": "",
+    "name": "applicable_months",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "sort_order",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": []
+ },
+ "statutory_config": {
+  "columns": [
+   {
+    "flags": "PK, FK \u2192 entities.id",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_config",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "esic_config",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "component_mapping_config",
+    "type": "JSON"
+   },
+   {
+    "flags": "",
+    "name": "income_tax_config",
+    "type": "JSON"
+   },
+   {
+    "flags": "",
+    "name": "rule_thresholds_config",
+    "type": "JSON"
+   },
+   {
+    "flags": "",
+    "name": "exposure_config",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": []
+ },
+ "statutory_settings": {
+  "columns": [
+   {
+    "flags": "PK, FK \u2192 entities.id",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_wage_ceiling",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_employee_rate",
+    "type": "NUMERIC(6, 4)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_employer_rate",
+    "type": "NUMERIC(6, 4)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_eps_rate",
+    "type": "NUMERIC(6, 4)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_edli_rate",
+    "type": "NUMERIC(6, 4)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_admin_rate",
+    "type": "NUMERIC(6, 4)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pf_restrict_to_ceiling",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "esic_wage_ceiling",
+    "type": "NUMERIC(14, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "esic_employee_rate",
+    "type": "NUMERIC(6, 4)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "esic_employer_rate",
+    "type": "NUMERIC(6, 4)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "esic_round_mode",
+    "type": "VARCHAR(8)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "pt_states",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "lwf_states",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": []
+ },
+ "tenant_rule_preferences": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "rule_id",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "suppressed",
+    "type": "BOOLEAN"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Configuration",
+  "unique": [
+   "UNIQUE (entity_id, rule_id)"
+  ]
+ },
+ "users": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "email",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "password_hash",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "",
+    "name": "company_name",
+    "type": "VARCHAR(255)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "role",
+    "type": "VARCHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "updated_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Identity",
+  "unique": []
+ },
+ "validation_runs": {
+  "columns": [
+   {
+    "flags": "PK",
+    "name": "id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 users.id, NOT NULL, indexed",
+    "name": "user_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "FK \u2192 entities.id, NOT NULL, indexed",
+    "name": "entity_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL, indexed",
+    "name": "period_month",
+    "type": "DATE"
+   },
+   {
+    "flags": "FK \u2192 salary_registers.id",
+    "name": "register_id",
+    "type": "CHAR(32)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "employee_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "total_findings",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "critical_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "warning_count",
+    "type": "INTEGER"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "total_financial_impact",
+    "type": "NUMERIC(16, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "open_financial_impact",
+    "type": "NUMERIC(16, 2)"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "summary",
+    "type": "JSON"
+   },
+   {
+    "flags": "NOT NULL",
+    "name": "created_at",
+    "type": "DATETIME"
+   }
+  ],
+  "group": "Findings & assurance",
+  "unique": []
+ }
+}

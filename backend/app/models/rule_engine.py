@@ -25,11 +25,14 @@ class Formula(Base):
     """User-authored PF / ESIC formula. Each save creates a new version."""
 
     __tablename__ = "rule_formulas"
-    __table_args__ = (UniqueConstraint("user_id", "rule_type", "version"),)
+    __table_args__ = (UniqueConstraint("entity_id", "rule_type", "version"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
     )
     rule_type: Mapped[str] = mapped_column(String(16), nullable=False)  # PF | ESIC
     name: Mapped[str | None] = mapped_column(String(120))
@@ -48,6 +51,9 @@ class SlabRule(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
     )
     state: Mapped[str] = mapped_column(String(100), nullable=False)
     rule_type: Mapped[str] = mapped_column(String(16), nullable=False)  # PT | LWF

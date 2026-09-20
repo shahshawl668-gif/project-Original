@@ -2,19 +2,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import StatutorySettings, User
+from app.models import Entity, StatutorySettings, User
 from app.schemas.statutory import StatutorySettingsOut, StatutorySettingsUpdate
 
 router = APIRouter()
 
 
-def _get_or_create(db: Session, user_id) -> StatutorySettings:
-    row = db.query(StatutorySettings).filter(StatutorySettings.user_id == user_id).first()
+def _get_or_create(db: Session, entity_id) -> StatutorySettings:
+    row = db.query(StatutorySettings).filter(StatutorySettings.entity_id == entity_id).first()
     if row:
         return row
-    row = StatutorySettings(user_id=user_id)
+    row = StatutorySettings(entity_id=entity_id)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -22,8 +22,8 @@ def _get_or_create(db: Session, user_id) -> StatutorySettings:
 
 
 @router.get("")
-def get_statutory(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    row = _get_or_create(db, user.id)
+def get_statutory(db: Session = Depends(get_db), entity: Entity = Depends(get_current_entity)):
+    row = _get_or_create(db, entity.id)
     return ok(StatutorySettingsOut.model_validate(row).model_dump())
 
 
@@ -31,9 +31,9 @@ def get_statutory(db: Session = Depends(get_db), user: User = Depends(get_curren
 def update_statutory(
     body: StatutorySettingsUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
-    row = _get_or_create(db, user.id)
+    row = _get_or_create(db, entity.id)
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     db.add(row)

@@ -91,8 +91,16 @@ class ValidationFinding:
     suggested_fix: str = field(default="")
     financial_impact: float = field(default=0.0)
 
+    @property
+    def category(self) -> str:
+        """missing | mismatch | issue — see services/finding_taxonomy.py."""
+        from app.services.finding_taxonomy import categorise
+
+        return categorise(self.rule_id, self.actual_value)
+
     def to_dict(self) -> dict[str, Any]:
         return {
+            "category": self.category,
             "employee_id": self.employee_id,
             "employee_name": self.employee_name or "",
             "rule_id": self.rule_id,
@@ -110,6 +118,36 @@ class ValidationFinding:
 
 
 # ── main builder ─────────────────────────────────────────────────────────────
+
+def _alternate_basis_match(
+    actual: Decimal,
+    pf_calc: dict[str, Any],
+    rate_pct: float,
+    tolerance: Decimal,
+) -> tuple[str, str] | None:
+    """
+    Does ``actual`` equal PF computed on the opposite restriction basis?
+
+    Returns (basis_used, basis_configured) when it does, else None. Only the
+    two bases are compared — an amount that matches neither is an ordinary
+    miscalculation and is reported as one.
+    """
+    full_wage = _dec(pf_calc.get("_pf_wage_full", pf_calc.get("pf_wage_capped", 0)))
+    ceiling = _dec(pf_calc.get("_ceiling", 0))
+    if full_wage <= 0 or ceiling <= 0 or full_wage <= ceiling:
+        return None  # below the ceiling the two bases give the same answer
+
+    rate = Decimal(str(rate_pct)) / Decimal("100")
+    restricted_amt = _q(ceiling * rate)
+    unrestricted_amt = _q(full_wage * rate)
+
+    restricted_now = bool(pf_calc.get("_restrict", True))
+    if restricted_now and (actual - unrestricted_amt).copy_abs() <= tolerance:
+        return ("unrestricted (full wage)", "restricted to the ceiling")
+    if not restricted_now and (actual - restricted_amt).copy_abs() <= tolerance:
+        return ("restricted to the ceiling", "unrestricted (full wage)")
+    return None
+
 
 def build_findings(
     employee_id: str,
@@ -135,6 +173,7 @@ def build_findings(
     thresholds: "RuleThresholdsConfig | None" = None,
     period_month: Any = None,
     expected_monthly_tds: float | None = None,
+    composition: Any = None,
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
 
@@ -337,12 +376,29 @@ def build_findings(
         pf_emp_actual = _dec(pf_emp_raw)
         diff_pf = (pf_emp_actual - pf_emp_exp).copy_abs()
         if diff_pf > tol_stat:
-            fail("STAT-001", "PF Employee Contribution Mismatch", "pf_employee",
-                 pf_emp_exp, pf_emp_actual, "CRITICAL",
-                 f"PF employee ({_fmt(pf_emp_actual)}) ≠ computed ({_fmt(pf_emp_exp)}) "
-                 f"[PF wage {_fmt(pf_capped)} × {pf_emp_rate_pct:.2f}%]. PF type: {pf_calc.get('pf_type','?')}.",
-                 f"Correct pf_employee to ₹{_fmt(pf_emp_exp)}. Verify PF wage = {_fmt(pf_capped)}.",
-                 float(diff_pf))
+            # Before calling it a miscalculation, check whether the figure is
+            # simply the *other* restriction basis computed correctly. That
+            # turns "PF is wrong by ₹1,438" into "PF was computed unrestricted
+            # but this employee is on the restricted basis" — a different
+            # problem with a different fix, and the one that actually recurs.
+            alt = _alternate_basis_match(pf_emp_actual, pf_calc, pf_emp_rate_pct, tol_stat)
+            if alt is not None:
+                used, should_be = alt
+                fail("PF-009", "PF Restriction Basis Mismatch", "pf_employee",
+                     pf_emp_exp, pf_emp_actual, "CRITICAL",
+                     f"PF employee ({_fmt(pf_emp_actual)}) matches the {used} basis, but this "
+                     f"employee is set to {should_be} "
+                     f"(source: {pf_calc.get('_basis_source', 'entity default')}).",
+                     f"Either correct the deduction to ₹{_fmt(pf_emp_exp)}, or change this "
+                     f"employee's PF basis to {used} if that is the agreed position.",
+                     float(diff_pf))
+            else:
+                fail("STAT-001", "PF Employee Contribution Mismatch", "pf_employee",
+                     pf_emp_exp, pf_emp_actual, "CRITICAL",
+                     f"PF employee ({_fmt(pf_emp_actual)}) ≠ computed ({_fmt(pf_emp_exp)}) "
+                     f"[PF wage {_fmt(pf_capped)} × {pf_emp_rate_pct:.2f}%]. PF type: {pf_calc.get('pf_type','?')}.",
+                     f"Correct pf_employee to ₹{_fmt(pf_emp_exp)}. Verify PF wage = {_fmt(pf_capped)}.",
+                     float(diff_pf))
         else:
             pass_("STAT-001", "PF Employee Contribution", "pf_employee", pf_emp_actual)
     elif pf_emp_exp > Decimal("0"):
@@ -587,6 +643,53 @@ def build_findings(
                     suggested_fix=f"Verify if '{k}' was discontinued. If not, add it back.",
                     financial_impact=float(old_val_f),
                 ))
+
+    # ── Arrears, per employee ────────────────────────────────────────
+    # Each row carries its own arrear window. These run for whoever has arrears
+    # in this register, regardless of what the file as a whole was called.
+    if composition is not None and composition.any_arrear:
+        total_arrear = composition.arrear_total + composition.increment_arrear_total
+
+        if composition.arrear_months is None:
+            # Every arrear expectation is a monthly delta multiplied by a month
+            # count. Without that count nothing can be verified, and guessing it
+            # would fabricate an expected figure that looks authoritative.
+            info("ARR-001", "Arrear Period Not Stated", "arrear",
+                 "(a from/to date or month count)", "(none)",
+                 f"₹{_fmt(total_arrear)} of arrears paid, but no arrear period is stated on the "
+                 f"row, on the employee's CTC revision, or in the run parameters — the number of "
+                 f"months cannot be established, so the amount cannot be verified.",
+                 "Add an 'Arrear From' (and optionally 'Arrear To') or 'Arrear Months' column, "
+                 "or upload the CTC revision that triggered the arrear.")
+        elif composition.arrear_months <= 0:
+            fail("ARR-002", "Arrear Period Invalid", "arrear",
+                 "> 0 months", f"{composition.arrear_months} months", "WARNING",
+                 f"The stated arrear period resolves to {composition.arrear_months} months.",
+                 "Check the arrear from/to dates — the end month must not precede the start.",
+                 0.0)
+        elif composition.arrear_months > int(t.trends.max_arrear_months):
+            info("ARR-003", "Arrear Period Unusually Long", "arrear",
+                 f"\u2264 {int(t.trends.max_arrear_months)} months",
+                 f"{composition.arrear_months} months",
+                 f"Arrears span {composition.arrear_months} months "
+                 f"(window from {composition.window_source}). Long recoveries attract scrutiny "
+                 f"and may carry PF interest and damages for the delayed months.",
+                 "Confirm the revision date, and check whether PF/ESIC on these arrears was "
+                 "remitted in the months they relate to.")
+
+        # Arrears shift PF and ESIC wages into earlier months. Where the wage was
+        # already at or above the ceiling, the arrear carries no further PF — a
+        # frequent and expensive over-deduction.
+        pf_ceiling = _dec(pf_calc.get("_ceiling", 0))
+        pf_wage_full = _dec(pf_calc.get("_pf_wage_full", 0))
+        if composition.has_arrear and pf_ceiling > 0 and pf_wage_full >= pf_ceiling:
+            if bool(pf_calc.get("_restrict", True)):
+                info("ARR-004", "Arrear PF Not Due — Wage Already At Ceiling", "arrear",
+                     "no additional PF", _fmt(composition.arrear_total),
+                     f"Regular PF wage ({_fmt(pf_wage_full)}) is already at or above the "
+                     f"{_fmt(pf_ceiling)} ceiling, so arrears of {_fmt(composition.arrear_total)} "
+                     f"attract no further PF on the restricted basis.",
+                     "Confirm no PF was deducted on the arrear amount.")
 
     if inc_info.get("applicable"):
         exp_total = float(inc_info.get("expected_total", 0))

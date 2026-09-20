@@ -64,6 +64,15 @@ export function getApiTargetDescription(): string {
 }
 
 export const ACCESS_TOKEN_KEY = "payroll_saas_access_token";
+/**
+ * The entity the UI is currently acting on.
+ *
+ * Kept in localStorage so a reload, or a second tab, stays on the same client.
+ * The server also remembers each member's choice, so this is a fast path rather
+ * than the source of truth — if the two disagree, the server wins on the next
+ * context fetch.
+ */
+export const ACTIVE_ENTITY_KEY = "payroll_saas_active_entity";
 export const REFRESH_TOKEN_KEY = "payroll_saas_refresh_token";
 
 export type ApiEnvelope<T> = {
@@ -96,6 +105,25 @@ function authHeader(): Record<string, string> {
   if (typeof window === "undefined") return {};
   const t = localStorage.getItem(ACCESS_TOKEN_KEY);
   return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+export function getActiveEntityId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(ACTIVE_ENTITY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveEntityId(entityId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (entityId) localStorage.setItem(ACTIVE_ENTITY_KEY, entityId);
+    else localStorage.removeItem(ACTIVE_ENTITY_KEY);
+  } catch {
+    /* private browsing — the server-side default still applies */
+  }
 }
 
 /** Logical `/api/...` path passed to apiFetch — used for refresh suppression rules. */
@@ -197,6 +225,12 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
   const a = authHeader();
   if (!headers.has("Authorization") && a.Authorization) {
     headers.set("Authorization", a.Authorization);
+  }
+  // Every request names the entity it acts on. Omitting it falls back to the
+  // member's stored default, which is what a single-entity company relies on.
+  const entityId = getActiveEntityId();
+  if (!headers.has("X-Entity-Id") && entityId) {
+    headers.set("X-Entity-Id", entityId);
   }
 
   const requestInit: RequestInit = { ...init, headers };

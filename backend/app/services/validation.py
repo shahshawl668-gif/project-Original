@@ -17,14 +17,18 @@ from app.models import (
     SalaryRegister,
     SalaryRegisterRow,
     SlabRule,
+    Entity,
     StatutorySettings,
-    User,
 )
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
+from app.services.pf_basis import PFBasis, resolve as resolve_pf_basis
+from app.services.row_composition import describe as describe_row
 from app.services.pf_engine import compute_pf, compute_pf_wage
 from app.services.risk_scoring import compute_risk, risk_distribution
+from app.services.workforce import master_as_of
+from app.services.workforce_rules import check_against_inputs
 from app.services.rule_engine_v2 import (
     ValidationFinding,
     batch_findings,
@@ -77,6 +81,56 @@ def recompute_risk_and_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
             }
         if f.get("status") == "FAIL":
             rule_counts[rid]["fail_count"] += 1
+
+    # Grouped by what the reader must do about it, not only by how much it
+    # matters. "Missing" leads because until it is supplied, the checks that
+    # depend on it are not being performed — and a clean report over absent
+    # input is the most dangerous thing this product can produce.
+    from app.services.finding_taxonomy import CATEGORY_LABELS, CATEGORY_MEANING, CATEGORY_ORDER
+
+    by_category: dict[str, dict] = {}
+    for key in CATEGORY_ORDER:
+        by_category[key] = {
+            "key": key,
+            "label": CATEGORY_LABELS[key],
+            "meaning": CATEGORY_MEANING[key],
+            "count": 0,
+            "employees": set(),
+            "financial_impact": 0.0,
+            "rules": {},
+        }
+    for f in flat:
+        if f.get("status") != "FAIL":
+            continue
+        bucket = by_category.get(f.get("category") or "issue")
+        if bucket is None:
+            continue
+        bucket["count"] += 1
+        bucket["employees"].add(f.get("employee_id", ""))
+        bucket["financial_impact"] += float(f.get("financial_impact", 0) or 0)
+        rule = bucket["rules"].setdefault(
+            f.get("rule_id", ""),
+            {
+                "rule_id": f.get("rule_id", ""),
+                "rule_name": f.get("rule_name", ""),
+                "severity": f.get("severity", ""),
+                "count": 0,
+                # The remediation the engine already states, surfaced once per
+                # rule so the report reads as a work list rather than a log.
+                "solution": f.get("suggested_fix", ""),
+            },
+        )
+        rule["count"] += 1
+
+    summary["by_category"] = [
+        {
+            **{k: v for k, v in bucket.items() if k not in ("employees", "rules")},
+            "employee_count": len(bucket["employees"] - {""}),
+            "financial_impact": round(bucket["financial_impact"], 2),
+            "rules": sorted(bucket["rules"].values(), key=lambda r: r["count"], reverse=True),
+        }
+        for bucket in (by_category[k] for k in CATEGORY_ORDER)
+    ]
 
     summary["rules_triggered"] = sorted(
         [v for v in rule_counts.values() if v["fail_count"] > 0],
@@ -188,7 +242,7 @@ def lookup_pt(
     state: str | None,
     wage: Decimal,
     as_of: date,
-    user_id: Any | None = None,
+    entity_id: Any | None = None,
     gender: str | None = None,
     run_month: int | None = None,
 ) -> tuple[Decimal, str | None]:
@@ -214,11 +268,11 @@ def lookup_pt(
     match_genders = ("ALL", g_norm) if g_norm != "ALL" else ("ALL", "MALE")
     month = run_month if run_month is not None else as_of.month
 
-    if user_id is not None:
+    if entity_id is not None:
         tenant_rows = (
             db.query(SlabRule)
             .filter(
-                SlabRule.user_id == user_id,
+                SlabRule.entity_id == entity_id,
                 SlabRule.state == state,
                 SlabRule.rule_type == "PT",
             )
@@ -279,7 +333,7 @@ def lookup_lwf(
     state: str | None,
     wage: Decimal,
     as_of: date,
-    user_id: Any | None = None,
+    entity_id: Any | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
     """Return (employee_per_period, employer_per_period, employee_monthly, employer_monthly).
 
@@ -296,11 +350,11 @@ def lookup_lwf(
         # deductions for tenants that haven't flagged LWF components.
         return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
-    if user_id is not None:
+    if entity_id is not None:
         tenant_rows = (
             db.query(SlabRule)
             .filter(
-                SlabRule.user_id == user_id,
+                SlabRule.entity_id == entity_id,
                 SlabRule.state == state,
                 SlabRule.rule_type == "LWF",
             )
@@ -444,21 +498,21 @@ def taxable_exposure(components: list[ComponentConfig], regular: dict[str, Decim
     return t
 
 
-def _get_or_default_settings(db: Session, user: User) -> StatutorySettings:
-    row = db.query(StatutorySettings).filter(StatutorySettings.user_id == user.id).first()
+def _get_or_default_settings(db: Session, entity: Entity) -> StatutorySettings:
+    row = db.query(StatutorySettings).filter(StatutorySettings.entity_id == entity.id).first()
     if row:
         return row
-    row = StatutorySettings(user_id=user.id)
+    row = StatutorySettings(entity_id=entity.id)
     db.add(row)
     db.commit()
     db.refresh(row)
     return row
 
 
-def _latest_ctcs(db: Session, user_id, employee_id: str, as_of: date) -> list[CtcRecord]:
+def _latest_ctcs(db: Session, entity_id, employee_id: str, as_of: date) -> list[CtcRecord]:
     return (
         db.query(CtcRecord)
-        .filter(CtcRecord.user_id == user_id, CtcRecord.employee_id == employee_id)
+        .filter(CtcRecord.entity_id == entity_id, CtcRecord.employee_id == employee_id)
         .filter(CtcRecord.effective_from <= as_of)
         .order_by(CtcRecord.effective_from.desc())
         .limit(2)
@@ -466,11 +520,11 @@ def _latest_ctcs(db: Session, user_id, employee_id: str, as_of: date) -> list[Ct
     )
 
 
-def _prior_register_rows(db: Session, user_id, period_month: date) -> dict[str, SalaryRegisterRow]:
+def _prior_register_rows(db: Session, entity_id, period_month: date) -> dict[str, SalaryRegisterRow]:
     prev = _prev_month(period_month)
     register = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user_id, SalaryRegister.period_month == prev)
+        .filter(SalaryRegister.entity_id == entity_id, SalaryRegister.period_month == prev)
         .first()
     )
     if not register:
@@ -731,7 +785,7 @@ def _compare_uploaded(
 
 def validate_employees(
     db: Session,
-    user: User,
+    entity: Entity,
     components: list[ComponentConfig],
     employees: list[dict[str, Any]],
     run_type: str,
@@ -746,10 +800,10 @@ def validate_employees(
     # ConfigService provides the config-driven PF/ESIC settings; we also keep
     # StatutorySettings for PT/LWF state lists which are not yet in ConfigService.
     cfg_svc  = ConfigService(db)
-    pf_cfg   = cfg_svc.get_pf_config(user.id)
-    esic_cfg = cfg_svc.get_esic_config(user.id)
-    rule_thresholds = cfg_svc.get_rule_thresholds(user.id)
-    settings = _get_or_default_settings(db, user)   # still used for PT/LWF states
+    pf_cfg   = cfg_svc.get_pf_config(entity.id)
+    esic_cfg = cfg_svc.get_esic_config(entity.id)
+    rule_thresholds = cfg_svc.get_rule_thresholds(entity.id)
+    settings = _get_or_default_settings(db, entity)  # still used for PT/LWF states
 
     comp_by_key = _component_key_map(components)
     pt_states_cfg: list[str] = list(settings.pt_states or [])
@@ -769,7 +823,11 @@ def validate_employees(
         days_in_month = calendar.monthrange(as_of.year, as_of.month)[1]
     # Note: individual rows may override days_in_month via total_days / month_days column
 
-    prior_rows = _prior_register_rows(db, user.id, period_month) if period_month else {}
+    prior_rows = _prior_register_rows(db, entity.id, period_month) if period_month else {}
+
+    # The master as it stood at period end — used for the PF basis and for the
+    # cost dimensions snapshotted onto each result row.
+    master_rows = master_as_of(db, entity.id, period_month or as_of) if (period_month or as_of) else {}
 
     results: list[dict[str, Any]] = []
 
@@ -852,7 +910,25 @@ def validate_employees(
         # (e.g. no components have pf_applicable=True but config says use flag).
         effective_pf_wage = pf_wage_cfg if pf_wage_cfg > Decimal("0") else pf_wage
 
-        pf_calc  = compute_pf(effective_pf_wage, pf_cfg, pf_vol_wage, employment_type)
+        # PF restriction is settled per employee: register row, then master,
+        # then the entity default. Two people on one payroll can sit on
+        # different bases, and applying one switch to both mis-states PF for
+        # whoever is on the other — compounding every month.
+        master_record = master_rows.get(eid)
+        pf_basis = resolve_pf_basis(
+            row,
+            master_record.pf_restricted if master_record is not None else None,
+            pf_cfg.wage.restrict_to_ceiling,
+        )
+        pf_calc  = compute_pf(
+            effective_pf_wage, pf_cfg, pf_vol_wage,
+            restrict_override=pf_basis.restricted,
+            employment_type=employment_type,
+        )
+        # Carried so a finding can say where the basis came from, not just what
+        # it was — "entity default" and "stated on the register" call for
+        # different corrections.
+        pf_calc["_basis_source"] = pf_basis.source
 
         # Step 2: Recompute ESIC wage using config.
         esic_wage_cfg = compute_esic_wage(regular, comp_by_key, esic_cfg)
@@ -906,12 +982,12 @@ def validate_employees(
             state_pt,
             pt_base,
             as_of,
-            user_id=user.id,
+            entity_id=entity.id,
             gender=emp_gender,
             run_month=run_month,
         )
         lwf_erate, lwf_orate, lwf_eamt, lwf_oamt = lookup_lwf(
-            db, state_lwf, lwf_base, as_of, user_id=user.id
+            db, state_lwf, lwf_base, as_of, entity_id=entity.id
         )
 
         msg = _compare_uploaded(row, ["pt", "pt_amount"], pt_due, "PT")
@@ -924,12 +1000,32 @@ def validate_employees(
         if msg:
             errors.append(msg)
 
-        # Arrear period checks (existing PF/ESIC band shift logic)
-        arrear_months_count = len(month_labels) if month_labels else 0
-        if run_type in ("arrear", "increment_arrear") and (effective_from is None or effective_to is None):
-            errors.append("effective_month_from and effective_month_to are required for arrear runs.")
+        # Loaded before the row is classified: a CTC revision's effective date
+        # is one of the sources for this employee's arrear window.
+        ctcs = _latest_ctcs(db, entity.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
 
-        if run_type in ("arrear", "increment_arrear") and effective_from and effective_to:
+        # Every register is validated in one pass. What a row contains is read
+        # from the row, so an operator never has to split a file or declare a
+        # mode that would suppress the right checks on everyone else.
+        composition = describe_row(
+            row,
+            regular,
+            arrear_by_base,
+            inc_arrear_total,
+            ctc_effective_from=ctcs[0].effective_from if ctcs else None,
+            period_month=period_month,
+            run_effective_from=effective_from,
+            run_effective_to=effective_to,
+        )
+        # This employee's own window, falling back to the file-level range only
+        # when the row and their CTC say nothing.
+        arrear_months_count = (
+            composition.arrear_months
+            if composition.arrear_months is not None
+            else (len(month_labels) if month_labels else 0)
+        )
+
+        if composition.any_arrear and effective_from and effective_to:
             per_m_pf = pf_arrear / Decimal(months)
             per_m_esic = esic_arrear / Decimal(months)
             per_m_pt = pt_arrear / Decimal(months)
@@ -951,22 +1047,21 @@ def validate_employees(
                     )
 
                 pt_due_m, _ = lookup_pt(
-                    db, state_pt, m_pt, as_of, user_id=user.id,
+                    db, state_pt, m_pt, as_of, entity_id=entity.id,
                     gender=emp_gender, run_month=run_month,
                 )
                 pt_due_base, _ = lookup_pt(
-                    db, state_pt, pt_base, as_of, user_id=user.id,
+                    db, state_pt, pt_base, as_of, entity_id=entity.id,
                     gender=emp_gender, run_month=run_month,
                 )
                 if pt_due_m != pt_due_base:
                     errors.append(f"PT slab may change for {label} when arrears are included.")
 
-                _, _, lwf_e_m, _ = lookup_lwf(db, state_lwf, m_lwf, as_of, user_id=user.id)
+                _, _, lwf_e_m, _ = lookup_lwf(db, state_lwf, m_lwf, as_of, entity_id=entity.id)
                 if lwf_e_m != lwf_eamt:
                     errors.append(f"LWF employee amount may change for {label} due to wage band shift.")
 
         # CTC-driven LOP & increment arrear checks
-        ctcs = _latest_ctcs(db, user.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
         ctc_monthly: dict[str, Decimal] = {}
         if ctcs:
             for k, v in (ctcs[0].annual_components or {}).items():
@@ -985,7 +1080,7 @@ def validate_employees(
         inc_info, inc_errors = _increment_arrears(
             ctcs,
             period_month,
-            effective_from,
+            composition.arrear_from or effective_from,
             arrear_by_base,
             inc_arrear_total,
             comp_by_key,
@@ -1012,7 +1107,7 @@ def validate_employees(
                 from app.services.tax_year_defaults import fy_label_for_date
 
                 fy = fy_label_for_date(period_month or as_of)
-                year_cfg = cfg_svc.get_tax_year(user.id, fy)
+                year_cfg = cfg_svc.get_tax_year(entity.id, fy)
                 regime_raw = str(row.get("tax_regime") or row.get("regime") or "new").strip().lower()
                 regime = "old" if regime_raw.startswith("old") else "new"
                 if year_cfg is not None:
@@ -1057,6 +1152,7 @@ def validate_employees(
             thresholds=rule_thresholds,
             period_month=period_month or as_of,
             expected_monthly_tds=expected_monthly_tds,
+            composition=composition,
         )
 
         results.append(
@@ -1065,6 +1161,8 @@ def validate_employees(
                 "employee_name": ename if isinstance(ename, str) else None,
                 "pf_wage": float(pf_wage),
                 "pf_type": pf_calc["pf_type"],
+                "pf_restricted": pf_basis.restricted,
+                "pf_basis_source": pf_basis.source,
                 "pf_amount_employee": pf_calc["pf_employee"],
                 "pf_amount_employer": pf_calc["pf_employer_total"],
                 "pf_breakup": {
@@ -1091,6 +1189,8 @@ def validate_employees(
                 "paid_days": float(paid_days) if paid_days is not None else None,
                 "lop_days": float(lop_days) if lop_days is not None else None,
                 "days_in_month": days_in_month,
+                "gross_total": float(sum(regular.values(), Decimal("0"))),
+                "gratuity_paid": float(regular.get("gratuity", Decimal("0"))),
                 "lop_check": {
                     "checked": bool(ctc_monthly) and (paid_days is not None or lop_days is not None),
                     "diffs": lop_diffs,
@@ -1098,6 +1198,14 @@ def validate_employees(
                 "increment_arrear": inc_info,
                 "prior_month": prior_info,
                 "run_type": run_type,
+                "row_kinds": composition.kinds,
+                "row_kind_label": composition.label,
+                "arrear_window": {
+                    "from": composition.arrear_from.isoformat() if composition.arrear_from else None,
+                    "to": composition.arrear_to.isoformat() if composition.arrear_to else None,
+                    "months": composition.arrear_months,
+                    "source": composition.window_source,
+                },
                 "arrear_months": arrear_months_count,
                 "arrear_total": float(arrear_total),
                 "increment_arrear_total": float(inc_arrear_total),
@@ -1123,6 +1231,33 @@ def validate_employees(
         extra = batch_by_eid.get(rec["employee_id"], [])
         if extra:
             rec["findings"] = [f.to_dict() for f in extra] + rec["findings"]
+
+    # Compare the register against its inputs — the employee master and the
+    # attendance register. These are the only checks that can see a wrong input
+    # processed consistently, so they lead the list.
+    if period_month:
+        input_findings = check_against_inputs(
+            db,
+            entity.id,
+            period_month=period_month,
+            rows=[
+                {
+                    "employee_id": rec["employee_id"],
+                    "employee_name": rec.get("employee_name"),
+                    "paid_days": rec.get("paid_days"),
+                    "lop_days": rec.get("lop_days"),
+                    "gross": rec.get("gross_total"),
+                    "pf_employee": rec.get("pf_amount_employee"),
+                    "esic_employee": rec.get("esic_employee"),
+                    "gratuity": rec.get("gratuity_paid"),
+                }
+                for rec in results
+            ],
+        )
+        for rec in results:
+            found = input_findings.get(rec["employee_id"])
+            if found:
+                rec["findings"] = found + rec["findings"]
 
     summary = recompute_risk_and_summary(results)
     return results, summary

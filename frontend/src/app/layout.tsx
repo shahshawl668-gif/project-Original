@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { EntityProvider } from "@/context/EntityContext";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { Toaster } from "@/components/ui/toaster";
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans">
         <ThemeProvider>
           <QueryProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+              <EntityProvider>{children}</EntityProvider>
+            </AuthProvider>
             <Toaster />
           </QueryProvider>
         </ThemeProvider>

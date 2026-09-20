@@ -14,11 +14,14 @@ class TenantRulePreference(Base):
     """When suppressed=True, findings with matching rule_id are hidden for this tenant."""
 
     __tablename__ = "tenant_rule_preferences"
-    __table_args__ = (UniqueConstraint("user_id", "rule_id", name="uq_tenant_rule"),)
+    __table_args__ = (UniqueConstraint("entity_id", "rule_id", name="uq_tenant_rule"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
     )
     rule_id: Mapped[str] = mapped_column(String(32), nullable=False)
     suppressed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

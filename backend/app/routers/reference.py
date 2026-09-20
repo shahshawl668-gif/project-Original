@@ -3,9 +3,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import LwfRate, PtSlab, SlabRule, User
+from app.models import Entity, LwfRate, PtSlab, SlabRule, User
 from app.services.lwf_defaults import list_default_states as list_lwf_default_states
 from app.services.pt_defaults import list_default_states as list_pt_default_states
 
@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.get("/states")
-def list_states(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_states(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
     """Return distinct states known to the system.
 
     Sources merged:
@@ -29,7 +29,7 @@ def list_states(db: Session = Depends(get_db), user: User = Depends(get_current_
         row[0]
         for row in db.execute(
             select(SlabRule.state)
-            .where(SlabRule.user_id == user.id, SlabRule.rule_type == "PT")
+            .where(SlabRule.entity_id == entity.id, SlabRule.rule_type == "PT")
             .distinct()
         ).all()
         if row[0]
@@ -38,7 +38,7 @@ def list_states(db: Session = Depends(get_db), user: User = Depends(get_current_
         row[0]
         for row in db.execute(
             select(SlabRule.state)
-            .where(SlabRule.user_id == user.id, SlabRule.rule_type == "LWF")
+            .where(SlabRule.entity_id == entity.id, SlabRule.rule_type == "LWF")
             .distinct()
         ).all()
         if row[0]

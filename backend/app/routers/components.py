@@ -4,19 +4,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import ComponentConfig, User
+from app.models import ComponentConfig, Entity, User
 from app.schemas.component import ComponentCreate, ComponentOut, ComponentUpdate
 
 router = APIRouter()
 
 
 @router.get("")
-def list_components(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_components(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
     rows = (
         db.query(ComponentConfig)
-        .filter(ComponentConfig.user_id == user.id)
+        .filter(ComponentConfig.entity_id == entity.id)
         .order_by(ComponentConfig.component_name)
         .all()
     )
@@ -28,18 +28,20 @@ def create_component(
     body: ComponentCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     exists = (
         db.query(ComponentConfig)
         .filter(
-            ComponentConfig.user_id == user.id,
+            ComponentConfig.entity_id == entity.id,
             ComponentConfig.component_name.ilike(body.component_name.strip()),
         )
         .first()
     )
     if exists:
         raise HTTPException(status_code=400, detail="Component name already exists")
-    row = ComponentConfig(user_id=user.id, **body.model_dump())
+    row = ComponentConfig(user_id=user.id,
+        entity_id=entity.id, **body.model_dump())
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -52,10 +54,11 @@ def update_component(
     body: ComponentUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     row = (
         db.query(ComponentConfig)
-        .filter(ComponentConfig.id == component_id, ComponentConfig.user_id == user.id)
+        .filter(ComponentConfig.id == component_id, ComponentConfig.entity_id == entity.id)
         .first()
     )
     if not row:
@@ -65,7 +68,7 @@ def update_component(
         clash = (
             db.query(ComponentConfig)
             .filter(
-                ComponentConfig.user_id == user.id,
+                ComponentConfig.entity_id == entity.id,
                 ComponentConfig.component_name.ilike(data["component_name"].strip()),
                 ComponentConfig.id != component_id,
             )
@@ -86,10 +89,11 @@ def delete_component(
     component_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     row = (
         db.query(ComponentConfig)
-        .filter(ComponentConfig.id == component_id, ComponentConfig.user_id == user.id)
+        .filter(ComponentConfig.id == component_id, ComponentConfig.entity_id == entity.id)
         .first()
     )
     if not row:

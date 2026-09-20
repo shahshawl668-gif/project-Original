@@ -11,9 +11,9 @@ from app.database import Base
 class StatutorySettings(Base):
     __tablename__ = "statutory_settings"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(
+    entity_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("entities.id", ondelete="CASCADE"),
         primary_key=True,
     )
 

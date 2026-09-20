@@ -9,10 +9,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import (
     ComponentConfig,
+    Entity,
     PayrollRun,
     SalaryRegister,
     SalaryRegisterRow,
@@ -20,6 +21,11 @@ from app.models import (
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
+from app.services import audit, finding_store
+from app.services.cost_model import capture_reported
+from app.services.dimensions import snapshot as dimension_snapshot
+from app.services.pf_basis import from_row as pf_flag_from_row
+from app.services.workforce import master_as_of
 from app.services.payroll_parse import (
     dataframe_to_employees,
     parse_payroll_file,
@@ -41,11 +47,11 @@ def _to_first_of_month(d: date | None) -> date | None:
     return d.replace(day=1)
 
 
-def _suppressed_rule_ids(db: Session, user_id: uuid.UUID) -> set[str]:
+def _suppressed_rule_ids(db: Session, entity_id: uuid.UUID) -> set[str]:
     rows = (
         db.query(TenantRulePreference.rule_id)
         .filter(
-            TenantRulePreference.user_id == user_id,
+            TenantRulePreference.entity_id == entity_id,
             TenantRulePreference.suppressed.is_(True),
         )
         .all()
@@ -56,6 +62,7 @@ def _suppressed_rule_ids(db: Session, user_id: uuid.UUID) -> set[str]:
 def _persist_salary_register(
     db: Session,
     user: User,
+    entity: Entity,
     period_month: date,
     filename: str | None,
     employees: list[dict],
@@ -63,9 +70,13 @@ def _persist_salary_register(
 ) -> None:
     comp_by_key = _component_key_map(comps)
 
+    # The master as it stood at this period, so each row is stamped with the
+    # attributes that applied then rather than whatever they are today.
+    master_rows = master_as_of(db, entity.id, period_month)
+
     existing = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id, SalaryRegister.period_month == period_month)
+        .filter(SalaryRegister.entity_id == entity.id, SalaryRegister.period_month == period_month)
         .first()
     )
     if existing:
@@ -76,6 +87,7 @@ def _persist_salary_register(
     else:
         register = SalaryRegister(
             user_id=user.id,
+        entity_id=entity.id,
             period_month=period_month,
             filename=filename,
             employee_count=len(employees),
@@ -104,6 +116,13 @@ def _persist_salary_register(
         regular, arrear_by_base, inc_arrear_total = split_row_amounts(row, comp_by_key)
         components_json = {k: float(v) for k, v in regular.items()}
         arrears_json = {k: float(v) for k, v in arrear_by_base.items()}
+        dimensions_json = dimension_snapshot(master_rows.get(eid), row)
+        # What the payroll system said it deducted and contributed, and its view
+        # of this employee's PF basis. Both are captured here rather than
+        # recomputed later: they are the register's own testimony about the
+        # month, and a cost report built on them is one the client recognises.
+        deductions_json = capture_reported(row)
+        pf_restricted_flag = pf_flag_from_row(row)
 
         paid_days_raw = row.get("paid_days")
         lop_days_raw = row.get("lop_days") or row.get("lop")
@@ -120,13 +139,17 @@ def _persist_salary_register(
             SalaryRegisterRow(
                 register_id=register.id,
                 user_id=user.id,
+        entity_id=entity.id,
                 period_month=period_month,
                 employee_id=eid,
                 employee_name=ename if isinstance(ename, str) else None,
                 paid_days=paid_days,
                 lop_days=lop_days,
                 components=components_json,
+                dimensions=dimensions_json,
                 arrears=arrears_json,
+                deductions=deductions_json,
+                pf_restricted=pf_restricted_flag,
                 increment_arrear_total=inc_arrear_total,
             )
         )
@@ -162,6 +185,7 @@ async def upload_payroll(
     meta: str = Form(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     try:
         payload = json.loads(meta)
@@ -183,7 +207,7 @@ async def upload_payroll(
         raise HTTPException(status_code=400, detail=str(e))
 
     columns, employees = dataframe_to_employees(df)
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     comp_names = {c.component_name for c in comps}
     missing, warnings = validate_required_columns(columns, comp_names, strict=strict)
 
@@ -191,6 +215,7 @@ async def upload_payroll(
 
     run = PayrollRun(
         user_id=user.id,
+        entity_id=entity.id,
         run_type=run_type,
         effective_month_from=eff_from_d,
         effective_month_to=eff_to_d,
@@ -202,7 +227,19 @@ async def upload_payroll(
 
     persist_period = _to_first_of_month(period_month_d or eff_to_d)
     if persist_period and comps and not missing:
-        _persist_salary_register(db, user, persist_period, file.filename, employees, comps)
+        _persist_salary_register(db, user, entity, persist_period, file.filename, employees, comps)
+        # Months later, when a figure is challenged, the only useful answer is
+        # who uploaded which file, and when.
+        audit.record(
+            db, entity_id=entity.id, user=user, action="register.uploaded",
+            object_type="salary_register", object_id=persist_period.isoformat(),
+            summary=(
+                f"Uploaded the salary register for {persist_period:%b %Y} — "
+                f"{len(employees)} employees from {file.filename}"
+            ),
+            detail={"warnings": warnings[:20], "run_type": run_type},
+        )
+        db.commit()
 
     out = UploadParseResponse(
         columns=columns,
@@ -219,14 +256,15 @@ def validate_payroll(
     body: ValidateRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before validation.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
     rows, findings_summary = validate_employees(
         db,
-        user,
+        entity,
         comps,
         body.employees,
         body.run_type,
@@ -235,9 +273,35 @@ def validate_payroll(
         body.as_of_date,
         period_month=period_month,
     )
-    suppressed = _suppressed_rule_ids(db, user.id)
+    suppressed = _suppressed_rule_ids(db, entity.id)
     findings_summary = apply_suppressed_rules(rows, suppressed)
-    return ok(_payload_after_validation(rows, findings_summary))
+
+    lifecycle: dict = {}
+    if period_month:
+        # Persisting the run is what turns validation from a one-off report into
+        # a record: waivers carry forward, recurrence becomes countable, and the
+        # exposure history survives the browser tab.
+        all_findings = [f for row in rows for f in row.get("findings", [])]
+        run = finding_store.record_run(
+            db,
+            entity_id=entity.id,
+            user_id=user.id,
+            period_month=period_month,
+            findings=all_findings,
+            employee_count=len(rows),
+            summary=findings_summary,
+        )
+        db.commit()
+        lifecycle = {
+            "run_id": str(run.id),
+            "period_month": period_month.isoformat(),
+            "gross_financial_impact": float(run.total_financial_impact),
+            "open_financial_impact": float(run.open_financial_impact),
+        }
+
+    payload = _payload_after_validation(rows, findings_summary)
+    payload["lifecycle"] = lifecycle
+    return ok(payload)
 
 
 @router.get("/runs")
@@ -245,10 +309,11 @@ def list_payroll_runs(
     limit: int = 20,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     runs = (
         db.query(PayrollRun)
-        .filter(PayrollRun.user_id == user.id)
+        .filter(PayrollRun.entity_id == entity.id)
         .order_by(PayrollRun.created_at.desc())
         .limit(limit)
         .all()
@@ -272,10 +337,11 @@ def list_payroll_runs(
 def list_salary_registers(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     regs = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id)
+        .filter(SalaryRegister.entity_id == entity.id)
         .order_by(SalaryRegister.period_month.desc())
         .all()
     )
@@ -297,13 +363,14 @@ def get_salary_register(
     register_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     try:
         rid = uuid.UUID(register_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Register not found")
     reg = (
-        db.query(SalaryRegister).filter(SalaryRegister.id == rid, SalaryRegister.user_id == user.id).first()
+        db.query(SalaryRegister).filter(SalaryRegister.id == rid, SalaryRegister.entity_id == entity.id).first()
     )
     if not reg:
         raise HTTPException(status_code=404, detail="Register not found")
@@ -340,6 +407,7 @@ def export_findings_excel(
     body: ValidateRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
 ):
     """Run validation and return findings as an Excel workbook (binary stream, not JSON envelope)."""
     try:
@@ -348,13 +416,13 @@ def export_findings_excel(
     except ImportError:
         raise HTTPException(status_code=500, detail="openpyxl not installed.")
 
-    comps = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).all()
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before export.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
     rows, findings_summary = validate_employees(
         db,
-        user,
+        entity,
         comps,
         body.employees,
         body.run_type,
@@ -363,7 +431,7 @@ def export_findings_excel(
         body.as_of_date,
         period_month=period_month,
     )
-    suppressed = _suppressed_rule_ids(db, user.id)
+    suppressed = _suppressed_rule_ids(db, entity.id)
     findings_summary = apply_suppressed_rules(rows, suppressed)
 
     wb = openpyxl.Workbook()
@@ -484,17 +552,17 @@ def export_findings_excel(
 
 
 @router.get("/dashboard-stats")
-def dashboard_stats(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    n_comp = db.query(ComponentConfig).filter(ComponentConfig.user_id == user.id).count()
+def dashboard_stats(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    n_comp = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).count()
     last_run = (
         db.query(PayrollRun)
-        .filter(PayrollRun.user_id == user.id)
+        .filter(PayrollRun.entity_id == entity.id)
         .order_by(PayrollRun.created_at.desc())
         .first()
     )
     last_register = (
         db.query(SalaryRegister)
-        .filter(SalaryRegister.user_id == user.id)
+        .filter(SalaryRegister.entity_id == entity.id)
         .order_by(SalaryRegister.period_month.desc())
         .first()
     )
