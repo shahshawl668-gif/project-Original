@@ -45,12 +45,11 @@ def patch_user_role(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    if target_id == admin.id and body.role == "user":
-        if _admin_count(db) <= 1:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot demote yourself while you are the only admin.",
-            )
+    if target_id == admin.id and body.role == "user" and _admin_count(db) <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot demote yourself while you are the only admin.",
+        )
 
     tgt = db.get(User, target_id)
     if not tgt:
@@ -58,12 +57,11 @@ def patch_user_role(
     if tgt.email == SYSTEM_USER_EMAIL or tgt.role == "system":
         raise HTTPException(status_code=400, detail="Cannot change system account role")
 
-    if body.role == "user" and tgt.role == "admin":
-        if _admin_count(db) <= 1:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot demote the last admin. Promote another user first.",
-            )
+    if body.role == "user" and tgt.role == "admin" and _admin_count(db) <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot demote the last admin. Promote another user first.",
+        )
 
     tgt.role = body.role
     db.add(tgt)

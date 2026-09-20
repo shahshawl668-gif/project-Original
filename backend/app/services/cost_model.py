@@ -243,7 +243,9 @@ def capture_reported(row: dict[str, Any]) -> dict[str, float]:
                 continue
             try:
                 out[measure] = float(_dec(raw))
-            except Exception:
+            except Exception:  # nosec B112
+                # A cell that will not parse as a number is skipped so the
+                # next alias for this measure can be tried.
                 continue
             break
     return out

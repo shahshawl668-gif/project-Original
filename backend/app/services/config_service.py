@@ -84,7 +84,7 @@ def _number(value: Any, what: str) -> Any:
     operator: ``'a' * 100000000`` is a hundred megabytes, and the expression box
     is tenant-editable.
     """
-    if isinstance(value, bool) or isinstance(value, (int, float)):
+    if isinstance(value, (bool, int, float)):
         return value
     raise ValueError(f"{what} needs a number, got {type(value).__name__}")
 
@@ -122,7 +122,7 @@ def _safe_eval(node: ast.AST, ctx: dict[str, Any]) -> Any:
         return fn(_number(operand, type(node.op).__name__))
     if isinstance(node, ast.Compare):
         left = _safe_eval(node.left, ctx)
-        for op_node, comp in zip(node.ops, node.comparators):
+        for op_node, comp in zip(node.ops, node.comparators, strict=False):
             fn = _SAFE_OPS.get(type(op_node))
             if fn is None:
                 raise ValueError(f"Unsupported compare op {op_node!r}")
@@ -198,7 +198,6 @@ class ConfigService:
     # ── private helpers ───────────────────────────────────────────────────────
 
     def _load_row(self, tenant_id: uuid.UUID) -> StatutoryConfig:
-        key = str(tenant_id)
         row = (
             self._db.query(StatutoryConfig)
             .filter(StatutoryConfig.entity_id == tenant_id)

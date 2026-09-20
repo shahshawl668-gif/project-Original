@@ -74,7 +74,9 @@ settings = Settings()
 # Production hardening: warn loudly when defaults leak into production.
 # ---------------------------------------------------------------------------
 if settings.is_production:
-    if settings.jwt_secret == "change-me-in-production-use-long-random-secret":
+    # This comparison *is* the check that the shipped default did not reach
+    # production. The literal has to be here for it to work.
+    if settings.jwt_secret == "change-me-in-production-use-long-random-secret":  # nosec B105
         # Don't crash — but make sure the operator notices and can't ignore it.
         # Generate a one-shot secret so the process boots; tokens won't survive
         # restarts, forcing the operator to fix the env.

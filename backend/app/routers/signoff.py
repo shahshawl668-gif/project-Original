@@ -10,7 +10,7 @@ from __future__ import annotations
 import io
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -20,7 +20,6 @@ from app.deps import get_current_entity, get_current_user, require_entity_write,
 from app.envelope import ok
 from app.models import Entity, PeriodSignOff, SignOffEvent, User
 from app.services import signoff as signoff_service
-from app.services import tenancy
 
 router = APIRouter()
 

@@ -208,6 +208,7 @@ def get_slabs_route(
     rule_type: str = Query(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
 ):
     return ok(_build_slabs_response(state, rule_type, db, entity).model_dump())
 
@@ -288,20 +289,20 @@ def save_slabs(
 
 
 def _slab_kwargs(rule_type: str, state: str, idx: int, user_id, entity_id, s: dict) -> dict:
-    return dict(
-        user_id=user_id,
-        entity_id=entity_id,
-        state=state,
-        rule_type=rule_type,
-        min_salary=s["min_salary"],
-        max_salary=s["max_salary"],
-        deduction_amount=s["deduction_amount"],
-        employer_amount=s.get("employer_amount"),
-        frequency=s["frequency"],
-        gender=s.get("gender", "ALL"),
-        applicable_months=s.get("applicable_months"),
-        sort_order=idx,
-    )
+    return {
+        "user_id": user_id,
+        "entity_id": entity_id,
+        "state": state,
+        "rule_type": rule_type,
+        "min_salary": s["min_salary"],
+        "max_salary": s["max_salary"],
+        "deduction_amount": s["deduction_amount"],
+        "employer_amount": s.get("employer_amount"),
+        "frequency": s["frequency"],
+        "gender": s.get("gender", "ALL"),
+        "applicable_months": s.get("applicable_months"),
+        "sort_order": idx,
+    }
 
 
 @router.get("/defaults/pt-states")

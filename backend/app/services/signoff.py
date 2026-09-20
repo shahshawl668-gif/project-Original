@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -162,7 +162,7 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
                 for r in rates
             ],
         },
-        "built_at": datetime.now(timezone.utc).isoformat(),
+        "built_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -218,7 +218,7 @@ def submit(db: Session, entity: Entity, period_month: date, actor: User, notes: 
     signoff.snapshot_digest = digest(snapshot)
     signoff.state = "pending_approval"
     signoff.prepared_by_user_id = actor.id
-    signoff.prepared_at = datetime.now(timezone.utc)
+    signoff.prepared_at = datetime.now(UTC)
     signoff.notes = notes
     signoff.employee_count = (snapshot.get("validation_run") or {}).get("employee_count", 0)
     signoff.open_findings = len(snapshot["outstanding_findings"])
@@ -249,7 +249,7 @@ def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) ->
     signoff.state = "signed"
     signoff.signed_by_user_id = actor.id
     signoff.signed_by_email = actor.email
-    signoff.signed_at = datetime.now(timezone.utc)
+    signoff.signed_at = datetime.now(UTC)
     if notes:
         signoff.notes = notes
     signoff.open_findings = len(snapshot["outstanding_findings"])

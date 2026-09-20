@@ -54,9 +54,8 @@ def validate_required_columns(
     warnings: list[str] = []
 
     id_aliases = {"employee_id", "emp_id", "employee_code"}
-    if not col_set & id_aliases:
-        if "employee_id" not in col_set:
-            missing.append("employee_id")
+    if not col_set & id_aliases and "employee_id" not in col_set:
+        missing.append("employee_id")
 
     for comp in sorted(component_names):
         key = normalize_col(comp)

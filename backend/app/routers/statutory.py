@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write
+from app.deps import get_current_entity, require_entity_write
 from app.envelope import ok
-from app.models import Entity, StatutorySettings, User
+from app.models import Entity, StatutorySettings
 from app.schemas.statutory import StatutorySettingsOut, StatutorySettingsUpdate
 
 router = APIRouter()

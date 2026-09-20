@@ -170,7 +170,7 @@ def build_findings(
     lop_diffs: list[dict[str, Any]],
     inc_info: dict[str, Any],
     tds_risk: list[str],
-    thresholds: "RuleThresholdsConfig | None" = None,
+    thresholds: RuleThresholdsConfig | None = None,
     period_month: Any = None,
     expected_monthly_tds: float | None = None,
     composition: Any = None,
@@ -255,7 +255,7 @@ def build_findings(
     # P2 – COMPONENT STRUCTURE
     # ═══════════════════════════════════════════════════════════════════
 
-    for col in row.keys():
+    for col in row:
         if col is None:
             continue
         col_s = str(col).strip().lower().replace(" ", "_")
@@ -682,7 +682,10 @@ def build_findings(
         # frequent and expensive over-deduction.
         pf_ceiling = _dec(pf_calc.get("_ceiling", 0))
         pf_wage_full = _dec(pf_calc.get("_pf_wage_full", 0))
-        if composition.has_arrear and pf_ceiling > 0 and pf_wage_full >= pf_ceiling:
+        # Not merged into one condition: the nesting separates "does this
+        # situation apply" from "is the restricted basis in force", and the
+        # single line ruff suggests carries four conditions.
+        if composition.has_arrear and pf_ceiling > 0 and pf_wage_full >= pf_ceiling:  # noqa: SIM102
             if bool(pf_calc.get("_restrict", True)):
                 info("ARR-004", "Arrear PF Not Due — Wage Already At Ceiling", "arrear",
                      "no additional PF", _fmt(composition.arrear_total),

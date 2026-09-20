@@ -61,9 +61,7 @@ def workspace(client, request):
 
 
 def _dims(**kw) -> dict:
-    base = {k: UNASSIGNED for k in
-            ("business_unit", "department", "cost_center", "work_location",
-             "work_state", "grade", "designation", "employment_type", "skill_category")}
+    base = dict.fromkeys(("business_unit", "department", "cost_center", "work_location", "work_state", "grade", "designation", "employment_type", "skill_category"), UNASSIGNED)
     base.update(kw)
     return base
 
@@ -75,10 +73,12 @@ def _people(entity, user, people: list[dict], period=date(2026, 4, 1)) -> None:
         upload = EmployeeMasterUpload(user_id=user.id, entity_id=entity.id,
                                       effective_from=period, filename="master.csv",
                                       employee_count=len(people))
-        db.add(upload); db.flush()
+        db.add(upload)
+        db.flush()
         register = SalaryRegister(user_id=user.id, entity_id=entity.id, period_month=period,
                                   filename="register.csv", employee_count=len(people))
-        db.add(register); db.flush()
+        db.add(register)
+        db.flush()
 
         for person in people:
             db.add(EmployeeRecord(
@@ -438,7 +438,8 @@ def test_no_master_means_no_coverage_rather_than_a_confident_zero(workspace):
         register = SalaryRegister(user_id=user.id, entity_id=entity.id,
                                   period_month=date(2026, 4, 1), filename="r.csv",
                                   employee_count=1)
-        db.add(register); db.flush()
+        db.add(register)
+        db.flush()
         db.add(SalaryRegisterRow(
             register_id=register.id, user_id=user.id, entity_id=entity.id,
             period_month=date(2026, 4, 1), employee_id="E1",

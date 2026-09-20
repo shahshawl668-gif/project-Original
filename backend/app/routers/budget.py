@@ -9,7 +9,6 @@ department line and the month that read as 2025 instead of 2026.
 from __future__ import annotations
 
 import io
-import json
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -92,23 +91,23 @@ async def preview(
     _, records = dataframe_to_employees(frame)
     lines, problems = budgeting.parse_budget_rows(records, scope_key)
 
-    total = sum((l["amount"] for l in lines), Decimal("0"))
+    total = sum((line["amount"] for line in lines), Decimal("0"))
     return ok({
         "filename": file.filename,
         "scope_key": scope_key,
         "line_count": len(lines),
         "total": float(total),
-        "periods": sorted({l["period_month"].isoformat() for l in lines}),
-        "scopes": sorted({l["scope_value"] for l in lines}),
+        "periods": sorted({line["period_month"].isoformat() for line in lines}),
+        "scopes": sorted({line["scope_value"] for line in lines}),
         "problems": problems,
         "lines": [
             {
-                "period": l["period_month"].isoformat(),
-                "scope_value": l["scope_value"],
-                "amount": float(l["amount"]),
-                "headcount": l["headcount"],
+                "period": line["period_month"].isoformat(),
+                "scope_value": line["scope_value"],
+                "amount": float(line["amount"]),
+                "headcount": line["headcount"],
             }
-            for l in lines[:200]
+            for line in lines[:200]
         ],
         "truncated": len(lines) > 200,
     })

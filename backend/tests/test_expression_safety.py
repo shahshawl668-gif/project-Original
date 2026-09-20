@@ -13,12 +13,9 @@ not been fixed, and only a clock can tell the difference.
 from __future__ import annotations
 
 import time
-import uuid
 
 import pytest
 
-from app.database import SessionLocal
-from app.models import Entity, User
 from app.services.config_service import safe_eval_expr
 from app.services.formula_eval import (
     MAX_EXPRESSION_LENGTH,

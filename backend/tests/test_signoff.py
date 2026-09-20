@@ -10,13 +10,12 @@ from __future__ import annotations
 import io
 import uuid
 from datetime import date
-from decimal import Decimal
 
 import openpyxl
 import pytest
 
 from app.database import SessionLocal
-from app.models import Entity, FindingState, OrgMembership, User
+from app.models import Entity, OrgMembership, User
 from app.services import finding_store
 
 PASSWORD = "Passw0rd!x"

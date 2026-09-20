@@ -10,7 +10,7 @@ The log is append-only by construction: there is no update path and no delete
 path in the service that writes it. An audit trail that can be edited is not one.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
@@ -40,5 +40,5 @@ class AuditEvent(Base):
     # SQLite's now() is second-resolution, so two events written in the same
     # request would tie and the trail would order them by a random UUID.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
     )
