@@ -31,6 +31,27 @@ HALF_UP = __import__("decimal").ROUND_HALF_UP
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+def _stated(row: dict[str, Any], *keys: str) -> Any:
+    """
+    The first of these columns the register actually states, zero included.
+
+    Deliberately not ``row.get(a) or row.get(b)``. A register that states ``0``
+    is asserting that nothing was deducted, which is a different claim from
+    carrying no such column at all — and it is the claim most of the rules
+    below exist to check. Falsy-``or`` chaining reads that zero as absent, which
+    turns "PF was not deducted for someone who should have it" into "this file
+    has no PF column" and drops the finding from critical to informational.
+
+    Strings are left to the callers that read dates and identifiers, where an
+    empty cell and a missing column genuinely do mean the same thing.
+    """
+    for key in keys:
+        value = row.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
 def _dec(v: Any) -> Decimal:
     if v is None or v == "":
         return Decimal("0")
@@ -371,7 +392,7 @@ def build_findings(
     pf_er_exp  = _q(_dec(pf_calc.get("pf_employer_total", 0)))
     pf_capped  = _dec(pf_calc.get("pf_wage_capped", 0))
 
-    pf_emp_raw = row.get("pf_employee") or row.get("pf_emp")
+    pf_emp_raw = _stated(row, "pf_employee", "pf_emp")
     if pf_emp_raw not in (None, ""):
         pf_emp_actual = _dec(pf_emp_raw)
         diff_pf = (pf_emp_actual - pf_emp_exp).copy_abs()
@@ -407,7 +428,7 @@ def build_findings(
              "Register has no pf_employee column — PF deduction cannot be verified.",
              "Add 'pf_employee' column to your salary register template.")
 
-    pf_er_raw = row.get("pf_employer") or row.get("pf_employer_total")
+    pf_er_raw = _stated(row, "pf_employer", "pf_employer_total")
     if pf_er_raw not in (None, ""):
         pf_er_actual = _dec(pf_er_raw)
         diff_er = (pf_er_actual - pf_er_exp).copy_abs()
@@ -495,7 +516,7 @@ def build_findings(
             pass_("STAT-007", "ESIC Employer Contribution", "esic_employer", esic_er_actual)
 
     # ── PT ───────────────────────────────────────────────────────────
-    pt_raw = row.get("pt") or row.get("pt_amount")
+    pt_raw = _stated(row, "pt", "pt_amount")
     if pt_raw not in (None, ""):
         pt_actual = _dec(pt_raw)
         if pt_due > Decimal("0") and (pt_actual - pt_due).copy_abs() > tol_stat:
@@ -763,7 +784,7 @@ def build_findings(
                  f"Aadhaar failed validation ({why_a}).",
                  "Re-verify against the Aadhaar card. UAN-Aadhaar seeding fails on invalid numbers.")
 
-    pf_deducted = _dec(row.get("pf_employee") or row.get("pf_emp") or 0) > 0
+    pf_deducted = _dec(_stated(row, "pf_employee", "pf_emp") or 0) > 0
     uan_raw = idc.row_text(row, "uan")
     if pf_deducted and not uan_raw:
         fail("ID-003", "UAN Missing with PF Deduction", "uan", "12-digit UAN", "(missing)",
@@ -830,7 +851,7 @@ def build_findings(
     # ═══════════════════════════════════════════════════════════════════
 
     # PF: EPS split (EPS-95) — validated when the register carries an EPS column
-    eps_raw = row.get("eps") or row.get("pf_eps") or row.get("eps_employer")
+    eps_raw = _stated(row, "eps", "pf_eps", "eps_employer")
     if eps_raw not in (None, ""):
         eps_actual = _dec(eps_raw)
         eps_cap = t.pf_deep.eps_wage_cap
@@ -874,7 +895,7 @@ def build_findings(
                  "Zero the employee ESI deduction for this employee.")
 
     # PT: constitutional cap + no-PT states
-    pt_actual_row = _dec(row.get("pt") or row.get("pt_amount") or 0)
+    pt_actual_row = _dec(_stated(row, "pt", "pt_amount") or 0)
     if pt_actual_row > t.pt_caps.annual_cap:
         fail("PT-002", "PT Exceeds Constitutional Annual Cap", "pt",
              f"≤ {t.pt_caps.annual_cap}/year", _fmt(pt_actual_row), "CRITICAL",
@@ -941,7 +962,7 @@ def build_findings(
                          float((grat_actual - expected_grat).copy_abs()))
 
     # TDS: Sec 206AA (no PAN) and Sec 192 projection
-    tds_raw = row.get("tds") or row.get("income_tax")
+    tds_raw = _stated(row, "tds", "income_tax")
     taxable_month = sum(
         (amt for k, amt in regular.items()
          if comp_by_key.get(k) and getattr(comp_by_key[k], "taxable", False)),
