@@ -19,6 +19,15 @@ from app.models.budget import BudgetLine, BudgetVersion, ENTITY_SCOPE
 from app.models.rule_engine import Formula, SlabRule
 from app.models.rule_preferences import TenantRulePreference
 from app.models.signoff import PeriodSignOff, SignOffEvent
+from app.models.reconciliation import (
+    BankFile,
+    BankFileProfile,
+    BankFileRow,
+    JvRule,
+    JvTemplate,
+    ReconException,
+    ReconRun,
+)
 from app.models.findings import (
     FindingRecord,
     FindingState,
@@ -57,6 +66,13 @@ __all__ = [
     "FindingState",
     "FindingStateEvent",
     "PeriodSignOff",
+    "BankFileProfile",
+    "BankFile",
+    "BankFileRow",
+    "JvTemplate",
+    "JvRule",
+    "ReconRun",
+    "ReconException",
     "SignOffEvent",
     "AuditEvent",
     "BudgetVersion",

@@ -30,6 +30,9 @@ import {
   FileDown,
   ScrollText,
   Target,
+  Scale,
+  Banknote,
+  BookOpen,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -58,6 +61,14 @@ const navGroups = [
     ],
   },
   {
+    label: "Reconciliation",
+    items: [
+      { href: "/reconciliation", label: "Month close", icon: Scale },
+      { href: "/reconciliation/bank", label: "Bank payments", icon: Banknote },
+      { href: "/reconciliation/jv", label: "Journal voucher", icon: BookOpen },
+    ],
+  },
+  {
     label: "CTC",
     items: [
       { href: "/ctc/upload", label: "Upload CTC", icon: FileSpreadsheet },
@@ -70,6 +81,8 @@ const navGroups = [
       { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
       { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
       { href: "/config/components", label: "Salary components", icon: Layers },
+      { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
+      { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
       { href: "/audit", label: "Audit trail", icon: ScrollText },
     ],

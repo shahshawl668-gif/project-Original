@@ -16,6 +16,7 @@ from __future__ import annotations
 import io
 import uuid
 from datetime import date, datetime, UTC
+from decimal import Decimal
 from typing import Any
 from collections.abc import Callable
 
@@ -347,6 +348,111 @@ def _reconciliation(db, entity_id, ctx, wb) -> None:
            [[severity, state, count] for (severity, state), count in sorted(counts.items())])
 
 
+def _bank_jv_reconciliation(db, entity_id, ctx, wb) -> None:
+    """
+    The month held three ways: register, bank file, journal voucher.
+
+    Where a comparison could not be made, the sheet says so instead of being
+    absent. A reconciliation pack whose missing halves are simply missing reads
+    as a clean month, which is the one impression it must never give.
+    """
+    from app.models import BankFile, JvTemplate
+    from app.services import reconciliation as recon
+
+    identity = ctx["identity"]
+    period = ctx.get("date_to") or _latest_period(db, entity_id)
+    if period is None:
+        _sheet(wb, "Reconciliation", ["Status"],
+               [["No salary register is stored, so there is nothing to reconcile."]])
+        return
+    period = period.replace(day=1)
+
+    register = recon.register_net(db, entity_id, period)
+    bank = (
+        db.query(BankFile)
+        .filter(BankFile.entity_id == entity_id, BankFile.period_month == period)
+        .order_by(BankFile.created_at.desc())
+        .first()
+    )
+
+    if bank is None:
+        _sheet(wb, "Bank reconciliation", ["Status", "Period", "Net pay due (INR)"],
+               [["No bank file has been uploaded for this month. Payments are "
+                 "UNRECONCILED — this is not a clean result.",
+                 period.strftime("%b %Y"),
+                 float(sum((e.expected for e in register), Decimal("0")))]])
+    else:
+        result = recon.bank_reconciliation(db, entity_id, period, bank)
+        summary = result["summary"]
+        _sheet(wb, "Bank reconciliation",
+               ["Measure", "Value"],
+               [["Period", period.strftime("%b %Y")],
+                ["Bank file", bank.filename or ""],
+                ["Employees on the register", summary["register_employees"]],
+                ["Payment lines in the file", summary["bank_rows"]],
+                ["Matched on employee code", summary["matched"]],
+                ["Net pay due (INR)", summary["due_total"]],
+                ["Paid by the file (INR)", summary["paid_total"]],
+                ["Difference (INR)", summary["difference"]],
+                ["Reconciled", "yes" if summary["reconciled"] else "no"]])
+
+        _sheet(wb, "Bank exceptions",
+               ["Severity", "Exception", "Employee", "Name", "Expected (INR)",
+                "Paid (INR)", "Difference (INR)", "What it means", "What to do"],
+               [[e["severity"], e["label"],
+                 identity.employee(e["employee_id"], e["employee_name"])["employee_id"]
+                 if e["employee_id"] else "",
+                 identity.employee(e["employee_id"], e["employee_name"])["employee_name"]
+                 if e["employee_id"] else "",
+                 e["expected"], e["actual"], e["difference"], e["meaning"], e["action"]]
+                for e in result["exceptions"]])
+
+    template = (
+        db.query(JvTemplate)
+        .filter(JvTemplate.entity_id == entity_id, JvTemplate.is_current.is_(True))
+        .first()
+    )
+    if template is None:
+        _sheet(wb, "Journal voucher", ["Status"],
+               [["No JV template is approved for this entity, so no voucher could be "
+                 "built. Nothing has been posted to the ledger from this product."]])
+        return
+
+    jv = recon.jv_reconciliation(db, entity_id, period, template)
+    _sheet(wb, "Journal voucher",
+           ["Voucher", "Date", "Account code", "Account", "Cost centre",
+            "Debit (INR)", "Credit (INR)", "Narration"],
+           [[v["number"], v["date"], line["account_code"], line["account_name"],
+             line["cost_center"] or "", line["debit"], line["credit"], v["narration"]]
+            for v in jv["vouchers"] for line in v["lines"]])
+
+    _sheet(wb, "Voucher check", ["Measure", "Value"],
+           [["Template", template.name],
+            ["Approved by", template.approved_by_email or "not approved"],
+            ["Posting basis", template.posting_basis],
+            ["Total debits (INR)", jv["summary"]["total_debit"]],
+            ["Total credits (INR)", jv["summary"]["total_credit"]],
+            ["Difference (INR)", jv["summary"]["difference"]],
+            ["Payroll cost for the month (INR)", jv["summary"]["payroll_cost"]],
+            ["Balanced", "yes" if jv["balanced"] else "no"]])
+
+    _sheet(wb, "Voucher exceptions",
+           ["Severity", "Exception", "Detail", "Expected (INR)", "Actual (INR)",
+            "Difference (INR)", "What to do"],
+           [[e["severity"], e["label"], e["title"], e["expected"], e["actual"],
+             e["difference"], e["action"]] for e in jv["exceptions"]])
+
+
+def _latest_period(db, entity_id):
+    row = (
+        db.query(SalaryRegister.period_month)
+        .filter(SalaryRegister.entity_id == entity_id)
+        .order_by(SalaryRegister.period_month.desc())
+        .first()
+    )
+    return row[0] if row else None
+
+
 def _employee_cost(db, entity_id, ctx, wb) -> None:
     from app.services.analytics import _Costing, _register_rows
     from app.services.cost_model import MEASURES
@@ -455,6 +561,10 @@ REPORTS: dict[str, tuple[str, str, Callable]] = {
     "reconciliation": ("Payroll reconciliation",
                        "Open exceptions with severity, state and financial impact.",
                        _reconciliation),
+    "bank-jv-reconciliation": ("Bank & journal voucher reconciliation",
+                               "Net pay against the bank file, and the voucher against "
+                               "payroll cost, with every exception behind both.",
+                               _bank_jv_reconciliation),
     "employee-cost": ("Employee payroll cost",
                       "One row per employee per month, fully costed.",
                       _employee_cost),

@@ -22,7 +22,7 @@ from app.models import (
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
 from app.services import audit, finding_store
-from app.services.cost_model import capture_reported
+from app.services.cost_model import capture_net_pay, capture_reported
 from app.services.dimensions import snapshot as dimension_snapshot
 from app.services.pf_basis import from_row as pf_flag_from_row
 from app.services.workforce import master_as_of
@@ -122,6 +122,7 @@ def _persist_salary_register(
         # recomputed later: they are the register's own testimony about the
         # month, and a cost report built on them is one the client recognises.
         deductions_json = capture_reported(row)
+        stated_net = capture_net_pay(row)
         pf_restricted_flag = pf_flag_from_row(row)
 
         paid_days_raw = row.get("paid_days")
@@ -151,6 +152,7 @@ def _persist_salary_register(
                 deductions=deductions_json,
                 pf_restricted=pf_restricted_flag,
                 increment_arrear_total=inc_arrear_total,
+                net_pay=stated_net,
             )
         )
 
