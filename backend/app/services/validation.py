@@ -31,6 +31,7 @@ from app.services.workforce import master_as_of
 from app.services.workforce_rules import check_against_inputs
 from app.services.rule_engine_v2 import (
     ValidationFinding,
+    stated,
     batch_findings,
     build_findings,
 )
@@ -41,8 +42,21 @@ LOP_TOLERANCE = Decimal("1.00")
 ARREAR_TOLERANCE = Decimal("1.00")
 
 
-def recompute_risk_and_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
-    """Recompute risk scores and aggregate summary from rows' findings (mutates rows)."""
+def recompute_risk_and_summary(
+    results: list[dict[str, Any]],
+    extra_findings: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """
+    Recompute risk scores and aggregate summary from rows' findings (mutates rows).
+
+    ``extra_findings`` are findings about people the register does not contain —
+    someone the attendance register covers who is on no payslip. They count
+    towards the totals, because a month with an unpaid worker in it is not a
+    clean month, but they carry no risk score of their own: risk is scored per
+    register row and these have no row. Deliberately not turned into synthetic
+    rows either — this product reports what the register says, and inventing a
+    row for someone it never mentioned would be the wrong kind of helpful.
+    """
     for rec in results:
         findings = rec.get("findings", [])
         risk = compute_risk(findings)
@@ -53,12 +67,14 @@ def recompute_risk_and_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     flat: list[dict[str, Any]] = []
     for rec in results:
         flat.extend(rec.get("findings", []))
+    flat.extend(extra_findings or [])
 
     total_financial_impact = sum(
         float(f.get("financial_impact", 0) or 0) for f in flat if f.get("status") == "FAIL"
     )
 
     summary: dict[str, Any] = {
+        "unmatched_findings": list(extra_findings or []),
         "total_findings": len(flat),
         "critical": sum(1 for f in flat if f.get("severity") == "CRITICAL" and f.get("status") == "FAIL"),
         "warning": sum(1 for f in flat if f.get("severity") == "WARNING" and f.get("status") == "FAIL"),
@@ -140,14 +156,26 @@ def recompute_risk_and_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def apply_suppressed_rules(
-    results: list[dict[str, Any]], suppressed_rule_ids: set[str]
+    results: list[dict[str, Any]],
+    suppressed_rule_ids: set[str],
+    extra_findings: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Remove findings matching suppressed rule IDs and rebuild summary."""
-    if not suppressed_rule_ids:
-        return recompute_risk_and_summary(results)
-    for rec in results:
-        rec["findings"] = [f for f in rec.get("findings", []) if f.get("rule_id") not in suppressed_rule_ids]
-    return recompute_risk_and_summary(results)
+    """
+    Remove findings matching suppressed rule IDs and rebuild summary.
+
+    Suppression applies to the findings about unmatched people too. A rule a
+    client has switched off should be off everywhere, not off on the register
+    and on beside it.
+    """
+    extra = list(extra_findings or [])
+    if suppressed_rule_ids:
+        for rec in results:
+            rec["findings"] = [
+                f for f in rec.get("findings", [])
+                if f.get("rule_id") not in suppressed_rule_ids
+            ]
+        extra = [f for f in extra if f.get("rule_id") not in suppressed_rule_ids]
+    return recompute_risk_and_summary(results, extra)
 
 
 def _dec(v: Any) -> Decimal:
@@ -1067,7 +1095,7 @@ def validate_employees(
                 ctc_monthly[k] = Decimal(str(v)) / Decimal(12)
 
         paid_days_raw = row.get("paid_days")
-        lop_days_raw = row.get("lop_days") or row.get("lop")
+        lop_days_raw = stated(row, "lop_days", "lop")
         paid_days = _dec(paid_days_raw) if paid_days_raw not in (None, "") else None
         lop_days = _dec(lop_days_raw) if lop_days_raw not in (None, "") else None
 
@@ -1100,7 +1128,7 @@ def validate_employees(
         # Sec 192 projection: expected monthly TDS from the tenant's FY tax
         # config and the employee's declared regime (new regime is the default).
         expected_monthly_tds = None
-        if (row.get("tds") or row.get("income_tax")) not in (None, "") and taxable > 0:
+        if stated(row, "tds", "income_tax") not in (None, "") and taxable > 0:
             try:
                 from app.services.income_tax_engine import compute_income_tax
                 from app.services.tax_year_defaults import fy_label_for_date
@@ -1234,6 +1262,7 @@ def validate_employees(
     # Compare the register against its inputs — the employee master and the
     # attendance register. These are the only checks that can see a wrong input
     # processed consistently, so they lead the list.
+    unmatched_findings: list[dict[str, Any]] = []
     if period_month:
         input_findings = check_against_inputs(
             db,
@@ -1252,11 +1281,33 @@ def validate_employees(
                 }
                 for rec in results
             ],
+            # The register rows as uploaded. The attendance rules need the
+            # component columns themselves to see whether overtime was paid,
+            # which the derived result does not carry.
+            raw_rows={
+                str(row.get("employee_id") or row.get("emp_id")
+                    or row.get("employee_code") or "").strip(): row
+                for row in employees
+            },
+            thresholds=rule_thresholds,
         )
+        known = {rec["employee_id"] for rec in results}
         for rec in results:
             found = input_findings.get(rec["employee_id"])
             if found:
                 rec["findings"] = found + rec["findings"]
 
-    summary = recompute_risk_and_summary(results)
+        # Findings about people the register does not contain — someone the
+        # attendance register covers who is on no payslip. They belong in the
+        # run, and they are deliberately not turned into register rows: this
+        # product reports what the register says, and inventing a row for
+        # someone it never mentioned would be the wrong kind of helpful.
+        unmatched_findings = [
+            finding
+            for employee_id, found in input_findings.items()
+            if employee_id not in known
+            for finding in found
+        ]
+
+    summary = recompute_risk_and_summary(results, unmatched_findings)
     return results, summary

@@ -125,6 +125,33 @@ def register_csv(period: date) -> str:
     return header + "\n".join(lines) + "\n"
 
 
+def attendance_csv(period: date) -> str:
+    """
+    A full month for everyone, with two planted problems in June.
+
+    E005 loses three days that the register never deducts, and E006 works
+    overtime that nobody pays. Both are invisible to every register-level
+    check: the register is perfectly consistent with itself, it is consistent
+    with the wrong number of days.
+    """
+    days = 30 if period.month in (4, 6, 9, 11) else 31
+    header = ("employee_id,employee_name,calendar_days,present_days,paid_leave_days,"
+              "weekly_off_days,holiday_days,lop_days,paid_days,overtime_hours\n")
+    lines = []
+    for employee_id, name, *_ in STAFF:
+        if not on_register(employee_id, period):
+            continue
+        lop = 3 if (employee_id == "E005" and period == date(2026, 6, 1)) else 0
+        overtime = 8 if (employee_id == "E006" and period == date(2026, 6, 1)) else 0
+        weekly_off, holiday, paid_leave = 4, 1, 0
+        present = days - weekly_off - holiday - paid_leave - lop
+        lines.append(
+            f"{employee_id},{name},{days},{present},{paid_leave},{weekly_off},"
+            f"{holiday},{lop},{days - lop},{overtime}"
+        )
+    return header + "\n".join(lines) + "\n"
+
+
 def master_csv() -> str:
     header = (
         "employee_id,employee_name,gender,date_of_joining,date_of_exit,work_state,"
@@ -202,6 +229,22 @@ def company(client):
     assert commit.status_code == 200, commit.text
 
     for period in PERIODS:
+        checked = client.post(
+            "/api/workforce/attendance/validate", headers=headers,
+            files={"file": (f"att-{period:%Y-%m}.csv",
+                            io.BytesIO(attendance_csv(period).encode()), "text/csv")},
+            data={"meta": json.dumps({"period_month": period.isoformat()})},
+        )
+        assert checked.status_code == 200, checked.text
+        assert checked.json()["data"]["clean"] is True, checked.json()["data"]["findings"]
+        committed = client.post(
+            "/api/workforce/attendance/commit", headers=headers,
+            files={"file": (f"att-{period:%Y-%m}.csv",
+                            io.BytesIO(attendance_csv(period).encode()), "text/csv")},
+            data={"meta": json.dumps({"period_month": period.isoformat()})},
+        )
+        assert committed.status_code == 200, committed.text
+
         upload = client.post(
             "/api/payroll/upload", headers=headers,
             files={
@@ -283,6 +326,66 @@ def test_the_finding_survives_into_the_findings_register(client, company):
     assert summary["open_count"] > 0
     findings = data(client.get("/api/findings", headers=company))
     assert any(f["employee_id"] == "E004" for f in findings)
+
+
+def test_attendance_the_register_ignored_is_reported(client, company):
+    """
+    The gap no register-level rule can see.
+
+    E005 lost three days and was paid for thirty. Gross matches its own
+    components, PF matches the PF wage, every internal check passes — and the
+    employee has been overpaid three days' wages.
+    """
+    parsed = data(client.post(
+        "/api/payroll/upload", headers=company,
+        files={"file": ("june.csv", io.BytesIO(register_csv(PERIODS[2]).encode()), "text/csv")},
+        data={"meta": json.dumps({
+            "period_month": "2026-06-01", "strict_header_check": False,
+        })},
+    ))
+    result = data(client.post("/api/payroll/validate", headers=company, json={
+        "employees": parsed["employees"], "period_month": "2026-06-01",
+    }))
+    by_employee = {
+        row["employee_id"]: {f["rule_id"]: f for f in row["findings"]}
+        for row in result["results"]
+    }
+
+    # The days themselves disagree …
+    assert "ATT-002" in by_employee["E005"]
+    # … and so does the money, valued against May, which carried no loss of pay.
+    overpaid = by_employee["E005"]["ATT-020"]
+    assert overpaid["severity"] == "CRITICAL"
+    assert overpaid["financial_impact"] > 0
+
+    # Overtime worked and never paid.
+    assert "ATT-022" in by_employee["E006"]
+
+    # And nobody else is dragged in by the change.
+    for employee_id, findings in by_employee.items():
+        if employee_id not in ("E005", "E006"):
+            assert "ATT-020" not in findings and "ATT-022" not in findings, employee_id
+
+
+def test_an_attendance_file_that_does_not_add_up_is_refused_before_it_is_stored(client, company):
+    broken = (
+        "employee_id,calendar_days,present_days,paid_leave_days,weekly_off_days,"
+        "holiday_days,lop_days,paid_days\n"
+        "E001,31,22,1,4,1,2,30\n"      # 31 days claimed in a 30-day June
+        "E002,30,22,1,4,1,4,30\n"      # 30 paid with 4 lost — contradicts itself
+    )
+    checked = data(client.post(
+        "/api/workforce/attendance/validate", headers=company,
+        files={"file": ("broken.csv", io.BytesIO(broken.encode()), "text/csv")},
+        data={"meta": json.dumps({"period_month": "2026-06-01"})},
+    ))
+    assert checked["clean"] is False
+    assert {f["rule_id"] for f in checked["findings"]} >= {"ATT-011", "ATT-012"}
+
+    # And nothing was stored: the good June file is still the one on record.
+    registers = data(client.get("/api/workforce/attendance", headers=company))
+    june = next(r for r in registers if r["period_month"] == "2026-06-01")
+    assert june["employee_count"] == 10
 
 
 # ---------------------------------------------------------------------------

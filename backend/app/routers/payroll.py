@@ -163,6 +163,8 @@ def _payload_after_validation(rows: list, findings_summary: dict) -> dict:
     all_findings: list = []
     for r in rows:
         all_findings.extend(r.get("findings", []))
+    # People the register does not contain are still part of the month.
+    all_findings.extend(findings_summary.get("unmatched_findings", []))
     risk_list = [
         {
             "employee_id": r["employee_id"],
@@ -276,7 +278,9 @@ def validate_payroll(
         period_month=period_month,
     )
     suppressed = _suppressed_rule_ids(db, entity.id)
-    findings_summary = apply_suppressed_rules(rows, suppressed)
+    findings_summary = apply_suppressed_rules(
+        rows, suppressed, findings_summary.get("unmatched_findings"),
+    )
 
     lifecycle: dict = {}
     if period_month:
@@ -284,6 +288,7 @@ def validate_payroll(
         # a record: waivers carry forward, recurrence becomes countable, and the
         # exposure history survives the browser tab.
         all_findings = [f for row in rows for f in row.get("findings", [])]
+        all_findings.extend(findings_summary.get("unmatched_findings", []))
         run = finding_store.record_run(
             db,
             entity_id=entity.id,

@@ -31,6 +31,7 @@ import {
   ScrollText,
   Target,
   Scale,
+  CalendarDays,
   Banknote,
   BookOpen,
 } from "lucide-react";
@@ -55,6 +56,7 @@ const navGroups = [
     label: "Payroll",
     items: [
       { href: "/payroll/upload", label: "Upload & validate", icon: UploadCloud },
+      { href: "/payroll/attendance", label: "Attendance", icon: CalendarDays },
       { href: "/payroll/results", label: "Results", icon: ClipboardCheck },
       { href: "/payroll/history", label: "Register history", icon: History },
       { href: "/budget/upload", label: "Upload budget", icon: Target },

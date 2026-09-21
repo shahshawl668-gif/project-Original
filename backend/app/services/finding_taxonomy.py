@@ -50,6 +50,7 @@ _MISSING_RULES = {
     "MST-001",               # absent from the employee master
     "MST-004", "MST-005",    # UAN / ESIC IP not on file
     "ATT-003",               # no attendance row for a paid employee
+    "ATT-024",               # no baseline to check the loss-of-pay deduction against
     "MW-003",                # no minimum wage rate, or no classification
     "GRAT-004",              # gratuity paid, joining date unknown
     "ARR-001",               # arrears paid, period not stated
@@ -59,6 +60,8 @@ _MISSING_RULES = {
 _MISMATCH_PREFIXES = ("STAT-", "AGG-", "PF-", "ESI-", "PT-", "LOP-", "TDS-")
 _MISMATCH_RULES = {
     "ATT-001", "ATT-002",    # paid days / LOP against attendance
+    # The attendance file disagreeing with itself, and pay disagreeing with it.
+    "ATT-010", "ATT-011", "ATT-012", "ATT-013", "ATT-020",
     "MOM-006",               # increment arrear against the CTC delta
     "ARR-002",               # arrear period resolves to something impossible
 }

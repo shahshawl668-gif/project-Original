@@ -23,7 +23,7 @@ from typing import Any
 
 import pytest
 
-from app.services.rule_engine_v2 import _stated
+from app.services.rule_engine_v2 import stated
 
 
 # ---------------------------------------------------------------------------
@@ -43,12 +43,12 @@ from app.services.rule_engine_v2 import _stated
     ],
 )
 def test_a_stated_zero_is_returned_and_a_missing_column_is_not(row, expected):
-    assert _stated(row, "pf_employee", "pf_emp") == expected
+    assert stated(row, "pf_employee", "pf_emp") == expected
 
 
 def test_the_first_column_that_states_anything_wins():
-    assert _stated({"pt": 0, "pt_amount": 200}, "pt", "pt_amount") == 0
-    assert _stated({"pt": None, "pt_amount": 200}, "pt", "pt_amount") == 200
+    assert stated({"pt": 0, "pt_amount": 200}, "pt", "pt_amount") == 0
+    assert stated({"pt": None, "pt_amount": 200}, "pt", "pt_amount") == 200
 
 
 # ---------------------------------------------------------------------------
@@ -169,3 +169,33 @@ def test_a_correct_register_is_not_made_noisy_by_the_change(client, workspace):
     for rule_id in ("STAT-001", "STAT-002", "TDS-001"):
         finding = find(findings, rule_id)
         assert finding is None or finding["severity"] in ("INFO", "PASS"), rule_id
+
+
+def test_a_stated_lop_of_zero_is_carried_through_the_validation_result(client, workspace):
+    """
+    The same falsy read, one layer up.
+
+    ``lop_days`` was resolved with the same ``or`` chain, so a register stating
+    zero days lost came through as *no LOP column*. That silently disabled the
+    proration check and the comparison against the attendance register for
+    every employee whose register honestly said zero — which is most of them.
+    """
+    body = {
+        "employees": [{**BASE, "pf_employee": 1800, "paid_days": 30, "lop_days": 0}],
+        "period_month": "2026-06-01",
+    }
+    row = client.post("/api/payroll/validate", headers=workspace, json=body) \
+        .json()["data"]["results"][0]
+    assert row["lop_days"] == 0.0
+    assert row["paid_days"] == 30.0
+
+
+def test_a_register_with_no_lop_column_still_reports_none(client, workspace):
+    # The other half of the distinction, and the reason BASE's own zero has to
+    # be removed rather than overwritten: no column means no claim.
+    employee = {k: v for k, v in BASE.items() if k != "lop_days"}
+    row = client.post("/api/payroll/validate", headers=workspace, json={
+        "employees": [{**employee, "pf_employee": 1800, "paid_days": 30}],
+        "period_month": "2026-06-01",
+    }).json()["data"]["results"][0]
+    assert row["lop_days"] is None

@@ -21,6 +21,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.services import attendance_rules
 from app.services.workforce import attendance_for_period, master_as_of, service_years
 
 # Attendance figures are quoted to half-days in most systems; a difference
@@ -77,13 +78,17 @@ def check_against_inputs(
     period_month: date,
     rows: list[dict[str, Any]],
     gratuity_min_service_years: Decimal = Decimal("5"),
+    raw_rows: dict[str, dict[str, Any]] | None = None,
+    thresholds: Any = None,
 ) -> dict[str, list[dict]]:
     """
     Validate register rows against the master and attendance for the period.
 
     ``rows`` are dicts carrying at least ``employee_id``; ``employee_name``,
     ``paid_days``, ``lop_days``, ``gross`` and the statutory amounts are used
-    where present. Returns findings keyed by employee id.
+    where present. ``raw_rows`` are the register rows as uploaded, keyed by
+    employee id, which the pay-against-attendance rules need in order to see
+    the component columns. Returns findings keyed by employee id.
     """
     period_month = period_month.replace(day=1)
     month_end = _month_end(period_month)
@@ -96,11 +101,17 @@ def check_against_inputs(
     have_master = bool(master)
     have_attendance = bool(attendance)
 
+    attendance_cfg = getattr(thresholds, "attendance", None)
+    basis = getattr(attendance_cfg, "paid_days_basis", "calendar")
+    day_tolerance = _dec(getattr(attendance_cfg, "day_tolerance", None)) or DAY_TOLERANCE
+
     out: dict[str, list[dict]] = {}
+    paid_ids: set[str] = set()
     for row in rows:
         employee_id = str(row.get("employee_id") or "").strip()
         if not employee_id:
             continue
+        paid_ids.add(employee_id)
         name = row.get("employee_name")
         findings: list[dict] = []
 
@@ -109,10 +120,44 @@ def check_against_inputs(
             findings.extend(_master_rules(employee_id, name, row, record, period_month, month_end,
                                           gratuity_min_service_years))
         if have_attendance:
-            findings.extend(_attendance_rules(employee_id, name, row, attendance.get(employee_id)))
+            attendance_row = attendance.get(employee_id)
+            findings.extend(_attendance_rules(employee_id, name, row, attendance_row))
+            # What was paid, against what attendance says was worked. Kept apart
+            # from the comparison rules above because this half needs a baseline
+            # from outside the month, and says so when it has none.
+            merged = dict((raw_rows or {}).get(employee_id) or {})
+            merged.setdefault("gross", row.get("gross"))
+            findings.extend(
+                attendance_rules.check_pay_against_attendance(
+                    employee_id, name, merged, attendance_row,
+                    period_month=period_month,
+                    reference=attendance_rules.full_month_reference(
+                        db, entity_id, employee_id, period_month
+                    ) if attendance_row is not None else None,
+                    basis=basis,
+                    day_tolerance=day_tolerance,
+                    lop_pay_tolerance_pct=_dec(
+                        getattr(attendance_cfg, "lop_pay_tolerance_pct", None)
+                    ) or Decimal("2"),
+                    overtime_multiplier=_dec(
+                        getattr(attendance_cfg, "overtime_multiplier", None)
+                    ) or Decimal("2"),
+                    overtime_hours_per_day=_dec(
+                        getattr(attendance_cfg, "overtime_hours_per_day", None)
+                    ) or Decimal("8"),
+                )
+            )
 
         if findings:
             out[employee_id] = findings
+
+    # Anyone attendance covers who is on no payslip at all. Reported against
+    # their own employee id, so they appear in the findings list rather than
+    # only in a count.
+    if have_attendance:
+        for finding in attendance_rules.check_worked_but_unpaid(attendance, paid_ids):
+            out.setdefault(finding["employee_id"], []).append(finding)
+
     return out
 
 
