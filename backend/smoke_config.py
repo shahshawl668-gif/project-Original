@@ -1,8 +1,11 @@
 """Smoke test for the Config-Driven Statutory Engine endpoints."""
-import urllib.request
 import json
+import os
+import urllib.request
 
-base = "http://localhost:8000"
+base = os.environ.get("PAYROLLCHECK_BASE_URL", "http://localhost:8000").rstrip("/")
+"""Where to run against. Defaults to a local server; set PAYROLLCHECK_BASE_URL
+to point the same checks at a deployed stack."""
 
 
 def get(path):
