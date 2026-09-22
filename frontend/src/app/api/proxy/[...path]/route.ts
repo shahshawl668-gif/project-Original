@@ -88,7 +88,19 @@ async function proxy(req: NextRequest, segments: string[]): Promise<Response> {
   const outHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (lower === "transfer-encoding" || lower === "content-encoding") return;
+    // `fetch` has already decoded the body, so the upstream's framing headers
+    // now describe something that no longer exists. `content-encoding` would
+    // tell the browser to inflate plain JSON. `content-length` is worse: it
+    // still counts the *compressed* bytes, so the browser truncates the body
+    // to that length and JSON.parse fails on the fragment — which surfaces as
+    // "Invalid JSON", naming the payload rather than the proxy that cut it.
+    if (
+      lower === "transfer-encoding" ||
+      lower === "content-encoding" ||
+      lower === "content-length"
+    ) {
+      return;
+    }
     outHeaders.set(key, value);
   });
   outHeaders.set("X-Proxy-Path", "/api/proxy");
