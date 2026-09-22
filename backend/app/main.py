@@ -62,6 +62,21 @@ def _ensure_system_user(db) -> None:
     db.commit()
 
 
+def _describe_database() -> str:
+    """
+    Which database this process is on — host and name, never the credentials.
+
+    Worth a line in every boot log. "Is it actually on Postgres?" is otherwise
+    unanswerable from outside the container, and the wrong answer is silent:
+    SQLite starts, serves and passes a health check exactly like the real
+    thing, right up until the deploy that erases it.
+    """
+    url = engine.url
+    if url.drivername.startswith("sqlite"):
+        return f"sqlite:{url.database or ':memory:'} (ephemeral)"
+    return f"{url.get_backend_name()}://{url.host or '?'}/{url.database or '?'}"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
@@ -74,8 +89,9 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     logger.info(
-        "API ready | env=%s | cors_origins=%s | anonymous=%s",
+        "API ready | env=%s | database=%s | cors_origins=%s | anonymous=%s",
         settings.env,
+        _describe_database(),
         settings.cors_origins_list,
         settings.allow_anonymous_api,
     )
