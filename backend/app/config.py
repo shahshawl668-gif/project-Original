@@ -93,3 +93,15 @@ if settings.is_production:
             "ALLOW_ANONYMOUS_API=true in production — refusing. Forcing False."
         )
         object.__setattr__(settings, "allow_anonymous_api", False)
+
+    if settings.database_url.startswith("sqlite"):
+        # The most expensive mistake this product can make, because it does not
+        # look like a mistake: the service starts, answers, and passes its
+        # health check, and then loses every row on the next deploy. Nothing
+        # else in the system will say so, so this has to.
+        logger.error(
+            "DATABASE_URL is unset in production — running on SQLite, on a disk "
+            "that does not survive a deploy. Every upload, finding and audit "
+            "record written now WILL BE LOST. Point DATABASE_URL at PostgreSQL "
+            "before any client data is entered."
+        )
