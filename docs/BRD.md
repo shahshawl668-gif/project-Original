@@ -7,7 +7,7 @@
 | Document owner | Product |
 | Status | Baseline for first production release |
 | Applies to | `backend/` FastAPI service, `frontend/` Next.js app |
-| Last verified against code | 770 automated tests passing on SQLite and PostgreSQL 16 |
+| Last verified against code | 801 automated tests passing on SQLite and PostgreSQL 16 |
 
 ---
 
@@ -132,6 +132,17 @@ over every client's salary, PAN and bank data is the most attractive single
 target in the system, and unbounded access under the DPDP Act would have to be
 justified at every client's security review. Support access, when built, is
 time-boxed, reason-required and audited rather than permanent.
+
+**R2c — Break-glass support access.** Platform staff may open a session on one
+organisation's data, on terms the *client* sets: allowed and notified, held
+until an owner approves, or refused outright. A session is read-only, keeps
+employee identities masked, carries a mandatory stated reason, expires on its
+own within eight hours, and is written to the **client's** audit trail rather
+than a staff log they cannot see. The client can revoke instantly, and
+switching support off closes anything already open. Read-only is enforced by
+requiring a seat in the entity's own organisation, not by role — a platform
+engineer is usually an owner of their own organisation, so a role check would
+wave them through.
 
 **R3 — Pay equity is doubly gated.** The analysis runs only where (a) the entity
 has switched it on, recorded with who did so and when, and (b) the caller is an

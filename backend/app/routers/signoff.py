@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write, require_org_admin
+from app.deps import get_current_entity, get_current_user, require_entity_write, require_entity_admin
 from app.envelope import ok
 from app.models import Entity, PeriodSignOff, SignOffEvent, User
 from app.services import signoff as signoff_service
@@ -145,7 +145,7 @@ def submit(
 def sign(
     body: SignRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """
@@ -168,7 +168,7 @@ def sign(
 def reopen(
     body: ReopenRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     row = _load(db, entity, body.period_month)

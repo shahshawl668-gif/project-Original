@@ -19,7 +19,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write, require_org_admin
+from app.deps import get_current_entity, get_current_user, require_entity_write, require_entity_admin
 from app.envelope import ok
 from app.models import BudgetLine, BudgetVersion, ENTITY_SCOPE, Entity, User
 from app.services import audit, budgeting
@@ -210,7 +210,7 @@ def list_versions(
 def approve_version(
     version_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """
@@ -239,7 +239,7 @@ def approve_version(
 def delete_version(
     version_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """Remove a draft. An approved budget is never deleted — history depends on it."""

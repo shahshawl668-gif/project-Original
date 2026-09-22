@@ -20,7 +20,7 @@ from app.deps import (
     get_current_user,
     get_identity,
     require_entity_write,
-    require_org_admin,
+    require_entity_admin,
     require_pay_equity,
 )
 from app.envelope import ok
@@ -304,7 +304,7 @@ class PayEquityToggle(BaseModel):
 def set_pay_equity_settings(
     body: PayEquityToggle,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """

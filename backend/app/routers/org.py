@@ -8,8 +8,10 @@ entity switcher can render without a second round trip.
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -20,7 +22,14 @@ from app.deps import (
     require_org_admin,
 )
 from app.envelope import ok
-from app.models import Entity, OrgInvitation, OrgMembership, Organization, User
+from app.models import (
+    Entity,
+    OrgInvitation,
+    OrgMembership,
+    Organization,
+    SupportAccessGrant,
+    User,
+)
 from app.schemas.org import (
     ContextOut,
     EntityCreate,
@@ -34,7 +43,7 @@ from app.schemas.org import (
     OrganizationUpdate,
 )
 from app.security import hash_password
-from app.services import audit, invitations, tenancy
+from app.services import audit, invitations, support_access, tenancy
 
 router = APIRouter()
 
@@ -558,3 +567,166 @@ def register_from_invitation(
     db.refresh(user)
     tokens = _issue_tokens(db, user)
     return ok(tokens.model_dump())
+
+
+# ---------------------------------------------------------------------------
+# Support access — the client's side of it
+# ---------------------------------------------------------------------------
+class SupportPolicyUpdate(BaseModel):
+    policy: Literal["break_glass", "approval_required", "disabled"]
+
+
+@router.get("/support")
+def support_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_org_admin),
+):
+    """
+    Whether platform staff can read this organization's data, and who has.
+
+    Deliberately visible to the client rather than kept in a staff log: a
+    support mechanism nobody can audit is a back door.
+    """
+    membership = tenancy.get_membership(db, user)
+    if membership is None:
+        raise HTTPException(status_code=400, detail="No organization for this user")
+
+    rows = (
+        db.query(SupportAccessGrant)
+        .filter(SupportAccessGrant.org_id == membership.org_id)
+        .order_by(SupportAccessGrant.requested_at.desc())
+        .limit(100)
+        .all()
+    )
+    described = [support_access.describe(g) for g in rows]
+    return ok({
+        "policy": support_access.policy_for(db, membership.org_id),
+        "policies": [
+            {"key": "break_glass", "label": "Allow, and tell us",
+             "hint": "An engineer can open a time-boxed, read-only session with a stated "
+                     "reason. You see it immediately and can revoke it."},
+            {"key": "approval_required", "label": "Ask us first",
+             "hint": "Nothing opens until an owner here approves it. Safer, and slower "
+                     "when you are the one waiting on a fix."},
+            {"key": "disabled", "label": "Never",
+             "hint": "No support session can be opened. We debug from what you can "
+                     "describe and export."},
+        ],
+        "active": [g for g in described if g["state"] in ("active", "pending")],
+        "history": described,
+        "always_true": [
+            "Read-only — a support session cannot change anything here.",
+            "Employee identities are masked, as they are for a viewer.",
+            "Every session expires on its own, and you can end one instantly.",
+        ],
+    })
+
+
+@router.get("/support/active")
+def support_active(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Any open support session, for anyone in the organization.
+
+    Visible to every member rather than owners only: if someone outside your
+    company can read your payroll right now, everyone whose payroll it is
+    deserves to know, not just whoever can change the setting.
+    """
+    membership = tenancy.get_membership(db, user)
+    if membership is None:
+        return ok({"active": []})
+    grants = support_access.active_grants_for_org(db, membership.org_id)
+    return ok({
+        "active": [
+            {
+                "id": str(g.id),
+                "admin_email": g.admin_email,
+                "reason": g.reason,
+                "state": support_access.effective_state(g),
+                "expires_at": g.expires_at.isoformat() if g.expires_at else None,
+                "read_only": g.read_only,
+                "identity_masked": g.identity_masked,
+            }
+            for g in grants
+        ]
+    })
+
+
+@router.put("/support/policy")
+def set_support_policy(
+    body: SupportPolicyUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_org_admin),
+):
+    """Change the terms. Switching to 'disabled' closes anything already open."""
+    membership = tenancy.get_membership(db, user)
+    if membership is None:
+        raise HTTPException(status_code=400, detail="No organization for this user")
+    org = db.get(Organization, membership.org_id)
+    previous = support_access.policy_for(db, membership.org_id)
+
+    try:
+        support_access.set_policy(db, org, body.policy)
+    except support_access.SupportAccessError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+    audit.record(
+        db, entity_id=None, org_id=org.id, user=user, action="support.policy_changed",
+        object_type="organization", object_id=str(org.id),
+        summary=f"Support access policy changed from {previous} to {body.policy}",
+    )
+    db.commit()
+    return ok({"policy": body.policy})
+
+
+@router.post("/support/grants/{grant_id}/approve")
+def approve_support_grant(
+    grant_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_org_admin),
+):
+    membership = tenancy.get_membership(db, user)
+    grant = db.get(SupportAccessGrant, grant_id)
+    if grant is None or membership is None or grant.org_id != membership.org_id:
+        raise HTTPException(status_code=404, detail="Support session not found")
+
+    try:
+        support_access.approve(db, grant, approver=user)
+    except support_access.SupportAccessError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
+
+    audit.record(
+        db, entity_id=None, org_id=grant.org_id, user=user, action="support.approved",
+        object_type="support_access_grant", object_id=str(grant.id),
+        summary=f"{user.email} approved read-only support access for {grant.admin_email}",
+    )
+    db.commit()
+    db.refresh(grant)
+    return ok(support_access.describe(grant))
+
+
+@router.post("/support/grants/{grant_id}/revoke")
+def revoke_support_grant(
+    grant_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_org_admin),
+):
+    """End a support session now. Always available, and never needs a reason."""
+    membership = tenancy.get_membership(db, user)
+    grant = db.get(SupportAccessGrant, grant_id)
+    if grant is None or membership is None or grant.org_id != membership.org_id:
+        raise HTTPException(status_code=404, detail="Support session not found")
+
+    support_access.end(
+        db, grant, actor_email=user.email, reason="revoked by the organization", revoked=True
+    )
+    audit.record(
+        db, entity_id=None, org_id=grant.org_id, user=user, action="support.revoked",
+        object_type="support_access_grant", object_id=str(grant.id),
+        summary=f"{user.email} revoked support access held by {grant.admin_email}",
+    )
+    db.commit()
+    db.refresh(grant)
+    return ok(support_access.describe(grant))

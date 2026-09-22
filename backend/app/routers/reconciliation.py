@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write, require_org_admin
+from app.deps import get_current_entity, get_current_user, require_entity_write, require_entity_admin
 from app.envelope import ok
 from app.models import (
     BankFile,
@@ -803,7 +803,7 @@ def update_template(
 def approve_template(
     template_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """
@@ -845,7 +845,7 @@ def approve_template(
 def delete_template(
     template_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     template = _load_template(db, entity, template_id)
@@ -1083,7 +1083,7 @@ def get_run(
 def close_run(
     run_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """

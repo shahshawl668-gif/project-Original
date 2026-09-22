@@ -515,6 +515,36 @@ cannot recover from inside the product.
 Every invitation, join, role change and removal is written to the audit trail
 with who did it and when.
 
+### Support access
+
+**UI:** Configuration → **Team & invitations** → Support access.
+
+The people who build this product cannot read your data. Entity access comes
+from organization membership, and a platform administrator has none here — so
+supporting you needs your permission, on terms you set.
+
+| Policy | What it means |
+|---|---|
+| **Allow, and tell us** (default) | An engineer can open a time-boxed session with a stated reason. You see it immediately and can end it |
+| **Ask us first** | Nothing opens until an owner here approves. Safer, and slower when you are the one waiting on a fix |
+| **Never** | No session can be opened at all |
+
+Three things are always true and are not settings:
+
+- **Read-only.** A support session cannot change anything — not a register, not
+  a configuration, not an approval.
+- **Identities are masked**, exactly as they are for a viewer. Almost no bug
+  lives in an individual salary; they live in configuration, findings and
+  totals, which masking leaves entirely legible.
+- **It expires on its own**, within eight hours at the outside, and you can end
+  it instantly.
+
+While a session is open, a banner appears for **every member** of the
+organization — not just owners — naming who is looking, why and how long is
+left, with a button to end it. Opening, every use, and closing are all written
+to your own audit trail. Switching the policy to *Never* closes anything
+already open.
+
 ---
 
 ## 7F. Attendance validation
@@ -785,6 +815,10 @@ API consumer cannot strip the label off by accident.
 | POST     | `/api/org/invitations/accept`                           | Join as the signed-in account                              |
 | PATCH    | `/api/org/members/{user_id}`                            | Change a role, entity access, or both                      |
 | DELETE   | `/api/org/members/{user_id}`                            | Remove someone from the organization                       |
+| GET      | `/api/org/support`                                      | Policy, open sessions and history (owner or manager)       |
+| GET      | `/api/org/support/active`                               | Open sessions — visible to every member                    |
+| PUT      | `/api/org/support/policy`                               | Allow, require approval, or refuse support access          |
+| POST     | `/api/org/support/grants/{id}/approve`, `/revoke`       | Approve a request, or end a session now                    |
 | POST     | `/api/workforce/attendance/validate`                    | Check an attendance file against itself — stores nothing   |
 | GET      | `/api/workforce/attendance/bases`                       | The daily-rate bases a wage can be divided by              |
 | GET/POST | `/api/reconciliation/bank/profiles`                     | Bank file layouts for this entity                          |

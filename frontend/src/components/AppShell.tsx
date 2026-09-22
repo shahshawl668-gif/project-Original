@@ -32,6 +32,7 @@ import {
   Target,
   Scale,
   UserPlus,
+  KeyRound,
   CalendarDays,
   Banknote,
   BookOpen,
@@ -43,6 +44,7 @@ import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 import { EntitySwitcher } from "@/components/EntitySwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageTransition } from "@/components/motion/PageTransition";
+import { SupportBanner } from "@/components/SupportBanner";
 
 const navGroups = [
   {
@@ -107,7 +109,10 @@ function useNavGroups() {
       if (g.label !== "Configuration") return g;
       const adminItems =
         user?.role === "admin"
-          ? [{ href: "/admin/users", label: "Users & roles", icon: Shield }]
+          ? [
+              { href: "/admin/users", label: "Users & roles", icon: Shield },
+              { href: "/admin/support", label: "Support access", icon: KeyRound },
+            ]
           : [];
       return { ...g, items: [...adminItems, ...g.items] };
     });
@@ -413,6 +418,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
+
+        <SupportBanner />
 
         <main className="scrollbar-thin flex-1 overflow-y-auto">
           <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10 lg:py-9">

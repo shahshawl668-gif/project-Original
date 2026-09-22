@@ -11,6 +11,7 @@ import {
   Trash2,
   UserPlus,
   Users,
+  ShieldCheck,
 } from "lucide-react";
 
 import { Menu, MenuItem } from "@/components/cost/Menu";
@@ -18,6 +19,14 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
 import { fetchDimensions } from "@/lib/cost-analysis";
+import {
+  type SupportPolicy,
+  approveSupport,
+  fetchSupportStatus,
+  revokeSupport,
+  setSupportPolicy,
+  timeLeft,
+} from "@/lib/support";
 import {
   ROLES,
   ROLE_LABEL,
@@ -179,6 +188,8 @@ export default function TeamPage() {
           </div>
         </CardContent>
       </Card>
+
+      <SupportPanel />
 
       <Card>
         <CardContent className="py-5">
@@ -557,5 +568,139 @@ function MemberRow({
         )}
       </div>
     </div>
+  );
+}
+
+
+/**
+ * Whether the people who build this product may read your payroll to support it.
+ *
+ * The client's decision, not the vendor's — which is why it lives on their own
+ * settings page rather than in a contract nobody rereads.
+ */
+function SupportPanel() {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({ queryKey: ["support-status"], queryFn: fetchSupportStatus });
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["support-status"] });
+    queryClient.invalidateQueries({ queryKey: ["support-active"] });
+  };
+
+  const choose = useMutation({
+    mutationFn: (policy: SupportPolicy) => setSupportPolicy(policy),
+    onSuccess: refresh,
+  });
+  const revoke = useMutation({ mutationFn: revokeSupport, onSuccess: refresh });
+  const approve = useMutation({ mutationFn: approveSupport, onSuccess: refresh });
+
+  if (!data) return null;
+  const used = data.history.filter((g) => g.state !== "pending");
+
+  return (
+    <Card>
+      <CardContent className="py-5">
+        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900 dark:text-white">
+          <ShieldCheck size={16} className="text-ink-400" /> Support access
+        </h3>
+        <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+          Whether the people who build this product may read your data to help you, and
+          on what terms. Your decision — change it whenever you like.
+        </p>
+
+        <ul className="mb-4 space-y-1">
+          {data.always_true.map((line) => (
+            <li key={line} className="flex items-start gap-2 text-xs text-ink-600 dark:text-ink-300">
+              <Check size={13} className="mt-0.5 shrink-0 text-success-600" />
+              {line}
+            </li>
+          ))}
+        </ul>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          {data.policies.map((option) => {
+            const chosen = option.key === data.policy;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => !chosen && choose.mutate(option.key)}
+                disabled={choose.isPending}
+                className={cn(
+                  "rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-60",
+                  chosen
+                    ? "border-brand-500 bg-brand-50/70 dark:border-brand-400/50 dark:bg-brand-500/10"
+                    : "border-ink-200 hover:border-ink-300 dark:border-ink-700",
+                )}
+              >
+                <span className="block text-sm font-semibold text-ink-900 dark:text-white">
+                  {option.label}
+                </span>
+                <span className="block pt-0.5 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
+                  {option.hint}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {data.active.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {data.active.map((grant) => (
+              <div
+                key={grant.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger-200 bg-danger-50/60 px-3 py-2.5 dark:border-danger-500/25 dark:bg-danger-500/10"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink-900 dark:text-white">
+                    {grant.admin_email} · {grant.state} · {timeLeft(grant.expires_at)}
+                  </p>
+                  <p className="text-xs text-ink-600 dark:text-ink-300">
+                    &ldquo;{grant.reason}&rdquo; · used {grant.use_count ?? 0} time(s)
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {grant.state === "pending" && (
+                    <button
+                      type="button"
+                      onClick={() => approve.mutate(grant.id)}
+                      className="inline-flex h-8 items-center rounded-lg bg-brand-600 px-2.5 text-xs font-semibold text-white"
+                    >
+                      Approve
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => revoke.mutate(grant.id)}
+                    className="inline-flex h-8 items-center rounded-lg border border-ink-300 px-2.5 text-xs font-semibold text-ink-800 dark:border-ink-600 dark:text-ink-100"
+                  >
+                    {grant.state === "pending" ? "Decline" : "End it now"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {used.length > 0 && (
+          <details className="pt-4">
+            <summary className="cursor-pointer text-xs font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400">
+              {used.length} past session{used.length === 1 ? "" : "s"}
+            </summary>
+            <div className="divide-y divide-ink-200/70 pt-2 dark:divide-ink-700/60">
+              {used.map((grant) => (
+                <p key={grant.id} className="py-2 text-xs text-ink-500 dark:text-ink-400">
+                  <span className="font-medium text-ink-700 dark:text-ink-200">
+                    {grant.admin_email}
+                  </span>{" "}
+                  · {grant.state} · {formatWhen(grant.requested_at ?? null)} · used{" "}
+                  {grant.use_count ?? 0} time(s) — &ldquo;{grant.reason}&rdquo;
+                </p>
+              ))}
+            </div>
+          </details>
+        )}
+      </CardContent>
+    </Card>
   );
 }
