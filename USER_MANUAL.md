@@ -453,6 +453,70 @@ mistaken for an approved record.
 
 ---
 
+## 7E2. Team and invitations
+
+**UI:** Configuration → **Team & invitations**.
+
+An organization starts with the one member signup created. Everyone else is
+invited.
+
+### Inviting
+
+Owners and managers invite; analysts and viewers cannot. **You can only invite
+at your own level or below** — a manager cannot mint an owner, or the role
+ladder would be decorative. An invitation optionally narrows the new member to
+named entities; leave it empty for the whole organization.
+
+The response carries a **link, shown once**. Only a hash of its token is
+stored, so nothing can produce it again — a database that leaks hands the reader
+no working invitations into anyone's payroll. Send the link yourself; if it is
+lost, issue a new one, which retires the old token.
+
+Invitations expire after seven days by default. An unaccepted invitation is an
+outstanding key to a month of salary data, and one that sat in an inbox for a
+year is not a key anybody still intends to exist.
+
+### Accepting
+
+The link opens a page naming the organization, the role and the entities on
+offer. What happens next depends on the address:
+
+| Situation | What they do |
+|---|---|
+| No account yet | Choose a password. The account is created **as the invited address** — the page never offers an email field, so a valid link cannot be spent creating an account under another name |
+| Account exists | Sign in, then open the link again |
+| Signed in as someone else | The page says so. The invitation is bound to its address |
+
+A token is not an identity: a link that is forwarded, left in a mailbox or
+pasted into a ticket is worth nothing to anyone who is not the invited person.
+
+Someone who already belongs to another organization cannot accept — a person is
+a member of one organization at a time, and silently moving them would take
+their existing employer's data out from under them.
+
+### Managing members
+
+| Action | Who |
+|---|---|
+| Change a role | Owners and managers, on people at or below their own level |
+| Change entity access | Same. An empty list widens them to every entity |
+| Remove a member | Same. Their uploads and audit trail stay |
+
+Two things nobody can do, in any role:
+
+- **Change your own role.** Upwards is self-escalation; downwards is how an
+  organization ends up with nobody who can administer it.
+- **Remove yourself.** Same reason.
+
+The last owner is protected too: an organization with no owner cannot add
+entities, approve a budget, approve the JV mapping or sign off a period, and it
+cannot recover from inside the product.
+
+Every invitation, join, role change and removal is written to the audit trail
+with who did it and when.
+
+---
+
 ## 7F. Attendance validation
 
 Fifteen `ATT-*` rules in two groups, doing two different jobs.
@@ -713,6 +777,14 @@ API consumer cannot strip the label off by accident.
 | GET/POST | `/api/minimum-wage/rates`, `/rates/import`, `/coverage` | Rate table and gaps in it                                 |
 | POST     | `/api/signoff/submit`, `/api/signoff/sign`              | Prepare and approve a period                              |
 | GET      | `/api/signoff/{period}/evidence-pack`                   | Evidence workbook                                         |
+| GET/POST | `/api/org/invitations`                                  | List and issue invitations (owner or manager)              |
+| POST     | `/api/org/invitations/{id}/resend`                      | New token, new clock. Retires the old one                  |
+| DELETE   | `/api/org/invitations/{id}`                             | Revoke an outstanding invitation                           |
+| GET      | `/api/org/invitations/lookup?token=`                    | Preview — no session needed                                |
+| POST     | `/api/org/invitations/register`                         | Create the invited account and join                        |
+| POST     | `/api/org/invitations/accept`                           | Join as the signed-in account                              |
+| PATCH    | `/api/org/members/{user_id}`                            | Change a role, entity access, or both                      |
+| DELETE   | `/api/org/members/{user_id}`                            | Remove someone from the organization                       |
 | POST     | `/api/workforce/attendance/validate`                    | Check an attendance file against itself — stores nothing   |
 | GET      | `/api/workforce/attendance/bases`                       | The daily-rate bases a wage can be divided by              |
 | GET/POST | `/api/reconciliation/bank/profiles`                     | Bank file layouts for this entity                          |
@@ -782,8 +854,6 @@ Health: `**GET /api/health`**
   explains; it does not independently recompute gross from CTC and attendance.
 - **F&F:** no dedicated leave encashment / notice pay modules.
 - **PDF** audit report not built — use the **Excel** evidence pack.
-- **Invitations** are not built: members are added to an organization directly
-  in the database rather than by email invite.
 - **No rate limiting on authentication.** Add it at the edge before opening
   public signup.
 

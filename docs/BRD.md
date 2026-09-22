@@ -7,7 +7,7 @@
 | Document owner | Product |
 | Status | Baseline for first production release |
 | Applies to | `backend/` FastAPI service, `frontend/` Next.js app |
-| Last verified against code | 730 automated tests passing on SQLite and PostgreSQL 16 |
+| Last verified against code | 770 automated tests passing on SQLite and PostgreSQL 16 |
 
 ---
 
@@ -123,6 +123,16 @@ to a stable pseudonym (`EMP-3F9A2C`) derived by HMAC, not a reversible hash. Any
 caller may request masking for a session; nobody can request their way *out* of
 it, because that decision belongs to their role.
 
+**R2b — Platform role and organisation role are separate axes.** `User.role`
+governs account administration only and grants **no data access**: entity access
+is decided by organisation membership, which never consults it. A platform
+administrator therefore cannot read any client's payroll unless they are also a
+member of that organisation. This is deliberate — a standing developer login
+over every client's salary, PAN and bank data is the most attractive single
+target in the system, and unbounded access under the DPDP Act would have to be
+justified at every client's security review. Support access, when built, is
+time-boxed, reason-required and audited rather than permanent.
+
 **R3 — Pay equity is doubly gated.** The analysis runs only where (a) the entity
 has switched it on, recorded with who did so and when, and (b) the caller is an
 owner or manager. India mandates no gender pay reporting; running it is the
@@ -229,7 +239,8 @@ and the only one that can detect account substitution.
 
 | # | Requirement |
 |---|---|
-| F5.1 | Append-only audit trail of every upload, configuration change, approval and sign-off, with actor and timestamp |
+| F5.0 | An organization builds its own team: owners and managers invite by link, at their own level or below, optionally scoped to named entities. Only a hash of the token is stored and the link is shown once. Acceptance requires the invited address. Nobody may change their own role or remove themselves, and the last owner is protected |
+| F5.1 | Append-only audit trail of every upload, configuration change, approval and sign-off, with actor and timestamp. Organization-level events — invitations, role changes, removals — are scoped by organization rather than entity, so they are readable rather than merely written |
 | F5.2 | Period sign-off with an evidence pack: what was checked, found, accepted, by whom, and which rules and rates were in force |
 | F5.3 | Every report carries a provenance sheet naming its inputs, filters, masking state, generator and generation time |
 | F5.4 | Absence of evidence is reported as loudly as error — a month with no bank file is *unreconciled*, not clean |

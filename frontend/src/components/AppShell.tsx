@@ -31,6 +31,7 @@ import {
   ScrollText,
   Target,
   Scale,
+  UserPlus,
   CalendarDays,
   Banknote,
   BookOpen,
@@ -82,6 +83,7 @@ const navGroups = [
     items: [
       { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
       { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
+      { href: "/config/team", label: "Team & invitations", icon: UserPlus },
       { href: "/config/components", label: "Salary components", icon: Layers },
       { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
       { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },

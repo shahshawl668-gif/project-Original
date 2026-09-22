@@ -19,6 +19,7 @@ def record(
     summary: str,
     object_id: str | None = None,
     detail: dict | None = None,
+    org_id: uuid.UUID | None = None,
 ) -> AuditEvent:
     """
     Write one audit row.
@@ -29,6 +30,7 @@ def record(
     """
     event = AuditEvent(
         entity_id=entity_id,
+        org_id=org_id,
         user_id=getattr(user, "id", None),
         user_email=getattr(user, "email", None),
         action=action,
@@ -47,8 +49,22 @@ def history(
     *,
     limit: int = 100,
     action: str | None = None,
+    org_id: uuid.UUID | None = None,
 ) -> list[dict]:
-    query = db.query(AuditEvent).filter(AuditEvent.entity_id == entity_id)
+    """
+    The trail for one entity, plus the organization-level events around it.
+
+    Membership changes belong to the organization rather than to any one
+    entity, so they carry no ``entity_id``. Reading only by entity would write
+    them and never show them. ``org_id`` is required to see them, and scopes
+    them, so one organization's membership history never reaches another.
+    """
+    from sqlalchemy import or_
+
+    scope = AuditEvent.entity_id == entity_id
+    if org_id is not None:
+        scope = or_(scope, AuditEvent.org_id == org_id)
+    query = db.query(AuditEvent).filter(scope)
     if action:
         query = query.filter(AuditEvent.action == action)
     events = query.order_by(AuditEvent.created_at.desc()).limit(limit).all()

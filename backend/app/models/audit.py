@@ -25,6 +25,13 @@ class AuditEvent(Base):
     entity_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("entities.id", ondelete="CASCADE"), index=True
     )
+    # Some things happen to the organization rather than to one of its
+    # entities: inviting a member, changing a role, removing someone. Those
+    # carry no entity_id, and without an org to scope them by they would be
+    # written and then be unreadable — a silent hole in the trail.
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
     )
