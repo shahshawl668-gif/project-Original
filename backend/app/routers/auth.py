@@ -1,8 +1,8 @@
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from jose import JWTError
 from sqlalchemy.orm import Session
 
@@ -40,7 +40,7 @@ def _issue_tokens(db: Session, user: User) -> TokenPair:
     rt = RefreshToken(
         user_id=user.id,
         token_hash=token_fingerprint(refresh),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
+        expires_at=datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days),
     )
     db.add(rt)
     db.commit()
@@ -106,7 +106,7 @@ def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
     row = (
         db.query(RefreshToken)
         .filter(RefreshToken.user_id == uid, RefreshToken.token_hash == fp)
-        .filter(RefreshToken.expires_at > datetime.now(timezone.utc))
+        .filter(RefreshToken.expires_at > datetime.now(UTC))
         .first()
     )
     if not row:
@@ -157,7 +157,7 @@ def password_reset_request(body: PasswordResetRequest, db: Session = Depends(get
     pr = PasswordResetToken(
         user_id=user.id,
         token_hash=token_fingerprint(raw),
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
     )
     db.add(pr)
     db.commit()
@@ -170,7 +170,7 @@ def password_reset_confirm(body: PasswordResetConfirm, db: Session = Depends(get
     row = (
         db.query(PasswordResetToken)
         .filter(PasswordResetToken.token_hash == fp, PasswordResetToken.used_at.is_(None))
-        .filter(PasswordResetToken.expires_at > datetime.now(timezone.utc))
+        .filter(PasswordResetToken.expires_at > datetime.now(UTC))
         .first()
     )
     if not row:
@@ -179,7 +179,7 @@ def password_reset_confirm(body: PasswordResetConfirm, db: Session = Depends(get
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
     user.password_hash = hash_password(body.new_password)
-    row.used_at = datetime.now(timezone.utc)
+    row.used_at = datetime.now(UTC)
     db.add(user)
     db.commit()
-    return ok({"password_updated": True})
+    return ok({"password_updated": True})  # nosec B105

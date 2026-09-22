@@ -222,6 +222,40 @@ REPORTED_COLUMNS: dict[str, tuple[str, ...]] = {
 }
 
 
+# What a register calls the amount it told the bank to pay. Captured apart from
+# the statutory figures above because it is not a deduction: it is the result of
+# all of them, and it is the only figure a bank file can be matched against.
+NET_PAY_COLUMNS: tuple[str, ...] = (
+    "net_pay", "net_salary", "net_amount", "net_payable", "net",
+    "take_home", "takehome", "net_pay_amount", "amount_payable", "payable_amount",
+)
+
+
+def capture_net_pay(row: dict[str, Any]) -> Decimal | None:
+    """
+    The net pay a register row states, or ``None`` where it states none.
+
+    ``None`` and zero are kept distinct throughout: a register with no net-pay
+    column has not told us what it paid, whereas one that says 0.00 is asserting
+    that this employee was paid nothing. Only the second is reconcilable.
+    """
+    from app.services.payroll_parse import normalize_col
+
+    normalised = {normalize_col(str(k)): v for k, v in row.items() if k is not None}
+    for alias in NET_PAY_COLUMNS:
+        if alias not in normalised:
+            continue
+        raw = normalised[alias]
+        if raw in (None, ""):
+            continue
+        try:
+            return _q(_dec(raw))
+        except Exception:  # nosec B112
+            # Try the next spelling rather than abandoning the row.
+            continue
+    return None
+
+
 def capture_reported(row: dict[str, Any]) -> dict[str, float]:
     """
     The statutory figures a register row states for itself.
@@ -243,7 +277,9 @@ def capture_reported(row: dict[str, Any]) -> dict[str, float]:
                 continue
             try:
                 out[measure] = float(_dec(raw))
-            except Exception:
+            except Exception:  # nosec B112
+                # A cell that will not parse as a number is skipped so the
+                # next alias for this measure can be tried.
                 continue
             break
     return out

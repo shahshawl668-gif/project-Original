@@ -10,7 +10,7 @@ The log is append-only by construction: there is no update path and no delete
 path in the service that writes it. An audit trail that can be edited is not one.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
@@ -24,6 +24,13 @@ class AuditEvent(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("entities.id", ondelete="CASCADE"), index=True
+    )
+    # Some things happen to the organization rather than to one of its
+    # entities: inviting a member, changing a role, removing someone. Those
+    # carry no entity_id, and without an org to scope them by they would be
+    # written and then be unreadable — a silent hole in the trail.
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), index=True
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL")
@@ -40,5 +47,5 @@ class AuditEvent(Base):
     # SQLite's now() is second-resolution, so two events written in the same
     # request would tie and the trail would order them by a random UUID.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
     )

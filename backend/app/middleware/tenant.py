@@ -20,6 +20,8 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                     if sub:
                         request.state.user_id = sub
                         request.state.tenant_id = sub
-            except Exception:
+            except Exception:  # nosec B110
+                # A token this middleware cannot read is not an error here:
+                # the auth dependency rejects it properly further in.
                 pass
         return await call_next(request)

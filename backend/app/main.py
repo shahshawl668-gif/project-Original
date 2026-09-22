@@ -50,7 +50,9 @@ def _ensure_system_user(db) -> None:
         return
     user = User(
         email=SYSTEM_USER_EMAIL,
-        password_hash="__no_auth__",
+        # A sentinel in the *hash* column, not a password: it is not a valid
+        # bcrypt hash, so no credential can ever verify against it.
+        password_hash="__no_auth__",  # nosec B106
         company_name="PayrollCheck",
         role="system",
     )

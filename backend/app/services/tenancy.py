@@ -92,10 +92,26 @@ def get_membership(db: Session, user: User) -> OrgMembership | None:
 
 
 def accessible_entities(db: Session, user: User) -> list[Entity]:
-    """Every entity the user may open, newest-membership org first."""
+    """
+    Every entity the user may open, newest-membership org first.
+
+    A live support grant adds that organization's entities to the list, so the
+    switcher can reach them — but they are appended after the user's own, and
+    carry no role, so nothing about them becomes writable.
+    """
+    from app.services import support_access
+
+    supported = support_access.granted_org_ids(db, user)
     membership = get_membership(db, user)
     if membership is None:
-        return []
+        if not supported:
+            return []
+        return (
+            db.query(Entity)
+            .filter(Entity.org_id.in_(supported), Entity.is_active.is_(True))
+            .order_by(Entity.name)
+            .all()
+        )
 
     query = db.query(Entity).filter(
         Entity.org_id == membership.org_id,
@@ -112,7 +128,16 @@ def accessible_entities(db: Session, user: User) -> list[Entity]:
     if restricted:
         query = query.filter(Entity.id.in_(restricted))
 
-    return query.order_by(Entity.name).all()
+    own = query.order_by(Entity.name).all()
+    if not supported:
+        return own
+    granted = (
+        db.query(Entity)
+        .filter(Entity.org_id.in_(supported), Entity.is_active.is_(True))
+        .order_by(Entity.name)
+        .all()
+    )
+    return own + [e for e in granted if e.org_id != membership.org_id]
 
 
 def default_entity(db: Session, user: User) -> Entity | None:
@@ -154,10 +179,27 @@ def set_default_entity(db: Session, user: User, entity: Entity) -> None:
     db.add(membership)
 
 
+def support_grant_for(db: Session, user: User, entity: Entity):
+    """
+    A live break-glass grant letting this user read this entity, or ``None``.
+
+    Kept separate from membership rather than folded into it: a support session
+    is not a seat in the organization, and every caller that asks "what may this
+    person do" must be able to tell the two apart. Roles come from membership
+    only, so a support user has no role and therefore no write access anywhere.
+    """
+    from app.services import support_access
+
+    return support_access.active_grant(db, user, entity.org_id)
+
+
 def can_access_entity(db: Session, user: User, entity: Entity) -> bool:
     membership = get_membership(db, user)
     if membership is None or membership.org_id != entity.org_id:
-        return False
+        # Not a member. The only other way in is a live support grant, which is
+        # time-boxed, reasoned, read-only and written to this organization's own
+        # audit trail when it was opened.
+        return support_grant_for(db, user, entity) is not None
     restricted = (
         db.query(EntityAccess)
         .filter(EntityAccess.user_id == user.id, EntityAccess.org_id == membership.org_id)
@@ -174,6 +216,13 @@ def can_access_entity(db: Session, user: User, entity: Entity) -> bool:
 
 
 def role_at_least(db: Session, user: User, minimum: str) -> bool:
+    """
+    Whether the user holds at least this role in their own organization.
+
+    Reads membership only, never a support grant — which is what makes a
+    support session read-only without a single explicit check: every mutating
+    endpoint in the product is gated on this, and a support user has no seat.
+    """
     membership = get_membership(db, user)
     if membership is None:
         return False

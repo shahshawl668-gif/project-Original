@@ -23,7 +23,6 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -261,6 +260,10 @@ def compensation_analysis(
             "group_by": group_by, "group_by_label": DIMENSION_LABELS[group_by],
             "overall": _stats([]), "groups": [], "distribution": [],
             "mix": {"fixed": 0.0, "variable": 0.0, "fixed_pct": 0.0, "variable_pct": 0.0},
+            # Present and empty, not absent. The router masks this list on the
+            # way out, so a missing key is a 500 on every workspace that has not
+            # uploaded a register yet — which is every new one.
+            "employees": [],
         }
 
     rows = (

@@ -1,0 +1,46 @@
+# Static analysis configuration. There was none until now: 18,000 lines of
+# Python with tests as the only gate. The first ruff run found three shipped
+# endpoints that raised NameError on every call — the PT/LWF slabs screen and
+# both income-tax calculators — each a leftover from the entity refactor that no
+# test happened to touch.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+extend-exclude = [".venv", "__pycache__"]
+
+[tool.ruff.lint]
+# E4/E7/E9 + F are ruff's default and are the bug-finding half: undefined names,
+# unused imports, syntax that will not do what it looks like. The rest are
+# cheap and were already almost clean.
+#   B   bugbear — real bug shapes
+#   SIM simplifiable constructs
+#   UP  syntax available on the Python this targets
+#   C4  comprehension and literal misuse
+select = ["E4", "E7", "E9", "F", "B", "SIM", "UP", "C4"]
+
+# B904 (`raise ... from err` inside an except clause) is deferred rather than
+# dismissed: it is 33 real sites, all of them translating an internal error into
+# a client-facing 4xx, and they deserve their own change rather than riding
+# along with the commit that introduces the linter.
+ignore = ["B904"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's whole dependency-injection idiom is a function call in an argument
+# default. Without this, B008 fires 417 times and says nothing.
+extend-immutable-calls = [
+  "fastapi.Depends", "fastapi.Query", "fastapi.File", "fastapi.Form",
+  "fastapi.Body", "fastapi.Header", "fastapi.Path",
+  "Depends", "Query", "File", "Form", "Body", "Header", "Path",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# A test that asserts on an unused import, or binds a fixture it never reads,
+# is not a defect.
+"tests/*" = ["F811"]
+
+[tool.bandit]
+# Scanned over `app` only. Test code legitimately does things bandit dislikes —
+# hardcoded fixture passwords above all — and flagging them trains people to
+# ignore the tool.
+exclude_dirs = ["tests", ".venv", "__pycache__"]

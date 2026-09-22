@@ -30,6 +30,12 @@ import {
   FileDown,
   ScrollText,
   Target,
+  Scale,
+  UserPlus,
+  KeyRound,
+  CalendarDays,
+  Banknote,
+  BookOpen,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -38,6 +44,7 @@ import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 import { EntitySwitcher } from "@/components/EntitySwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageTransition } from "@/components/motion/PageTransition";
+import { SupportBanner } from "@/components/SupportBanner";
 
 const navGroups = [
   {
@@ -52,9 +59,18 @@ const navGroups = [
     label: "Payroll",
     items: [
       { href: "/payroll/upload", label: "Upload & validate", icon: UploadCloud },
+      { href: "/payroll/attendance", label: "Attendance", icon: CalendarDays },
       { href: "/payroll/results", label: "Results", icon: ClipboardCheck },
       { href: "/payroll/history", label: "Register history", icon: History },
       { href: "/budget/upload", label: "Upload budget", icon: Target },
+    ],
+  },
+  {
+    label: "Reconciliation",
+    items: [
+      { href: "/reconciliation", label: "Month close", icon: Scale },
+      { href: "/reconciliation/bank", label: "Bank payments", icon: Banknote },
+      { href: "/reconciliation/jv", label: "Journal voucher", icon: BookOpen },
     ],
   },
   {
@@ -69,7 +85,10 @@ const navGroups = [
     items: [
       { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
       { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
+      { href: "/config/team", label: "Team & invitations", icon: UserPlus },
       { href: "/config/components", label: "Salary components", icon: Layers },
+      { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
+      { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
       { href: "/audit", label: "Audit trail", icon: ScrollText },
     ],
@@ -90,7 +109,10 @@ function useNavGroups() {
       if (g.label !== "Configuration") return g;
       const adminItems =
         user?.role === "admin"
-          ? [{ href: "/admin/users", label: "Users & roles", icon: Shield }]
+          ? [
+              { href: "/admin/users", label: "Users & roles", icon: Shield },
+              { href: "/admin/support", label: "Support access", icon: KeyRound },
+            ]
           : [];
       return { ...g, items: [...adminItems, ...g.items] };
     });
@@ -396,6 +418,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
+
+        <SupportBanner />
 
         <main className="scrollbar-thin flex-1 overflow-y-auto">
           <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10 lg:py-9">

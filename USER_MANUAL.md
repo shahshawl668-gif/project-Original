@@ -25,6 +25,27 @@ and answers two questions about the output.
   processed consistently looks perfectly valid.
 - **Scores** each employee 0–100 (LOW / MEDIUM / HIGH).
 
+**Did the days that were worked reach the payslip?**
+
+- **Checks the attendance file against itself** before it is stored — days that
+  do not sum to the month, paid days contradicting loss of pay, a wrong month
+  length, duplicate rows.
+- **Checks pay against attendance** — loss of pay recorded and never deducted,
+  overtime worked and never paid, an employee on the attendance register and on
+  no payslip at all. These are invisible to every register-level check, because
+  a register processed from the wrong number of days is still perfectly
+  consistent with itself.
+
+**Did the money reach the bank, and the cost reach the ledger?**
+
+- **Bank reconciliation** — the payment file against net pay due, employee by
+  employee, matched on employee code alone. Finds the employee who was due pay
+  and never paid, the payee on no register, and the payment going to an account
+  that is not the one on the employee master.
+- **Journal voucher** — builds the month's voucher from your own chart of
+  accounts and your own posting policy, and checks it balances and equals the
+  payroll cost the dashboard reports.
+
 **What is this costing and what are we exposed to?**
 
 - **Cost bridge** — why payroll cost moved month on month, split into joiners,
@@ -319,6 +340,16 @@ OT days. Give it any two of calendar, paid and LOP and the third is derived — 
 if you state all three and they disagree, that disagreement is reported rather
 than quietly corrected.
 
+**Check it first.** `POST /api/workforce/attendance/validate` — UI: Payroll →
+**Attendance** → *Check the file* — runs the file against itself and stores
+nothing. Use it before committing: an attendance file that does not add up is
+not a file anyone can reconcile payroll against, and finding that out first
+costs nothing.
+
+The ordering matters. Once paid days have been derived from loss of pay the two
+can never disagree, so the same check run *after* committing would pass every
+file — including the ones that stated both figures and contradicted themselves.
+
 Re-committing the same period or effective date **replaces** it, so a corrected
 file is simply sent again.
 
@@ -422,6 +453,330 @@ mistaken for an approved record.
 
 ---
 
+## 7E2. Team and invitations
+
+**UI:** Configuration → **Team & invitations**.
+
+An organization starts with the one member signup created. Everyone else is
+invited.
+
+### Inviting
+
+Owners and managers invite; analysts and viewers cannot. **You can only invite
+at your own level or below** — a manager cannot mint an owner, or the role
+ladder would be decorative. An invitation optionally narrows the new member to
+named entities; leave it empty for the whole organization.
+
+The response carries a **link, shown once**. Only a hash of its token is
+stored, so nothing can produce it again — a database that leaks hands the reader
+no working invitations into anyone's payroll. Send the link yourself; if it is
+lost, issue a new one, which retires the old token.
+
+Invitations expire after seven days by default. An unaccepted invitation is an
+outstanding key to a month of salary data, and one that sat in an inbox for a
+year is not a key anybody still intends to exist.
+
+### Accepting
+
+The link opens a page naming the organization, the role and the entities on
+offer. What happens next depends on the address:
+
+| Situation | What they do |
+|---|---|
+| No account yet | Choose a password. The account is created **as the invited address** — the page never offers an email field, so a valid link cannot be spent creating an account under another name |
+| Account exists | Sign in, then open the link again |
+| Signed in as someone else | The page says so. The invitation is bound to its address |
+
+A token is not an identity: a link that is forwarded, left in a mailbox or
+pasted into a ticket is worth nothing to anyone who is not the invited person.
+
+Someone who already belongs to another organization cannot accept — a person is
+a member of one organization at a time, and silently moving them would take
+their existing employer's data out from under them.
+
+### Managing members
+
+| Action | Who |
+|---|---|
+| Change a role | Owners and managers, on people at or below their own level |
+| Change entity access | Same. An empty list widens them to every entity |
+| Remove a member | Same. Their uploads and audit trail stay |
+
+Two things nobody can do, in any role:
+
+- **Change your own role.** Upwards is self-escalation; downwards is how an
+  organization ends up with nobody who can administer it.
+- **Remove yourself.** Same reason.
+
+The last owner is protected too: an organization with no owner cannot add
+entities, approve a budget, approve the JV mapping or sign off a period, and it
+cannot recover from inside the product.
+
+Every invitation, join, role change and removal is written to the audit trail
+with who did it and when.
+
+### Support access
+
+**UI:** Configuration → **Team & invitations** → Support access.
+
+The people who build this product cannot read your data. Entity access comes
+from organization membership, and a platform administrator has none here — so
+supporting you needs your permission, on terms you set.
+
+| Policy | What it means |
+|---|---|
+| **Allow, and tell us** (default) | An engineer can open a time-boxed session with a stated reason. You see it immediately and can end it |
+| **Ask us first** | Nothing opens until an owner here approves. Safer, and slower when you are the one waiting on a fix |
+| **Never** | No session can be opened at all |
+
+Three things are always true and are not settings:
+
+- **Read-only.** A support session cannot change anything — not a register, not
+  a configuration, not an approval.
+- **Identities are masked**, exactly as they are for a viewer. Almost no bug
+  lives in an individual salary; they live in configuration, findings and
+  totals, which masking leaves entirely legible.
+- **It expires on its own**, within eight hours at the outside, and you can end
+  it instantly.
+
+While a session is open, a banner appears for **every member** of the
+organization — not just owners — naming who is looking, why and how long is
+left, with a button to end it. Opening, every use, and closing are all written
+to your own audit trail. Switching the policy to *Never* closes anything
+already open.
+
+---
+
+## 7F. Attendance validation
+
+Fifteen `ATT-*` rules in two groups, doing two different jobs.
+
+**The file against itself**, run by *Check the file* before anything is stored:
+
+| Rule | Fires when |
+|---|---|
+| `ATT-010` | Present + paid leave + weekly off + holiday + LOP ≠ the month |
+| `ATT-011` | Paid days do not match calendar days less loss of pay |
+| `ATT-012` | The file claims a month length the month does not have |
+| `ATT-013` | A negative day count, or more days than the month holds |
+| `ATT-014` | The same employee on two rows — only the first is stored, and you are told |
+
+`ATT-011` fires **only where the file stated both figures**. A file that stated
+one and had the other derived cannot contradict itself, and flagging it would be
+reporting our own arithmetic back at you.
+
+**Pay against attendance**, run when the salary register for the month is
+validated:
+
+| Rule | Fires when |
+|---|---|
+| `ATT-020` | Loss of pay recorded and pay not reduced — reported in rupees |
+| `ATT-021` | Zero paid days and a payment issued anyway |
+| `ATT-022` | Overtime hours recorded and no overtime paid |
+| `ATT-023` | Overtime paid below twice ordinary wages (Factories Act s.59) |
+| `ATT-015` | On the attendance register and on no payslip at all |
+| `ATT-024` | The loss-of-pay deduction could not be checked — see below |
+
+### Where the baseline comes from
+
+Checking a loss-of-pay deduction needs to know what a **full month** would have
+paid. The register only shows what *was* paid — already reduced, or not, which
+is the very question. So the baseline is taken, in order:
+
+1. the **agreed CTC** where one is uploaded — a contract rather than an
+   observation, and unaffected by whatever happened to the month being checked;
+2. otherwise **a prior month that carried no loss of pay**;
+3. otherwise **nothing**, and `ATT-024` reports that the check could not run.
+
+A prior month that itself had loss of pay is refused as a baseline — it would
+make a second reduced month look correct. Upload the CTC master and the check
+starts working from the next run.
+
+### The daily-rate basis changes the money
+
+A day of loss of pay is worth the monthly wage divided by a basis, and companies
+divide three different ways:
+
+| Basis | Divisor | Used by |
+|---|---|---|
+| `calendar` | days in the month | the default; a day costs more in February |
+| `fixed_26` | 26 | the six-day week the Payment of Wages Act and the gratuity formula assume |
+| `fixed_30` | 30 | a flat convention many payroll systems ship with |
+
+Set it under **Configuration → Income tax & thresholds → attendance**
+(`PUT /api/config/statutory/rule-thresholds`, key `attendance.paid_days_basis`).
+Two days of loss of pay on a ₹42,000 month is ₹2,800 on a 30-day basis and
+₹3,230.77 on a 26-day one — so the finding always names the basis it used.
+
+---
+
+## 7G. Bank file and journal voucher reconciliation
+
+Payroll produces three numbers a month and the payroll system has no independent
+view of any of them: the register says what was **due**, the bank file says what
+was **paid**, the voucher says what was **booked**. This module holds the three
+against each other.
+
+**UI:** Reconciliation → Month close / Bank payments / Journal voucher.
+
+### Bank file profiles
+
+There is no standard bank payment file. Column order, rupees versus paise,
+header and trailer rows, delimiters — all vary by bank and by how a given
+corporate account was provisioned. So a layout is **configuration**:
+Configuration → **Bank file profiles**.
+
+| Setting | Options |
+|---|---|
+| Layout | delimited (any delimiter), fixed width, Excel |
+| Amount unit | rupees or paise |
+| Sign | as written, always positive, or flipped |
+| Employee code | trim, upper-case, drop leading zeros, digits only, letters and digits |
+| Rows | header present, rows to skip, trailer rows to drop |
+| Row filter | keep only rows matching a column, for statements carrying more than salary |
+
+Presets for common channels are offered as **starting points, not bank
+specifications** — a corporate account can be provisioned with a different
+column set and banks revise their formats. **Always use *Test against a real
+file*** before trusting a mapping: it shows what the profile produced, row by
+row, and stores nothing. A reconciliation built on a guessed column agrees with
+itself perfectly and proves nothing.
+
+A control total on the last line is not a payment. Set *trailer rows* to drop
+it, and it is then read as the file's own stated total and compared with the sum
+of the lines — a file that disagrees with its own trailer has been truncated or
+edited.
+
+### What the bank reconciliation finds
+
+Matching is on **employee code alone**. Not name — two people are routinely
+called the same thing, and the fraud worth catching has the right name and the
+wrong account. Not amount — matching on amount would pair an employee with a
+colleague on the same salary and report a clean run.
+
+| Exception | Severity | Meaning |
+|---|---|---|
+| `bank.account_differs_from_master` | high | Paid to an account that is not the one on the employee master |
+| `bank.not_in_register` | high | A payment to a code the register does not contain |
+| `bank.not_in_file` | high | Due pay with no payment line |
+| `bank.duplicate_payment` | high | The same employee on more than one line |
+| `bank.shared_account` | high | Two employees paid into one account |
+| `bank.returned` | high | The bank marked the payment rejected or returned |
+| `bank.amount_mismatch` | high | Paid an amount that is not the net due |
+| `bank.total_mismatch` | high | The file total is not net pay due for the month |
+| `net.stated_vs_computed` | medium | The register's stated net is not its own gross less deductions |
+
+Twenty-six kinds in all; `GET /api/reconciliation/exceptions` returns every one
+with what it means and what to do.
+
+The account check compares against the master **as it stood at that period**, not
+as it stands today — an account changed in September must not make June's
+payment look correct in hindsight.
+
+### Journal voucher templates
+
+There is no standard payroll JV either: the accounts are your chart, the split
+is whatever your ERP posts by, and whether gratuity is an expense this month or a
+year-end provision is an accounting policy. So a template is configuration:
+Configuration → **JV templates**.
+
+A template is ordered rules, each mapping **measures from the cost taxonomy** to
+an account and a side. That indirection is the point — a line mapped to `er_pf`
+posts exactly the employer PF the cost dashboard reports, from the same costing
+pass, so the ledger and the dashboard cannot tell two different stories.
+
+| Option | Choices |
+|---|---|
+| Posting basis | accrual (gratuity monthly) or cash (no gratuity accrual) |
+| Split | one voucher, or one per cost centre |
+| Cost centre is | any of the nine dimensions |
+| Detail | one line per account, per component, or per employee |
+| Amounts | debit and credit columns, or one signed column |
+| Voucher date | month end, month start, or first of the following month |
+| Net pay from | computed (gross less deductions) or the register's stated net |
+| Rounding | report the difference, post to an account, or absorb into the largest line |
+| Export | generic, Tally-style, SAP-style, Zoho-style CSV, or JSON |
+
+Start from a supplied template and replace the placeholder account codes with
+your own. Exports are shaped like each system's import file, which is **not the
+same as being its specification** — run the first month through the target
+system's own import preview before trusting it.
+
+### Why a correct template balances by itself
+
+```
+debits  = gross + employer contributions
+credits = employer contributions + deductions + net
+        = employer + deductions + (gross − deductions)
+        = employer + gross
+```
+
+The two sides are the same figure, so the balance check is a real test of *your*
+mapping rather than a formality. Forget to credit TDS payable and the credits
+fall short by exactly the TDS — and `jv.measure_unmapped` names it.
+
+### Approval, and keeping the result
+
+A template is a **draft** until an owner or manager approves it. Editing an
+approved template withdraws its approval: the mapping that posts to your general
+ledger is re-approved when it changes.
+
+*Keep and close* stores the reconciliation with every exception. Closing records
+that a named person looked at them and accepted the position — it never erases
+them. A reconciliation is only a control if it leaves a record.
+
+### Nothing is reported as reconciled that was not compared
+
+A month with no bank file is **unreconciled**, not clean, and the Month close
+screen and the Excel pack both say so in words. An absent sheet reads as a clean
+month, which is the one impression this module must never give.
+
+---
+
+## 7H. Cost analysis
+
+**UI:** Overview → **Cost analysis**. Nine views over one taxonomy, with every
+chart clickable — clicking a bar filters the whole page to that value.
+
+| View | Answers |
+|---|---|
+| Overview | Total CTC, where it goes, and by whom |
+| Earnings | Basic & DA, HRA, allowances, variable pay, arrears |
+| Employer contributions | EPF, EDLI and admin, ESI, gratuity, LWF |
+| Deductions & net | Employee EPF and ESI, PT, LWF, TDS |
+| Headcount & variance | Joiners, exits, closing, cost per head |
+| Compensation & benefits | Median, quartiles, spread, fixed versus variable |
+| Pay equity | Gender pay gap — authorisation required |
+| Budget & forecast | Actual against the approved budget, and scenarios |
+| Filing readiness | EPF ECR, ESIC, PT, Form 24Q |
+
+**The identity everything rests on:** `CTC = earnings + employer contributions`.
+Deductions sit *inside* gross and are never added on top — adding them would
+double-count money already inside gross, which is the commonest way a payroll
+cost report overstates itself.
+
+**Reported beats computed.** Where the register states a statutory figure, that
+figure is reported; the engine computes only to fill a gap. Every response says
+how much of the total it read versus computed. Gratuity is the exception and is
+always computed, at 15/26/12 of Basic & DA, because no register carries it.
+
+**Dimensions are snapshotted at upload.** The nine reporting attributes are
+copied onto each register row when the register is stored, not joined at read
+time — so a reorganisation in November cannot rewrite what April cost by
+department. A dimension the master does not carry becomes `Unassigned` rather
+than being dropped, so every breakdown still sums to the whole.
+
+**Pay equity** needs two things: the entity must have switched the analysis on
+(recorded with who and when) and the caller must be an owner or manager. Groups
+below five people are withheld, and only aggregates are ever shown. India
+mandates no gender pay reporting — running it is the employer's decision.
+
+**A forecast is never an actual.** Projections come back under a `forecast` key
+with the assumptions attached and a disclaimer the response carries itself, so an
+API consumer cannot strip the label off by accident.
+
+---
+
 ## 8. API quick reference
 
 
@@ -452,6 +807,39 @@ mistaken for an approved record.
 | GET/POST | `/api/minimum-wage/rates`, `/rates/import`, `/coverage` | Rate table and gaps in it                                 |
 | POST     | `/api/signoff/submit`, `/api/signoff/sign`              | Prepare and approve a period                              |
 | GET      | `/api/signoff/{period}/evidence-pack`                   | Evidence workbook                                         |
+| GET/POST | `/api/org/invitations`                                  | List and issue invitations (owner or manager)              |
+| POST     | `/api/org/invitations/{id}/resend`                      | New token, new clock. Retires the old one                  |
+| DELETE   | `/api/org/invitations/{id}`                             | Revoke an outstanding invitation                           |
+| GET      | `/api/org/invitations/lookup?token=`                    | Preview — no session needed                                |
+| POST     | `/api/org/invitations/register`                         | Create the invited account and join                        |
+| POST     | `/api/org/invitations/accept`                           | Join as the signed-in account                              |
+| PATCH    | `/api/org/members/{user_id}`                            | Change a role, entity access, or both                      |
+| DELETE   | `/api/org/members/{user_id}`                            | Remove someone from the organization                       |
+| GET      | `/api/org/support`                                      | Policy, open sessions and history (owner or manager)       |
+| GET      | `/api/org/support/active`                               | Open sessions — visible to every member                    |
+| PUT      | `/api/org/support/policy`                               | Allow, require approval, or refuse support access          |
+| POST     | `/api/org/support/grants/{id}/approve`, `/revoke`       | Approve a request, or end a session now                    |
+| POST     | `/api/workforce/attendance/validate`                    | Check an attendance file against itself — stores nothing   |
+| GET      | `/api/workforce/attendance/bases`                       | The daily-rate bases a wage can be divided by              |
+| GET/POST | `/api/reconciliation/bank/profiles`                     | Bank file layouts for this entity                          |
+| POST     | `/api/reconciliation/bank/profiles/test`                | Run a profile against a real file — stores nothing          |
+| POST     | `/api/reconciliation/bank/profiles/suggest`             | Propose a mapping from a file's header row                 |
+| POST     | `/api/reconciliation/bank/files`                        | Store a bank file, read through a profile                  |
+| GET      | `/api/reconciliation/bank/reconcile?file_id=`           | Payments against net pay due, employee by employee         |
+| GET/POST | `/api/reconciliation/jv/templates`                      | JV mappings for this entity                                |
+| POST     | `/api/reconciliation/jv/templates/{id}/approve`         | Make a template the current mapping (owner or manager)     |
+| GET      | `/api/reconciliation/jv/preview`, `/jv/reconcile`       | The voucher, and what is wrong with the mapping            |
+| GET      | `/api/reconciliation/jv/export?format=`                 | The voucher in a ledger's import shape                     |
+| GET      | `/api/reconciliation/overview`                          | The month: register → bank → ledger                        |
+| POST     | `/api/reconciliation/runs`, `/runs/{id}/close`          | Keep a reconciliation, and record acceptance               |
+| GET      | `/api/reconciliation/exceptions`                        | Every exception kind, what it means and what to do         |
+| GET      | `/api/bi/cost-analysis`, `/bi/cost-compare`             | Cost by dimension over time; any-pair period comparison    |
+| GET      | `/api/bi/headcount-movement`, `/bi/compensation`        | Joiners and exits; distribution and pay mix                |
+| GET      | `/api/bi/pay-equity`                                    | Gender pay gap — authorisation required                    |
+| GET/POST | `/api/budget/versions`, `/versions/{id}/approve`        | Upload and approve a budget                                |
+| GET      | `/api/budget/variance`, `/api/budget/forecast`          | Actual against budget; projections, always labelled        |
+| GET      | `/api/reports`, `/api/reports/{kind}.xlsx`              | Eleven workbooks, each with a provenance sheet             |
+| GET      | `/api/audit`                                            | Who changed what, and when                                 |
 
 
 Health: `**GET /api/health`**
@@ -480,9 +868,18 @@ Health: `**GET /api/health`**
   rate table is yours to load and maintain — see §7D. Coverage gaps are reported
   rather than passed over, but they are still gaps.
 - **No ECR / challan reconciliation.** Validation compares computed against the
-  register; it does not yet compare either against what was filed or what was
-  paid. That three-way match is the most direct predictor of a notice and is the
-  obvious next thing to build.
+  register, and the reconciliation module compares the register against the bank
+  and the ledger — but nothing yet compares either against what was actually
+  *filed*. That three-way match against the ECR is the most direct predictor of
+  a notice and is the obvious next thing to build.
+- **Bank presets are starting points, not bank specifications.** They have not
+  been verified against live bank documentation. The *Test against a real file*
+  step is what makes a profile safe, and it is not optional.
+- **JV export layouts** are shaped like each system's import file, which is not
+  the same as being its specification. Run the first month through the target
+  system's own import preview.
+- **No data retention or deletion policy engine.** Erasure requests under the
+  DPDP Act 2023 need a manual procedure until this is built.
 - **TDS:** heuristic risk flags plus regime projection — not a full Form 16
   computation.
 - **Exposure interest and damages rates** are defaults in common use, not legal
@@ -491,8 +888,8 @@ Health: `**GET /api/health`**
   explains; it does not independently recompute gross from CTC and attendance.
 - **F&F:** no dedicated leave encashment / notice pay modules.
 - **PDF** audit report not built — use the **Excel** evidence pack.
-- **Invitations** are not built: members are added to an organization directly
-  in the database rather than by email invite.
+- **No rate limiting on authentication.** Add it at the edge before opening
+  public signup.
 
 ---
 

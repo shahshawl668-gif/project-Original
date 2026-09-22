@@ -55,7 +55,8 @@ def _register(entity, user, period: date) -> None:
     try:
         reg = SalaryRegister(user_id=user.id, entity_id=entity.id, period_month=period,
                              filename="t.csv", employee_count=1)
-        db.add(reg); db.flush()
+        db.add(reg)
+        db.flush()
         db.add(SalaryRegisterRow(
             register_id=reg.id, user_id=user.id, entity_id=entity.id,
             period_month=period, employee_id="E1", components={"basic": 20000.0},

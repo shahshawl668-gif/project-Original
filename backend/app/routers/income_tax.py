@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write
+from app.deps import get_current_entity, get_current_user
 from app.envelope import ok
 from app.models import Entity, User
 from app.services.config_service import ConfigService
@@ -50,7 +50,7 @@ class CompareRequest(BaseModel):
     financial_year: str | None = Field(None, description="e.g. '2026-27'; defaults to tenant's default FY")
 
 
-def _year_cfg(db: Session, user: User, financial_year: str | None):
+def _year_cfg(db: Session, entity: Entity, financial_year: str | None):
     year_cfg = ConfigService(db).get_tax_year(entity.id, financial_year)
     if year_cfg is None:
         raise HTTPException(
@@ -64,6 +64,7 @@ def _year_cfg(db: Session, user: User, financial_year: str | None):
 def compute_tax(
     body: TaxRequest,
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     db: Session = Depends(get_db),
 ):
     from dataclasses import asdict
@@ -73,7 +74,7 @@ def compute_tax(
         annual_gross=body.annual_gross,
         regime=body.regime,
         deductions=deds,
-        year_cfg=_year_cfg(db, user, body.financial_year),
+        year_cfg=_year_cfg(db, entity, body.financial_year),
     )
     return ok(asdict(res))
 
@@ -82,13 +83,14 @@ def compute_tax(
 def compare(
     body: CompareRequest,
     user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
     db: Session = Depends(get_db),
 ):
     deds = OldRegimeDeductions(**body.deductions.model_dump()) if body.deductions else None
     res = compare_regimes(
         annual_gross=body.annual_gross,
         deductions=deds,
-        year_cfg=_year_cfg(db, user, body.financial_year),
+        year_cfg=_year_cfg(db, entity, body.financial_year),
     )
     return ok(res)
 

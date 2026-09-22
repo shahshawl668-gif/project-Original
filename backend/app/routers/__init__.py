@@ -13,6 +13,7 @@ from app.routers import (
     minimum_wage,
     org,
     payroll,
+    reconciliation,
     reference,
     reports,
     rule_engine,
@@ -37,6 +38,9 @@ api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 api_router.include_router(findings.router, prefix="/findings", tags=["findings"])
 api_router.include_router(bi.router, prefix="/bi", tags=["bi"])
 api_router.include_router(budget.router, prefix="/budget", tags=["budget"])
+api_router.include_router(
+    reconciliation.router, prefix="/reconciliation", tags=["reconciliation"]
+)
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(minimum_wage.router, prefix="/minimum-wage", tags=["minimum-wage"])

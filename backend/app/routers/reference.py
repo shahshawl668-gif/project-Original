@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write
+from app.deps import get_current_entity, get_current_user
 from app.envelope import ok
 from app.models import Entity, LwfRate, PtSlab, SlabRule, User
 from app.services.lwf_defaults import list_default_states as list_lwf_default_states

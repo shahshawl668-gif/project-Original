@@ -55,6 +55,24 @@ def get_current_user(
     return user
 
 
+def _note_support_use(db: Session, user: User, entity: Entity) -> None:
+    """
+    Mark a support grant as having been used.
+
+    A session opened and never used is a different fact from one that read the
+    whole book, and the client is entitled to tell them apart.
+    """
+    membership = tenancy.get_membership(db, user)
+    if membership is not None and membership.org_id == entity.org_id:
+        return
+    grant = tenancy.support_grant_for(db, user, entity)
+    if grant is not None:
+        from app.services import support_access
+
+        support_access.note_use(db, grant)
+        db.commit()
+
+
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
@@ -91,6 +109,7 @@ def get_current_entity(
             # Same response whether it's missing or merely someone else's, so the
             # header can't be used to probe for entity ids across organizations.
             raise HTTPException(status_code=404, detail="Entity not found")
+        _note_support_use(db, user, entity)
         return entity
 
     entity = tenancy.default_entity(db, user)
@@ -103,15 +122,55 @@ def get_current_entity(
     return entity
 
 
+SUPPORT_READ_ONLY = (
+    "Support access is read-only. Ask an owner at this organization to make the change."
+)
+
+
+def _must_be_member(db: Session, user: User, entity: Entity) -> None:
+    """
+    Writing to an entity requires a seat in its organization.
+
+    The check that keeps break-glass support read-only, and it has to be this
+    rather than a role check. A platform engineer holding a support grant is
+    usually an *owner of their own organization*, so ``role_at_least`` — which
+    reads their own membership — says yes. Without this, a support session
+    could approve a budget or a JV mapping in someone else's ledger.
+    """
+    membership = tenancy.get_membership(db, user)
+    if membership is None or membership.org_id != entity.org_id:
+        raise HTTPException(status_code=403, detail=SUPPORT_READ_ONLY)
+
+
 def require_entity_write(
     entity: Entity = Depends(get_current_entity),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Entity:
     """Entity context for mutating endpoints — viewers are read-only."""
+    _must_be_member(db, user, entity)
     if not tenancy.role_at_least(db, user, "analyst"):
         raise HTTPException(status_code=403, detail="Your role does not permit changes")
     return entity
+
+
+def require_entity_admin(
+    entity: Entity = Depends(get_current_entity),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> User:
+    """
+    Owner or manager **of this entity's organization**.
+
+    Distinct from ``require_org_admin``, which asks only about the caller's own
+    organization. Approving a budget, a JV mapping or a period sign-off is a
+    decision inside one client's books, so the seat has to be in that client's
+    organization — not merely somewhere.
+    """
+    _must_be_member(db, user, entity)
+    if not tenancy.role_at_least(db, user, "manager"):
+        raise HTTPException(status_code=403, detail="Owner or manager access required")
+    return user
 
 
 def get_identity(
@@ -133,6 +192,12 @@ def get_identity(
 
     if (x_mask_identity or "").strip().lower() in {"1", "on", "true", "yes"}:
         return Identity(entity.id, True, "requested for this session")
+    # A break-glass session never sees who earns what. Almost no bug lives in an
+    # individual salary — they live in configuration, findings and totals, which
+    # masking leaves entirely legible.
+    membership = tenancy.get_membership(db, user)
+    if membership is None or membership.org_id != entity.org_id:
+        return Identity(entity.id, True, "support access is masked")
     if not tenancy.role_at_least(db, user, "analyst"):
         return Identity(entity.id, True, "your role does not include employee-level pay")
     return Identity(entity.id, False, "visible to your role")

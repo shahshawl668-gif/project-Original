@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import ast
 import operator
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 class FormulaError(ValueError):
     pass
@@ -120,7 +121,7 @@ def _eval(node: ast.AST, vars: dict[str, Any]) -> Any:
         return op(_eval(node.operand, vars))
     if isinstance(node, ast.Compare):
         left = _eval(node.left, vars)
-        for op_node, comparator in zip(node.ops, node.comparators):
+        for op_node, comparator in zip(node.ops, node.comparators, strict=False):
             op = CMP_OPS.get(type(op_node))
             if op is None:
                 raise FormulaError(f"Comparison not allowed: {type(op_node).__name__}")

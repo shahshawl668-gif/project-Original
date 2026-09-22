@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import Decimal
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 from sqlalchemy.orm import Session
 
@@ -245,7 +246,7 @@ def set_state(
     previous = state.state
     state.state = to_state
     state.decided_by_user_id = actor.id if actor else None
-    state.decided_at = datetime.now(timezone.utc)
+    state.decided_at = datetime.now(UTC)
     if note is not None:
         state.note = note
     if to_state == "waived":

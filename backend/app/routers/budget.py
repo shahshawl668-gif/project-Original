@@ -9,7 +9,6 @@ department line and the month that read as 2025 instead of 2026.
 from __future__ import annotations
 
 import io
-import json
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -20,7 +19,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_write, require_org_admin
+from app.deps import get_current_entity, get_current_user, require_entity_write, require_entity_admin
 from app.envelope import ok
 from app.models import BudgetLine, BudgetVersion, ENTITY_SCOPE, Entity, User
 from app.services import audit, budgeting
@@ -92,23 +91,23 @@ async def preview(
     _, records = dataframe_to_employees(frame)
     lines, problems = budgeting.parse_budget_rows(records, scope_key)
 
-    total = sum((l["amount"] for l in lines), Decimal("0"))
+    total = sum((line["amount"] for line in lines), Decimal("0"))
     return ok({
         "filename": file.filename,
         "scope_key": scope_key,
         "line_count": len(lines),
         "total": float(total),
-        "periods": sorted({l["period_month"].isoformat() for l in lines}),
-        "scopes": sorted({l["scope_value"] for l in lines}),
+        "periods": sorted({line["period_month"].isoformat() for line in lines}),
+        "scopes": sorted({line["scope_value"] for line in lines}),
         "problems": problems,
         "lines": [
             {
-                "period": l["period_month"].isoformat(),
-                "scope_value": l["scope_value"],
-                "amount": float(l["amount"]),
-                "headcount": l["headcount"],
+                "period": line["period_month"].isoformat(),
+                "scope_value": line["scope_value"],
+                "amount": float(line["amount"]),
+                "headcount": line["headcount"],
             }
-            for l in lines[:200]
+            for line in lines[:200]
         ],
         "truncated": len(lines) > 200,
     })
@@ -211,7 +210,7 @@ def list_versions(
 def approve_version(
     version_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """
@@ -240,7 +239,7 @@ def approve_version(
 def delete_version(
     version_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """Remove a draft. An approved budget is never deleted — history depends on it."""

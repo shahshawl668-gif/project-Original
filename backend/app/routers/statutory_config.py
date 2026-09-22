@@ -13,7 +13,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import Entity, User
-from app.schemas.income_tax_config import IncomeTaxConfig, TaxYearConfig, TaxYearUpsert
+from app.schemas.income_tax_config import IncomeTaxConfig, TaxYearUpsert
 from app.schemas.rule_thresholds import RuleThresholdsConfig
 from app.schemas.statutory_config import (
     ComponentMappingConfig,

@@ -79,7 +79,9 @@ def parse_ctc_file(
 
         ename = row.get("employee_name") or row.get("name")
         if isinstance(ename, float):
-            if pd.isna(ename):
+            # The ternary ruff suggests here nests one conditional inside
+            # another, which is harder to read than the branches.
+            if pd.isna(ename):  # noqa: SIM108
                 ename = None
             else:
                 ename = str(int(ename)) if ename == int(ename) else str(ename)

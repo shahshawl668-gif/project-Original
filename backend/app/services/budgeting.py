@@ -20,7 +20,7 @@ the approved budget is how a board gets misled.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -239,7 +239,7 @@ def approve(db: Session, version: BudgetVersion, user: Any) -> BudgetVersion:
     version.is_current = True
     version.approved_by_user_id = getattr(user, "id", None)
     version.approved_by_email = getattr(user, "email", None)
-    version.approved_at = datetime.now(timezone.utc)
+    version.approved_at = datetime.now(UTC)
     return version
 
 
@@ -310,9 +310,9 @@ def budget_variance(
         .all()
     )
     if date_from:
-        lines = [l for l in lines if l.period_month >= date_from.replace(day=1)]
+        lines = [line for line in lines if line.period_month >= date_from.replace(day=1)]
     if date_to:
-        lines = [l for l in lines if l.period_month <= date_to.replace(day=1)]
+        lines = [line for line in lines if line.period_month <= date_to.replace(day=1)]
 
     entity_wide = version.scope_key == ENTITY_SCOPE
     budget_by_period: dict[str, Decimal] = {}

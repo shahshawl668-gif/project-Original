@@ -13,13 +13,11 @@ The function compute_pf() is the single entry point.
 """
 from __future__ import annotations
 
-import math
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from app.models.component import ComponentConfig
 from app.schemas.statutory_config import PFConfig
-from app.services.config_service import safe_eval_expr
 
 CENT = Decimal("0.01")
 

@@ -14,7 +14,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user
 from app.envelope import ok
 from app.models import Entity, User
-from app.services import audit
+from app.services import audit, tenancy
 
 router = APIRouter()
 
@@ -28,7 +28,13 @@ def trail(
     entity: Entity = Depends(get_current_entity),
 ):
     """Who uploaded, approved, changed or exported what."""
-    return ok({"events": audit.history(db, entity.id, limit=limit, action=action)})
+    membership = tenancy.get_membership(db, user)
+    return ok({
+        "events": audit.history(
+            db, entity.id, limit=limit, action=action,
+            org_id=membership.org_id if membership else None,
+        )
+    })
 
 
 @router.get("/actions")
@@ -42,5 +48,11 @@ def actions():
             {"key": "budget.approved", "label": "Budget approved"},
             {"key": "budget.deleted", "label": "Draft budget deleted"},
             {"key": "report.downloaded", "label": "Report downloaded"},
+            {"key": "member.invited", "label": "Member invited"},
+            {"key": "member.joined", "label": "Member joined"},
+            {"key": "member.updated", "label": "Member role or access changed"},
+            {"key": "member.removed", "label": "Member removed"},
+            {"key": "member.invite_resent", "label": "Invitation reissued"},
+            {"key": "member.invite_revoked", "label": "Invitation revoked"},
         ]
     })

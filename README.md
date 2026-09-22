@@ -1,12 +1,19 @@
 # PayrollCheck — India payroll validation & business intelligence
 
-Not an HRMS, and it does not run payroll. It sits beside whatever system does and
-answers two questions about the output: **is this month right**, and **what is it
-costing us**.
+Not an HRMS, and it does not run payroll — which is exactly what qualifies it to
+check one. It sits beside whatever system does and answers three questions about
+the output: **is this month right**, **what is it costing us**, and **did it
+reach the bank and the ledger**.
 
+- **Checks attendance** against itself before it is stored, and then checks pay
+  against attendance — loss of pay never deducted, overtime worked and never
+  paid, an employee on the attendance register and on no payslip.
 - **Validates** PF, ESIC, PT, LWF, income tax, minimum wage and structure — and
   checks the register against the employee master and attendance, which is what
   catches a wrong input that was processed consistently.
+- **Reconciles** the bank payment file against net pay due, and builds the
+  month's journal voucher from your own chart of accounts, checking it balances
+  and equals the payroll cost the dashboard reports.
 - **Explains** month-on-month cost movement, and sizes accumulated statutory
   exposure with interest and damages by age.
 - **Records** findings across months with a waiver trail, and freezes a signed
@@ -17,6 +24,16 @@ under one login; an enterprise is simply an organization with one. See
 `USER_MANUAL.md`.
 
 Monorepo: **backend** is FastAPI + SQLAlchemy; **frontend** is Next.js 14 (App Router).
+
+
+## Documentation
+
+| Document | For | Covers |
+|---|---|---|
+| [`docs/BRD.md`](docs/BRD.md) | Stakeholders, clients | Scope, requirements, roles, acceptance criteria, known gaps |
+| [`USER_MANUAL.md`](USER_MANUAL.md) | Payroll and finance operators | Setup, every module, rule reference, troubleshooting |
+| [`docs/GO_LIVE.md`](docs/GO_LIVE.md) | Whoever ships it | Sequenced test plan and production cutover |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | Operators | Hosting, environment variables, DNS, rollback |
 
 ## Production layout (peopleopslab.in)
 

@@ -181,6 +181,61 @@ class TDSDeepThresholds(BaseModel):
         return _dec(v)
 
 
+class AttendanceThresholds(BaseModel):
+    """
+    ATT-* — attendance, and the pay that should follow from it.
+
+    ``paid_days_basis`` is the one setting here that changes money. A month's
+    loss-of-pay deduction is the daily rate times the days lost, and the daily
+    rate is the monthly wage divided by this basis. Companies divide by the
+    calendar days, by a fixed 26 (the six-day week the Payment of Wages Act and
+    the gratuity formula both assume), or by a flat 30. The same employee, the
+    same two days of LOP, gives three different deductions — so this is asked
+    rather than assumed, and the finding says which basis it used.
+    """
+
+    paid_days_basis: str = Field(
+        "calendar",
+        description="How a daily rate is derived: 'calendar' (days in the month), "
+                    "'fixed_26' or 'fixed_30'.",
+    )
+    day_tolerance: Decimal = Field(
+        Decimal("0.05"),
+        description="Attendance is quoted to half-days; a smaller gap is rounding, not a difference.")
+    lop_pay_tolerance_pct: Decimal = Field(
+        Decimal("2"),
+        description="ATT-020: how far actual pay may sit from the LOP-adjusted figure, %% of a "
+                    "full month, before the deduction is called missing.")
+    overtime_multiplier: Decimal = Field(
+        Decimal("2"),
+        description="ATT-024: statutory overtime rate as a multiple of the ordinary rate. "
+                    "Section 59 of the Factories Act sets twice ordinary wages; some state "
+                    "rules and settlements differ.")
+    overtime_hours_per_day: Decimal = Field(
+        Decimal("8"),
+        description="Hours in a standard working day, used to turn a daily rate into an "
+                    "hourly one for the overtime check.")
+    require_days_reconcile: bool = Field(
+        True,
+        description="ATT-010: where a file states present, paid leave, weekly off, holiday "
+                    "and LOP, require them to sum to the month.")
+
+    @field_validator("day_tolerance", "lop_pay_tolerance_pct", "overtime_multiplier",
+                     "overtime_hours_per_day", mode="before")
+    @classmethod
+    def _parse(cls, v):
+        return _dec(v)
+
+    @field_validator("paid_days_basis", mode="before")
+    @classmethod
+    def _basis(cls, v):
+        allowed = {"calendar", "fixed_26", "fixed_30"}
+        text = str(v or "calendar").strip().lower()
+        if text not in allowed:
+            raise ValueError(f"paid_days_basis must be one of: {', '.join(sorted(allowed))}")
+        return text
+
+
 class RuleThresholdsConfig(BaseModel):
     """All tunable rule-engine thresholds for one tenant."""
     structural: StructuralThresholds = Field(default_factory=StructuralThresholds)
@@ -195,3 +250,4 @@ class RuleThresholdsConfig(BaseModel):
     bonus: BonusThresholds = Field(default_factory=BonusThresholds)
     gratuity_formula: GratuityFormulaThresholds = Field(default_factory=GratuityFormulaThresholds)
     tds_deep: TDSDeepThresholds = Field(default_factory=TDSDeepThresholds)
+    attendance: AttendanceThresholds = Field(default_factory=AttendanceThresholds)

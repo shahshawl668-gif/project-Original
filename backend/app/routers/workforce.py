@@ -35,6 +35,8 @@ from app.schemas.workforce import (
     EmployeeRecordOut,
     ParsePreview,
 )
+from app.services import attendance_rules
+from app.services.config_service import ConfigService
 from app.services.payroll_parse import parse_payroll_file
 from app.services.workforce_parse import (
     derive_attendance_gaps,
@@ -253,6 +255,77 @@ async def upload_attendance(
     return ok(_preview(records, header_map, unmapped, warnings))
 
 
+@router.post("/attendance/validate")
+async def validate_attendance(
+    file: UploadFile = File(...),
+    meta: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    """
+    Check an attendance file against itself, storing nothing.
+
+    Run before committing, because an attendance file that does not add up is
+    not a file anyone can reconcile payroll against — and finding that out
+    first costs nothing, while finding it out after a payroll run costs a
+    correction cycle.
+
+    Deliberately reads the file as uploaded rather than after the gaps are
+    filled in. Once paid days have been derived from loss of pay the two can
+    never disagree, so a check run afterwards would pass every file including
+    the ones that stated both figures and contradicted themselves.
+    """
+    period_month = _month_start(_meta(meta).get("period_month"), "period_month")
+
+    raw = await file.read()
+    try:
+        df = parse_payroll_file(raw, file.filename or "attendance.csv")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    records, header_map, unmapped = parse_attendance(df)
+    if not records:
+        raise HTTPException(status_code=400, detail="No rows with an employee id were found.")
+
+    thresholds = ConfigService(db).get_rule_thresholds(entity.id)
+    cfg = getattr(thresholds, "attendance", None)
+    findings = attendance_rules.check_self_consistency(
+        records, period_month,
+        day_tolerance=getattr(cfg, "day_tolerance", Decimal("0.05")),
+        require_days_reconcile=bool(getattr(cfg, "require_days_reconcile", True)),
+    )
+
+    by_severity: dict[str, int] = {}
+    for finding in findings:
+        by_severity[finding["severity"]] = by_severity.get(finding["severity"], 0) + 1
+
+    return ok({
+        "period_month": period_month.isoformat(),
+        "filename": file.filename,
+        "row_count": len(records),
+        "employees": len({str(r.get("employee_id") or "").strip() for r in records if r.get("employee_id")}),
+        "recognised_columns": sorted(set(header_map.values())),
+        "unmapped_columns": unmapped,
+        "paid_days_basis": getattr(cfg, "paid_days_basis", "calendar"),
+        "counts": {"total": len(findings), "by_severity": by_severity},
+        "findings": findings,
+        "clean": not findings,
+    })
+
+
+@router.get("/attendance/bases")
+def attendance_bases():
+    """
+    The bases a monthly wage can be divided by to get a daily rate.
+
+    The choice changes money: the same two days of loss of pay deduct three
+    different amounts under the three options, so it is configuration rather
+    than a constant.
+    """
+    return ok({"bases": attendance_rules.basis_catalogue()})
+
+
 @router.post("/attendance/commit")
 async def commit_attendance(
     file: UploadFile = File(...),
@@ -296,6 +369,17 @@ async def commit_attendance(
     db.add(register)
     db.flush()
 
+    thresholds = ConfigService(db).get_rule_thresholds(entity.id)
+    cfg = getattr(thresholds, "attendance", None)
+    # Checked on the records as uploaded. Only the first row per employee is
+    # stored below, and an operator who is not told which rows were dropped
+    # cannot know whether the days that got paid were the days worked.
+    problems = attendance_rules.check_self_consistency(
+        records, period_month,
+        day_tolerance=getattr(cfg, "day_tolerance", Decimal("0.05")),
+        require_days_reconcile=bool(getattr(cfg, "require_days_reconcile", True)),
+    )
+
     seen: set[str] = set()
     for record in records:
         employee_id = record["employee_id"]
@@ -317,7 +401,11 @@ async def commit_attendance(
 
     db.commit()
     db.refresh(register)
-    return ok(AttendanceRegisterOut.model_validate(register).model_dump(mode="json"))
+    payload = AttendanceRegisterOut.model_validate(register).model_dump(mode="json")
+    payload["problems"] = problems
+    payload["rows_read"] = len(records)
+    payload["rows_stored"] = len(seen)
+    return ok(payload)
 
 
 @router.get("/attendance")

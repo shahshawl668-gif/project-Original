@@ -78,6 +78,14 @@ class SalaryRegisterRow(Base):
     # that can settle it (see services/pf_basis.py).
     pf_restricted: Mapped[bool | None] = mapped_column(Boolean)
     increment_arrear_total: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), default=Decimal("0"))
+    # The net pay the register stated, where it stated one. Kept separately from
+    # the computed ``gross - deductions`` because bank reconciliation has to
+    # match against the figure the payroll system actually instructed the bank
+    # to pay. Where the two disagree the difference is reported rather than
+    # resolved: a stated net that is not gross less deductions means either a
+    # deduction outside the register's own columns — a salary advance, a loan
+    # instalment — or an error, and only the client can say which.
+    net_pay: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     register = relationship("SalaryRegister", back_populates="rows")

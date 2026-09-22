@@ -17,7 +17,7 @@ from decimal import Decimal
 import pytest
 
 from app.database import SessionLocal
-from app.models import BudgetVersion, Entity, SalaryRegister, SalaryRegisterRow, User
+from app.models import Entity, SalaryRegister, SalaryRegisterRow, User
 from app.services import budgeting
 from app.services.dimensions import UNASSIGNED
 
@@ -45,9 +45,7 @@ def workspace(client, request):
 
 
 def _dims(**kw) -> dict:
-    base = {k: UNASSIGNED for k in
-            ("business_unit", "department", "cost_center", "work_location",
-             "work_state", "grade", "designation", "employment_type", "skill_category")}
+    base = dict.fromkeys(("business_unit", "department", "cost_center", "work_location", "work_state", "grade", "designation", "employment_type", "skill_category"), UNASSIGNED)
     base.update(kw)
     return base
 
@@ -57,7 +55,8 @@ def _register(entity, user, period: date, rows: list[dict]) -> None:
     try:
         reg = SalaryRegister(user_id=user.id, entity_id=entity.id, period_month=period,
                              filename="t.csv", employee_count=len(rows))
-        db.add(reg); db.flush()
+        db.add(reg)
+        db.flush()
         for r in rows:
             db.add(SalaryRegisterRow(
                 register_id=reg.id, user_id=user.id, entity_id=entity.id,

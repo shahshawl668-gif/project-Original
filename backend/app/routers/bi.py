@@ -8,7 +8,7 @@ product are one dataset, not two.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -20,7 +20,7 @@ from app.deps import (
     get_current_user,
     get_identity,
     require_entity_write,
-    require_org_admin,
+    require_entity_admin,
     require_pay_equity,
 )
 from app.envelope import ok
@@ -304,7 +304,7 @@ class PayEquityToggle(BaseModel):
 def set_pay_equity_settings(
     body: PayEquityToggle,
     db: Session = Depends(get_db),
-    user: User = Depends(require_org_admin),
+    user: User = Depends(require_entity_admin),
     entity: Entity = Depends(get_current_entity),
 ):
     """
@@ -317,7 +317,7 @@ def set_pay_equity_settings(
     entity.pay_equity_enabled = bool(body.enabled)
     if body.enabled:
         entity.pay_equity_enabled_by = user.email
-        entity.pay_equity_enabled_at = datetime.now(timezone.utc)
+        entity.pay_equity_enabled_at = datetime.now(UTC)
     audit.record(
         db, entity_id=entity.id, user=user,
         action="pay_equity.enabled" if body.enabled else "pay_equity.disabled",

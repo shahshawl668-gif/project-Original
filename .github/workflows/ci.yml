@@ -24,6 +24,10 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Bytecode compile
         run: python -m compileall -q app
+      - name: Lint (ruff)
+        run: ruff check app tests
+      - name: Security scan (bandit)
+        run: bandit -c pyproject.toml -r app
       - name: Run unit tests
         run: pytest -q tests
 

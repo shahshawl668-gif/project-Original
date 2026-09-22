@@ -47,6 +47,14 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     # practice | enterprise — affects defaults and UI copy, never access control.
     org_type: Mapped[str] = mapped_column(String(32), nullable=False, default="enterprise")
+    # Whether platform staff may read this organization's data to support it,
+    # and on what terms: "break_glass" (an engineer can open a time-boxed,
+    # reasoned, read-only session and the client is told), "approval_required"
+    # (an owner must approve first) or "disabled" (never). The client owns this
+    # decision — it is their payroll.
+    support_access_policy: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="break_glass", server_default="break_glass"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
