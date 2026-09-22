@@ -1,4 +1,17 @@
 """
+SUPERSEDED — kept for its scenario notes only. Do not read its score.
+
+This script was written against an earlier API: responses were bare lists, and
+there was no entity scoping. The product now wraps every response in a
+``{success, data, error}`` envelope and requires an ``X-Entity-Id`` header, so
+the script misreads successful calls as failures and reports a score in the
+single digits. The calls themselves still return 200.
+
+Use instead:
+  pytest tests              — the authoritative suite
+  python e2e_deployed.py    — the same three-module scenario over real HTTP,
+                              against a local server or a deployment
+
 End-to-End Full Indian Payroll Test
 =====================================
 Covers every feature with realistic Indian payroll data:
@@ -25,7 +38,9 @@ import io, json, math, os, time, urllib.request, urllib.error, urllib.parse
 from decimal import Decimal
 from typing import Any
 
-BASE = "http://localhost:8000"
+BASE = os.environ.get("PAYROLLCHECK_BASE_URL", "http://localhost:8000").rstrip("/")
+"""Where to run against. Defaults to a local server; set PAYROLLCHECK_BASE_URL
+to point the same checks at a deployed stack."""
 PASS = FAIL = 0
 REPORT_LINES: list[str] = []
 

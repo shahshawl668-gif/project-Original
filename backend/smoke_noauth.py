@@ -1,7 +1,10 @@
 """Verify all main endpoints work with NO Authorization header."""
+import os
 import requests, sys
 
-BASE = "http://127.0.0.1:8000"
+BASE = os.environ.get("PAYROLLCHECK_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+"""Where to run against. Defaults to a local server; set PAYROLLCHECK_BASE_URL
+to point the same checks at a deployed stack."""
 OK = True
 
 def check(label, r):

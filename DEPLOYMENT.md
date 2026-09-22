@@ -11,6 +11,56 @@ document focuses on getting `peopleopslab.in` live end-to-end on:
 
 ---
 
+## 0) What is live right now
+
+Both services run on Render, in Singapore — the closest region to Indian users
+that Render offers, and the same region as the database.
+
+| Piece | URL | Render service |
+|---|---|---|
+| API | https://payroll-saas-api-r6a8.onrender.com | `payroll-saas-api` |
+| Web | https://peopleopslab-web.onrender.com | `peopleopslab-web` |
+| Database | internal only | `payroll-saas-db` (PostgreSQL 16) |
+
+Both deploy automatically from `main`. The API is built from
+`docker/Dockerfile.backend`, the web app from `docker/Dockerfile.frontend`.
+
+### Two things still to do by hand
+
+**1. Point the API at PostgreSQL.** The database exists but is not yet wired to
+the API, so the API is currently running on SQLite on an ephemeral disk —
+everything written to it is lost on the next deploy. Until this is done, treat
+the deployment as a demo, not a place to put client data.
+
+> Render dashboard → `payroll-saas-api` → Environment → Add environment
+> variable → *Add from database* → `payroll-saas-db` → **Internal Connection
+> String** → save as `DATABASE_URL`. The service redeploys and picks it up;
+> `app/migrations.py` builds the schema on startup.
+
+The connection string is deliberately not written down here or anywhere in the
+repository. It is a credential; it belongs only in Render's environment.
+
+**2. The free database expires.** Render's free PostgreSQL is deleted 30 days
+after creation. Move it to a paid plan before real data goes in, and set up
+backups — see [`docs/GO_LIVE.md`](docs/GO_LIVE.md).
+
+### The domain
+
+`peopleopslab.in` is registered but is **not** in the connected Hostinger
+account (which holds only `manasalarix.com`), so its DNS cannot be changed from
+there. Once you have access to whoever holds the domain:
+
+| Record | Name | Value |
+|---|---|---|
+| CNAME | `@` (or A/ALIAS if the registrar refuses apex CNAME) | `peopleopslab-web.onrender.com` |
+| CNAME | `www` | `peopleopslab-web.onrender.com` |
+| CNAME | `api` | `payroll-saas-api-r6a8.onrender.com` |
+
+Then add each hostname under its Render service → Settings → Custom Domains,
+and set `CORS_ORIGINS` on the API to the real origins. The frontend already
+switches to its same-origin `/api/proxy` route automatically on
+`peopleopslab.in`, so no frontend change is needed.
+
 ## 1) Prerequisites
 
 * GitHub repo pushed to `main`.
@@ -79,6 +129,25 @@ service + database in one click.
 ---
 
 ## 5) Smoke tests (post-deploy)
+
+The fastest real check is the end-to-end runner. It signs up a throwaway
+organization, configures it, uploads three months of payroll, attendance and a
+bank file, and asserts that validation, cost analysis and reconciliation all
+find the defects planted in the data:
+
+```bash
+cd backend
+PAYROLLCHECK_BASE_URL=https://payroll-saas-api-r6a8.onrender.com python e2e_deployed.py
+```
+
+41 checks, non-zero exit on any failure, so it works as a release gate. It only
+ever writes inside the organization it creates, so it is safe against a live
+deployment — but it does write, so do not aim it at a tenant whose audit trail
+matters.
+
+The individual curl checks below are still useful when something is wrong and
+you want to narrow it down.
+
 
 ```bash
 # 1) Backend direct
