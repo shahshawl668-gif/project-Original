@@ -10,8 +10,20 @@ function usesServerSideProxy(): boolean {
   if (relay === "1" || relay === "true") return true;
 
   if (typeof window !== "undefined") {
+    // Anywhere that is not a developer's own machine, relay by default.
+    //
+    // The alternative is a direct cross-origin call to NEXT_PUBLIC_API_URL,
+    // which has to be inlined at build time. That makes the deployed bundle
+    // depend on a build argument reaching the image — and when it does not,
+    // the failure is a production site quietly calling localhost. BACKEND_URL
+    // is read by the proxy route at request time, so it cannot be baked in
+    // wrong, and the call is same-origin, so there is no CORS to get right.
+    //
+    // Set NEXT_PUBLIC_DIRECT_API=1 to go back to calling the API directly.
     const h = window.location.hostname;
-    if (h === "peopleopslab.in" || h === "www.peopleopslab.in") return true;
+    const isLocal =
+      h === "localhost" || h === "127.0.0.1" || h === "::1" || h.endsWith(".local");
+    return !isLocal;
   }
   return false;
 }
