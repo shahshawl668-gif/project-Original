@@ -119,6 +119,11 @@ export default function DashboardPage() {
   const registers = results[2].data ?? [];
   const failed = results.find((q) => q.isError);
   const apiError = failed?.error instanceof Error ? failed.error.message : null;
+  // Signed out is not a broken deployment. The API refusing an anonymous
+  // request is it working; telling the operator to go and reconfigure their
+  // hosting sends them to fix something that was never wrong.
+  const notSignedIn =
+    apiError !== null && /\(401\)|401|not authenticated|unauthorized/i.test(apiError);
   const loadingApi = results.some((q) => q.isPending);
 
   useEffect(() => {
@@ -311,7 +316,16 @@ export default function DashboardPage() {
         </div>
       </motion.section>
 
-      {apiError && (
+      {apiError && notSignedIn && (
+        <AlertBanner variant="warning" title="Sign in to see your data">
+          <span className="block">
+            The API declined an unauthenticated request, which is what it should do. Sign
+            in and this dashboard will fill in.
+          </span>
+        </AlertBanner>
+      )}
+
+      {apiError && !notSignedIn && (
         <AlertBanner variant="error" title="API connection issue">
           <span className="block">{apiError}</span>
           <span className="mt-2 block text-xs leading-relaxed">
@@ -319,8 +333,10 @@ export default function DashboardPage() {
             <code className="rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium text-red-950">
               {getApiTargetDescription()}
             </code>
-            . Set <code className="rounded bg-white/70 px-1 text-[11px]">BACKEND_URL=https://api.peopleopslab.in</code>{" "}
-            on Vercel (server env, not NEXT_PUBLIC) and redeploy.
+            . When the relay is in use, the host needs{" "}
+            <code className="rounded bg-white/70 px-1 text-[11px]">BACKEND_URL</code> set to
+            the API&rsquo;s origin — a server variable, never{" "}
+            <code className="rounded bg-white/70 px-1 text-[11px]">NEXT_PUBLIC_</code>.
           </span>
         </AlertBanner>
       )}
