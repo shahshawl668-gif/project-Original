@@ -415,3 +415,57 @@ def test_a_short_reason_is_refused_at_the_service_level():
     finally:
         db.rollback()
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# The account list obeys the same boundary as everything else
+# ---------------------------------------------------------------------------
+def test_the_account_list_does_not_hand_over_every_clients_people(client, world):
+    """
+    A platform admin with no grant sees their own organization's accounts only.
+
+    This endpoint used to return every user on the installation. It is the same
+    standing visibility break-glass exists to prevent — a staff list is who a
+    client employs, and enumerating it needed no grant, left no audit row and
+    never expired.
+    """
+    rows = data(client.get("/api/admin/users", headers=world["admin"]))
+    emails = {r["email"] for r in rows}
+
+    assert world["admin_email"] in emails, "an admin should still see their own organization"
+    assert not any(e.startswith("client-") for e in emails), (
+        "the client's accounts were listed to a platform admin holding no grant"
+    )
+
+
+def test_a_grant_opens_the_account_list_and_says_so_in_the_clients_trail(client, world):
+    assert open_session(client, world).status_code == 200
+
+    rows = data(client.get("/api/admin/users", headers=world["admin"]))
+    emails = {r["email"] for r in rows}
+    assert any(e.startswith("client-") for e in emails), (
+        "a live grant should bring the client's accounts into view"
+    )
+
+    # And the client can see that it happened, in their own audit trail.
+    trail = data(client.get("/api/audit", headers=world["client"]))
+    events = trail["events"] if isinstance(trail, dict) else trail
+    assert any(
+        e.get("action") == "support.read" and e.get("object_type") == "org_members"
+        for e in events
+    ), "the read was not recorded where the client would look for it"
+
+
+def test_support_access_cannot_promote_a_clients_user(client, world):
+    """A grant is read-only. Roles are not in reach through it."""
+    assert open_session(client, world).status_code == 200
+
+    rows = data(client.get("/api/admin/users", headers=world["admin"]))
+    target = next(r for r in rows if r["email"].startswith("client-"))
+
+    refused = client.patch(
+        f"/api/admin/users/{target['id']}/role",
+        headers=world["admin"],
+        json={"role": "admin"},
+    )
+    assert refused.status_code == 404, refused.text

@@ -14,12 +14,13 @@ from app.envelope import ok
 from app.models import (
     DEFAULT_MINUTES,
     MAX_MINUTES,
+    OrgMembership,
     Organization,
     SupportAccessGrant,
     User,
 )
 from app.schemas.auth import AdminRoleUpdate, UserOut
-from app.services import audit, support_access
+from app.services import audit, support_access, tenancy
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -32,18 +33,70 @@ def _admin_count(db: Session) -> int:
     )
 
 
-@router.get("/users")
-def list_tenant_users(
-    _admin: User = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    rows = (
+def _visible_org_ids(db: Session, admin: User) -> tuple[list[uuid.UUID], list[uuid.UUID]]:
+    """
+    The organizations this platform administrator may see accounts in.
+
+    Their own, plus any they currently hold a support grant on — and nothing
+    else. Being platform staff is not by itself a reason to read a client's
+    people, which is the whole premise of break-glass: if a standing platform
+    role could enumerate every client's staff list, the grant would be
+    decoration.
+
+    Returns the two sets separately because they are not the same fact. Reading
+    your own organization is routine; reading a client's under a grant is an
+    event their audit trail is entitled to.
+    """
+    membership = tenancy.get_membership(db, admin)
+    own = [membership.org_id] if membership is not None else []
+    granted = [
+        org_id for org_id in support_access.granted_org_ids(db, admin) if org_id not in own
+    ]
+    return own, granted
+
+
+def _users_in(db: Session, org_ids: list[uuid.UUID]) -> list[User]:
+    if not org_ids:
+        return []
+    return (
         db.query(User)
-        .filter(User.email != SYSTEM_USER_EMAIL)
+        .join(OrgMembership, OrgMembership.user_id == User.id)
+        .filter(OrgMembership.org_id.in_(org_ids), User.email != SYSTEM_USER_EMAIL)
         .order_by(User.created_at.asc())
         .all()
     )
-    return ok([UserOut.model_validate(u).model_dump() for u in rows])
+
+
+@router.get("/users")
+def list_tenant_users(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    own, granted = _visible_org_ids(db, admin)
+    rows = _users_in(db, own + granted)
+
+    for org_id in granted:
+        # The client sees who looked at their people, and when. A read is the
+        # whole point of a support session, so it is the thing worth recording.
+        audit.record(
+            db,
+            entity_id=None,
+            org_id=org_id,
+            user=admin,
+            action="support.read",
+            object_type="org_members",
+            summary=f"{admin.email} listed this organization's accounts under support access",
+        )
+    if granted:
+        db.commit()
+
+    seen: set[uuid.UUID] = set()
+    unique: list[User] = []
+    for row in rows:
+        if row.id not in seen:
+            seen.add(row.id)
+            unique.append(row)
+    return ok([UserOut.model_validate(u).model_dump() for u in unique])
 
 
 @router.patch("/users/{target_id}/role")
@@ -64,6 +117,14 @@ def patch_user_role(
         raise HTTPException(status_code=404, detail="User not found")
     if tgt.email == SYSTEM_USER_EMAIL or tgt.role == "system":
         raise HTTPException(status_code=400, detail="Cannot change system account role")
+
+    # A user you are not entitled to see is a user you cannot promote. Same 404
+    # as a missing one: which organizations exist is not something this endpoint
+    # should confirm. Note that a support grant is read-only, so holding one
+    # does not put a client's accounts in reach here — only your own do.
+    own, _granted = _visible_org_ids(db, admin)
+    if tgt.id != admin.id and tgt.id not in {u.id for u in _users_in(db, own)}:
+        raise HTTPException(status_code=404, detail="User not found")
 
     if body.role == "user" and tgt.role == "admin" and _admin_count(db) <= 1:
         raise HTTPException(
