@@ -37,10 +37,12 @@ import {
   CalendarDays,
   Banknote,
   BookOpen,
+  Loader2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 import { EntitySwitcher } from "@/components/EntitySwitcher";
 import { PageTransition } from "@/components/motion/PageTransition";
@@ -246,10 +248,10 @@ function Sidebar({
           </span>
           <span className="min-w-0">
             <span className="block text-[15px] font-bold leading-tight tracking-tight text-ink-900">
-              PayrollCheck
+              {PRODUCT_NAME}
             </span>
             <span className="mt-0.5 block truncate text-[9.5px] font-semibold uppercase tracking-[0.18em] text-brand-700">
-              India · Audit grade
+              {PRODUCT_TAGLINE}
             </span>
           </span>
         </Link>
@@ -396,10 +398,95 @@ function ProfileMenu() {
   );
 }
 
+/**
+ * The mark on its own, for anyone the product does not yet know.
+ *
+ * Signed out, the navigation was still rendered in full — every box, every
+ * settings link, the whole shape of the product — above a page that could load
+ * nothing. It advertised a menu that did not work and made a visitor guess
+ * which part was broken. There is nothing to navigate until there is an
+ * account, so there is no navigation.
+ */
+function BrandFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col bg-[var(--bg-canvas)]">
+      <header className="flex-shrink-0 border-b border-ink-200/80 bg-white">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-[0_6px_20px_-6px_rgba(2,132,199,0.6)]">
+              <ShieldCheck size={17} className="text-white" strokeWidth={2.25} aria-hidden />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[15px] font-bold leading-tight tracking-tight text-ink-900">
+                {PRODUCT_NAME}
+              </span>
+              <span className="mt-0.5 block truncate text-[9.5px] font-semibold uppercase tracking-[0.18em] text-brand-700">
+                {PRODUCT_TAGLINE}
+              </span>
+            </span>
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex h-9 items-center rounded-lg bg-brand-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-brand-700"
+          >
+            Sign in
+          </Link>
+        </div>
+      </header>
+      <main className="flex flex-1 items-center justify-center px-5 py-12">{children}</main>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const groups = useNavGroups();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Deciding who you are takes a moment. Showing the workspace during it and
+  // then snatching it away reads as a bug, so the mark stands in until the
+  // answer is known.
+  if (authLoading) {
+    return (
+      <BrandFrame>
+        <p className="flex items-center gap-2 text-sm text-ink-500">
+          <Loader2 size={15} className="animate-spin" aria-hidden />
+          Checking your session…
+        </p>
+      </BrandFrame>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <BrandFrame>
+        <div className="w-full max-w-md rounded-2xl border border-ink-200/70 bg-white p-8 text-center shadow-soft">
+          <h1 className="font-display text-xl font-bold tracking-tight text-ink-900">
+            Sign in to continue
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-600">
+            {PRODUCT_NAME} holds payroll data, so nothing is shown until we know who
+            you are.
+          </p>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Link
+              href="/login"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/signup"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-ink-200 bg-white px-5 text-sm font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-brand-700"
+            >
+              Create an account
+            </Link>
+          </div>
+        </div>
+      </BrandFrame>
+    );
+  }
 
   // The home page is not in any group, so it needs naming here or the
   // breadcrumb falls back to its own parent and reads "Workspace › Workspace".

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import {
   Sparkles,
   ShieldCheck,
@@ -67,7 +68,7 @@ export function AuthShell({
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20 backdrop-blur">
                 <Sparkles className="h-5 w-5 text-white" strokeWidth={2.25} />
               </span>
-              <span className="font-display text-base font-bold tracking-tight">PayrollCheck</span>
+              <span className="font-display text-base font-bold tracking-tight">{PRODUCT_NAME}</span>
             </Link>
           </div>
 
@@ -143,7 +144,7 @@ export function AuthShell({
                 <Sparkles size={17} strokeWidth={2.25} />
               </span>
               <span className="font-display text-base font-bold tracking-tight text-ink-900">
-                PayrollCheck
+                {PRODUCT_NAME}
               </span>
             </div>
             {children}

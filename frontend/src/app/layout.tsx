@@ -1,3 +1,4 @@
+import { PRODUCT_DESCRIPTION, PRODUCT_TITLE } from "@/lib/brand";
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
@@ -22,9 +23,8 @@ const display = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "PayrollCheck — India statutory payroll validation",
-  description:
-    "Modern PF, ESIC, PT, LWF and tax validation for Indian payroll teams. Audit-grade accuracy, built for HR & finance.",
+  title: PRODUCT_TITLE,
+  description: PRODUCT_DESCRIPTION,
 };
 
 // The product is light-only: white surfaces, sky-blue accents, one set of

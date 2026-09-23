@@ -8,6 +8,7 @@ import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 const benefits = [
   "Validate PF, ESIC, PT, LWF in seconds",
@@ -136,13 +137,13 @@ export default function SignupPage() {
           </button>
 
           <p className="text-center text-[11px] leading-relaxed text-ink-400">
-            By continuing you agree to use PayrollCheck in line with your organisation&apos;s
+            By continuing you agree to use {PRODUCT_NAME} in line with your organisation&apos;s
             policies.
           </p>
         </form>
 
         <p className="mt-7 text-center text-sm text-ink-500">
-          Already on PayrollCheck?{" "}
+          Already on {PRODUCT_NAME}?{" "}
           <Link
             href="/login"
             className="font-semibold text-brand-600 hover:text-brand-700 hover:underline"
