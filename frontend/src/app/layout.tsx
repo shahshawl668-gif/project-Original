@@ -27,8 +27,12 @@ export const metadata: Metadata = {
     "Modern PF, ESIC, PT, LWF and tax validation for Indian payroll teams. Audit-grade accuracy, built for HR & finance.",
 };
 
-// Inline pre-hydration script: prevents flash of wrong theme.
-const themeBootScript = `(function(){try{var s=localStorage.getItem('payroll_saas_theme');var sys=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';var r=(s==='light'||s==='dark')?s:(s==='system'?sys:sys);document.documentElement.classList.toggle('dark',r==='dark');document.documentElement.style.colorScheme=r;}catch(e){}})();`;
+// The product is light-only: white surfaces, sky-blue accents, one set of
+// colours to get right. This clears the `dark` class and any theme a browser
+// still remembers from before, so a returning visitor is not left on a theme
+// the product no longer maintains. The `dark:` variants in the markup stay
+// harmlessly inert rather than being stripped from several hundred files.
+const themeBootScript = `(function(){try{document.documentElement.classList.remove('dark');document.documentElement.style.colorScheme='light';localStorage.removeItem('payroll_saas_theme');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
