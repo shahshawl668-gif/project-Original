@@ -23,8 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   chartTheme,
   describeGap,
-  DIVERGING_DARK,
-  DIVERGING_LIGHT,
+  DIVERGING,
+  OTHER_COLOR,
   fetchPayEquity,
   fetchPayEquitySettings,
   formatINR,
@@ -46,13 +46,11 @@ export function PayEquityView({
   groupBy,
   filters,
   palette,
-  isDark,
   onSelectGroup,
 }: {
   groupBy: string;
   filters: Record<string, string[]>;
   palette: string[];
-  isDark: boolean;
   onSelectGroup?: (group: string) => void;
 }) {
   const settings = useQuery({
@@ -79,8 +77,7 @@ export function PayEquityView({
   if (analysis.isLoading || !analysis.data) return <Skeleton className="h-64" />;
 
   return (
-    <Analysis data={analysis.data} settings={settings.data} palette={palette}
-              isDark={isDark} onSelectGroup={onSelectGroup} />
+    <Analysis data={analysis.data} settings={settings.data} palette={palette} onSelectGroup={onSelectGroup} />
   );
 }
 
@@ -160,13 +157,11 @@ function Analysis({
   data,
   settings,
   palette,
-  isDark,
   onSelectGroup,
 }: {
   data: PayEquity;
   settings?: { enabled_by: string | null; can_change: boolean };
   palette: string[];
-  isDark: boolean;
   onSelectGroup?: (group: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -181,10 +176,10 @@ function Analysis({
   const variable = describeGap(headline?.variable_gap_pct ?? null);
   const coverage = data.coverage;
 
-  const chrome = chartTheme(isDark);
+  const chrome = chartTheme();
   const axisTick = chrome.tick;
   const gridColor = chrome.grid;
-  const diverging = isDark ? DIVERGING_DARK : DIVERGING_LIGHT;
+  const diverging = DIVERGING;
   const quartileData = data.quartiles.map((q) => ({
     band: q.band,
     Women: q.counts.female,
@@ -294,12 +289,12 @@ function Analysis({
               <YAxis type="category" dataKey="band" width={104} tick={axisTick}
                      tickLine={false} axisLine={false} />
               <Tooltip
-                cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)" }}
+                cursor={{ fill: "rgba(14,18,32,0.04)" }}
                 contentStyle={{
-                  background: isDark ? "#151b2b" : "#ffffff",
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#d6dae3"}`,
+                  background: "#ffffff",
+                  border: `1px solid ${"#d6dae3"}`,
                   borderRadius: 8, fontSize: 12,
-                  color: isDark ? "#eceef3" : "#1b2030",
+                  color: "#1b2030",
                 }}
               />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
@@ -309,7 +304,7 @@ function Analysis({
               <Bar dataKey="Women" stackId="q" fill={palette[0]} stroke={chrome.surface} strokeWidth={2} />
               <Bar dataKey="Men" stackId="q" fill={palette[4]} stroke={chrome.surface} strokeWidth={2} />
               <Bar dataKey="Other / self-described" stackId="q" fill={palette[2]} stroke={chrome.surface} strokeWidth={2} />
-              <Bar dataKey="Not recorded" stackId="q" fill={isDark ? "#98a2b3" : "#667085"} stroke={chrome.surface} strokeWidth={2} />
+              <Bar dataKey="Not recorded" stackId="q" fill={OTHER_COLOR} stroke={chrome.surface} strokeWidth={2} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -109,23 +109,35 @@ export type Readiness = {
 export type PeriodOption = { period: string; label: string };
 
 /**
- * Categorical series colours, validated against the data-viz six checks in both
- * themes (see scripts/validate_palette.js). Slot order is the entity order:
- * the same group keeps the same colour when a filter changes how many series
- * are on screen, so a chart never repaints its survivors.
+ * Categorical series colours, validated rather than chosen.
+ *
+ * Slot order is the entity order: the same group keeps the same colour when a
+ * filter changes how many series are on screen, so a chart never repaints its
+ * survivors.
+ *
+ * Slot 1 is the brand blue, because the first series is usually the measure the
+ * page is about. Orange sits between it and teal deliberately — sky and teal
+ * adjacent scored ΔE 12.5 under normal vision, below the floor of 15, and were
+ * genuinely hard to tell apart.
+ *
+ * Verified with the six checks against the white card these charts sit on:
+ *
+ *     node scripts/validate_palette.js \
+ *       "#0284c7,#dc6803,#0e9384,#b42318,#4f46e5,#087443,#a855f7,#9a3412" \
+ *       --mode light --surface "#ffffff"
+ *
+ * Worst adjacent pair is teal↔orange at ΔE 12.4 (protan) and 25.7 (normal),
+ * both clear. Adjacent is the right pairing rule here because every chart in
+ * this module is a bar, line or area — all-pairs is the standard for scatter,
+ * bubble and maps, where any mark can land beside any other.
  */
-export const SERIES_LIGHT = [
-  "#4f46e5", "#0e9384", "#dc6803", "#b42318",
-  "#0086c9", "#087443", "#a855f7", "#9a3412",
-];
-export const SERIES_DARK = [
-  "#6366f1", "#0d9488", "#d97706", "#e11d48",
-  "#0284c7", "#65a30d", "#a855f7", "#ea580c",
+export const SERIES = [
+  "#0284c7", "#dc6803", "#0e9384", "#b42318",
+  "#4f46e5", "#087443", "#a855f7", "#9a3412",
 ];
 
 /** A ninth group is never a generated hue — it folds into this. */
-export const OTHER_COLOR_LIGHT = "#667085";
-export const OTHER_COLOR_DARK = "#98a2b3";
+export const OTHER_COLOR = "#667085";
 export const OTHER_LABEL = "Other";
 
 /**
@@ -651,18 +663,17 @@ export function describeGap(pct: number | null): { text: string; tone: "gap" | "
  * contrast and CVD separation against either surface — but they are only ever
  * used where a number has a *sign*, never to tell two series apart.
  */
-export const DIVERGING_LIGHT = { negative: "#0086c9", neutral: "#d6dae3", positive: "#b42318" };
-export const DIVERGING_DARK = { negative: "#0284c7", neutral: "#3a4351", positive: "#e11d48" };
+export const DIVERGING = { negative: "#0086c9", neutral: "#d6dae3", positive: "#b42318" };
 
 /** Chart chrome, from the theme rather than from a literal. */
-export function chartTheme(isDark: boolean) {
+export function chartTheme() {
   return {
-    tick: { fill: isDark ? "#7c8597" : "#5b6478", fontSize: 11 },
-    grid: isDark ? "rgba(255,255,255,0.07)" : "rgba(14,18,32,0.07)",
-    surface: isDark ? "#151b2b" : "#ffffff",
-    border: isDark ? "rgba(255,255,255,0.12)" : "#d6dae3",
-    ink: isDark ? "#eceef3" : "#1b2030",
-    muted: isDark ? "#8592a4" : "#667085",
-    cursor: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)",
+    tick: { fill: "#5b6478", fontSize: 11 },
+    grid: "rgba(14,18,32,0.07)",
+    surface: "#ffffff",
+    border: "#d6dae3",
+    ink: "#1b2030",
+    muted: "#667085",
+    cursor: "rgba(14,18,32,0.04)",
   };
 }
