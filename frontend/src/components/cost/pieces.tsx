@@ -153,14 +153,12 @@ export function CostTooltip({
   active,
   payload,
   label,
-  isDark,
   single,
   plain,
 }: {
   active?: boolean;
   payload?: { name: string; value: number; color: string }[];
   label?: string;
-  isDark: boolean;
   single?: boolean;
   /** The values are counts, not money — headcount does not wear a rupee sign. */
   plain?: boolean;
@@ -171,9 +169,9 @@ export function CostTooltip({
     <div
       className="rounded-lg border px-3 py-2 text-xs shadow-lg"
       style={{
-        background: isDark ? "#151b2b" : "#ffffff",
-        borderColor: isDark ? "rgba(255,255,255,0.12)" : "#d6dae3",
-        color: isDark ? "#eceef3" : "#1b2030",
+        background: "#ffffff",
+        borderColor: "#d6dae3",
+        color: "#1b2030",
       }}
     >
       {label && <p className="pb-1.5 font-semibold">{label}</p>}
@@ -196,7 +194,7 @@ export function CostTooltip({
               </tr>
             ))}
           {!single && payload.length > 1 && (
-            <tr style={{ borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#d6dae3"}` }}>
+            <tr style={{ borderTop: `1px solid ${"#d6dae3"}` }}>
               <td className="pr-3 pt-1 font-semibold">Total</td>
               <td className="pt-1 text-right font-semibold">{formatINR(total, true)}</td>
             </tr>

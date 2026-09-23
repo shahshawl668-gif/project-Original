@@ -61,11 +61,9 @@ import {
   fetchReadiness,
   formatINR,
   formatPct,
-  OTHER_COLOR_DARK,
-  OTHER_COLOR_LIGHT,
+  OTHER_COLOR,
   OTHER_LABEL,
-  SERIES_DARK,
-  SERIES_LIGHT,
+  SERIES,
   type Granularity,
   type MeasureMeta,
 } from "@/lib/cost-analysis";
@@ -114,12 +112,8 @@ const LAYER_TOTAL: Record<string, string> = {
 };
 
 export default function CostAnalysisPage() {
-  // Light-only product. The flag stays because it is threaded through every
-  // chart component's props; the dark palettes it selects are dead and come out
-  // with the chart-colour pass rather than in a fix for a dark canvas.
-  const isDark = false;
-  const palette = isDark ? SERIES_DARK : SERIES_LIGHT;
-  const otherColor = isDark ? OTHER_COLOR_DARK : OTHER_COLOR_LIGHT;
+  const palette = SERIES;
+  const otherColor = OTHER_COLOR;
 
   const [view, setView] = useState<ViewKey>("overview");
   const [groupBy, setGroupBy] = useState("department");
@@ -236,13 +230,13 @@ export default function CostAnalysisPage() {
     });
   }
 
-  const axisTick = { fill: isDark ? "#7c8597" : "#5b6478", fontSize: 11 };
-  const gridColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(14,18,32,0.07)";
+  const axisTick = { fill: "#5b6478", fontSize: 11 };
+  const gridColor = "rgba(14,18,32,0.07)";
 
   // A selected group stays fully painted and the rest recede. Colour still
   // follows the entity — nothing is repainted, only dimmed — so a reader who
   // learned which hue is Engineering is not misled by a filter.
-  const chrome = chartTheme(isDark);
+  const chrome = chartTheme();
   const selected = filters[groupBy] ?? [];
   const isFiltered = (group: string) => selected.length === 0 || selected.includes(group);
   const dimmed = (group: string) => (isFiltered(group) ? 1 : 0.28);
@@ -492,7 +486,6 @@ export default function CostAnalysisPage() {
           groupBy={groupBy}
           filters={filters}
           palette={palette}
-          isDark={isDark}
           onSelectGroup={(group) => filterFromChart(group)}
         />
       ) : !hasData ? (
@@ -526,11 +519,10 @@ export default function CostAnalysisPage() {
           isLoading={compensation.isLoading}
           error={compensation.error as Error | null}
           palette={palette}
-          isDark={isDark}
           onSelectGroup={(group) => filterFromChart(group)}
         />
       ) : view === "budget" ? (
-        <BudgetView filters={filters} palette={palette} isDark={isDark} />
+        <BudgetView filters={filters} palette={palette} />
       ) : (
         <>
           {/* ── the figures ───────────────────────────────────────── */}
@@ -579,7 +571,7 @@ export default function CostAnalysisPage() {
                         tick={axisTick} tickLine={false} axisLine={false} width={64}
                         tickFormatter={(v: number) => formatINR(v, true)}
                       />
-                      <Tooltip content={<CostTooltip isDark={isDark} />} />
+                      <Tooltip content={<CostTooltip />} />
                       <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                       {groups.map((g, i) => (
                         <Area
@@ -622,8 +614,8 @@ export default function CostAnalysisPage() {
                         <YAxis type="category" dataKey="name" width={120}
                                tick={axisTick} tickLine={false} axisLine={false} />
                         <Tooltip
-                          cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)" }}
-                          content={<CostTooltip isDark={isDark} single />}
+                          cursor={{ fill: "rgba(14,18,32,0.04)" }}
+                          content={<CostTooltip single />}
                         />
                         <Bar
                           dataKey="total"
@@ -672,7 +664,7 @@ export default function CostAnalysisPage() {
                       <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                       <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
                              tickFormatter={(v: number) => formatINR(v, true)} />
-                      <Tooltip content={<CostTooltip isDark={isDark} />} />
+                      <Tooltip content={<CostTooltip />} />
                       <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                       {layerMeasures.map((m, i) => (
                         <Area
@@ -734,8 +726,8 @@ export default function CostAnalysisPage() {
                         <YAxis type="category" dataKey="name" width={120}
                                tick={axisTick} tickLine={false} axisLine={false} />
                         <Tooltip
-                          cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)" }}
-                          content={<CostTooltip isDark={isDark} single />}
+                          cursor={{ fill: "rgba(14,18,32,0.04)" }}
+                          content={<CostTooltip single />}
                         />
                         <Bar
                           dataKey="total"
@@ -778,7 +770,7 @@ export default function CostAnalysisPage() {
                         <YAxis tick={axisTick} tickLine={false} axisLine={false} width={40}
                                allowDecimals={false} />
                         <Tooltip cursor={{ fill: chrome.cursor }}
-                                 content={<CostTooltip isDark={isDark} single plain />} />
+                                 content={<CostTooltip single plain />} />
                         <Bar dataKey="Headcount" fill={palette[4]} radius={[4, 4, 0, 0]} barSize={26} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -802,7 +794,7 @@ export default function CostAnalysisPage() {
                         <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                         <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
                                tickFormatter={(v: number) => formatINR(v, true)} />
-                        <Tooltip content={<CostTooltip isDark={isDark} single />} />
+                        <Tooltip content={<CostTooltip single />} />
                         <Line type="monotone" dataKey="Cost per head" stroke={palette[2]}
                               strokeWidth={2.5} dot={{ r: 3 }} />
                       </LineChart>

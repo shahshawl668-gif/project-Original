@@ -52,14 +52,12 @@ export function CompensationView({
   isLoading,
   error,
   palette,
-  isDark,
   onSelectGroup,
 }: {
   data?: Compensation;
   isLoading: boolean;
   error?: Error | null;
   palette: string[];
-  isDark: boolean;
   /** Clicking a group filters the whole page to it. */
   onSelectGroup?: (group: string) => void;
 }) {
@@ -81,7 +79,7 @@ export function CompensationView({
     );
   }
 
-  const chrome = chartTheme(isDark);
+  const chrome = chartTheme();
   const axisTick = chrome.tick;
   const gridColor = chrome.grid;
   const ranges = data.groups.map((g) => ({
@@ -150,12 +148,12 @@ export function CompensationView({
                 <YAxis tick={axisTick} tickLine={false} axisLine={false} width={34}
                        allowDecimals={false} />
                 <Tooltip
-                  cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(14,18,32,0.04)" }}
+                  cursor={{ fill: "rgba(14,18,32,0.04)" }}
                   contentStyle={{
-                    background: isDark ? "#151b2b" : "#ffffff",
-                    border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "#d6dae3"}`,
+                    background: "#ffffff",
+                    border: `1px solid ${"#d6dae3"}`,
                     borderRadius: 8, fontSize: 12,
-                    color: isDark ? "#eceef3" : "#1b2030",
+                    color: "#1b2030",
                   }}
                 />
                 <Bar dataKey="Employees" radius={[4, 4, 0, 0]} fill={palette[0]} />

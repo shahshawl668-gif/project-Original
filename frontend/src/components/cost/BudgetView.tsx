@@ -58,11 +58,9 @@ const DEFAULT_SCENARIO: ForecastInput = {
 export function BudgetView({
   filters,
   palette,
-  isDark,
 }: {
   filters: Record<string, string[]>;
   palette: string[];
-  isDark: boolean;
 }) {
   const queryClient = useQueryClient();
   const [scenario, setScenario] = useState<ForecastInput>(DEFAULT_SCENARIO);
@@ -84,8 +82,8 @@ export function BudgetView({
     },
   });
 
-  const axisTick = { fill: isDark ? "#7c8597" : "#5b6478", fontSize: 11 };
-  const gridColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(14,18,32,0.07)";
+  const axisTick = { fill: "#5b6478", fontSize: 11 };
+  const gridColor = "rgba(14,18,32,0.07)";
 
   const data = variance.data;
   const totals = data?.totals;
@@ -179,7 +177,7 @@ export function BudgetView({
                   <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                   <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
                          tickFormatter={(v: number) => formatINR(v, true)} />
-                  <Tooltip content={<CostTooltip isDark={isDark} single />} />
+                  <Tooltip content={<CostTooltip single />} />
                   <Legend iconType="circle" iconSize={8}
                           wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                   <Bar dataKey="Budget" fill={palette[4]} fillOpacity={0.45}
@@ -317,7 +315,7 @@ export function BudgetView({
                   <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                   <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
                          tickFormatter={(v: number) => formatINR(v, true)} />
-                  <Tooltip content={<CostTooltip isDark={isDark} single />} />
+                  <Tooltip content={<CostTooltip single />} />
                   <Legend iconType="circle" iconSize={8}
                           wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                   <Line type="monotone" dataKey="Actual" stroke={palette[0]} strokeWidth={2.5}
