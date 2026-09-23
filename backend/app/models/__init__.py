@@ -38,6 +38,15 @@ from app.models.support import (
     SUPPORT_POLICIES,
     SupportAccessGrant,
 )
+from app.models.validation_job import (
+    ACTIVE_STATES,
+    CHUNK_SIZE,
+    DEFAULT_MAX_ATTEMPTS,
+    JOB_STATES,
+    LEASE_SECONDS,
+    TERMINAL_STATES,
+    ValidationJob,
+)
 from app.models.reconciliation import (
     BankFile,
     BankFileProfile,
@@ -107,4 +116,11 @@ __all__ = [
     "BudgetVersion",
     "BudgetLine",
     "ENTITY_SCOPE",
+    "ValidationJob",
+    "JOB_STATES",
+    "ACTIVE_STATES",
+    "TERMINAL_STATES",
+    "LEASE_SECONDS",
+    "CHUNK_SIZE",
+    "DEFAULT_MAX_ATTEMPTS",
 ]

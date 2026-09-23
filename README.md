@@ -38,6 +38,7 @@ Monorepo: **backend** is FastAPI + SQLAlchemy; **frontend** is Next.js 14 (App R
 | [`docs/GO_LIVE.md`](docs/GO_LIVE.md) | Whoever ships it | Sequenced test plan and production cutover |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | Operators | Hosting, environment variables, DNS, rollback |
 | [`docs/DATABASE_MIGRATION.md`](docs/DATABASE_MIGRATION.md) | Operators | Moving the database between hosts, with a tested script |
+| [`docs/BACKGROUND_JOBS.md`](docs/BACKGROUND_JOBS.md) | Engineers | Design for moving validation off the request path — the change that decides how large a client can be |
 
 The three manuals are illustrated with screenshots of the running product, in
 [`docs/images/`](docs/images). They are captured from a seeded demo group rather
