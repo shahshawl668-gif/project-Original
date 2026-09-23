@@ -292,13 +292,24 @@ function formatErrorDetail(detail: unknown): string {
 }
 
 /** Parse a JSON response using the standard `{ success, data, error }` shape. */
+/** An API failure that still remembers which status produced it. */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
   const text = await res.text();
   let body: ApiEnvelope<T> | { detail?: unknown } | null = null;
   try {
     body = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
   } catch {
-    throw new Error(`Invalid JSON (${res.status})`);
+    throw new ApiError(`Invalid JSON (${res.status})`, res.status);
   }
   const env = body as ApiEnvelope<T>;
   if (!res.ok || !env || env.success !== true) {
@@ -306,7 +317,7 @@ export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
     const fallback =
       typeof body === "object" && body && "detail" in body ? (body as { detail: unknown }).detail : undefined;
     const detail = errObj?.detail ?? fallback ?? `HTTP ${res.status}`;
-    throw new Error(formatErrorDetail(detail));
+    throw new ApiError(formatErrorDetail(detail), res.status);
   }
   return env.data;
 }

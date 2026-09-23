@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton, StatCardSkeleton } from "@/components/ui/skeleton";
+import { SlowRequestNotice } from "@/components/ui/slow-request-notice";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -191,8 +192,13 @@ export default function DashboardPage() {
     return "Good evening";
   })();
 
-  const userFirstName = user?.email?.split("@")[0]?.split(".")[0] || "there";
-  const displayName = userFirstName.charAt(0).toUpperCase() + userFirstName.slice(1);
+  // A signed-out visitor has no name, and "there" capitalised reads as one —
+  // the page greeted people as "There". Better to greet nobody than to greet
+  // them by a placeholder.
+  const userFirstName = user?.email?.split("@")[0]?.split(".")[0] ?? "";
+  const displayName = userFirstName
+    ? userFirstName.charAt(0).toUpperCase() + userFirstName.slice(1)
+    : "";
 
   const riskDist = useMemo(() => {
     return [
@@ -248,7 +254,7 @@ export default function DashboardPage() {
               FY {(() => { const d = new Date(); const s = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; return `${s}-${String(s + 1).slice(-2)}`; })()} ready
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold leading-tight tracking-tightest text-white sm:text-4xl">
-              {greeting}, {displayName}.
+              {displayName ? `${greeting}, ${displayName}.` : `${greeting}.`}
               <br />
               Your payroll, <span className="text-gradient bg-gradient-to-r from-pink-200 via-fuchsia-200 to-amber-100 bg-clip-text text-transparent">audit-ready.</span>
             </h1>
@@ -315,6 +321,8 @@ export default function DashboardPage() {
           </Stagger>
         </div>
       </motion.section>
+
+      <SlowRequestNotice isLoading={loadingApi} className="px-1" />
 
       {apiError && notSignedIn && (
         <AlertBanner variant="warning" title="Sign in to see your data">
