@@ -37,6 +37,7 @@ Monorepo: **backend** is FastAPI + SQLAlchemy; **frontend** is Next.js 14 (App R
 | [`USER_MANUAL.md`](USER_MANUAL.md) | Operators wanting depth | Every module, full rule reference, API table, troubleshooting |
 | [`docs/GO_LIVE.md`](docs/GO_LIVE.md) | Whoever ships it | Sequenced test plan and production cutover |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | Operators | Hosting, environment variables, DNS, rollback |
+| [`docs/DATABASE_MIGRATION.md`](docs/DATABASE_MIGRATION.md) | Operators | Moving the database between hosts, with a tested script |
 
 The three manuals are illustrated with screenshots of the running product, in
 [`docs/images/`](docs/images). They are captured from a seeded demo group rather
