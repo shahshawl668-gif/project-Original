@@ -30,10 +30,18 @@ Monorepo: **backend** is FastAPI + SQLAlchemy; **frontend** is Next.js 14 (App R
 
 | Document | For | Covers |
 |---|---|---|
+| [`docs/IMPLEMENTATION_MANUAL.md`](docs/IMPLEMENTATION_MANUAL.md) | Whoever onboards a client | What to collect, the order configuration has to happen in, parallel run, acceptance |
+| [`docs/ADMIN_MANUAL.md`](docs/ADMIN_MANUAL.md) | Platform and organization administrators | Login types, roles and rights, creating client accounts, invitations, break-glass support |
+| [`docs/CLIENT_USER_MANUAL.md`](docs/CLIENT_USER_MANUAL.md) | Payroll, HR and finance staff at a client | The monthly routine, screen by screen |
 | [`docs/BRD.md`](docs/BRD.md) | Stakeholders, clients | Scope, requirements, roles, acceptance criteria, known gaps |
-| [`USER_MANUAL.md`](USER_MANUAL.md) | Payroll and finance operators | Setup, every module, rule reference, troubleshooting |
+| [`USER_MANUAL.md`](USER_MANUAL.md) | Operators wanting depth | Every module, full rule reference, API table, troubleshooting |
 | [`docs/GO_LIVE.md`](docs/GO_LIVE.md) | Whoever ships it | Sequenced test plan and production cutover |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | Operators | Hosting, environment variables, DNS, rollback |
+
+The three manuals are illustrated with screenshots of the running product, in
+[`docs/images/`](docs/images). They are captured from a seeded demo group rather
+than drawn, so they show the real interface — regenerate them with
+`backend/e2e_deployed.py`-style seeding plus Playwright when the UI changes.
 
 ## Production layout (peopleopslab.in)
 

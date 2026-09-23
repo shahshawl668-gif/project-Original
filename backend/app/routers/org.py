@@ -8,6 +8,8 @@ entity switcher can render without a second round trip.
 from __future__ import annotations
 
 import uuid
+from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,9 +26,12 @@ from app.deps import (
 from app.envelope import ok
 from app.models import (
     Entity,
+    FindingState,
     OrgInvitation,
     OrgMembership,
     Organization,
+    PeriodSignOff,
+    SalaryRegister,
     SupportAccessGrant,
     User,
 )
@@ -64,6 +69,98 @@ def get_context(
         entities=[EntityOut.model_validate(e) for e in entities],
     )
     return ok(payload.model_dump(mode="json"))
+
+
+@router.get("/portfolio")
+def portfolio(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Every company this person can see, with the state of each one.
+
+    A group runs several employers and the question on any given morning is
+    which of them needs attention — not what the one you happen to have selected
+    looks like. Answering that by switching entity and re-reading a dashboard
+    five times is how things get missed.
+
+    Deliberately one request rather than one per company: a practice with thirty
+    clients would otherwise open thirty connections to render a landing page.
+    """
+    entities = tenancy.accessible_entities(db, user)
+    if not entities:
+        return ok({"entities": [], "totals": {}})
+
+    entity_ids = [e.id for e in entities]
+
+    # Latest register per entity, and how many people were on it.
+    latest_period: dict[uuid.UUID, date] = {}
+    headcount: dict[uuid.UUID, int] = {}
+    for entity_id, period, count in (
+        db.query(
+            SalaryRegister.entity_id,
+            SalaryRegister.period_month,
+            SalaryRegister.employee_count,
+        )
+        .filter(SalaryRegister.entity_id.in_(entity_ids))
+        .order_by(SalaryRegister.entity_id, SalaryRegister.period_month.desc())
+        .all()
+    ):
+        if entity_id not in latest_period:
+            latest_period[entity_id] = period
+            headcount[entity_id] = count or 0
+
+    # Open findings, and the ones that cannot wait, counted per entity.
+    open_counts: dict[uuid.UUID, int] = {}
+    critical_counts: dict[uuid.UUID, int] = {}
+    exposure: dict[uuid.UUID, Decimal] = {}
+    for state in (
+        db.query(FindingState)
+        .filter(FindingState.entity_id.in_(entity_ids), FindingState.state == "open")
+        .all()
+    ):
+        open_counts[state.entity_id] = open_counts.get(state.entity_id, 0) + 1
+        exposure[state.entity_id] = exposure.get(state.entity_id, Decimal("0")) + (
+            state.last_financial_impact or Decimal("0")
+        )
+        if (state.severity or "").upper() == "CRITICAL":
+            critical_counts[state.entity_id] = critical_counts.get(state.entity_id, 0) + 1
+
+    signoffs = {
+        (s.entity_id, s.period_month): s.state
+        for s in db.query(PeriodSignOff)
+        .filter(PeriodSignOff.entity_id.in_(entity_ids))
+        .all()
+    }
+
+    rows = []
+    for entity in entities:
+        period = latest_period.get(entity.id)
+        rows.append(
+            {
+                "id": str(entity.id),
+                "name": entity.name,
+                "code": entity.code,
+                "primary_state": entity.primary_state,
+                "last_register_period": period.isoformat() if period else None,
+                "employee_count": headcount.get(entity.id, 0),
+                "open_findings": open_counts.get(entity.id, 0),
+                "critical_findings": critical_counts.get(entity.id, 0),
+                "exposure": float(exposure.get(entity.id, Decimal("0"))),
+                "signoff_state": signoffs.get((entity.id, period)) if period else None,
+            }
+        )
+
+    # Sorted by what needs doing: anything critical first, then anything open,
+    # then alphabetically. A landing page that sorts by name buries the problem.
+    rows.sort(key=lambda r: (-r["critical_findings"], -r["open_findings"], r["name"].lower()))
+
+    totals = {
+        "entities": len(rows),
+        "employees": sum(r["employee_count"] for r in rows),
+        "open_findings": sum(r["open_findings"] for r in rows),
+        "critical_findings": sum(r["critical_findings"] for r in rows),
+        "exposure": sum(r["exposure"] for r in rows),
+        "awaiting_register": sum(1 for r in rows if r["last_register_period"] is None),
+    }
+    return ok({"entities": rows, "totals": totals})
 
 
 @router.get("/entities")

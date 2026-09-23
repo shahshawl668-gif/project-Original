@@ -24,14 +24,14 @@ const config: Config = {
         card: "0 1px 0 rgb(15 23 42 / 0.05), 0 12px 32px rgb(15 23 42 / 0.06)",
         elevated:
           "0 1px 0 rgb(15 23 42 / 0.04), 0 18px 48px rgb(15 23 42 / 0.08), 0 1px 2px rgb(15 23 42 / 0.05)",
-        glow: "0 0 0 1px rgb(99 102 241 / 0.1), 0 16px 56px -12px rgb(99 102 241 / 0.45)",
+        glow: "0 0 0 1px rgb(14 165 233 / 0.12), 0 16px 56px -12px rgb(14 165 233 / 0.35)",
         ring: "0 0 0 1px rgb(15 23 42 / 0.06)",
       },
       backgroundImage: {
         "hero-mesh":
-          "radial-gradient(at 22% 18%, rgba(124,58,237,0.55) 0px, transparent 50%), radial-gradient(at 82% 12%, rgba(59,130,246,0.45) 0px, transparent 50%), radial-gradient(at 60% 80%, rgba(236,72,153,0.38) 0px, transparent 60%)",
+          "radial-gradient(at 20% 15%, rgba(14,165,233,0.30) 0px, transparent 55%), radial-gradient(at 80% 10%, rgba(56,189,248,0.24) 0px, transparent 55%), radial-gradient(at 60% 85%, rgba(2,132,199,0.18) 0px, transparent 60%)",
         "premium-gradient":
-          "linear-gradient(135deg, #4f46e5 0%, #7c3aed 40%, #ec4899 100%)",
+          "linear-gradient(135deg, #0284c7 0%, #0ea5e9 45%, #38bdf8 100%)",
         "noise":
           "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E\")",
       },
@@ -49,26 +49,31 @@ const config: Config = {
           900: "#0e1220",
           950: "#070912",
         },
+        // Sky blue on white. 600 is the action colour: it clears 4.5:1 against
+        // white for button text, which 500 does not, so the darker step is the
+        // one that gets used for anything a person has to read.
         brand: {
-          50: "#eef2ff",
-          100: "#e0e7ff",
-          200: "#c7d2fe",
-          300: "#a5b4fc",
-          400: "#818cf8",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca",
-          800: "#3730a3",
-          900: "#312e81",
-          950: "#1e1b4b",
+          50: "#f0f9ff",
+          100: "#e0f2fe",
+          200: "#bae6fd",
+          300: "#7dd3fc",
+          400: "#38bdf8",
+          500: "#0ea5e9",
+          600: "#0284c7",
+          700: "#0369a1",
+          800: "#075985",
+          900: "#0c4a6e",
+          950: "#082f49",
         },
+        // A cooler neighbour rather than a contrast. Used sparingly — on white,
+        // two loud colours read as two priorities.
         accent: {
-          50: "#fdf4ff",
-          100: "#fae8ff",
-          400: "#c084fc",
-          500: "#a855f7",
-          600: "#9333ea",
-          700: "#7e22ce",
+          50: "#ecfeff",
+          100: "#cffafe",
+          400: "#22d3ee",
+          500: "#06b6d4",
+          600: "#0891b2",
+          700: "#0e7490",
         },
         success: {
           50: "#f0fdf4",

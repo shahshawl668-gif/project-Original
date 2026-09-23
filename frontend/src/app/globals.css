@@ -5,7 +5,7 @@
 :root {
   color-scheme: light;
   /* Surfaces */
-  --bg-canvas: #f7f8fb;
+  --bg-canvas: #f5f9fd;  /* white, with just enough sky in it to sit behind white cards */
   --bg-elevated: #ffffff;
   --bg-subtle: rgba(15, 23, 42, 0.04);
   --bg-card: #ffffff;
