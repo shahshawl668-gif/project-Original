@@ -19,6 +19,12 @@ from app.models import Entity, User
 from app.services import tenancy
 from app.security import decode_token
 
+# Deliberately still carries the old product name. This is not branding — it is
+# the key the system account is looked up by, and the row already exists in
+# every installed database. Changing it would fail to find that account, create
+# a second one, and make the original start counting as a human in the
+# "first signup becomes platform admin" check. Renaming it needs a data
+# migration, not a find-and-replace.
 SYSTEM_USER_EMAIL = "system@payrollcheck.local"
 
 security = HTTPBearer(auto_error=False)

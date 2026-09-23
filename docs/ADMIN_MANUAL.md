@@ -1,11 +1,11 @@
-# PayrollCheck — Administrator Manual
+# Peopleopslab — Administrator Manual
 
 Running the product: who can sign in, what each of them can do, how a client
 account gets created, and how support access works.
 
 Two different jobs are described here, and it matters which one you are doing:
 
-- **Platform administrator** — you run PayrollCheck itself. You can see
+- **Platform administrator** — you run Peopleopslab itself. You can see
   organizations exist. You cannot read their payroll.
 - **Organization owner** — you run one client's account. You can see everything
   inside it and decide who else can.

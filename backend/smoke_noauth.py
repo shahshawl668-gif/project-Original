@@ -2,8 +2,8 @@
 import os
 import requests, sys
 
-BASE = os.environ.get("PAYROLLCHECK_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-"""Where to run against. Defaults to a local server; set PAYROLLCHECK_BASE_URL
+BASE = os.environ.get("PEOPLEOPSLAB_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+"""Where to run against. Defaults to a local server; set PEOPLEOPSLAB_BASE_URL
 to point the same checks at a deployed stack."""
 OK = True
 

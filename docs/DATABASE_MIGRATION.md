@@ -1,6 +1,6 @@
 # Moving the database
 
-How to move PayrollCheck's PostgreSQL database to a different host, without
+How to move Peopleopslab's PostgreSQL database to a different host, without
 losing anything and without a window where the application is pointed at a
 database that is not ready.
 

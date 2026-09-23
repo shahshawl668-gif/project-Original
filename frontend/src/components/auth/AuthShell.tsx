@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import {
   Sparkles,
   ShieldCheck,
@@ -40,7 +41,7 @@ export function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-ink-950 text-white">
+    <div className="min-h-screen bg-brand-900 text-white">
       <div className="mx-auto flex min-h-screen max-w-[1400px]">
         {/* LEFT — premium hero */}
         <aside className="relative hidden overflow-hidden lg:flex lg:w-[55%] lg:flex-col lg:px-14 lg:py-14">
@@ -50,7 +51,7 @@ export function AuthShell({
             className="absolute inset-0"
             style={{
               background:
-                "radial-gradient(ellipse 80% 60% at 18% 20%, rgba(124,58,237,0.55) 0%, transparent 55%), radial-gradient(ellipse 70% 60% at 86% 22%, rgba(59,130,246,0.45) 0%, transparent 55%), radial-gradient(ellipse 70% 60% at 50% 100%, rgba(236,72,153,0.40) 0%, transparent 55%)",
+                "radial-gradient(ellipse 80% 60% at 18% 20%, rgba(14,165,233,0.55) 0%, transparent 55%), radial-gradient(ellipse 70% 60% at 86% 22%, rgba(56,189,248,0.40) 0%, transparent 55%), radial-gradient(ellipse 70% 60% at 50% 100%, rgba(2,132,199,0.45) 0%, transparent 55%)",
             }}
           />
           <div
@@ -67,7 +68,7 @@ export function AuthShell({
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20 backdrop-blur">
                 <Sparkles className="h-5 w-5 text-white" strokeWidth={2.25} />
               </span>
-              <span className="font-display text-base font-bold tracking-tight">PayrollCheck</span>
+              <span className="font-display text-base font-bold tracking-tight">{PRODUCT_NAME}</span>
             </Link>
           </div>
 
@@ -81,7 +82,7 @@ export function AuthShell({
                   Audit-grade payroll
                   <br />
                   validation,{" "}
-                  <span className="bg-gradient-to-r from-pink-300 via-fuchsia-300 to-amber-200 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-sky-200 via-cyan-200 to-white bg-clip-text text-transparent">
                     in one click.
                   </span>
                 </>
@@ -125,7 +126,7 @@ export function AuthShell({
               </div>
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-ink-950 to-transparent"
+                className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-brand-900 to-transparent"
               />
             </div>
           </div>
@@ -139,11 +140,11 @@ export function AuthShell({
           />
           <div className="mx-auto w-full max-w-[440px]">
             <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-soft">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-soft">
                 <Sparkles size={17} strokeWidth={2.25} />
               </span>
               <span className="font-display text-base font-bold tracking-tight text-ink-900">
-                PayrollCheck
+                {PRODUCT_NAME}
               </span>
             </div>
             {children}

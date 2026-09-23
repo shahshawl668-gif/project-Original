@@ -1,6 +1,6 @@
-# PayrollCheck — User Manual
+# Peopleopslab — User Manual
 
-For the people who use PayrollCheck each month: payroll, HR and finance staff at
+For the people who use Peopleopslab each month: payroll, HR and finance staff at
 a client company.
 
 You do not need to understand the rule engine to use this. You need to know
@@ -10,7 +10,7 @@ where to put the file, what the answers mean, and what to do about them.
 
 ## 1. What this does for you
 
-You run payroll in whatever system you already use. PayrollCheck takes the
+You run payroll in whatever system you already use. Peopleopslab takes the
 register that comes out of it and independently works out what the statute says
 should have been there — PF, ESIC, professional tax, labour welfare fund, income
 tax — then tells you every place the two disagree, what it costs, and what to do.

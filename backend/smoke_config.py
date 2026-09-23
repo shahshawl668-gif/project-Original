@@ -3,8 +3,8 @@ import json
 import os
 import urllib.request
 
-base = os.environ.get("PAYROLLCHECK_BASE_URL", "http://localhost:8000").rstrip("/")
-"""Where to run against. Defaults to a local server; set PAYROLLCHECK_BASE_URL
+base = os.environ.get("PEOPLEOPSLAB_BASE_URL", "http://localhost:8000").rstrip("/")
+"""Where to run against. Defaults to a local server; set PEOPLEOPSLAB_BASE_URL
 to point the same checks at a deployed stack."""
 
 

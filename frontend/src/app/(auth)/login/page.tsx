@@ -102,7 +102,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={busy}
-            className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(99,102,241,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(99,102,241,0.7)] disabled:opacity-60"
+            className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(2,132,199,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(2,132,199,0.7)] disabled:opacity-60"
           >
             <span
               aria-hidden
@@ -127,25 +127,6 @@ export default function LoginPage() {
             </span>
           </button>
         </form>
-
-        <div className="my-7 flex items-center gap-3">
-          <div className="h-px flex-1 bg-ink-200" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            or
-          </span>
-          <div className="h-px flex-1 bg-ink-200" />
-        </div>
-
-        <Link
-          href="/dashboard"
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white text-sm font-semibold text-ink-800 transition-all hover:bg-ink-50"
-        >
-          Continue without signing in
-          <ArrowRight
-            size={15}
-            className="text-ink-400 transition-transform group-hover:translate-x-0.5"
-          />
-        </Link>
 
         <p className="mt-8 text-center text-sm text-ink-500">
           Don&apos;t have an account?{" "}

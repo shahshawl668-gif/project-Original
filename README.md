@@ -1,4 +1,4 @@
-# PayrollCheck — India payroll validation & business intelligence
+# Peopleopslab — India payroll validation & business intelligence
 
 Not an HRMS, and it does not run payroll — which is exactly what qualifies it to
 check one. It sits beside whatever system does and answers three questions about

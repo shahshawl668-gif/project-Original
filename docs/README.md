@@ -1,6 +1,6 @@
 # Architecture reference
 
-`PayrollCheck-Architecture-Reference.docx` is the reference document for the
+`Peopleopslab-Architecture-Reference.docx` is the reference document for the
 whole system: product framing, architecture, every database table and column,
 every API endpoint, the rule catalogue, a module map, full source of the modules
 that carry the product's logic, the test architecture, and the known limitations.

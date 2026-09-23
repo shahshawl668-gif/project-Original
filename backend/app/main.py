@@ -20,6 +20,7 @@ from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.branding import PRODUCT_NAME
 from app.config import settings
 from app.database import Base, SessionLocal, apply_column_patches, engine
 from app.migrations import run_migrations
@@ -45,7 +46,7 @@ def _ensure_system_user(db) -> None:
             existing.role = "system"
             db.add(existing)
         if tenancy.get_membership(db, existing) is None:
-            tenancy.provision_org_for_user(db, existing, org_name="PayrollCheck")
+            tenancy.provision_org_for_user(db, existing, org_name=PRODUCT_NAME)
         db.commit()
         return
     user = User(
@@ -53,12 +54,12 @@ def _ensure_system_user(db) -> None:
         # A sentinel in the *hash* column, not a password: it is not a valid
         # bcrypt hash, so no credential can ever verify against it.
         password_hash="__no_auth__",  # nosec B106
-        company_name="PayrollCheck",
+        company_name=PRODUCT_NAME,
         role="system",
     )
     db.add(user)
     db.flush()
-    tenancy.provision_org_for_user(db, user, org_name="PayrollCheck")
+    tenancy.provision_org_for_user(db, user, org_name=PRODUCT_NAME)
     db.commit()
 
 

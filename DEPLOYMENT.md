@@ -137,7 +137,7 @@ find the defects planted in the data:
 
 ```bash
 cd backend
-PAYROLLCHECK_BASE_URL=https://payroll-saas-api-r6a8.onrender.com python e2e_deployed.py
+PEOPLEOPSLAB_BASE_URL=https://payroll-saas-api-r6a8.onrender.com python e2e_deployed.py
 ```
 
 41 checks, non-zero exit on any failure, so it works as a release gate. It only

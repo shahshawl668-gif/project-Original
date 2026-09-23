@@ -23,6 +23,7 @@ from collections.abc import Callable
 from sqlalchemy.orm import Session
 
 from app.models import SalaryRegister
+from app.branding import REPORT_HEADING
 
 
 def _openpyxl():
@@ -76,7 +77,7 @@ def _provenance_sheet(wb, meta: dict) -> None:
 
     ws = wb.active
     ws.title = "About this report"
-    ws.append(["PayrollCheck report"])
+    ws.append([REPORT_HEADING])
     ws["A1"].font = Font(bold=True, size=14)
     ws.append([])
     for label, value in meta.items():
