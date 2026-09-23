@@ -1,4 +1,4 @@
-# PayrollCheck — Implementation Manual
+# Peopleopslab — Implementation Manual
 
 How to take a client from "signed up" to "validating payroll in production", in
 the order the steps actually have to happen.
@@ -12,7 +12,7 @@ running, see the [Admin Manual](ADMIN_MANUAL.md) and the
 
 ## 0. What this product is, and what it is not
 
-PayrollCheck **checks** payroll. It does not run it.
+Peopleopslab **checks** payroll. It does not run it.
 
 It never calculates the salary that gets paid, never holds the payment
 instruction, never files a return. It takes the register your payroll system
@@ -238,7 +238,7 @@ Do not go live on a single month.
 1. Pick **two closed months** the client has already paid and filed.
 2. Configure against month one. Resolve every finding to one of:
    - a genuine payroll error the client confirms,
-   - a configuration error in PayrollCheck, which you fix, or
+   - a configuration error in Peopleopslab, which you fix, or
    - a documented, deliberate difference, which you suppress with a reason.
 3. Run month two **without changing configuration**. If new structural findings
    appear, month one was tuned rather than configured.
@@ -259,7 +259,7 @@ Verification of a deployed stack, end to end:
 
 ```bash
 cd backend
-PAYROLLCHECK_BASE_URL=https://your-api-host python e2e_deployed.py
+PEOPLEOPSLAB_BASE_URL=https://your-api-host python e2e_deployed.py
 ```
 
 41 checks, non-zero exit on failure. It signs up a throwaway organization, so it

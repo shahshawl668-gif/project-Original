@@ -11,7 +11,7 @@ an organization already stored — that row was written once, at install time, a
 renaming rows behind someone's back is not what a constant should do.
 """
 
-PRODUCT_NAME = "PayrollCheck"
+PRODUCT_NAME = "Peopleopslab"
 
 #: Header row on generated workbooks.
 REPORT_HEADING = f"{PRODUCT_NAME} report"

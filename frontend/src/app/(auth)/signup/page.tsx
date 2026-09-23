@@ -115,7 +115,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={busy}
-            className="group relative mt-2 inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(99,102,241,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(99,102,241,0.7)] disabled:opacity-60"
+            className="group relative mt-2 inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(2,132,199,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(2,132,199,0.7)] disabled:opacity-60"
           >
             <span className="relative flex items-center gap-2">
               {busy ? (

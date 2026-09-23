@@ -1,4 +1,4 @@
-# Go-live runbook — PayrollCheck
+# Go-live runbook — Peopleopslab
 
 How to get this product from a repository to a live service holding a real
 client's payroll data, and how to prove at each step that it is safe to
@@ -326,7 +326,7 @@ increase the plan before blaming the code.
 
 **The real acceptance test, and the one nothing else replaces.**
 
-Run one complete real month through PayrollCheck *alongside* the client's
+Run one complete real month through Peopleopslab *alongside* the client's
 existing process, changing nothing in their process. Two to three cycles is
 better than one.
 

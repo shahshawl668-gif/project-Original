@@ -7,7 +7,7 @@
  */
 
 /** The product name, as it appears to anyone using it. */
-export const PRODUCT_NAME = "PayrollCheck";
+export const PRODUCT_NAME = "Peopleopslab";
 
 /** The line under the mark. Short enough to sit beside it at phone width. */
 export const PRODUCT_TAGLINE = "India · Audit grade";

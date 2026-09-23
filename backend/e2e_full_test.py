@@ -38,8 +38,8 @@ import io, json, math, os, time, urllib.request, urllib.error, urllib.parse
 from decimal import Decimal
 from typing import Any
 
-BASE = os.environ.get("PAYROLLCHECK_BASE_URL", "http://localhost:8000").rstrip("/")
-"""Where to run against. Defaults to a local server; set PAYROLLCHECK_BASE_URL
+BASE = os.environ.get("PEOPLEOPSLAB_BASE_URL", "http://localhost:8000").rstrip("/")
+"""Where to run against. Defaults to a local server; set PEOPLEOPSLAB_BASE_URL
 to point the same checks at a deployed stack."""
 PASS = FAIL = 0
 REPORT_LINES: list[str] = []

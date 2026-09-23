@@ -1,4 +1,4 @@
-# Business Requirements Document — PayrollCheck
+# Business Requirements Document — Peopleopslab
 
 **India Payroll Validation, Cost Intelligence & Reconciliation**
 
@@ -18,7 +18,7 @@ computes PF, files the ECR, produces the bank file and posts the journal
 voucher — and then reports that all four agree. They always agree, because one
 system produced all four.
 
-PayrollCheck is the independent second opinion. It **never runs payroll**, which
+Peopleopslab is the independent second opinion. It **never runs payroll**, which
 is precisely what qualifies it to check one. It reads the outputs of whatever
 system a company already uses — Keka, Darwinbox, ADP, greytHR, a bureau, or a
 spreadsheet and a CA — and answers three questions the producing system cannot

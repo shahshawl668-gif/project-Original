@@ -33,6 +33,10 @@ SENSITIVE_FIELDS = (
 
 def pseudonym(entity_id: uuid.UUID | str, employee_id: str) -> str:
     """A stable, per-entity token for one employee."""
+    # The fallback string keeps the old product name on purpose: it is an HMAC
+    # key, not a label. Changing it would change every pseudonym derived from
+    # it, so the same employee would appear as two different people either side
+    # of the rename.
     key = str(getattr(settings, "jwt_secret", "") or "payrollcheck").encode()
     digest = hmac.new(
         key, f"{entity_id}:{employee_id}".encode(), hashlib.sha256

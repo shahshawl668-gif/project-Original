@@ -7,7 +7,7 @@ point it at, through the same signup → configure → upload → validate →
 reconcile path a first client takes on day one.
 
     python e2e_deployed.py                                   # a local server
-    PAYROLLCHECK_BASE_URL=https://api.example.com python e2e_deployed.py
+    PEOPLEOPSLAB_BASE_URL=https://api.example.com python e2e_deployed.py
 
 It signs up a throwaway organization each run, so it is safe against a live
 deployment: entity scoping keeps everything it creates inside that
@@ -41,12 +41,12 @@ from tests.test_regression_end_to_end import (
     register_csv,
 )
 
-BASE = os.environ.get("PAYROLLCHECK_BASE_URL", "http://localhost:8000").rstrip("/")
+BASE = os.environ.get("PEOPLEOPSLAB_BASE_URL", "http://localhost:8000").rstrip("/")
 PASSWORD = "Passw0rd!x"
 JUNE = PERIODS[2]
 
 # A cold free-tier instance can take the better part of a minute to wake.
-TIMEOUT = int(os.environ.get("PAYROLLCHECK_TIMEOUT", "120"))
+TIMEOUT = int(os.environ.get("PEOPLEOPSLAB_TIMEOUT", "120"))
 
 
 class Run:
@@ -98,7 +98,7 @@ def upload(path: str, filename: str, content: str, meta: dict) -> requests.Respo
 
 # ---------------------------------------------------------------------------
 def main() -> int:
-    print(f"\n=== PayrollCheck end-to-end against {BASE} ===")
+    print(f"\n=== Peopleopslab end-to-end against {BASE} ===")
 
     run.section("Reachability")
     try:

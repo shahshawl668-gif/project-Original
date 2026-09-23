@@ -1,4 +1,4 @@
-# PayrollCheck — User Manual
+# Peopleopslab — User Manual
 
 **India Payroll Intelligence & Compliance OS**
 
@@ -8,7 +8,7 @@ This guide explains how to use the full product: **Next.js** web app (sidebar na
 
 ## 1. What this product does
 
-PayrollCheck is **not** an HRMS and does not run payroll. It sits beside whatever
+Peopleopslab is **not** an HRMS and does not run payroll. It sits beside whatever
 system already does — Keka, Darwinbox, ADP, a bureau, or a spreadsheet and a CA —
 and answers two questions about the output.
 
@@ -901,4 +901,4 @@ Health: `**GET /api/health`**
 
 ---
 
-*Document version: aligned with PayrollCheck codebase (config-driven statutory, PT/LWF multi-state, LOP `total_days` support).*
+*Document version: aligned with Peopleopslab codebase (config-driven statutory, PT/LWF multi-state, LOP `total_days` support).*
