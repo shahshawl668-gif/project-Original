@@ -48,7 +48,6 @@ import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTheme } from "@/providers/ThemeProvider";
 import {
   capSeries,
   chartTheme,
@@ -115,8 +114,10 @@ const LAYER_TOTAL: Record<string, string> = {
 };
 
 export default function CostAnalysisPage() {
-  const { resolved } = useTheme();
-  const isDark = resolved === "dark";
+  // Light-only product. The flag stays because it is threaded through every
+  // chart component's props; the dark palettes it selects are dead and come out
+  // with the chart-colour pass rather than in a fix for a dark canvas.
+  const isDark = false;
   const palette = isDark ? SERIES_DARK : SERIES_LIGHT;
   const otherColor = isDark ? OTHER_COLOR_DARK : OTHER_COLOR_LIGHT;
 

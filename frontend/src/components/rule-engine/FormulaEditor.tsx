@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
-import { useTheme } from "@/providers/ThemeProvider";
 
 // Use the locally bundled monaco-editor instead of @monaco-editor/react's
 // default CDN loader — keeps the editor working offline / behind strict CSPs.
@@ -40,7 +39,6 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
   const editorRef = useRef<unknown>(null);
   const monacoRef = useRef<unknown>(null);
   const decorationsRef = useRef<string[]>([]);
-  const { resolved } = useTheme();
 
   useImperativeHandle(ref, () => ({
     insertAtCursor: (text: string) => {
@@ -125,7 +123,7 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
         height={height}
         defaultLanguage="javascript"
         value={value}
-        theme={resolved === "dark" ? "vs-dark" : "vs"}
+        theme="vs"
         onChange={(v) => onChange(v ?? "")}
         onMount={(editor, monaco) => {
           editorRef.current = editor;
