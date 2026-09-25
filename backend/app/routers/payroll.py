@@ -67,6 +67,7 @@ def _persist_salary_register(
     filename: str | None,
     employees: list[dict],
     comps: list[ComponentConfig],
+    source_columns: list[str] | None = None,
 ) -> None:
     comp_by_key = _component_key_map(comps)
 
@@ -83,14 +84,16 @@ def _persist_salary_register(
         db.query(SalaryRegisterRow).filter(SalaryRegisterRow.register_id == existing.id).delete()
         existing.filename = filename
         existing.employee_count = len(employees)
+        existing.source_columns = list(source_columns or [])
         register = existing
     else:
         register = SalaryRegister(
             user_id=user.id,
-        entity_id=entity.id,
+            entity_id=entity.id,
             period_month=period_month,
             filename=filename,
             employee_count=len(employees),
+            source_columns=list(source_columns or []),
         )
         db.add(register)
         db.flush()
@@ -231,7 +234,8 @@ async def upload_payroll(
 
     persist_period = _to_first_of_month(period_month_d or eff_to_d)
     if persist_period and comps and not missing:
-        _persist_salary_register(db, user, entity, persist_period, file.filename, employees, comps)
+        _persist_salary_register(db, user, entity, persist_period, file.filename,
+                                 employees, comps, source_columns=columns)
         # Months later, when a figure is challenged, the only useful answer is
         # who uploaded which file, and when.
         audit.record(

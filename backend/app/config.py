@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     # production** — set ALLOW_ANONYMOUS_API=false in your hosting env.
     allow_anonymous_api: bool = True
 
+    # --- Background validation worker ----------------------------------------
+    # Off by default. A worker that started itself would begin draining the
+    # queue on every deploy of every environment, including ones nobody is
+    # watching. Turn it on deliberately, per environment.
+    validation_worker_enabled: bool = False
+    validation_worker_concurrency: int = 1
+
     # ------------------------------------------------------------------ utils
     @property
     def cors_origins_list(self) -> list[str]:

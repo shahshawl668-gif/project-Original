@@ -138,6 +138,25 @@ class ValidationFinding:
         }
 
 
+def is_unmapped_column(name: object, comp_by_key: dict) -> bool:
+    """Would COMP-001 report this column as one the product ignores?
+
+    Public because two callers need the same answer: the rule below, and the
+    reconstruction that rebuilds an employee record from a stored register
+    (services/register_rows.py). Two copies of this predicate would drift, and
+    the symptom would be a finding that appears or vanishes depending on
+    whether validation ran from the upload or from storage.
+    """
+    if name is None:
+        return False
+    col = str(name).strip().lower().replace(" ", "_")
+    if col in _RESERVED_COLS or col.startswith("_"):
+        return False
+    if col.endswith("_arrear") or ("increment" in col and "arrear" in col):
+        return False
+    return col not in comp_by_key
+
+
 # ── main builder ─────────────────────────────────────────────────────────────
 
 def _alternate_basis_match(
@@ -277,13 +296,8 @@ def build_findings(
     # ═══════════════════════════════════════════════════════════════════
 
     for col in row:
-        if col is None:
-            continue
-        col_s = str(col).strip().lower().replace(" ", "_")
-        if col_s in _RESERVED_COLS or col_s.startswith("_"):
-            continue
-        is_arrear = col_s.endswith("_arrear") or ("increment" in col_s and "arrear" in col_s)
-        if col_s not in comp_by_key and not is_arrear:
+        if is_unmapped_column(col, comp_by_key):
+            col_s = str(col).strip().lower().replace(" ", "_")
             info("COMP-001", "Unmapped Column in Register", col_s,
                  "mapped to a component", "not found in config",
                  f"Column '{col_s}' is not configured as a salary component and is excluded from all calculations.",

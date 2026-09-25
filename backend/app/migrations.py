@@ -466,6 +466,22 @@ def set_membership_defaults(conn: Connection) -> None:
     )
 
 
+def record_register_source_columns(conn: Connection) -> None:
+    """
+    Add ``salary_registers.source_columns``.
+
+    Nothing backfills it: the uploaded file's headings were never kept, so for a
+    register stored before this column existed the honest value is NULL. A
+    reader must treat NULL as "unknown", not as "the file had no extra columns"
+    — the second would let an old register validate clean where a re-upload
+    would raise COMP-001.
+    """
+    if "salary_registers" not in _table_names(conn):
+        return
+    if "source_columns" not in _columns(conn, "salary_registers"):
+        conn.execute(text("ALTER TABLE salary_registers ADD COLUMN source_columns JSON"))
+
+
 def run_migrations(engine: Engine) -> None:
     """Run every step in order, inside one transaction per step."""
     steps = (
@@ -476,6 +492,7 @@ def run_migrations(engine: Engine) -> None:
         rescope_unique_constraints,
         enforce_entity_not_null,
         set_membership_defaults,
+        record_register_source_columns,
     )
     for step in steps:
         with engine.begin() as conn:

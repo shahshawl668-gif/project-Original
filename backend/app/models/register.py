@@ -35,6 +35,13 @@ class SalaryRegister(Base):
     period_month: Mapped[date] = mapped_column(Date, nullable=False)
     filename: Mapped[str | None] = mapped_column(String(512))
     employee_count: Mapped[int | None] = mapped_column(Integer)
+    # The column headings the uploaded file carried, normalised. Storing a
+    # register keeps only the columns the product understands, which is right
+    # for calculation and wrong for reporting: COMP-001 exists to tell a client
+    # "this column is being ignored", and that finding is unreachable from the
+    # decomposed rows. Kept here so validating the stored register says the same
+    # thing as validating the file it came from.
+    source_columns: Mapped[list[str] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     rows = relationship("SalaryRegisterRow", back_populates="register", cascade="all, delete-orphan")
