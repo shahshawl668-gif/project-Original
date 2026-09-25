@@ -31,7 +31,9 @@ function usesServerSideProxy(): boolean {
 /**
  * Public URL for an API route (must start with `/api/…`).
  * - On peopleopslab.in (automatic) or NEXT_PUBLIC_USE_API_RELAY=1 → `/api/proxy/api/…` (needs BACKEND_URL on server).
- * - Else → `{origin}{path}` using NEXT_PUBLIC_API_URL or inferred `https://api.peopleopslab.in` when not proxied.
+ * - Else → `{origin}{path}` from NEXT_PUBLIC_API_URL. On a deployed host a
+ *   localhost value is ignored and there is no guessed fallback, so the
+ *   proxy's own "BACKEND_URL is unset" error reaches the user instead.
  */
 export function apiAbsoluteUrl(apiPath: string): string {
   const path = apiPath.startsWith("/") ? apiPath : `/${apiPath}`;
@@ -42,17 +44,46 @@ export function apiAbsoluteUrl(apiPath: string): string {
   return `${base}${path}`;
 }
 
-function resolvedApiOrigin(): string {
-  const env = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (env) return env.replace(/\/$/, "");
+function isLocalHostname(h: string): boolean {
+  return h === "localhost" || h === "127.0.0.1" || h === "::1" || h.endsWith(".local");
+}
 
-  if (typeof window !== "undefined") {
-    const h = window.location.hostname;
-    if (h === "peopleopslab.in" || h === "www.peopleopslab.in") {
-      return "https://api.peopleopslab.in";
+/**
+ * Where to call the API directly, when the relay is not in play.
+ *
+ * Two rules here exist because breaking either one took the live site down
+ * once already, and both failures looked like "the page will not load".
+ *
+ * **A deployed page never calls localhost.** `docker/Dockerfile.frontend`
+ * defaults `NEXT_PUBLIC_API_URL` to `http://localhost:8000`, and that default
+ * gets baked into the client bundle of any image built without the build arg
+ * set. On a real host that value is not a fallback, it is a guarantee of
+ * failure — the browser dials its own machine, and on an https page the
+ * request is blocked as mixed content before it even leaves.
+ *
+ * **No guessing at a hostname nobody created.** This used to fall back to
+ * `https://api.peopleopslab.in`, which has never existed. A DNS failure
+ * against an invented host is far harder to diagnose than the proxy's own
+ * error, which says exactly which variable is missing. Returning "" lets that
+ * message through instead of burying it.
+ */
+function resolvedApiOrigin(): string {
+  const onRealHost =
+    typeof window !== "undefined" && !isLocalHostname(window.location.hostname);
+
+  const env = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (env) {
+    const origin = env.replace(/\/$/, "");
+    let host = "";
+    try {
+      host = new URL(origin).hostname;
+    } catch {
+      host = "";
     }
+    if (!(onRealHost && isLocalHostname(host))) return origin;
   }
-  return "http://localhost:8000";
+
+  return onRealHost ? "" : "http://localhost:8000";
 }
 
 function directApiUrl(path: string): string {
@@ -66,13 +97,8 @@ export function getApiTargetDescription(): string {
   }
   const env = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (env) return env.replace(/\/$/, "");
-  if (typeof window !== "undefined") {
-    const h = window.location.hostname;
-    if (h === "peopleopslab.in" || h === "www.peopleopslab.in") {
-      return "https://api.peopleopslab.in (direct — prefer BACKEND_URL + /api/proxy; see README)";
-    }
-  }
-  return "http://localhost:8000";
+  const origin = resolvedApiOrigin();
+  return origin || "no direct API origin — set BACKEND_URL on the server";
 }
 
 export const ACCESS_TOKEN_KEY = "payroll_saas_access_token";

@@ -605,6 +605,20 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
       <div class="lk"><span class="lbl">Database</span><a class="url" href="https://dashboard.render.com/d/dpg-dape9ig473hc73969thg-a">dashboard.render.com/d/dpg-dape9ig473hc73969thg-a</a><span class="why">PostgreSQL 16, Singapore</span></div>
     </div>
 
+    <div class="note stop">
+      <h4>If the site loads but nothing works, check <code>BACKEND_URL</code> first</h4>
+      <p>This took the live site down on 25 September 2026. On a deployed host the browser
+      calls <code>/api/proxy/api/…</code> and the Next.js server forwards to
+      <code>BACKEND_URL</code>. With that variable unset the relay answers <strong>502
+      <code>proxy_misconfigured</code></strong> and never contacts the API at all.</p>
+      <p>The tell is in the metrics, not the page: the <strong>web service wakes repeatedly while
+      the API never wakes at all</strong>. If people are visiting and the API has no instance and
+      no logs, the request is dying at the relay.</p>
+      <p>Set it to the API's own URL — <code>https://payroll-saas-api-r6a8.onrender.com</code>,
+      not a custom domain — on the <em>web</em> service. It is server-side only and must never be
+      prefixed <code>NEXT_PUBLIC_</code>, which would publish it to every browser.</p>
+    </div>
+
     <h3>Environment variables that change behaviour</h3>
     <div class="tw">
       <table>
