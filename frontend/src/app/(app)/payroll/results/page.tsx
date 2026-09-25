@@ -471,7 +471,12 @@ function PayrollResultsContent() {
                   outerRadius={80}
                   dataKey="value"
                   nameKey="name"
-                  label={({ name, value }) => `${name}: ${value}`}
+                  // A zero slice has no arc to sit against, so its label lands at the
+                  // same angle as its neighbour and the two overlap into nonsense.
+                  // Severity that did not occur is read off the legend instead.
+                  label={({ name, value }) =>
+                    Number(value) > 0 ? `${name}: ${value}` : ""
+                  }
                 >
                   {riskDist.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i]} />
@@ -528,8 +533,8 @@ function PayrollResultsContent() {
                   <Bar dataKey="count" fill="url(#resBarGrad)" radius={[0, 6, 6, 0]} />
                   <defs>
                     <linearGradient id="resBarGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#6366f1" />
-                      <stop offset="100%" stopColor="#a855f7" />
+                      <stop offset="0%" stopColor="#0284c7" />
+                      <stop offset="100%" stopColor="#38bdf8" />
                     </linearGradient>
                   </defs>
                 </BarChart>
