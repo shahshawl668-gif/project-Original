@@ -1,0 +1,658 @@
+<title>Peopleopslab Operations Handbook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#f6f8fa;
+    --panel:#ffffff;
+    --panel-2:#eef4f9;
+    --ink:#0f1b24;
+    --ink-2:#405260;
+    --ink-3:#6b8092;
+    --rule:#d9e4ec;
+    --rule-2:#c3d5e2;
+    --brand:#0369a1;
+    --brand-2:#0284c7;
+    --brand-ink:#0c4a6e;
+    --ok:#047857;
+    --ok-bg:#e7f6f0;
+    --warn:#a35700;
+    --warn-bg:#fdf1e3;
+    --stop:#b3261e;
+    --stop-bg:#fdeceb;
+    --code-bg:#eff4f8;
+    --shadow:0 1px 2px rgba(15,27,36,.05), 0 8px 24px -16px rgba(15,27,36,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme:dark;
+      --ground:#0b1319;
+      --panel:#111d26;
+      --panel-2:#16252f;
+      --ink:#e6eef4;
+      --ink-2:#a8bdcb;
+      --ink-3:#7e97a7;
+      --rule:#22333f;
+      --rule-2:#2d4251;
+      --brand:#48b6ea;
+      --brand-2:#7cd0f7;
+      --brand-ink:#bfe6f9;
+      --ok:#4ec99c;
+      --ok-bg:#0f2a22;
+      --warn:#e8a54a;
+      --warn-bg:#2b1f0d;
+      --stop:#f08b83;
+      --stop-bg:#2c1413;
+      --code-bg:#16252f;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --ground:#0b1319;
+    --panel:#111d26;
+    --panel-2:#16252f;
+    --ink:#e6eef4;
+    --ink-2:#a8bdcb;
+    --ink-3:#7e97a7;
+    --rule:#22333f;
+    --rule-2:#2d4251;
+    --brand:#48b6ea;
+    --brand-2:#7cd0f7;
+    --brand-ink:#bfe6f9;
+    --ok:#4ec99c;
+    --ok-bg:#0f2a22;
+    --warn:#e8a54a;
+    --warn-bg:#2b1f0d;
+    --stop:#f08b83;
+    --stop-bg:#2c1413;
+    --code-bg:#16252f;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+  }
+
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  *{box-sizing:border-box}
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding-inline:20px;
+    padding-block:0 72px;
+  }
+
+  /* ---------- masthead ---------- */
+  header.mast{
+    border-bottom:1px solid var(--rule);
+    padding-block:38px 26px;
+    margin-bottom:34px;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--brand);
+    margin:0 0 12px;
+  }
+  h1{
+    font-family:"IBM Plex Serif", Georgia, serif;
+    font-weight:600;
+    font-size:clamp(30px,5vw,44px);
+    line-height:1.12;
+    letter-spacing:-.015em;
+    margin:0 0 14px;
+    text-wrap:balance;
+  }
+  .standfirst{
+    font-size:16.5px;
+    color:var(--ink-2);
+    max-width:62ch;
+    margin:0 0 22px;
+  }
+  .meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 22px;
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:12px;
+    color:var(--ink-3);
+  }
+  .meta b{color:var(--ink-2); font-weight:500}
+
+  /* ---------- layout ---------- */
+  .cols{display:grid; grid-template-columns:200px minmax(0,1fr); gap:44px; align-items:start}
+  @media (max-width:900px){ .cols{grid-template-columns:1fr; gap:0} nav.toc{display:none} }
+
+  nav.toc{position:sticky; top:calc(env(safe-area-inset-top, 0px) + 18px)}
+  nav.toc p{
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-3); margin:0 0 10px;
+  }
+  nav.toc a{
+    display:block; padding:5px 0; font-size:13.5px;
+    color:var(--ink-2); text-decoration:none; border-left:2px solid transparent; padding-left:11px;
+  }
+  nav.toc a:hover{color:var(--brand); border-left-color:var(--rule-2)}
+
+  section{scroll-margin-top:24px; margin-bottom:46px}
+  h2{
+    font-family:"IBM Plex Serif", Georgia, serif;
+    font-size:23px; font-weight:600; letter-spacing:-.01em;
+    margin:0 0 6px; text-wrap:balance;
+  }
+  .sub{color:var(--ink-3); font-size:14px; margin:0 0 20px; max-width:66ch}
+  h3{
+    font-size:14px; font-weight:600; margin:26px 0 10px; color:var(--ink);
+    letter-spacing:.005em;
+  }
+  p{margin:0 0 13px; max-width:70ch}
+  ul{margin:0 0 13px; padding-left:19px; max-width:70ch}
+  li{margin-bottom:6px}
+  a{color:var(--brand)}
+
+  code, .mono{font-family:"IBM Plex Mono", ui-monospace, monospace}
+  code{
+    background:var(--code-bg); padding:1.5px 5px; border-radius:3px;
+    font-size:.88em; color:var(--brand-ink); word-break:break-word;
+  }
+  pre{
+    background:var(--code-bg); border:1px solid var(--rule);
+    border-radius:7px; padding:13px 15px; overflow-x:auto;
+    font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12.5px;
+    line-height:1.65; margin:0 0 14px; color:var(--ink);
+  }
+  pre code{background:none; padding:0; color:inherit}
+
+  /* ---------- callouts ---------- */
+  .note{
+    border:1px solid var(--rule); border-left:3px solid var(--brand);
+    background:var(--panel); border-radius:0 7px 7px 0;
+    padding:15px 17px; margin:0 0 18px; box-shadow:var(--shadow);
+  }
+  .note.stop{border-left-color:var(--stop); background:var(--stop-bg)}
+  .note.warn{border-left-color:var(--warn); background:var(--warn-bg)}
+  .note h4{
+    margin:0 0 7px; font-size:13.5px; font-weight:600;
+  }
+  .note p:last-child{margin-bottom:0}
+  .note p{max-width:none}
+
+  /* ---------- tables ---------- */
+  .tw{overflow-x:auto; margin:0 0 16px; border:1px solid var(--rule); border-radius:8px; background:var(--panel)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:520px}
+  th{
+    text-align:left; font-weight:600; font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-3);
+    padding:10px 14px; border-bottom:1px solid var(--rule); white-space:nowrap;
+  }
+  td{padding:10px 14px; border-bottom:1px solid var(--rule); vertical-align:top; color:var(--ink-2)}
+  tr:last-child td{border-bottom:none}
+  td:first-child{color:var(--ink); font-weight:500}
+  td .mono, th .mono{font-size:12.5px}
+  .num{font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+
+  /* ---------- pills ---------- */
+  .pill{
+    display:inline-block; font-family:"IBM Plex Mono", ui-monospace, monospace;
+    font-size:10.5px; letter-spacing:.05em; text-transform:uppercase;
+    padding:2px 7px; border-radius:4px; white-space:nowrap;
+  }
+  .p-ok{background:var(--ok-bg); color:var(--ok)}
+  .p-warn{background:var(--warn-bg); color:var(--warn)}
+  .p-stop{background:var(--stop-bg); color:var(--stop)}
+  .p-info{background:var(--panel-2); color:var(--ink-2)}
+
+  /* ---------- link rows ---------- */
+  .links{display:grid; gap:9px; margin:0 0 16px}
+  .lk{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px;
+    border:1px solid var(--rule); background:var(--panel);
+    border-radius:7px; padding:11px 14px;
+  }
+  .lk .lbl{font-weight:600; font-size:13.5px; min-width:150px}
+  .lk .url{font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12.5px; word-break:break-all}
+  .lk .why{color:var(--ink-3); font-size:12.5px; flex:1 1 200px}
+
+  /* ---------- stack diagram ---------- */
+  .stack{display:grid; gap:10px; margin:0 0 18px}
+  .tier{
+    border:1px solid var(--rule); background:var(--panel);
+    border-radius:8px; padding:13px 15px; box-shadow:var(--shadow);
+  }
+  .tier .tname{
+    font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:10.5px;
+    letter-spacing:.12em; text-transform:uppercase; color:var(--brand); margin-bottom:7px;
+  }
+  .tier .tbody{font-size:13.5px; color:var(--ink-2)}
+  .tier .tbody b{color:var(--ink); font-weight:500}
+  .arrow{
+    text-align:center; color:var(--ink-3); font-size:15px; line-height:1;
+    font-family:"IBM Plex Mono", monospace;
+  }
+
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(255px,1fr)); gap:14px; margin:0 0 16px}
+  .card{
+    border:1px solid var(--rule); background:var(--panel);
+    border-radius:8px; padding:15px 16px;
+  }
+  .card h4{margin:0 0 8px; font-size:13.5px; font-weight:600}
+  .card p{font-size:13px; color:var(--ink-2); margin:0 0 8px; max-width:none}
+  .card p:last-child{margin-bottom:0}
+  .card ul{font-size:13px; color:var(--ink-2); max-width:none; margin-bottom:0}
+
+  footer{
+    border-top:1px solid var(--rule); margin-top:48px; padding-top:20px;
+    font-size:12.5px; color:var(--ink-3);
+  }
+  footer p{max-width:70ch}
+  hr.soft{border:none; border-top:1px solid var(--rule); margin:26px 0}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Peopleopslab · Operations handbook</p>
+  <h1>Peopleopslab Operations Handbook</h1>
+  <p class="standfirst">Everything in one place: how the product is put together, every route and who can reach it, how support access actually works, what to run to test it, and where it lives. Written against the code on <code>main</code>, not from memory.</p>
+  <div class="meta">
+    <span><b>Commit</b> d96dfb5 (branch) · 4cc2103 (main)</span>
+    <span><b>Tests</b> 844 passing, SQLite + PostgreSQL</span>
+    <span><b>Compiled</b> 25 Sep 2026</span>
+  </div>
+</header>
+
+<div class="cols">
+  <nav class="toc">
+    <p>Contents</p>
+    <a href="#corrections">Two corrections</a>
+    <a href="#structure">Product structure</a>
+    <a href="#blueprint">Blueprint</a>
+    <a href="#routes">Routes &amp; access</a>
+    <a href="#admin">Admin &amp; support access</a>
+    <a href="#manuals">The three manuals</a>
+    <a href="#testing">Testing points</a>
+    <a href="#links">Live links</a>
+    <a href="#open">Open items</a>
+  </nav>
+
+  <main>
+
+  <!-- ============================================ -->
+  <section id="corrections">
+    <h2>Two corrections before anything else</h2>
+    <p class="sub">You asked for a cron job link and a hidden link. Neither exists, and I would rather tell you that than hand you something invented.</p>
+
+    <div class="note stop">
+      <h4>There is no cron job in this product</h4>
+      <p>I searched the whole repository — Python, TypeScript, <code>render.yaml</code> — for any scheduled task, cron entry, APScheduler or Celery beat. There is none. Nothing runs on a timer: no nightly recalculation, no scheduled report, no cleanup sweep. Every action happens because a person clicked something, or (once PR 3 lands) because a worker picked a job off the queue.</p>
+      <p>The one thing that <em>looks</em> time-based is support-grant expiry, and it deliberately is not swept by a job: the expiry is derived from a stored timestamp at read time, so a lapsed grant stops working the instant it lapses whether or not anything ran. That design choice is why no cron is needed for it.</p>
+    </div>
+
+    <div class="note stop">
+      <h4>There is no hidden link, and there should not be</h4>
+      <p>The admin pages are <code>/admin/users</code> and <code>/admin/support</code>. They are ordinary routes listed in the codebase, not secret URLs. What protects them is a role check on every request — <code>require_admin</code> returns <strong>403</strong> unless <code>User.role == "admin"</code> — not the fact that the address is hard to guess.</p>
+      <p>That distinction matters for a product holding payroll data. A secret URL is a password that gets pasted into chat, appears in browser history and leaks in a screen share, and grants full access to anyone who ends up with it. Knowing the address of <code>/admin/support</code> gets an ordinary user a 403 and an audit entry. If you want a colleague to reach the admin pages, the answer is to grant them the admin role, not to send them a link.</p>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="structure">
+    <h2>Product structure</h2>
+    <p class="sub">Four tiers, one repository, two deployed services. No message broker, no cache layer, no third service to secure.</p>
+
+    <div class="stack">
+      <div class="tier">
+        <div class="tname">Browser</div>
+        <div class="tbody"><b>Next.js 14 App Router</b> · React 18 · TypeScript · Tailwind · TanStack Query · Recharts. Light-only sky-blue palette. Signed out, the shell renders a brand frame and a Sign in button and nothing else — no nav, no settings labels, no entity names.</div>
+      </div>
+      <div class="arrow">↓ same-origin <code>/api/proxy/…</code></div>
+      <div class="tier">
+        <div class="tname">Next.js server</div>
+        <div class="tbody">Thin relay. Forwards to <b>BACKEND_URL</b>, dropping <code>content-encoding</code> <em>and</em> <code>content-length</code> together — keeping the second while dropping the first silently truncates decompressed JSON, which cost a day to find once already.</div>
+      </div>
+      <div class="arrow">↓ HTTPS</div>
+      <div class="tier">
+        <div class="tname">API</div>
+        <div class="tbody"><b>FastAPI</b> · SQLAlchemy 2.0 typed models · Pydantic v2 · JWT auth. Every response is the envelope <code>{success, data, error}</code>. 22 routers; every tenant-scoped one resolves the caller's entity from the <code>X-Entity-Id</code> header.</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="tier">
+        <div class="tname">Engines</div>
+        <div class="tbody">39 service modules. Five statutory engines (<b>PF, ESIC, PT, LWF, income tax</b>), attendance and arrears rules, cost model, bank reconciliation, JV builder, risk scoring, masking, audit. <b>73 finding codes across 14 families.</b> The rule engine evaluates formulas through a restricted Python AST — fixed operator and function whitelist, no imports, no attribute access.</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="tier">
+        <div class="tname">PostgreSQL 16</div>
+        <div class="tbody">43 tables. Also the job queue: <code>validation_jobs</code> claimed with <code>SELECT … FOR UPDATE SKIP LOCKED</code>. Schema managed by <code>create_all</code> plus hand-rolled idempotent dialect-aware migrations in <code>app/migrations.py</code>.</div>
+      </div>
+    </div>
+
+    <h3>Tenancy, in one paragraph</h3>
+    <p>An <strong>Organization</strong> holds many <strong>Entities</strong> (the employers whose payroll you check). A user gets an <strong>OrgMembership</strong> with one of four roles, and <strong>EntityAccess</strong> rows decide which entities they see. Write operations require <code>owner</code>, <code>manager</code> or <code>analyst</code>; <code>viewer</code> is read-only. The <code>X-Entity-Id</code> header selects the active entity on every request, and a value the caller has no access to returns 404 — not 403, because which entities exist is not something the API should confirm to a stranger.</p>
+
+    <h3>The claim that makes the product sellable</h3>
+    <p>Peopleopslab never runs payroll. It checks the register your payroll system produced. That is not a limitation to apologise for — it is the reason it can independently check one. An HRMS auditing its own output is marking its own homework.</p>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="blueprint">
+    <h2>Blueprint — how a month flows through</h2>
+    <p class="sub">The path a client's June payroll takes, from the file they export to the exceptions you hand back.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Stage</th><th>What happens</th><th>Where it lands</th></tr></thead>
+        <tbody>
+          <tr><td>1 · Configure</td><td>Salary components with their PF/ESIC/PT/LWF/taxable flags. PT and LWF slabs seeded per state. Statutory rates default from config, editable per tenant.</td><td><span class="mono">component_configs</span>, <span class="mono">pt_slabs</span>, <span class="mono">lwf_rates</span></td></tr>
+          <tr><td>2 · Employee master</td><td>Uploaded once, then as it changes. Supplies reporting dimensions and the identity fields (PAN, UAN, ESIC IP) the checks need.</td><td><span class="mono">employee_master</span></td></tr>
+          <tr><td>3 · Attendance</td><td>Days worked, days paid, loss of pay. Checked for internal consistency before it is accepted.</td><td><span class="mono">attendance_rows</span></td></tr>
+          <tr><td>4 · Register upload</td><td>The salary register. Each flat row is decomposed into components, arrears, stated deductions and a dimension snapshot taken <em>as at that month</em> — a reorganisation in November must not rewrite what April cost by department.</td><td><span class="mono">salary_registers</span>, <span class="mono">salary_register_rows</span></td></tr>
+          <tr><td>5 · Validate</td><td>~90 rules per employee across 14 families. Findings carry a rule code, severity, and a rupee figure where one can be computed.</td><td><span class="mono">validation_runs</span>, <span class="mono">findings</span></td></tr>
+          <tr><td>6 · Reconcile</td><td>Bank file against the register, employee by employee. Then the journal voucher, which must balance before it exports.</td><td><span class="mono">bank_files</span>, <span class="mono">jv_templates</span></td></tr>
+          <tr><td>7 · Sign off</td><td>Findings are waived, accepted or actioned — with who and when. Waivers carry forward, so recurrence becomes countable.</td><td><span class="mono">signoffs</span>, <span class="mono">audit_events</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Two design rules worth knowing before you demo it</h3>
+    <div class="grid2">
+      <div class="card">
+        <h4>Silence is never a pass</h4>
+        <p>A month with no bank file is reported <em>unreconciled</em>, not clean. A missing minimum-wage rate is a finding that says so, not a quiet skip. Reporting "nothing disagreed" when nothing was checked is the most dangerous answer a compliance tool can give.</p>
+      </div>
+      <div class="card">
+        <h4>Absent and zero are different claims</h4>
+        <p>A register that never mentioned ESI must not look like one that deducted nothing. Only the statutory measures a register actually states are captured, and the reconstruction that feeds the background worker preserves that distinction — with a test that proves it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="routes">
+    <h2>Routes and who can reach them</h2>
+    <p class="sub">Every page in the product. Append the path to <code>https://www.peopleopslab.in</code>.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Path</th><th>What it is</th><th>Who</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">/</td><td>Redirects to <code>/dashboard</code></td><td><span class="pill p-info">Public</span></td></tr>
+          <tr><td class="mono">/login</td><td>Sign in</td><td><span class="pill p-info">Public</span></td></tr>
+          <tr><td class="mono">/signup</td><td>Create an organisation</td><td><span class="pill p-info">Public</span></td></tr>
+          <tr><td class="mono">/invite</td><td>Accept an invitation</td><td><span class="pill p-info">Token</span></td></tr>
+          <tr><td class="mono">/dashboard</td><td>Companies portfolio — every employer, ordered by what needs attention</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/upload</td><td>Upload and validate a register</td><td><span class="pill p-warn">Write roles</span></td></tr>
+          <tr><td class="mono">/payroll/results</td><td>Validation results for the current run</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/history</td><td>Register history — re-open any stored run</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/employee/[id]</td><td>One employee, one month, every finding</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/attendance</td><td>Days worked and days paid</td><td><span class="pill p-warn">Write roles</span></td></tr>
+          <tr><td class="mono">/ctc/upload</td><td>CTC structures</td><td><span class="pill p-warn">Write roles</span></td></tr>
+          <tr><td class="mono">/ctc/history</td><td>CTC history</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/budget/upload</td><td>Budget, for variance reporting</td><td><span class="pill p-warn">Write roles</span></td></tr>
+          <tr><td class="mono">/reconciliation</td><td>Month close overview</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/reconciliation/bank</td><td>Bank payments against the register</td><td><span class="pill p-warn">Write roles</span></td></tr>
+          <tr><td class="mono">/reconciliation/jv</td><td>Journal voucher</td><td><span class="pill p-warn">Write roles</span></td></tr>
+          <tr><td class="mono">/cost</td><td>Cost analysis and BI</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/reports</td><td>11 downloadable workbooks</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/audit</td><td>Audit trail</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/config/components</td><td>Salary components and their flags</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/statutory</td><td>PF, ESIC, PT, LWF settings</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/tax</td><td>Income tax year configuration</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/rules</td><td>Rule thresholds and suppressions</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/bank-profiles</td><td>Bank file layouts</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/jv-templates</td><td>JV templates</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/team</td><td>Users and roles within the organisation</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/rule-engine/formula</td><td>Formula editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/rule-engine/slabs</td><td>Slab editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/admin/users</td><td>Platform accounts and roles</td><td><span class="pill p-stop">Platform admin</span></td></tr>
+          <tr><td class="mono">/admin/support</td><td>Break-glass support grants</td><td><span class="pill p-stop">Platform admin</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The four organisation roles</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Role</th><th>Can do</th></tr></thead>
+        <tbody>
+          <tr><td>owner</td><td>Everything, including configuration and managing people</td></tr>
+          <tr><td>manager</td><td>Everything operational, plus configuration</td></tr>
+          <tr><td>analyst</td><td>Upload, validate, reconcile — but not change configuration</td></tr>
+          <tr><td>viewer</td><td>Read only</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>Platform admin is separate and is not one of these.</strong> It is a flag on the user account (<code>User.role == "admin"</code>), and on its own it grants <em>no</em> access to any client's payroll.</p>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="admin">
+    <h2>Admin and support access</h2>
+    <p class="sub">The mechanism you actually have, instead of the hidden link you asked for.</p>
+
+    <p>A platform administrator can see which organisations exist and manage platform accounts. They cannot read a single client's payroll figure. To do that they must open a <strong>break-glass support grant</strong>, and every rule around it exists to keep it a documented support mechanism rather than a back door.</p>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>Never implicit</h4>
+        <p>Nothing widens access as a side effect. An admin with no grant reads no client data, exactly as if they had no account.</p>
+      </div>
+      <div class="card">
+        <h4>Never silent</h4>
+        <p>Opening a grant writes to the <em>client's</em> audit trail, not a separate staff log they cannot see. So does closing it, and so does the client revoking it.</p>
+      </div>
+      <div class="card">
+        <h4>Cannot outlive its box</h4>
+        <p>Default 60 minutes, maximum 480. Expiry is derived from a timestamp at read time, so a lapsed grant stops working the moment it lapses — no sweeper to fail.</p>
+      </div>
+      <div class="card">
+        <h4>Read-only, and masked</h4>
+        <p>A grant never carries write access and never unmasks employee identifiers. Both are recorded on the grant, so what a past session could see stays true even if the product later gains a wider mode.</p>
+      </div>
+    </div>
+
+    <p>A reason is required and must be at least 12 characters — a reason short enough to be meaningless is not a reason. Each client organisation sets its own policy: <code>break_glass</code> (an admin may open one), <code>approval_required</code>, or <code>disabled</code> (nobody can, ever).</p>
+
+    <h3>Admin API surface</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">GET /api/admin/users</td><td>List platform accounts</td></tr>
+          <tr><td class="mono">PATCH /api/admin/users/{target_id}/role</td><td>Grant or revoke the admin role</td></tr>
+          <tr><td class="mono">GET /api/admin/support/organizations</td><td>Which organisations exist, and their support policy</td></tr>
+          <tr><td class="mono">GET /api/admin/support/grants</td><td>Grants, open and historical</td></tr>
+          <tr><td class="mono">POST /api/admin/support/grants</td><td>Open one — requires an organisation, a duration and a reason</td></tr>
+          <tr><td class="mono">POST /api/admin/support/grants/{grant_id}/end</td><td>Close one early</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Making yourself an admin</h3>
+    <p>The first user to sign up on a fresh installation becomes the platform admin. After that, an existing admin promotes others from <code>/admin/users</code>. There is no environment variable, no seed account with a default password, and no console command — deliberately, because each of those is a credential that ends up in a repository.</p>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="manuals">
+    <h2>The three manuals</h2>
+    <p class="sub">All in <code>docs/</code> in the repository, and all readable on GitHub.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>Manual</th><th>For</th><th>Covers</th><th class="num">Lines</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">IMPLEMENTATION_MANUAL.md</td>
+            <td>Whoever sets up a new client</td>
+            <td>Prerequisites, the order to configure things in, component flags, seeding PT and LWF, the first register, what "done" looks like at each step</td>
+            <td class="num">324</td>
+          </tr>
+          <tr>
+            <td class="mono">ADMIN_MANUAL.md</td>
+            <td>You, running the platform</td>
+            <td>Creating a client account, inviting users, the four roles and what each can do, support access and when to use it, reading the audit trail</td>
+            <td class="num">247</td>
+          </tr>
+          <tr>
+            <td class="mono">CLIENT_USER_MANUAL.md</td>
+            <td>The client's payroll team</td>
+            <td>Signing in, finding your way around, the monthly routine, step by step through upload → validate → reconcile → sign off, cost analysis and reports, questions people ask</td>
+            <td class="num">263</td>
+          </tr>
+          <tr>
+            <td class="mono">GO_LIVE.md</td>
+            <td>Before the first paying client</td>
+            <td>Six phases and three gates, from local pre-flight through staging, a seven-layer test plan, a parallel run, and cutover</td>
+            <td class="num">541</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <h4>The screenshots are current as of 25 September 2026</h4>
+      <p>All 16 images in <code>docs/images/</code> were re-shot against this build. They show the product under its own name in the sky palette, populated with a full demo organisation — Northwind Textiles and Northwind Apparel, three months of register, attendance and master data, a bank file, a journal voucher, and real findings. The manuals are sendable.</p>
+      <p>Two product defects surfaced during the re-shoot and were fixed rather than photographed: the risk pie labelled its zero slices, so two severities at zero overlapped into <em>"LOWIUM: 0"</em>; and the "Top rule failures" bars were still the indigo-to-violet gradient the rest of the product had moved off.</p>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="testing">
+    <h2>Testing points</h2>
+    <p class="sub">Five things you can run. The first four take minutes; the fifth is the one with a deadline.</p>
+
+    <h3>1 · The unit suite — 844 tests</h3>
+    <pre><code>cd backend
+python -m pytest tests/ -q                 # SQLite, ~2m45s
+
+DATABASE_URL=postgresql+psycopg2://user:pass@host/db \
+  python -m pytest tests/ -q               # PostgreSQL, ~2m56s</code></pre>
+    <p>Run it on <strong>both</strong>. They are not interchangeable: SQLite ignores foreign keys by default and has no <code>FOR UPDATE SKIP LOCKED</code>, and both differences have hidden real bugs in this codebase already.</p>
+    <p class="mono" style="font-size:12.5px;color:var(--ink-3)">Note: run <code>pytest tests/</code>, not bare <code>pytest</code> — the backend root holds live-server scripts that pytest would try to collect and fail on.</p>
+
+    <h3>2 · End-to-end against a running deployment — 41 checks</h3>
+    <pre><code>cd backend
+PEOPLEOPSLAB_BASE_URL=https://payroll-saas-api-r6a8.onrender.com \
+  python e2e_deployed.py</code></pre>
+    <p>Signs up a throwaway organisation, configures it, uploads three months of master, attendance and registers, validates, reconciles a bank file, builds a JV and exports it to Tally. Exits non-zero if anything fails, so it works as a release gate. Safe against production — entity scoping keeps everything it creates inside its own organisation — but it writes, so don't aim it at a tenant whose audit trail you care about.</p>
+    <p>It asserts the single most important production setting: that an unauthenticated request is <strong>refused</strong>. A deployment that answers <code>/api/org/entities</code> without a token is serving payroll to the internet.</p>
+
+    <h3>3 · Frontend</h3>
+    <pre><code>cd frontend
+npx tsc --noEmit      # types
+npm run lint          # eslint
+npm run build         # production build</code></pre>
+
+    <h3>4 · Health endpoints</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">/health</td><td>Plain liveness — what a load balancer polls</td></tr>
+          <tr><td class="mono">/api/health</td><td>Reports <code>status</code>, <code>env</code> and <code>version</code></td></tr>
+          <tr><td class="mono">/api/v1/health</td><td>Versioned alias of the same</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The API's boot log is the other thing to read. It states the environment, which database it actually connected to, the CORS origins and whether anonymous access is on:</p>
+    <pre><code>API ready | env=production | database=postgresql://…/payroll_saas_db
+  | anonymous=False | validation_workers=0</code></pre>
+    <p><code>anonymous=False</code> in production is the line that matters. <code>validation_workers</code> is new — see the open items.</p>
+
+    <h3>5 · The statutory verification worksheet</h3>
+    <pre><code>cd backend
+python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
+    <p>Generates the 164-value sign-off workbook — income tax for the current FY, PF and ESIC, PT for 22 states, LWF for 15 — reading the values out of the running application rather than a typed copy. Give it to a payroll professional with one instruction: fill every yellow cell. This is the <code>GO_LIVE</code> §D6 gate, and until it is signed you cannot defensibly bill anyone for a compliance finding.</p>
+
+    <h3>What to check by hand before a demo</h3>
+    <ul>
+      <li>Sign out and load <code>/dashboard</code> — you should see the brand frame and a Sign in button, and no navigation words at all.</li>
+      <li>Open the company picker on the portfolio and switch companies — the figures should follow.</li>
+      <li>On Bank payments, set the period to a month that has data. It defaults to the current calendar month, so a June close shows an empty September until you change it.</li>
+      <li>First page load after an idle period takes 30–50 seconds. That is the free tier waking, not a failure.</li>
+    </ul>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="links">
+    <h2>Live links</h2>
+    <p class="sub">Everything currently deployed. Both services auto-deploy from <code>main</code> on every commit.</p>
+
+    <h3>The product</h3>
+    <div class="links">
+      <div class="lk"><span class="lbl">Live site</span><a class="url" href="https://www.peopleopslab.in">https://www.peopleopslab.in</a><span class="why">What clients use</span></div>
+      <div class="lk"><span class="lbl">Render subdomain</span><a class="url" href="https://peopleopslab-web.onrender.com">https://peopleopslab-web.onrender.com</a><span class="why">Same build, bypasses DNS</span></div>
+      <div class="lk"><span class="lbl">API</span><a class="url" href="https://payroll-saas-api-r6a8.onrender.com">https://payroll-saas-api-r6a8.onrender.com</a><span class="why">Also the e2e target</span></div>
+    </div>
+
+    <h3>Admin pages</h3>
+    <div class="links">
+      <div class="lk"><span class="lbl">Users &amp; roles</span><a class="url" href="https://www.peopleopslab.in/admin/users">https://www.peopleopslab.in/admin/users</a><span class="why">403 without the admin role</span></div>
+      <div class="lk"><span class="lbl">Support access</span><a class="url" href="https://www.peopleopslab.in/admin/support">https://www.peopleopslab.in/admin/support</a><span class="why">403 without the admin role</span></div>
+    </div>
+
+    <h3>Infrastructure</h3>
+    <div class="links">
+      <div class="lk"><span class="lbl">Repository</span><a class="url" href="https://github.com/shahshawl668-gif/project-Original">github.com/shahshawl668-gif/project-Original</a><span class="why">Private</span></div>
+      <div class="lk"><span class="lbl">Web service</span><a class="url" href="https://dashboard.render.com/web/srv-dapeb3psrm7s73f6dojg">dashboard.render.com/web/srv-dapeb3psrm7s73f6dojg</a><span class="why">peopleopslab-web</span></div>
+      <div class="lk"><span class="lbl">API service</span><a class="url" href="https://dashboard.render.com/web/srv-dapeaie0tbcc73ajs6sg">dashboard.render.com/web/srv-dapeaie0tbcc73ajs6sg</a><span class="why">payroll-saas-api</span></div>
+      <div class="lk"><span class="lbl">Database</span><a class="url" href="https://dashboard.render.com/d/dpg-dape9ig473hc73969thg-a">dashboard.render.com/d/dpg-dape9ig473hc73969thg-a</a><span class="why">PostgreSQL 16, Singapore</span></div>
+    </div>
+
+    <h3>Environment variables that change behaviour</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">ENV</td><td class="mono">dev</td><td><code>production</code> forces anonymous access off and warns on a SQLite URL</td></tr>
+          <tr><td class="mono">DATABASE_URL</td><td class="mono">sqlite</td><td><code>postgres://</code> is normalised automatically</td></tr>
+          <tr><td class="mono">JWT_SECRET</td><td>—</td><td>Unset in production means an ephemeral secret and tokens dying on every restart</td></tr>
+          <tr><td class="mono">ALLOW_ANONYMOUS_API</td><td class="mono">true</td><td>Forced to <code>false</code> in production regardless</td></tr>
+          <tr><td class="mono">CORS_ORIGINS</td><td class="mono">localhost:3000, peopleopslab.in</td><td>Comma-separated. A browser calling from anywhere else is refused</td></tr>
+          <tr><td class="mono">BACKEND_URL</td><td>—</td><td>Where the Next.js relay forwards. Server-side only, never <code>NEXT_PUBLIC_</code></td></tr>
+          <tr><td class="mono">VALIDATION_WORKER_ENABLED</td><td class="mono">false</td><td>Starts background worker threads in the API container</td></tr>
+          <tr><td class="mono">VALIDATION_WORKER_CONCURRENCY</td><td class="mono">1</td><td>How many</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="open">
+    <h2>Open items</h2>
+    <p class="sub">Honest status, worst first.</p>
+
+    <div class="note stop">
+      <h4>The database is on free tier and expires 22 October 2026</h4>
+      <p><code>plan: free</code>, <code>expiresAt: 2026-10-22T20:27:54Z</code>, read from the Render API today. Deletion on that date is not reversible. Render dashboard → the database → Settings → Instance Type → Basic-256MB, about $6/month. Tell me when it is done and I will confirm from the API rather than the dashboard.</p>
+    </div>
+
+    <div class="note warn">
+      <h4>Validation still runs on the HTTP request path</h4>
+      <p>The queue exists and the worker that drains it is built, tested and merged — verified live at 5,000 employees in 25 seconds, and a job abandoned mid-run was reclaimed and finished. But nothing enqueues yet: <code>/api/payroll/validate</code> is still synchronous, so a large register still times out. <strong>PR 3</strong> switches the endpoint to return <code>202 {job_id}</code> and moves the upload page to polling. That is the one that removes the timeout.</p>
+    </div>
+
+    <div class="note warn">
+      <h4>Statutory rates are not signed off</h4>
+      <p><code>GO_LIVE</code> §D6. The worksheet now exists to make this a one-afternoon job for the income-tax tab. Until it is signed, do not put real client data through.</p>
+    </div>
+
+    <div class="note">
+      <h4>Smaller things</h4>
+      <p>Both web services are on Render free tier and sleep after 15 minutes idle — a prospect clicking your demo link waits 30–50 seconds. The company picker defaults to an entity with no data when another in the same organisation has some. Bank payments defaults to the current calendar month rather than the latest month with data. Charts with two to four series still rely on a legend rather than direct labels. The Financial impact tile on the results page truncates its value to <code>₹3,19,…</code>. The old indigo <code>#6366f1</code> survives in the KPI card, the employee-detail chart and the keyboard focus outline — none of which appear in the manuals, so they were left rather than widening a documentation change into a palette sweep.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Compiled from the code on <code>main</code> at <code>4cc2103</code> plus the branch at <code>d96dfb5</code>, on 25 September 2026. Route lists, endpoint paths, role names, environment variables and the finding-code counts were read out of the repository rather than recalled. The statutory values in the product are documented but <strong>not</strong> verified as current — that is what the worksheet is for.</p>
+  </footer>
+
+  </main>
+</div>
+</div>

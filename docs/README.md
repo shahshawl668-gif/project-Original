@@ -93,3 +93,23 @@ files next to it is one that arrives broken.
 The PDFs are not committed. They are a build output, they are several megabytes
 each, and a stale one in the repository is worse than none: regenerate whenever
 the screenshots or the markdown change.
+
+## Keeping the handbook honest
+
+`docs/handbook.html` is the operations handbook, and it is a file in this
+repository rather than a page that lives somewhere else. That is deliberate: a
+copy on a website drifts silently, and a copy in git shows up in a diff.
+
+```bash
+python docs/tools/check_docs_current.py
+```
+
+It reads the routes, admin endpoints, settings, health endpoints and roles out
+of the code and asserts the handbook names the same ones — in both directions,
+because a route the handbook lists that no longer exists sends someone to a 404
+just as surely as an undocumented one leaves them guessing.
+
+CI runs it. A pull request that adds a route without documenting it fails.
+
+It does not check prose, and cannot: whether an explanation is still true is a
+judgement. `CLAUDE.md` carries that half of the rule.
