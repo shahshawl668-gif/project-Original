@@ -508,3 +508,34 @@ openssl rand -hex 48
 Phases 1–3 can be done in a few days. **Phase 4 takes at least one payroll
 cycle and cannot be compressed** — a month is a month. Plan for four to six
 weeks from this document to a client's first production month.
+
+### D6 — the verification worksheet
+
+The sign-off is an artefact, not a conversation. Generate it:
+
+```bash
+cd backend
+python tools/statutory_worksheet.py statutory_verification_worksheet.xlsx
+```
+
+It reads the values out of the application rather than a typed copy, so the
+worksheet cannot disagree with what the software computes with. 164 values
+across four tabs: income tax for the current FY, PF and ESIC, PT for 22 states,
+LWF for 15.
+
+Give it to the reviewer with one instruction — fill every yellow cell. The
+Sign-off tab counts Y, N and unchecked per tab on its own and will not read
+"D6 SATISFIED" until nothing is left unchecked.
+
+Re-run it whenever a Budget lands or a state amends a schedule. The tool is the
+same; only the numbers it extracts change.
+
+Two things it deliberately leaves out, both stated on its first tab:
+
+* **Minimum wages** — per state, per skill category, revised about twice a year,
+  and held as tenant data rather than a shipped default. They need their own
+  review. A missing rate already surfaces as a finding rather than a pass, so an
+  unmaintained table reads as unverified instead of clean.
+* **The Labour Codes** — everything here assumes the Acts currently in force. If
+  the Codes have commenced, the definition of "wages" moves and PF basis,
+  gratuity and bonus move with it. That is a redesign, not a rate correction.
