@@ -76,3 +76,20 @@ Everything else is either a pre-existing statutory engine (`rule_engine_v2.py`,
 `validation.py`, the PF, ESIC and income-tax engines) or presentation code. Each
 is inventoried in section 6 with its line count and responsibility. Embedding all
 ~27,500 lines would run past 600 pages and stop being a reference.
+
+## Sendable manuals
+
+The markdown here is the source. What goes to a client is a PDF:
+
+```bash
+pip install markdown playwright     # binding only; Chromium is already present
+python docs/tools/build_manuals.py  # writes docs/pdf/
+```
+
+Each PDF carries a cover naming its audience, a contents page, page numbers,
+and its screenshots embedded rather than linked — a manual that depends on
+files next to it is one that arrives broken.
+
+The PDFs are not committed. They are a build output, they are several megabytes
+each, and a stale one in the repository is worse than none: regenerate whenever
+the screenshots or the markdown change.
