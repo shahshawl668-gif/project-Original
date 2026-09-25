@@ -580,6 +580,24 @@ def test_a_workspace_with_no_register_at_all_says_so(client, workspace):
     assert overview["period"] is None
 
 
+def test_the_overview_defaults_to_the_latest_month_that_has_a_register(client, workspace):
+    """No ``period`` means "the month I would be closing", i.e. the newest one.
+
+    The parameter is optional, so omitting it has to answer rather than fault.
+    It used to read a key the period list does not carry and then stringify the
+    whole entry, which made every register-bearing workspace a 400.
+    """
+    entity, user, headers = workspace
+    register(entity, user, [{"employee_id": "E1"}], period=date(2026, 4, 1))
+    register(entity, user, [{"employee_id": "E1"}], period=PERIOD)
+
+    response = client.get("/api/reconciliation/overview", headers=headers)
+    assert response.status_code == 200, response.text
+
+    overview = response.json()["data"]
+    assert overview["period"] == PERIOD.isoformat(), "should default to the newest month"
+
+
 def test_the_overview_reports_a_missing_jv_template(client, workspace):
     entity, user, headers = workspace
     register(entity, user, [{"employee_id": "E1"}])

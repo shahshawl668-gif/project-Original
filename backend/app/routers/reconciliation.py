@@ -1138,7 +1138,9 @@ def overview(
     if period:
         period_month = _period(period)
     elif period_list:
-        period_month = _period(str(period_list[-1].get("key") or period_list[-1]))
+        # available_periods() returns newest first, keyed "period" — so the
+        # default month is the head of the list, not its tail.
+        period_month = _period(str(period_list[0]["period"]))
     else:
         return ok({
             "period": None,
