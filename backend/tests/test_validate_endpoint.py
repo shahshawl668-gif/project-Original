@@ -167,3 +167,40 @@ def test_dashboard_stats_reflect_the_upload(client, workspace):
     stats = client.get("/api/payroll/dashboard-stats", headers=workspace).json()["data"]
     assert stats["components_configured"] == len(COMPONENTS)
     assert stats["last_run_employee_count"] == 2
+
+
+def test_excel_export_includes_unmatched_findings(client, workspace, monkeypatch):
+    """Export must agree with the validation worklist when a person is absent from payroll."""
+    from openpyxl import load_workbook
+    from app.routers import payroll
+
+    employees = _upload(client, workspace).json()["data"]["employees"]
+    original = payroll.validate_employees
+
+    def with_unmatched(*args, **kwargs):
+        rows, summary = original(*args, **kwargs)
+        summary["unmatched_findings"] = [{
+            "employee_id": "MISSING-001",
+            "employee_name": "Missing Worker",
+            "rule_id": "ATTENDANCE_MISSING_PAYROLL",
+            "rule_name": "Missing from payroll",
+            "status": "FAIL",
+            "severity": "CRITICAL",
+            "financial_impact": 1000,
+            "reason": "Attendance record has no payroll row",
+        }]
+        return rows, summary
+
+    monkeypatch.setattr(payroll, "validate_employees", with_unmatched)
+    response = client.post(
+        "/api/payroll/validate/export-excel",
+        json={"employees": employees, "run_type": "regular",
+              "period_month": "2026-08-01", "as_of_date": "2026-08-31"},
+        headers=workspace,
+    )
+    assert response.status_code == 200, response.text
+    workbook = load_workbook(io.BytesIO(response.content), read_only=True, data_only=True)
+    findings = list(workbook["Findings"].values)
+    assert any(row[0] == "MISSING-001" for row in findings[1:])
+    assert workbook["Summary"]["B2"].value == 2
+    assert workbook["Summary"]["B3"].value == len(findings) - 1
