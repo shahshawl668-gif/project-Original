@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import SYSTEM_USER_EMAIL, get_current_user
 from app.envelope import ok
-from app.models import OrgMembership, Organization, RefreshToken, User
+from app.models import Organization, RefreshToken, User
 from app.services import tenancy
 from app.models.user import PasswordResetToken
 from app.schemas.auth import (
