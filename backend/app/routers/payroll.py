@@ -494,28 +494,28 @@ def export_findings_excel(
     all_findings = [f for emp in rows for f in emp.get("findings", [])]
     all_findings.extend(findings_summary.get("unmatched_findings", []))
     for f in all_findings:
-            row_data = [
-                f.get("employee_id", ""),
-                f.get("employee_name", ""),
-                f.get("rule_id", ""),
-                f.get("rule_name", ""),
-                f.get("component", ""),
-                f.get("expected_value", ""),
-                f.get("actual_value", ""),
-                f.get("difference", ""),
-                f.get("severity", ""),
-                f.get("status", ""),
-                f.get("reason", ""),
-                f.get("suggested_fix", ""),
-                f.get("financial_impact", 0),
-            ]
-            ws_f.append(row_data)
-            if f.get("status") == "FAIL":
-                sev = f.get("severity", "")
-                fill = severity_fills.get(sev)
-                if fill:
-                    for cell in ws_f[ws_f.max_row]:
-                        cell.fill = fill
+        row_data = [
+            f.get("employee_id", ""),
+            f.get("employee_name", ""),
+            f.get("rule_id", ""),
+            f.get("rule_name", ""),
+            f.get("component", ""),
+            f.get("expected_value", ""),
+            f.get("actual_value", ""),
+            f.get("difference", ""),
+            f.get("severity", ""),
+            f.get("status", ""),
+            f.get("reason", ""),
+            f.get("suggested_fix", ""),
+            f.get("financial_impact", 0),
+        ]
+        ws_f.append(row_data)
+        if f.get("status") == "FAIL":
+            sev = f.get("severity", "")
+            fill = severity_fills.get(sev)
+            if fill:
+                for cell in ws_f[ws_f.max_row]:
+                    cell.fill = fill
 
     for col in ws_f.columns:
         ws_f.column_dimensions[col[0].column_letter].width = 22
