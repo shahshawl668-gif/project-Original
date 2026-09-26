@@ -439,7 +439,9 @@ def export_findings_excel(
         period_month=period_month,
     )
     suppressed = _suppressed_rule_ids(db, entity.id)
-    findings_summary = apply_suppressed_rules(rows, suppressed)
+    findings_summary = apply_suppressed_rules(
+        rows, suppressed, findings_summary.get("unmatched_findings"),
+    )
 
     wb = openpyxl.Workbook()
 
@@ -489,8 +491,9 @@ def export_findings_excel(
         "WARNING": PatternFill("solid", fgColor="FEF9C3"),
         "INFO": PatternFill("solid", fgColor="EFF6FF"),
     }
-    for emp in rows:
-        for f in emp.get("findings", []):
+    all_findings = [f for emp in rows for f in emp.get("findings", [])]
+    all_findings.extend(findings_summary.get("unmatched_findings", []))
+    for f in all_findings:
             row_data = [
                 f.get("employee_id", ""),
                 f.get("employee_name", ""),
