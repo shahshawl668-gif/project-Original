@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const ts = require("typescript");
 
-function harness(fetch) {
+function harness(fetch, hostname = "localhost") {
   const values = new Map();
   const storage = {
     getItem: (key) => values.get(key) ?? null,
@@ -14,7 +14,7 @@ function harness(fetch) {
   };
   let expire;
   const globals = {
-    fetch, localStorage: storage, window: { location: { hostname: "localhost" } },
+    fetch, localStorage: storage, window: { location: { hostname } },
     process: { env: {} }, Headers, FormData, AbortController, atob,
     setTimeout: (callback) => { expire = callback; return 1; },
     clearTimeout: () => {},
@@ -89,6 +89,17 @@ test("rate limit reports the server retry interval even for a non-JSON response"
   }));
   await assert.rejects(h.signIn("test@example.com", "password"), (err) =>
     err.status === 429 && err.retryAfterSeconds === 45 && /45 seconds/.test(err.message));
+});
+
+test("production login never sends credentials to a direct fallback host", async () => {
+  const calls = [];
+  const h = harness(async (url) => {
+    calls.push(url);
+    return Response.json({ success: false, data: null,
+      error: { code: "upstream_unreachable", detail: "API unavailable" } }, { status: 502 });
+  }, "peopleopslab.in");
+  await assert.rejects(h.signIn("test@example.com", "password"), /API unavailable/);
+  assert.deepEqual(calls, ["/api/proxy/api/auth/login"]);
 });
 
 test("profile failure clears the tokens issued by login", async () => {
