@@ -66,7 +66,7 @@ def get_current_user(
         membership = tenancy.get_membership(db, user)
         if not membership or str(membership.org_id) != payload.get("org_id"):
             raise HTTPException(status_code=401, detail="Workspace access revoked")
-    if settings.is_production and payload.get("portal") == "platform" and not request.url.path.startswith(("/api/admin", "/api/auth")):
+    if settings.is_production and payload.get("portal") == "platform" and not request.url.path.startswith(("/api/admin", "/api/auth", "/api/v1/admin", "/api/v1/auth")):
         raise HTTPException(status_code=403, detail="Client workspace session required")
     request.state.auth_claims = payload
     return user
