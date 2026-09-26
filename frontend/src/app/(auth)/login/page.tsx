@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showPwd, setShowPwd] = useState(false);
 
   useEffect(() => {
@@ -23,12 +24,13 @@ export default function LoginPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    setError(null);
     setBusy(true);
     try {
-      await login(email, password);
-      router.push("/dashboard");
-    } catch {
-      /* AuthContext shows toast */
+      await login(email.trim(), password);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to sign in. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -48,7 +50,12 @@ export default function LoginPage() {
           configuration automatically.
         </p>
 
-        <form onSubmit={onSubmit} className="mt-8 space-y-5">
+        <form onSubmit={onSubmit} className="mt-8 space-y-5" aria-busy={busy}>
+          {error && (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="email" className="text-[12px] font-semibold text-ink-800">
               Work email

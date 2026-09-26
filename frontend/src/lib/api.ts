@@ -209,6 +209,8 @@ export async function refreshSession(): Promise<boolean> {
         } catch {
           return false;
         }
+        // A refresh that started before login/logout must not replace that newer session.
+        if (getRefreshToken() !== rt) return false;
         if (!res.ok || !body?.success || !body.data?.access_token || !body.data?.refresh_token) {
           clearTokens();
           return false;

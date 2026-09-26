@@ -6,12 +6,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
 
 import {
-  ACCESS_TOKEN_KEY,
   apiFetch,
   clearTokens,
   getAccessToken,
@@ -22,12 +22,8 @@ import {
   setTokens,
 } from "@/lib/api";
 
-export type AuthUser = {
-  id: string;
-  email: string;
-  company_name: string | null;
-  role: string;
-};
+import { signIn, type AuthUser } from "@/lib/auth";
+export type { AuthUser } from "@/lib/auth";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -44,31 +40,36 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 type TokenPair = { access_token: string; refresh_token: string };
 
 async function loadUser(): Promise<AuthUser> {
-  const res = await apiFetch("/api/auth/me");
+  const res = await apiFetch("/api/auth/me", { cache: "no-store" });
   return parseEnvelopeResponse<AuthUser>(res);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionRevision = useRef(0);
 
   const refreshUser = useCallback(async () => {
     if (typeof window === "undefined") return;
+    const revision = sessionRevision.current;
     let access = getAccessToken();
     if (!access && getRefreshToken()) {
       await refreshSession();
       access = getAccessToken();
     }
     if (!access) {
-      setUser(null);
+      if (revision === sessionRevision.current) setUser(null);
       return;
     }
     try {
       const me = await loadUser();
-      setUser(me);
+      if (revision === sessionRevision.current) setUser(me);
     } catch {
-      clearTokens();
-      setUser(null);
+      // An old session check must not clear a newly signed-in session.
+      if (revision === sessionRevision.current) {
+        clearTokens();
+        setUser(null);
+      }
     }
   }, []);
 
@@ -96,29 +97,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await apiFetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const body = await res.json();
-    if (!res.ok || !body.success) {
-      const msg =
-        typeof body?.error?.detail === "string"
-          ? body.error.detail
-          : "Login failed";
-      toast.error(msg);
-      throw new Error(msg);
-    }
-    const tokens = body.data as TokenPair;
-    setTokens(tokens.access_token, tokens.refresh_token);
-    const me = await loadUser();
+    sessionRevision.current += 1;
+    const me = await signIn(email, password);
     setUser(me);
+    setLoading(false);
     toast.success("Signed in");
   }, []);
 
   const signup = useCallback(
     async (email: string, password: string, company_name?: string | null) => {
+      sessionRevision.current += 1;
       const res = await apiFetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -143,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    sessionRevision.current += 1;
     const refresh = getRefreshToken();
     clearTokens();
     setUser(null);
