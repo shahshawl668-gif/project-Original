@@ -69,6 +69,8 @@ def set_applicability(
     user: User = Depends(get_current_user),
     entity: Entity = Depends(require_entity_write),
 ):
+    if not body.applicable and not (body.reason or "").strip():
+        raise HTTPException(status_code=422, detail="Explain why the minimum-wage check is not applicable to this entity.")
     exists = (
         db.query(MinimumWageApplicability)
         .filter(

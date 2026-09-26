@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MinimumWageDecisionIn(BaseModel):
@@ -12,13 +12,6 @@ class MinimumWageDecisionIn(BaseModel):
     applicable: bool
     reason: str | None = Field(default=None, max_length=1000)
     source_reference: str | None = Field(default=None, max_length=512)
-
-    @model_validator(mode="after")
-    def explain_exclusion(self):
-        if not self.applicable and not (self.reason or "").strip():
-            raise ValueError("Explain why the minimum-wage check is not applicable to this entity.")
-        return self
-
 
 class MinimumWageRateIn(BaseModel):
     state: str = Field(min_length=1, max_length=100)
