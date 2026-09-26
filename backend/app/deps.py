@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -31,10 +31,12 @@ security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
+    request: Request,
     db: Session = Depends(get_db),
     creds: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> User:
     if settings.allow_anonymous_api and (creds is None or not creds.credentials):
+        request.state.auth_claims = {}
         user = db.query(User).filter(User.email == SYSTEM_USER_EMAIL).first()
         if user is None:
             raise RuntimeError(
@@ -58,6 +60,15 @@ def get_current_user(
     user = db.get(User, uid)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if settings.is_production and payload.get("portal") not in {"client", "platform"}:
+        raise HTTPException(status_code=401, detail="Please sign in again")
+    if settings.is_production and payload.get("portal") == "client":
+        membership = tenancy.get_membership(db, user)
+        if not membership or str(membership.org_id) != payload.get("org_id"):
+            raise HTTPException(status_code=401, detail="Workspace access revoked")
+    if settings.is_production and payload.get("portal") == "platform" and not request.url.path.startswith(("/api/admin", "/api/auth")):
+        raise HTTPException(status_code=403, detail="Client workspace session required")
+    request.state.auth_claims = payload
     return user
 
 
@@ -79,8 +90,13 @@ def _note_support_use(db: Session, user: User, entity: Entity) -> None:
         db.commit()
 
 
-def require_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != "admin":
+def require_admin(request: Request, user: User = Depends(get_current_user)) -> User:
+    claims = getattr(request.state, "auth_claims", {})
+    if settings.is_production:
+        allowed = user.platform_role in {"owner", "admin", "support"} and claims.get("portal") == "platform"
+    else:
+        allowed = user.role == "admin" or user.platform_role in {"owner", "admin", "support"}
+    if not allowed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
 
@@ -90,6 +106,7 @@ def get_tenant_context(user: User = Depends(get_current_user)) -> dict:
 
 
 def get_current_entity(
+    request: Request,
     x_entity_id: str | None = Header(default=None, alias="X-Entity-Id"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -105,6 +122,16 @@ def get_current_entity(
     A user with no membership at all is provisioned one on the spot, so accounts
     created before entities existed keep working without a manual repair.
     """
+    claims = getattr(request.state, "auth_claims", {})
+    if settings.is_production and claims.get("portal") != "client":
+        raise HTTPException(status_code=403, detail="Client workspace session required")
+    def scoped(entity: Entity) -> Entity:
+        if claims.get("org_id") and str(entity.org_id) != claims["org_id"]:
+            raise HTTPException(status_code=404, detail="Entity not found")
+        if settings.is_production and not claims.get("org_id"):
+            raise HTTPException(status_code=401, detail="Please sign in again")
+        return entity
+
     if x_entity_id:
         try:
             entity_uuid = uuid.UUID(x_entity_id)
@@ -116,11 +143,14 @@ def get_current_entity(
             # header can't be used to probe for entity ids across organizations.
             raise HTTPException(status_code=404, detail="Entity not found")
         _note_support_use(db, user, entity)
-        return entity
+        return scoped(entity)
 
     entity = tenancy.default_entity(db, user)
     if entity is not None:
-        return entity
+        return scoped(entity)
+
+    if settings.is_production:
+        raise HTTPException(status_code=403, detail="No workspace membership")
 
     _, entity = tenancy.provision_org_for_user(db, user)
     db.commit()
@@ -240,10 +270,15 @@ def require_pay_equity(
 
 
 def require_org_admin(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> User:
     """Managing entities and members is restricted to owners and managers."""
+    membership = tenancy.get_membership(db, user)
+    claims = getattr(request.state, "auth_claims", {})
+    if settings.is_production and (claims.get("portal") != "client" or not membership or str(membership.org_id) != claims.get("org_id")):
+        raise HTTPException(status_code=403, detail="Workspace access required")
     if not tenancy.role_at_least(db, user, "manager"):
         raise HTTPException(status_code=403, detail="Owner or manager access required")
     return user

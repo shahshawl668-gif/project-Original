@@ -476,7 +476,33 @@ def run_migrations(engine: Engine) -> None:
         rescope_unique_constraints,
         enforce_entity_not_null,
         set_membership_defaults,
+        backfill_org_slugs,
     )
     for step in steps:
         with engine.begin() as conn:
             step(conn)
+
+
+def backfill_org_slugs(conn: Connection) -> None:
+    """Assign stable URL handles to organizations created before URL routing."""
+    if "organizations" not in _table_names(conn) or "slug" not in _columns(conn, "organizations"):
+        return
+    import re
+
+    rows = conn.execute(text("SELECT id, name FROM organizations WHERE slug IS NULL ORDER BY id")).all()
+    for org_id, name in rows:
+        base = re.sub(r"[^a-z0-9-]+", "-", (name or "client").lower()).strip("-")[:48] or "client"
+        if base in {"admin", "api", "www", "app", "login", "platform", "support", "sales"}:
+            base += "-client"
+        candidate = base
+        suffix = 2
+        while conn.execute(text("SELECT 1 FROM organizations WHERE slug = :slug"), {"slug": candidate}).first():
+            candidate = f"{base[:48]}-{suffix}"
+            suffix += 1
+        conn.execute(text("UPDATE organizations SET slug = :slug WHERE id = :id"), {"slug": candidate, "id": org_id})
+    conn.execute(text("UPDATE organizations SET enabled_products = '[]' WHERE enabled_products IS NULL"))
+    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_organizations_slug ON organizations (slug)"))
+    if "platform_role" in _columns(conn, "users") and not conn.execute(text("SELECT 1 FROM users WHERE platform_role IS NOT NULL LIMIT 1")).first():
+        # One-time bootstrap for the existing product owner. New privileges are
+        # managed explicitly; a legacy client role never creates platform access.
+        conn.execute(text("UPDATE users SET platform_role = 'owner' WHERE role = 'admin' AND email != 'system@payrollcheck.local'"))

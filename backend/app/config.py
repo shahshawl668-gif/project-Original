@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+    allow_public_signup: bool = True  # local development only
 
     # --- CORS ----------------------------------------------------------------
     cors_origins: str = (
@@ -74,6 +75,9 @@ settings = Settings()
 # Production hardening: warn loudly when defaults leak into production.
 # ---------------------------------------------------------------------------
 if settings.is_production:
+    if settings.allow_public_signup:
+        logger.warning("Public signup cannot be enabled in production; forcing False.")
+        object.__setattr__(settings, "allow_public_signup", False)
     # This comparison *is* the check that the shipped default did not reach
     # production. The literal has to be here for it to work.
     if settings.jwt_secret == "change-me-in-production-use-long-random-secret":  # nosec B105

@@ -55,6 +55,7 @@ def get_db() -> Generator[Session, None, None]:
 _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     # (table, column, DDL fragment after `ADD COLUMN`)
     ("users", "role", "VARCHAR(32) NOT NULL DEFAULT 'user'"),
+    ("users", "platform_role", "VARCHAR(32)"),
     ("slab_rules", "gender", "VARCHAR(8) NOT NULL DEFAULT 'ALL'"),
     ("slab_rules", "applicable_months", "TEXT"),
     ("slab_rules", "employer_amount", "NUMERIC(14, 2)"),
@@ -70,6 +71,9 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("salary_register_rows", "net_pay", "NUMERIC(14, 2)"),
     ("audit_events", "org_id", "CHAR(32)"),
     ("organizations", "support_access_policy", "VARCHAR(24) NOT NULL DEFAULT 'break_glass'"),
+    ("organizations", "slug", "VARCHAR(64)"),
+    ("organizations", "deployment_cell", "VARCHAR(64) NOT NULL DEFAULT 'primary'"),
+    ("organizations", "enabled_products", "JSON"),
     ("entities", "pay_equity_enabled", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("entities", "pay_equity_enabled_by", "VARCHAR(255)"),
     ("entities", "pay_equity_enabled_at", "TIMESTAMP"),

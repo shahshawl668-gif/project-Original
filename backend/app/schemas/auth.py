@@ -14,6 +14,7 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    workspace_slug: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
 
 
 class TokenPair(BaseModel):

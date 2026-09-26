@@ -55,6 +55,8 @@ class OrganizationOut(BaseModel):
 
     id: uuid.UUID
     name: str
+    slug: str | None = None
+    enabled_products: list[str] = Field(default_factory=list)
     org_type: str
     created_at: datetime | None
 

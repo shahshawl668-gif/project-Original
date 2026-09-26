@@ -10,14 +10,14 @@ export type AuthUser = {
 type TokenPair = { access_token: string; refresh_token: string };
 
 /** Complete sign-in only after the token and profile requests both succeed. */
-export async function signIn(email: string, password: string): Promise<AuthUser> {
+export async function signIn(email: string, password: string, workspaceSlug?: string, portal: "client" | "platform" = "client"): Promise<AuthUser> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
   try {
-    const response = await apiFetch("/api/auth/login", {
+    const response = await apiFetch(portal === "platform" ? "/api/auth/platform-login" : "/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim(), password }),
+      body: JSON.stringify({ email: email.trim(), password, workspace_slug: workspaceSlug }),
       signal: controller.signal,
       cache: "no-store",
     });

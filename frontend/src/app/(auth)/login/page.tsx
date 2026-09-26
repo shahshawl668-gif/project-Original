@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
 
@@ -12,6 +11,9 @@ import { ApiError, probeApiHealth } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const slug = pathname.match(/^\/w\/([a-z0-9-]+)\/login\/?$/)?.[1];
+  const platform = pathname.startsWith("/platform/login") || pathname === "/login";
   const { login, isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,8 +33,8 @@ export default function LoginPage() {
   const secondsRemaining = Math.max(0, Math.ceil((retryUntil - now) / 1000));
 
   useEffect(() => {
-    if (isAuthenticated) router.replace("/dashboard");
-  }, [isAuthenticated, router]);
+    if (isAuthenticated) router.replace(platform ? "/platform" : "/dashboard");
+  }, [isAuthenticated, platform, router]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -40,7 +42,7 @@ export default function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password, slug, platform ? "platform" : "client");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in. Please try again.");
       if (err instanceof ApiError && err.status === 429 && err.retryAfterSeconds) {
@@ -59,11 +61,10 @@ export default function LoginPage() {
           Welcome back
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
-          Sign in to your <span className="text-gradient">workspace</span>
+          Sign in to {platform ? "the platform" : <span className="text-gradient">{slug} workspace</span>}
         </h1>
         <p className="mt-2.5 text-sm leading-relaxed text-ink-500">
-          Enter your work email and password. We&apos;ll match you to the right tenant and statutory
-          configuration automatically.
+          Enter your work email and password for this {platform ? "platform" : "client"} account.
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5" aria-busy={busy}>
@@ -151,15 +152,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-8 text-center text-sm text-ink-500">
-          Don&apos;t have an account?{" "}
-          <Link
-            href="/signup"
-            className="font-semibold text-brand-600 hover:text-brand-700 hover:underline"
-          >
-            Create workspace
-          </Link>
-        </p>
       </div>
     </AuthShell>
   );
