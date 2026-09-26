@@ -115,3 +115,14 @@ for (const status of [200, 401]) {
     assert.equal(h.api.getRefreshToken(), tokens.refresh_token);
   });
 }
+
+test("a rejected fresh token fails without starting another refresh", async () => {
+  const calls = [];
+  const h = harness(async (url) => {
+    calls.push(url);
+    return url.endsWith("/login") ? ok(tokens) : failure(401, "Session rejected");
+  });
+  await assert.rejects(h.signIn("test@example.com", "password"), /Session rejected/);
+  assert.equal(calls.length, 2);
+  assert.equal(h.api.getRefreshToken(), null);
+});
