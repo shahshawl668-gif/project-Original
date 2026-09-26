@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiFetch, apiJson, parseEnvelopeResponse } from "@/lib/api";
+import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,11 +19,12 @@ export default function ConfigurationUploadPage() {
   const download = async () => {
     setError("");
     try {
-      const bundle = await apiJson<object>("/api/config/bundle/export");
-      const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" }));
+      const response = await apiFetch("/api/config/bundle/export.csv");
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+      const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "peopleopslab-configuration.json";
+      anchor.download = "peopleopslab-configuration.csv";
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -56,14 +57,19 @@ export default function ConfigurationUploadPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Settings" title="Configuration upload" description="Download the current entity configuration as a JSON template, edit it, preview the sections, then upload it." />
+      <PageHeader eyebrow="Settings" title="Configuration upload" description="Download your CSV template, edit the values and mappings, preview the changes, then upload it." />
       {error && <AlertBanner variant="error" title="Upload error">{error}</AlertBanner>}
       {message && <AlertBanner variant="success" title="Saved">{message}</AlertBanner>}
       <Card><CardContent className="space-y-5 py-6">
-        <p className="text-sm text-ink-600">The file covers salary components, statutory settings, formulas, PT/LWF slabs, minimum-wage rates and applicability, rule choices, salary import mappings, bank profiles and JV mappings. Remove any section you do not want to replace. This file contains your configuration; keep it private.</p>
-        <Button type="button" variant="outline" onClick={() => void download()}>Download current configuration</Button>
-        <label className="block space-y-2 text-sm font-medium">Choose edited JSON file
-          <input type="file" accept=".json,application/json" className="block w-full rounded-lg border p-3" onChange={e => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
+        <p className="text-sm text-ink-600">The CSV covers salary components, statutory settings, formulas, PT/LWF slabs, minimum-wage rates and applicability, rule choices, salary import mappings, bank profiles and JV mappings. It contains your configuration; keep it private.</p>
+        <div className="space-y-2 rounded-lg border p-4 text-sm text-ink-600">
+          <p><strong>CSV format:</strong> section, record, field, type, value. Each line sets one field of one record. Lines with the same section and record number belong to one configuration item.</p>
+          <p>Keep the column headings and field names. Edit the value column. Types are text, number, boolean (true/false), null, and json for nested mappings. An empty section uses record 0 and type empty.</p>
+          <p>A section included in the CSV replaces that entire section for this entity, including an empty section. Remove all lines for a section to leave it unchanged. Download a fresh backup and preview before applying.</p>
+        </div>
+        <Button type="button" variant="outline" onClick={() => void download()}>Download configuration CSV template</Button>
+        <label className="block space-y-2 text-sm font-medium">Choose edited CSV file
+          <input type="file" accept=".csv,text/csv" className="block w-full rounded-lg border p-3" onChange={e => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
         </label>
         <Button type="button" disabled={!file || busy} onClick={() => void upload(true)}>Preview upload</Button>
         {preview && <div className="space-y-3 rounded-lg border p-4 text-sm">

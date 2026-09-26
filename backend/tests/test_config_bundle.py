@@ -1,6 +1,6 @@
 """The configuration file may replace one entity's setup, never another's."""
 import io
-import json
+from app.routers.config_bundle import _to_csv
 
 
 def _workspace(client, email):
@@ -17,7 +17,7 @@ def _workspace(client, email):
 def _send(client, headers, bundle, dry_run=True):
     return client.post(
         f"/api/config/bundle/import?dry_run={str(dry_run).lower()}", headers=headers,
-        files={"file": ("configuration.json", io.BytesIO(json.dumps(bundle).encode()), "application/json")},
+        files={"file": ("configuration.csv", io.BytesIO(_to_csv(bundle).encode()), "text/csv")},
     )
 
 
@@ -65,7 +65,11 @@ def test_downloaded_configuration_round_trips_with_statutory_and_wage_settings(c
     bundle = client.get("/api/config/bundle/export", headers=headers).json()["data"]
     assert bundle["sections"]["minimum_wage_rates"]
     assert bundle["sections"]["minimum_wage_applicability"]
-    result = _send(client, headers, bundle, dry_run=False)
+    csv_export = client.get("/api/config/bundle/export.csv", headers=headers)
+    assert csv_export.status_code == 200
+    assert csv_export.text.lstrip("\ufeff").startswith("section,record,field,type,value")
+    result = client.post("/api/config/bundle/import?dry_run=false", headers=headers,
+                         files={"file": ("configuration.csv", io.BytesIO(csv_export.content), "text/csv")})
     assert result.status_code == 200, result.text
     after = client.get("/api/config/bundle/export", headers=headers).json()["data"]
     assert after["sections"] == bundle["sections"]

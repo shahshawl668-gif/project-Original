@@ -5,12 +5,16 @@ payroll data, approvals and audit history are never accepted from a file.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import Response
 from pydantic import ValidationError
 from sqlalchemy import JSON
 from sqlalchemy.exc import IntegrityError
@@ -53,6 +57,7 @@ SECTIONS = {
 SECTIONS = {key: (model, fields.split()) for key, (model, fields) in SECTIONS.items()}
 MAX_BYTES = 5_000_000
 MAX_ROWS = 10_000
+CSV_COLUMNS = ["section", "record", "field", "type", "value"]
 
 
 def _export(db: Session, entity_id):
@@ -71,6 +76,93 @@ def _export(db: Session, entity_id):
         for rule in db.query(JvRule).filter(JvRule.entity_id == entity_id).all()
     ]
     return {"format": "peopleopslab-config", "version": 1, "sections": data}
+
+
+def _csv_value(value) -> tuple[str, str]:
+    if value is None:
+        return "null", ""
+    if isinstance(value, bool):
+        return "boolean", "true" if value else "false"
+    if isinstance(value, (dict, list)):
+        return "json", json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    if isinstance(value, (int, float, Decimal)):
+        return "number", str(value)
+    value = str(value)
+    # Keep arbitrary text from being evaluated as a formula in spreadsheets.
+    if value.startswith(("=", "+", "-", "@", "\t", "\r", "\n")):
+        return "escaped_text", "'" + value
+    return "text", value
+
+
+def _to_csv(bundle: dict) -> str:
+    out = io.StringIO(newline="")
+    writer = csv.writer(out, lineterminator="\r\n")
+    writer.writerow(CSV_COLUMNS)
+    for section, rows in bundle["sections"].items():
+        if not rows:
+            writer.writerow([section, 0, "", "empty", ""])
+        for record, row in enumerate(rows, 1):
+            for field, value in row.items():
+                kind, encoded = _csv_value(value)
+                writer.writerow([section, record, field, kind, encoded])
+    return "\ufeff" + out.getvalue()
+
+
+def _from_csv(raw: bytes) -> dict:
+    try:
+        stream = io.StringIO(raw.decode("utf-8-sig"), newline="")
+        reader = csv.DictReader(stream, strict=True)
+        if reader.fieldnames != CSV_COLUMNS:
+            raise ValueError(f"CSV header must be: {', '.join(CSV_COLUMNS)}")
+        sections: dict[str, dict[int, dict]] = {}
+        empty: set[str] = set()
+        seen: set[tuple[str, int, str]] = set()
+        for line_number, line in enumerate(reader, 2):
+            if line_number > MAX_ROWS * 30:
+                raise ValueError("CSV has too many field lines")
+            if None in line or any(value is None for value in line.values()):
+                raise ValueError(f"Line {line_number} does not have five columns")
+            section, field, kind, value = (line[k] for k in ("section", "field", "type", "value"))
+            if section not in SECTIONS and section != "jv_rules":
+                raise ValueError(f"Line {line_number}: unknown section {section}")
+            try:
+                record = int(line["record"])
+            except ValueError as exc:
+                raise ValueError(f"Line {line_number}: record must be a positive integer") from exc
+            if record == 0 and field == "" and kind == "empty" and value == "":
+                if section in sections or section in empty:
+                    raise ValueError(f"Line {line_number}: duplicate empty section")
+                empty.add(section)
+                continue
+            if record < 1 or record > MAX_ROWS or not field or section in empty:
+                raise ValueError(f"Line {line_number}: invalid record or field")
+            identity = (section, record, field)
+            if identity in seen:
+                raise ValueError(f"Line {line_number}: duplicate field {field}")
+            seen.add(identity)
+            if kind == "null" and value == "":
+                parsed = None
+            elif kind == "boolean" and value in ("true", "false"):
+                parsed = value == "true"
+            elif kind == "number":
+                parsed = int(value) if re.fullmatch(r"-?\d+", value) else Decimal(value)
+            elif kind == "json":
+                parsed = json.loads(value)
+            elif kind == "text":
+                parsed = value
+            elif kind == "escaped_text" and value.startswith("'"):
+                parsed = value[1:]
+            else:
+                raise ValueError(f"Line {line_number}: invalid type/value")
+            sections.setdefault(section, {}).setdefault(record, {})[field] = parsed
+        data = {section: [] for section in empty}
+        for section, rows in sections.items():
+            if sorted(rows) != list(range(1, len(rows) + 1)):
+                raise ValueError(f"{section}: record numbers must start at 1 without gaps")
+            data[section] = [rows[i] for i in sorted(rows)]
+        return {"format": "peopleopslab-config", "version": 1, "sections": data}
+    except (UnicodeError, csv.Error, json.JSONDecodeError, InvalidOperation) as exc:
+        raise ValueError(f"CSV cannot be read: {exc}") from exc
 
 
 def _convert(model, field: str, value):
@@ -181,6 +273,14 @@ def export_bundle(db: Session = Depends(get_db), user: User = Depends(get_curren
     return ok(_export(db, entity.id))
 
 
+@router.get("/export.csv")
+def export_bundle_csv(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    return Response(
+        _to_csv(_export(db, entity.id)), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="peopleopslab-configuration.csv"'},
+    )
+
+
 @router.post("/import")
 async def import_bundle(
     file: UploadFile,
@@ -193,12 +293,10 @@ async def import_bundle(
     if len(raw) > MAX_BYTES:
         raise HTTPException(413, "Configuration file exceeds 5 MB")
     try:
-        payload = json.loads(raw)
-        if not isinstance(payload, dict):
-            raise ValueError("Root must be a JSON object")
+        payload = _from_csv(raw)
         sections = _validate(payload)
-    except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(422, f"Invalid configuration file: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(422, f"Invalid configuration CSV: {exc}") from exc
     counts = {key: len(rows) for key, rows in sections.items()}
     if dry_run:
         return ok({"preview": True, "replace_sections": counts})
