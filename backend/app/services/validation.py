@@ -857,7 +857,7 @@ def validate_employees(
 
     # The master as it stood at period end — used for the PF basis and for the
     # cost dimensions snapshotted onto each result row.
-    master_rows = master_as_of(db, entity.id, period_month or as_of) if (period_month or as_of) else {}
+    master_rows = master_as_of(db, entity.id, as_of)
 
     results: list[dict[str, Any]] = []
 

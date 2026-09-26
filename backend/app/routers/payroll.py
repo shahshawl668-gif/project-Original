@@ -1,5 +1,6 @@
 import io
 import csv
+import calendar
 import json
 import uuid
 from datetime import date
@@ -160,9 +161,10 @@ def _persist_salary_register(
 ) -> None:
     comp_by_key = _component_key_map(comps)
 
-    # The master as it stood at this period, so each row is stamped with the
+    # The master as it stood at period end, so each row is stamped with the
     # attributes that applied then rather than whatever they are today.
-    master_rows = master_as_of(db, entity.id, period_month)
+    period_end = period_month.replace(day=calendar.monthrange(period_month.year, period_month.month)[1])
+    master_rows = master_as_of(db, entity.id, period_end)
 
     existing = (
         db.query(SalaryRegister)
