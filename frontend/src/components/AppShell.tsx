@@ -109,6 +109,7 @@ const navGroups = [
       { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
       { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
       { href: "/config/components", label: "Salary components", icon: Layers },
+      { href: "/config/upload", label: "Configuration upload", icon: UploadCloud },
       { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
       { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },

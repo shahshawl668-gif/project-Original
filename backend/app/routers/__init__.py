@@ -7,6 +7,7 @@ from app.routers import (
     bi,
     budget,
     components,
+    config_bundle,
     ctc,
     findings,
     income_tax,
@@ -31,6 +32,7 @@ api_router.include_router(admin.router)
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(org.router, prefix="/org", tags=["org"])
 api_router.include_router(components.router, prefix="/components", tags=["components"])
+api_router.include_router(config_bundle.router, prefix="/config/bundle", tags=["configuration"])
 api_router.include_router(statutory.router, prefix="/settings/statutory", tags=["statutory"])
 api_router.include_router(reference.router, prefix="/reference", tags=["reference"])
 api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
