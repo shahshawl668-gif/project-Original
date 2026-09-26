@@ -165,9 +165,13 @@ async function shouldFallbackToDirect(res: Response): Promise<boolean> {
 
 async function fetchWithProxyFallback(path: string, init: RequestInit): Promise<Response> {
   const usingProxy = usesServerSideProxy();
+  // Authentication must use one configured API endpoint. A proxy failure
+  // should be shown to the user, never retried against a second host where
+  // sessions, rate limits and credentials may differ.
+  const isAuth = path.startsWith("/api/auth/");
   try {
     const res = await fetch(apiAbsoluteUrl(path), init);
-    if (usingProxy && (await shouldFallbackToDirect(res))) {
+    if (usingProxy && !isAuth && (await shouldFallbackToDirect(res))) {
       try {
         const direct = await fetch(directApiUrl(path), init);
         if (direct.status !== 502) return direct;
@@ -177,7 +181,7 @@ async function fetchWithProxyFallback(path: string, init: RequestInit): Promise<
     }
     return res;
   } catch (e) {
-    if (usingProxy && e instanceof TypeError) {
+    if (usingProxy && !isAuth && e instanceof TypeError) {
       // Proxy path itself is unreachable; attempt direct API call.
       return fetch(directApiUrl(path), init);
     }
