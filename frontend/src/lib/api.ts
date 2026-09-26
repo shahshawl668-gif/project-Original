@@ -297,12 +297,28 @@ function formatErrorDetail(detail: unknown): string {
 /** An API failure that still remembers which status produced it. */
 export class ApiError extends Error {
   readonly status: number;
+  readonly retryAfterSeconds: number | null;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfterSeconds: number | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+function retryAfterSeconds(res: Response): number | null {
+  const raw = res.headers.get("Retry-After");
+  if (!raw) return null;
+  const seconds = /^\d+$/.test(raw) ? Number(raw) : Math.ceil((Date.parse(raw) - Date.now()) / 1000);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 86400) : null;
+}
+
+function rateLimitMessage(res: Response): string {
+  const seconds = retryAfterSeconds(res);
+  return seconds === null
+    ? "Sign-in is temporarily rate limited. Please wait before trying again."
+    : `Sign-in is temporarily rate limited. Please try again in ${seconds} seconds.`;
 }
 
 export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
@@ -312,7 +328,7 @@ export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
     body = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
   } catch {
     if (res.status === 429) {
-      throw new ApiError("Too many requests. Please wait and try again.", res.status);
+      throw new ApiError(rateLimitMessage(res), res.status, retryAfterSeconds(res));
     }
     throw new ApiError(`Invalid JSON (${res.status})`, res.status);
   }
@@ -321,9 +337,8 @@ export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
     const errObj = env && typeof env === "object" && "error" in env ? env.error : null;
     const fallback =
       typeof body === "object" && body && "detail" in body ? (body as { detail: unknown }).detail : undefined;
-    const detail = errObj?.detail ?? fallback ??
-      (res.status === 429 ? "Too many requests. Please wait and try again." : `HTTP ${res.status}`);
-    throw new ApiError(formatErrorDetail(detail), res.status);
+    const detail = res.status === 429 ? rateLimitMessage(res) : errObj?.detail ?? fallback ?? `HTTP ${res.status}`;
+    throw new ApiError(formatErrorDetail(detail), res.status, retryAfterSeconds(res));
   }
   return env.data;
 }

@@ -7,6 +7,12 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class MinimumWageDecisionIn(BaseModel):
+    effective_from: date
+    applicable: bool
+    reason: str | None = Field(default=None, max_length=1000)
+    source_reference: str | None = Field(default=None, max_length=512)
+
 class MinimumWageRateIn(BaseModel):
     state: str = Field(min_length=1, max_length=100)
     zone: str = Field(default="*", max_length=64)

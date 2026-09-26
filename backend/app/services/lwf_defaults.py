@@ -73,8 +73,10 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         _row(0, _TOP, 30, 70, freq="yearly"),
     ],
     "Karnataka": [
-        # AP/KA twin LWF Acts; KA pays in Jan.
-        _row(0, _TOP, 20, 40, freq="yearly"),
+        # Karnataka Act 05 of 2025, published 10 Jan 2025, amended section 7A(2).
+        # Employee ₹50 and employer ₹100, annual contribution.
+        # https://www.indiacode.nic.in/bitstream/123456789/7601/1/15_of_1965_%28e%29.pdf
+        _row(0, _TOP, 50, 100, freq="yearly"),
     ],
     "Tamil Nadu": [
         # Annual contribution remitted by 31 Jan.
@@ -103,9 +105,10 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         _row(0, _TOP, 10, 30, freq="half-yearly"),
     ],
     "Maharashtra": [
-        # ₹3,000 wage threshold (statutory definition uses "salary or wages").
-        _row(0, 3000, 6, 18, freq="half-yearly"),
-        _row(3001, _TOP, 12, 36, freq="half-yearly"),
+        # Maharashtra Act XXV of 2024, section 6BB(2), gazetted 18 Mar 2024.
+        # ₹25 employee and 3× employer for each June/December period; no wage band.
+        # https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf
+        _row(0, _TOP, 25, 75, freq="half-yearly"),
     ],
     "Odisha": [
         _row(0, _TOP, 20, 40, freq="half-yearly"),
