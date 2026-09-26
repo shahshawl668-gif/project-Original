@@ -26,6 +26,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
+
 from app.models import (
     DEFAULT_MINUTES,
     MAX_MINUTES,
@@ -36,6 +38,12 @@ from app.models import (
 )
 
 # A reason short enough to be meaningless is not a reason.
+
+
+def _is_platform_staff(user: User) -> bool:
+    if settings.is_production:
+        return user.platform_role in {"owner", "admin", "support"}
+    return user.role == "admin"
 MIN_REASON = 12
 
 
@@ -201,7 +209,7 @@ def active_grant(
     held by someone who is no longer platform staff must stop working the moment
     their role changes, without anyone having to revoke it.
     """
-    if getattr(user, "role", None) != "admin":
+    if not _is_platform_staff(user):
         return None
     grant = (
         db.query(SupportAccessGrant)
@@ -233,7 +241,7 @@ def active_grants_for_org(db: Session, org_id: uuid.UUID) -> list[SupportAccessG
 
 def granted_org_ids(db: Session, user: User) -> list[uuid.UUID]:
     """Every organization this user currently holds a live grant on."""
-    if getattr(user, "role", None) != "admin":
+    if not _is_platform_staff(user):
         return []
     rows = (
         db.query(SupportAccessGrant)

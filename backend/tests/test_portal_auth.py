@@ -60,3 +60,39 @@ def test_platform_provisions_invitation_only_workspace(client, monkeypatch):
     headers = {"Authorization": f"Bearer {accepted.json()['data']['access_token']}"}
     assert client.get("/api/org/context", headers=headers).json()["data"]["organization"]["slug"] == "bravo-corp"
     assert client.post("/api/auth/platform-login", json={"email": "bravo@example.com", "password": "Passw0rd!x"}).status_code == 401
+
+
+def test_owner_invites_platform_staff_without_client_membership(client, monkeypatch):
+    from app.database import SessionLocal
+    from app.models import OrgMembership, User
+    from app.security import hash_password
+
+    with SessionLocal() as db:
+        db.add(User(email="staff.inviter@example.com", password_hash=hash_password("Passw0rd!x"), platform_role="owner"))
+        db.commit()
+    monkeypatch.setattr(settings, "env", "production")
+    login = client.post("/api/auth/platform-login", json={"email": "staff.inviter@example.com", "password": "Passw0rd!x"})
+    header = {"Authorization": f"Bearer {login.json()['data']['access_token']}"}
+    invited = client.post("/api/admin/staff/invitations", headers=header, json={"email": "staff.support@example.com", "role": "support"})
+    assert invited.status_code == 201, invited.text
+    token = invited.json()["data"]["invitation_path"].split("token=")[1]
+    accepted = client.post("/api/auth/platform-invitations/register", json={"token": token, "password": "Passw0rd!x"})
+    assert accepted.status_code == 200, accepted.text
+    assert client.post("/api/auth/platform-invitations/register", json={"token": token, "password": "Passw0rd!x"}).status_code == 400
+    staff_header = {"Authorization": f"Bearer {accepted.json()['data']['access_token']}"}
+    assert client.get("/api/admin/support/organizations", headers=staff_header).status_code == 200
+    assert client.post("/api/admin/organizations", headers=staff_header, json={"name": "Forbidden", "owner_email": "no@example.com"}).status_code == 403
+    org = client.post("/api/admin/organizations", headers=header, json={"name": "Support Target", "owner_email": "target@example.com"}).json()["data"]
+    grant = client.post("/api/admin/support/grants", headers=staff_header, json={"org_id": org["id"], "reason": "Investigate import mismatch", "minutes": 30})
+    assert grant.status_code == 200, grant.text
+    support_session = client.post("/api/auth/support-session", headers=staff_header, json={"org_id": org["id"]})
+    assert support_session.status_code == 200, support_session.text
+    support_header = {"Authorization": f"Bearer {support_session.json()['data']['access_token']}"}
+    assert client.get("/api/org/context", headers=support_header).status_code == 200
+    assert client.post("/api/org/entities", headers=support_header, json={"name": "Forbidden"}).status_code == 403
+    with SessionLocal() as db:
+        staff = db.query(User).filter(User.email == "staff.support@example.com").one()
+        assert db.query(OrgMembership).filter(OrgMembership.user_id == staff.id).count() == 0
+    changed = client.patch(f"/api/admin/staff/{staff.id}/role", headers=header, json={"role": "none"})
+    assert changed.status_code == 200
+    assert client.get("/api/org/context", headers=support_header).status_code == 401

@@ -1,4 +1,4 @@
-from app.models.user import PasswordResetToken, RefreshToken, User
+from app.models.user import PasswordResetToken, PlatformInvitation, RefreshToken, User
 from app.models.org import (
     ORG_ROLE_RANK,
     ORG_ROLES,
@@ -73,6 +73,7 @@ __all__ = [
     "EntityAccess",
     "RefreshToken",
     "PasswordResetToken",
+    "PlatformInvitation",
     "ComponentConfig",
     "ImportProfile",
     "PtSlab",

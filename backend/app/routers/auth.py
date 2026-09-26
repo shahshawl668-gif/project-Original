@@ -8,13 +8,15 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.deps import SYSTEM_USER_EMAIL, get_current_user
+from app.deps import SYSTEM_USER_EMAIL, get_current_user, require_admin
 from app.envelope import ok
-from app.models import Organization, RefreshToken, User
-from app.services import tenancy
+from app.models import Organization, PlatformInvitation, RefreshToken, User
+from app.services import support_access, tenancy
 from app.models.user import PasswordResetToken
 from app.schemas.auth import (
     LoginRequest,
+    PlatformInviteAccept,
+    SupportSessionRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
@@ -115,6 +117,32 @@ def platform_login(body: LoginRequest, db: Session = Depends(get_db)):
     return ok(_issue_tokens(db, user, portal="platform").model_dump())
 
 
+@router.post("/platform-invitations/register")
+def register_platform_staff(body: PlatformInviteAccept, db: Session = Depends(get_db)):
+    invite = db.query(PlatformInvitation).filter(
+        PlatformInvitation.token_hash == token_fingerprint(body.token),
+        PlatformInvitation.used_at.is_(None),
+        PlatformInvitation.expires_at > datetime.now(UTC),
+    ).first()
+    if not invite:
+        raise HTTPException(status_code=400, detail="Invalid or expired invitation")
+    if db.query(User).filter(User.email == invite.email).first():
+        raise HTTPException(status_code=409, detail="This email already has an account")
+    user = User(email=invite.email, password_hash=hash_password(body.password), role="user", platform_role=invite.role)
+    db.add(user)
+    invite.used_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(user)
+    return ok(_issue_tokens(db, user, portal="platform").model_dump())
+
+
+@router.post("/support-session")
+def open_support_session(body: SupportSessionRequest, staff: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if support_access.active_grant(db, staff, body.org_id) is None:
+        raise HTTPException(status_code=403, detail="An active support grant is required")
+    return ok(_issue_tokens(db, staff, portal="support", org_id=body.org_id).model_dump())
+
+
 @router.post("/refresh")
 def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
     try:
@@ -149,6 +177,9 @@ def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
         if not membership or (org_id and str(membership.org_id) != org_id) or (settings.is_production and not org_id):
             raise HTTPException(status_code=401, detail="Workspace access revoked")
         org_id = str(membership.org_id)
+    elif portal == "support":
+        if not org_id or support_access.active_grant(db, user, uuid.UUID(org_id)) is None:
+            raise HTTPException(status_code=401, detail="Support access ended")
     else:
         raise HTTPException(status_code=401, detail="Invalid session")
     db.delete(row)

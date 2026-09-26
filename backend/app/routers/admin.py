@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import uuid
+import secrets
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
@@ -17,13 +19,60 @@ from app.models import (
     OrgMembership,
     Entity,
     Organization,
+    PlatformInvitation,
     SupportAccessGrant,
     User,
 )
 from app.schemas.auth import AdminRoleUpdate, UserOut
+from app.security import token_fingerprint
 from app.services import audit, invitations, support_access, tenancy
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+class StaffInviteRequest(BaseModel):
+    email: EmailStr
+    role: str = Field(pattern="^(admin|support)$")
+
+
+class StaffRoleUpdate(BaseModel):
+    role: str = Field(pattern="^(admin|support|none)$")
+
+
+@router.get("/staff")
+def list_staff(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role != "owner":
+        raise HTTPException(status_code=403, detail="Platform owner required")
+    rows = db.query(User).filter(User.platform_role.is_not(None)).order_by(User.email).all()
+    return ok([{"id": str(u.id), "email": u.email, "role": u.platform_role} for u in rows])
+
+
+@router.patch("/staff/{user_id}/role")
+def update_staff_role(user_id: uuid.UUID, body: StaffRoleUpdate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role != "owner":
+        raise HTTPException(status_code=403, detail="Platform owner required")
+    target = db.get(User, user_id)
+    if not target or target.platform_role not in {"admin", "support"}:
+        raise HTTPException(status_code=404, detail="Staff account not found")
+    target.platform_role = None if body.role == "none" else body.role
+    db.commit()
+    return ok({"id": str(target.id), "email": target.email, "role": target.platform_role})
+
+
+@router.post("/staff/invitations", status_code=201)
+def invite_platform_staff(body: StaffInviteRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role != "owner":
+        raise HTTPException(status_code=403, detail="Platform owner required")
+    email = str(body.email).lower()
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="This email already has an account")
+    db.query(PlatformInvitation).filter(PlatformInvitation.email == email, PlatformInvitation.used_at.is_(None)).update({"used_at": datetime.now(UTC)})
+    token = secrets.token_urlsafe(32)
+    invite = PlatformInvitation(email=email, role=body.role, token_hash=token_fingerprint(token),
+                                invited_by_user_id=admin.id, expires_at=datetime.now(UTC) + timedelta(days=7))
+    db.add(invite)
+    db.commit()
+    return ok({"email": email, "role": body.role, "invitation_path": f"/platform/join?token={token}"})
 
 
 class WorkspaceProvision(BaseModel):

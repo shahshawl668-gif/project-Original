@@ -5,6 +5,7 @@ export type AuthUser = {
   email: string;
   company_name: string | null;
   role: string;
+  platform_role?: string | null;
 };
 
 type TokenPair = { access_token: string; refresh_token: string };
