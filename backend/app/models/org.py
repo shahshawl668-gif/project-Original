@@ -49,7 +49,7 @@ class Organization(Base):
     # Stable URL handle; the UUID remains the security and data key.
     slug: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
     deployment_cell: Mapped[str] = mapped_column(String(64), nullable=False, default="primary", server_default="primary")
-    enabled_products: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    enabled_products: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     # practice | enterprise — affects defaults and UI copy, never access control.
     org_type: Mapped[str] = mapped_column(String(32), nullable=False, default="enterprise")
     # Whether platform staff may read this organization's data to support it,

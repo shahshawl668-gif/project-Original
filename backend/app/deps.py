@@ -126,7 +126,7 @@ def get_current_entity(
     if settings.is_production and claims.get("portal") != "client":
         raise HTTPException(status_code=403, detail="Client workspace session required")
     def scoped(entity: Entity) -> Entity:
-        if claims.get("org_id") and str(entity.org_id) != claims["org_id"]:
+        if claims.get("org_id") and str(entity.org_id) != claims["org_id"] and tenancy.support_grant_for(db, user, entity) is None:
             raise HTTPException(status_code=404, detail="Entity not found")
         if settings.is_production and not claims.get("org_id"):
             raise HTTPException(status_code=401, detail="Please sign in again")
