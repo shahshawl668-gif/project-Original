@@ -4,6 +4,7 @@ from typing import Any
 import pandas as pd
 
 REQUIRED_BASE = {"employee_id"}
+EMPLOYEE_ID_HEADERS = {"employee_id", "emp_id", "employee_code"}
 OPTIONAL_HEADERS = {"employee name", "location", "employment type"}
 
 
@@ -14,9 +15,13 @@ def normalize_col(c: str) -> str:
 def parse_payroll_file(content: bytes, filename: str) -> pd.DataFrame:
     lower = filename.lower()
     if lower.endswith(".csv"):
-        return pd.read_csv(io.BytesIO(content))
+        headers = pd.read_csv(io.BytesIO(content), nrows=0).columns
+        id_types = {h: str for h in headers if normalize_col(h) in EMPLOYEE_ID_HEADERS}
+        return pd.read_csv(io.BytesIO(content), dtype=id_types)
     if lower.endswith(".xlsx"):
-        return pd.read_excel(io.BytesIO(content), engine="openpyxl")
+        headers = pd.read_excel(io.BytesIO(content), engine="openpyxl", nrows=0).columns
+        id_types = {h: str for h in headers if normalize_col(h) in EMPLOYEE_ID_HEADERS}
+        return pd.read_excel(io.BytesIO(content), engine="openpyxl", dtype=id_types)
     raise ValueError("Unsupported file type. Use .csv or .xlsx")
 
 
@@ -29,11 +34,11 @@ def dataframe_to_employees(df: pd.DataFrame) -> tuple[list[str], list[dict[str, 
         for k, v in row.items():
             if pd.isna(v):
                 rec[k] = None
+            elif k in EMPLOYEE_ID_HEADERS:
+                # IDs are identifiers, not amounts; never turn 123 into 123.0.
+                rec[k] = str(int(v)) if isinstance(v, float) and v.is_integer() else str(v).strip()
             elif isinstance(v, (int, float)):
-                if k == "employee_id" and isinstance(v, float) and v == int(v):
-                    rec[k] = str(int(v))
-                else:
-                    rec[k] = float(v)
+                rec[k] = float(v)
             else:
                 rec[k] = str(v).strip()
         records.append(rec)
