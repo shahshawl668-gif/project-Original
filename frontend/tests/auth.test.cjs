@@ -77,6 +77,12 @@ test("invalid JSON is reported and leaves no session", async () => {
   assert.equal(h.api.getAccessToken(), null);
 });
 
+test("rate-limited login shows a retry message and leaves no session", async () => {
+  const h = harness(async () => new Response("<html>Too many requests</html>", { status: 429 }));
+  await assert.rejects(h.signIn("test@example.com", "password"), /Too many requests.*wait and try again/);
+  assert.equal(h.api.getAccessToken(), null);
+});
+
 test("profile failure clears the tokens issued by login", async () => {
   const h = harness(async (url) => url.endsWith("/login")
     ? ok(tokens) : failure(503, "Profile temporarily unavailable"));
