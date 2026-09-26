@@ -47,3 +47,25 @@ def test_configuration_upload_preview_apply_and_entity_isolation(client):
     rejected = _send(client, first, bundle, dry_run=False)
     assert rejected.status_code == 422
     assert len(client.get("/api/components", headers=first).json()["data"]) == 1
+
+
+def test_downloaded_configuration_round_trips_with_statutory_and_wage_settings(client):
+    headers = _workspace(client, "config-bundle-roundtrip@example.com")
+    decision = client.post("/api/minimum-wage/applicability", headers=headers, json={
+        "effective_from": "2026-04-01", "applicable": False,
+        "reason": "Reviewed for test", "source_reference": "Review record",
+    })
+    assert decision.status_code == 200, decision.text
+    rate = client.post("/api/minimum-wage/rates", headers=headers, json={
+        "state": "Karnataka", "skill_category": "skilled", "basic_per_month": "16000",
+        "vda_per_month": "1000", "effective_from": "2026-04-01",
+        "source_reference": "Test notification",
+    })
+    assert rate.status_code == 200, rate.text
+    bundle = client.get("/api/config/bundle/export", headers=headers).json()["data"]
+    assert bundle["sections"]["minimum_wage_rates"]
+    assert bundle["sections"]["minimum_wage_applicability"]
+    result = _send(client, headers, bundle, dry_run=False)
+    assert result.status_code == 200, result.text
+    after = client.get("/api/config/bundle/export", headers=headers).json()["data"]
+    assert after["sections"] == bundle["sections"]
