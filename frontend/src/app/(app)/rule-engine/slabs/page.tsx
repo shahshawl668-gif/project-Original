@@ -245,7 +245,7 @@ export default function SlabsPage() {
       <PageHeader
         eyebrow="Rule engine"
         title="State slab configuration"
-        description="Manage state-wise PT & LWF slabs. These override seeded reference data when present."
+        description="Manage state-wise PT & LWF slabs. Review each official notification and effective period before importing defaults or using these values for compliance checks."
       />
 
       <Card>

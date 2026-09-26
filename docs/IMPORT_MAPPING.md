@@ -18,4 +18,6 @@ PF and ESIC central settings are editable at entity level. PT/LWF depend on the 
 
 Minimum wage schedules are entity-maintained and effective dated because the applicable rate also depends on zone, scheduled employment, skill classification, and revised VDA. A missing rate must remain visible. Do not mark a state as fully covered by copying a generic rate. Review the official notification and record its source reference when creating or revising a schedule.
 
+Minimum-wage applicability is an explicit Yes/No selection for each entity, effective from a stated date. Until it is selected, the minimum-wage check returns a setup error. No skips that check for the selected period and requires a recorded reason; it is a product workflow choice, not a legal determination that an employer is exempt from minimum-wage law. Yes enables the check and displays missing rate/classification findings. Review the applicable government notification and obtain client/legal signoff before marking a schedule covered.
+
 Official starting points: [EPFO](https://www.epfindia.gov.in/), [ESIC contribution](https://esic.gov.in/contribution), [ESIC coverage](https://esic.gov.in/coverage), [Chief Labour Commissioner minimum wages](https://clc.gov.in/clc/min-wages), plus each state's labour and local tax authority for PT, LWF and state minimum wages.
