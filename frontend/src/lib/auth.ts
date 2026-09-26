@@ -26,10 +26,12 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
       throw new Error("The sign-in service returned an incomplete session. Please try again.");
     }
     setTokens(tokens.access_token, tokens.refresh_token);
+    // These tokens were just issued; a 401 must fail sign-in rather than start
+    // an unbounded refresh request outside this attempt\'s timeout.
     const profile = await apiFetch("/api/auth/me", {
       signal: controller.signal,
       cache: "no-store",
-    });
+    }, true);
     const user = await parseEnvelopeResponse<AuthUser>(profile);
     if (!user?.id) throw new Error("Unable to load your profile. Please try signing in again.");
     return user;
