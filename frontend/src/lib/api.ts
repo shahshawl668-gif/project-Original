@@ -311,6 +311,9 @@ export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
   try {
     body = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
   } catch {
+    if (res.status === 429) {
+      throw new ApiError("Too many requests. Please wait and try again.", res.status);
+    }
     throw new ApiError(`Invalid JSON (${res.status})`, res.status);
   }
   const env = body as ApiEnvelope<T>;
@@ -318,7 +321,8 @@ export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
     const errObj = env && typeof env === "object" && "error" in env ? env.error : null;
     const fallback =
       typeof body === "object" && body && "detail" in body ? (body as { detail: unknown }).detail : undefined;
-    const detail = errObj?.detail ?? fallback ?? `HTTP ${res.status}`;
+    const detail = errObj?.detail ?? fallback ??
+      (res.status === 429 ? "Too many requests. Please wait and try again." : `HTTP ${res.status}`);
     throw new ApiError(formatErrorDetail(detail), res.status);
   }
   return env.data;
