@@ -81,7 +81,7 @@ _RESERVED_COLS = {
     "work_state", "employment_type", "department", "designation",
     "gender", "sex", "paid_days", "lop_days", "lop", "total_days",
     "month_days", "days_in_month", "gross", "gross_salary", "gross_pay",
-    "total_gross", "net", "net_salary", "net_pay", "take_home",
+    "total_gross", "total_deductions", "total_deduction", "net", "net_salary", "net_pay", "take_home",
     "pf_employee", "pf_employer", "pf_emp", "pf_employer_total",
     "esic_employee", "esic_employer", "pt", "pt_amount",
     "lwf_employee", "lwf_employer", "bonus", "gratuity",
@@ -361,23 +361,25 @@ def build_findings(
                 pass_("AGG-001", "Gross Pay", "gross", actual_gross)
             break
 
-    total_deductions = (
-        _dec(pf_calc.get("pf_employee", 0))
-        + _dec(esic_calc.get("esic_employee", 0))
-        + pt_due + lwf_eamt
-    )
-    calc_net = calc_gross - total_deductions
+    # Reconcile the register's stated totals. Expected statutory deductions are
+    # checked separately; net pay can also include TDS, loans and recoveries.
+    stated_gross = stated(row, "gross", "gross_salary", "gross_pay", "total_gross")
+    stated_deductions = stated(row, "total_deductions", "total_deduction")
     for nk in ("net", "net_salary", "net_pay", "take_home"):
         reg_val = row.get(nk)
         if reg_val not in (None, ""):
             actual_net = _dec(reg_val)
+            if stated_gross is None or stated_deductions is None:
+                # An incomplete register cannot prove gross − deductions = net.
+                break
+            calc_net = _dec(stated_gross) - _dec(stated_deductions)
             delta = (actual_net - calc_net).copy_abs()
             if delta > tol_net:
                 fail("AGG-002", "Net Pay Mismatch", "net",
                      calc_net, actual_net, "CRITICAL",
-                     f"Net in register ({_fmt(actual_net)}) ≠ Gross − Statutory ({_fmt(calc_net)}). "
+                     f"Net in register ({_fmt(actual_net)}) ≠ Gross − Total Deductions ({_fmt(calc_net)}). "
                      f"Unexplained difference: {_fmt(actual_net - calc_net)}.",
-                     "Check for loan/advance or non-statutory deductions not in config.",
+                     "Check the reported gross, total deductions and net amounts.",
                      float(delta))
             else:
                 pass_("AGG-002", "Net Pay", "net", actual_net)

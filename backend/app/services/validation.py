@@ -821,6 +821,9 @@ def validate_employees(
     as_of: date | None,
     period_month: date | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if as_of is None and period_month is not None:
+        end_day = calendar.monthrange(period_month.year, period_month.month)[1]
+        as_of = period_month.replace(day=end_day)
     as_of = as_of or date.today()
 
     # ── Load configs ──────────────────────────────────────────────────────────
@@ -835,8 +838,8 @@ def validate_employees(
     comp_by_key = _component_key_map(components)
     pt_states_cfg: list[str] = list(settings.pt_states or [])
     lwf_states_cfg: list[str] = list(settings.lwf_states or [])
-    default_pt_state = pt_states_cfg[0] if pt_states_cfg else None
-    default_lwf_state = lwf_states_cfg[0] if lwf_states_cfg else None
+    default_pt_state = pt_states_cfg[0] if len(pt_states_cfg) == 1 else None
+    default_lwf_state = lwf_states_cfg[0] if len(lwf_states_cfg) == 1 else None
     months = num_months(effective_from, effective_to)
     month_labels = month_iter(effective_from, effective_to)
 
@@ -883,14 +886,13 @@ def validate_employees(
         )
         row_state = str(row_state_raw).strip() if row_state_raw not in (None, "") else None
 
-        if row_state and pt_states_cfg and row_state in pt_states_cfg:
-            state_pt: str | None = row_state
+        pt_match = next((s for s in pt_states_cfg if row_state and s.casefold() == row_state.casefold()), None)
+        lwf_match = next((s for s in lwf_states_cfg if row_state and s.casefold() == row_state.casefold()), None)
+        if row_state:
+            state_pt: str | None = pt_match
+            state_lwf: str | None = lwf_match
         else:
             state_pt = default_pt_state
-
-        if row_state and lwf_states_cfg and row_state in lwf_states_cfg:
-            state_lwf: str | None = row_state
-        else:
             state_lwf = default_lwf_state
 
         # Per-row working-days override: allow upload rows to carry
@@ -1181,6 +1183,19 @@ def validate_employees(
             expected_monthly_tds=expected_monthly_tds,
             composition=composition,
         )
+        for scheme, configured, selected in (
+            ("PT", pt_states_cfg, state_pt), ("LWF", lwf_states_cfg, state_lwf),
+        ):
+            if configured and selected is None:
+                emp_findings.append(ValidationFinding(
+                    employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
+                    rule_id=f"DATA-{scheme}-STATE", rule_name=f"{scheme} State Not Mapped",
+                    component="state", expected_value=", ".join(configured),
+                    actual_value=row_state or "(missing)", difference="",
+                    severity="CRITICAL", status="FAIL",
+                    reason=f"Cannot calculate {scheme}: the employee state is missing or not configured for this entity.",
+                    suggested_fix="Correct the location/state mapping or configure this state before validating.",
+                ))
 
         results.append(
             {

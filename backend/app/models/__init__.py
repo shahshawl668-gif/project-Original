@@ -8,6 +8,7 @@ from app.models.org import (
     Organization,
 )
 from app.models.component import ComponentConfig
+from app.models.import_profile import ImportProfile
 from app.models.reference import PtSlab, LwfRate
 from app.models.minimum_wage import MinimumWageRate
 from app.models.payroll_run import PayrollRun
@@ -72,6 +73,7 @@ __all__ = [
     "RefreshToken",
     "PasswordResetToken",
     "ComponentConfig",
+    "ImportProfile",
     "PtSlab",
     "MinimumWageRate",
     "LwfRate",

@@ -1,11 +1,12 @@
 import io
+import csv
 import json
 import uuid
 from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -14,6 +15,7 @@ from app.envelope import ok
 from app.models import (
     ComponentConfig,
     Entity,
+    ImportProfile,
     PayrollRun,
     SalaryRegister,
     SalaryRegisterRow,
@@ -27,9 +29,14 @@ from app.services.dimensions import snapshot as dimension_snapshot
 from app.services.pf_basis import from_row as pf_flag_from_row
 from app.services.workforce import master_as_of
 from app.services.payroll_parse import (
+    allowed_destinations,
+    apply_mapping,
+    check_mapping,
     dataframe_to_employees,
     parse_payroll_file,
+    suggested_mapping,
     validate_required_columns,
+    normalize_col,
 )
 from app.services.validation import (
     _component_key_map,
@@ -39,6 +46,89 @@ from app.services.validation import (
 )
 
 router = APIRouter()
+
+
+@router.get("/template.csv")
+def download_register_template(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """A header-only template that follows this entity's configured components."""
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).order_by(ComponentConfig.component_name).all()
+    output = io.StringIO()
+    csv.writer(output).writerow([
+        "Employee ID", "Employee Name", "State", "Location", "Total Days", "LOP Days",
+        *[c.component_name for c in comps if normalize_col(c.component_name) not in allowed_destinations(set())],
+        "Gross", "Total Deductions", "Net", "PF Employee", "ESIC Employee",
+        "PT", "LWF Employee", "TDS",
+    ])
+    return Response(
+        content="\ufeff" + output.getvalue(), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="salary-register-template.csv"'},
+    )
+
+
+@router.get("/import-profiles")
+def list_import_profiles(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    profiles = db.query(ImportProfile).filter(ImportProfile.entity_id == entity.id).order_by(ImportProfile.name).all()
+    return ok([{"id": str(p.id), "name": p.name, "column_mapping": p.column_mapping} for p in profiles])
+
+
+@router.post("/import-profiles")
+def save_import_profile(
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    name = str(body.get("name", "")).strip()
+    mapping = body.get("column_mapping")
+    if not name or len(name) > 100 or not isinstance(mapping, dict):
+        raise HTTPException(status_code=400, detail="Provide a profile name and column mapping.")
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
+    try:
+        check_mapping(list(mapping), mapping, {c.component_name for c in comps})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    profile = db.query(ImportProfile).filter(ImportProfile.entity_id == entity.id, ImportProfile.name == name).first()
+    if profile:
+        profile.column_mapping = dict(mapping)
+    else:
+        profile = ImportProfile(entity_id=entity.id, user_id=user.id, name=name, column_mapping=dict(mapping))
+        db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    return ok({"id": str(profile.id), "name": profile.name, "column_mapping": profile.column_mapping})
+
+
+@router.post("/preview")
+async def preview_register(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    try:
+        df = parse_payroll_file(await file.read(), file.filename or "upload.csv")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    columns = list(df.columns)
+    if any(not normalize_col(col) for col in columns):
+        raise HTTPException(status_code=400, detail="Every register column needs a header.")
+    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
+    names = {c.component_name for c in comps}
+    return ok({
+        "columns": columns,
+        "mapping": suggested_mapping(columns, names),
+        "destinations": sorted(allowed_destinations(names)),
+        "preview": df.head(5).fillna("").astype(str).to_dict(orient="records"),
+        "employee_count": len(df),
+    })
 
 
 def _to_first_of_month(d: date | None) -> date | None:
@@ -198,6 +288,7 @@ async def upload_payroll(
         eff_to = payload.get("effective_month_to")
         period_month = payload.get("period_month")
         strict = payload.get("strict_header_check", True)
+        column_mapping = payload.get("column_mapping")
         eff_from_d = date.fromisoformat(eff_from) if eff_from else None
         eff_to_d = date.fromisoformat(eff_to) if eff_to else None
         period_month_d = date.fromisoformat(period_month) if period_month else None
@@ -210,10 +301,20 @@ async def upload_payroll(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    columns, employees = dataframe_to_employees(df)
     comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     comp_names = {c.component_name for c in comps}
+    if column_mapping is None:
+        column_mapping = suggested_mapping(list(df.columns), comp_names)
+    unmapped_sources = sorted(set(df.columns) - set(column_mapping)) if isinstance(column_mapping, dict) else []
+    try:
+        check_mapping(list(df.columns), column_mapping, comp_names)
+        df = apply_mapping(df, column_mapping)
+        columns, employees = dataframe_to_employees(df)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     missing, warnings = validate_required_columns(columns, comp_names, strict=strict)
+    if unmapped_sources:
+        warnings.append("Unmapped source columns were ignored: " + ", ".join(unmapped_sources[:20]))
 
     preview = employees[:5]
 
