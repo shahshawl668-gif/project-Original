@@ -109,7 +109,6 @@ const navGroups = [
       { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
       { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
       { href: "/config/components", label: "Salary components", icon: Layers },
-      { href: "/config/upload", label: "Configuration upload", icon: UploadCloud },
       { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
       { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
@@ -477,12 +476,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="inline-flex h-10 items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
             >
               Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-ink-200 bg-white px-5 text-sm font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-brand-700"
-            >
-              Create an account
             </Link>
           </div>
         </div>

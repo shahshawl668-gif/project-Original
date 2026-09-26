@@ -29,7 +29,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, workspaceSlug?: string, portal?: "client" | "platform") => Promise<void>;
   signup: (email: string, password: string, company_name?: string | null) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -96,9 +96,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.clearInterval(id);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, workspaceSlug?: string, portal: "client" | "platform" = "client") => {
     sessionRevision.current += 1;
-    const me = await signIn(email, password);
+    const me = await signIn(email, password, workspaceSlug, portal);
     setUser(me);
     setLoading(false);
     toast.success("Signed in");

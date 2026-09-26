@@ -28,6 +28,21 @@ def slugify_code(name: str, fallback: str = "ENTITY") -> str:
     return cleaned or fallback
 
 
+RESERVED_SLUGS = {"admin", "api", "www", "app", "login", "platform", "support", "sales"}
+
+
+def unique_org_slug(db: Session, name: str) -> str:
+    base = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")[:48] or "client"
+    if base in RESERVED_SLUGS:
+        base += "-client"
+    candidate = base
+    suffix = 2
+    while db.query(Organization.id).filter(Organization.slug == candidate).first():
+        candidate = f"{base[:48]}-{suffix}"
+        suffix += 1
+    return candidate
+
+
 def unique_entity_code(db: Session, org_id: uuid.UUID, name: str) -> str:
     """Derive an entity code that does not collide inside the organization."""
     base = slugify_code(name)
@@ -58,7 +73,7 @@ def provision_org_for_user(
     entities. Commits nothing — the caller owns the transaction.
     """
     display = (org_name or user.company_name or (user.email or "").split("@")[0] or "My organization").strip()
-    org = Organization(name=display, org_type=org_type)
+    org = Organization(name=display, slug=unique_org_slug(db, display), org_type=org_type)
     db.add(org)
     db.flush()
 
