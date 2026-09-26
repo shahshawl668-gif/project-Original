@@ -10,7 +10,7 @@ A bundled default is not evidence that a state rate is current. Review each offi
 
 ## Open audit
 
-- PT: all bundled states and local body schedules require official current schedule and supersession checks; there are 21 state entries in `pt_defaults.py`. City-specific taxes cannot be inferred from state names.
+- PT: all bundled states and local body schedules require official current schedule and supersession checks; there are 22 state entries in `pt_defaults.py`. City-specific taxes cannot be inferred from state names.
 - LWF: other bundled states and statutory establishment/worker exclusions require official review; there are 15 state entries in `lwf_defaults.py`. The two corrected rates above do not prove all-state coverage.
 - Minimum wages: there is no nationwide tenant rate seed. Appropriate-government schedules vary by employment, zone, skill and revision date. The [Chief Labour Commissioner minimum wages page](https://clc.gov.in/clc/min-wages) publishes central-sphere VDA orders; these cannot stand in for every state's schedules.
 - The `slab_rules` PT/LWF table lacks effective-from/effective-to dates and source references. A default import overwrites a tenant's state rows, so updated defaults alone cannot safely validate an older payroll period. The LWF validator currently prorates annual/half-yearly contributions to a monthly equivalent; it needs deduction-period rules for exact register comparison.
