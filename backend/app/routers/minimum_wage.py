@@ -19,16 +19,78 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import Entity, MinimumWageRate, SalaryRegister, SalaryRegisterRow, User
+from app.models import Entity, MinimumWageApplicability, MinimumWageRate, SalaryRegister, SalaryRegisterRow, User
 from app.schemas.minimum_wage import (
+    MinimumWageDecisionIn,
     MinimumWageImport,
     MinimumWageRateIn,
     MinimumWageRateOut,
 )
 from app.services import minimum_wage as mw
+from app.services import audit
 from app.services.workforce import master_as_of
 
 router = APIRouter()
+
+
+def _decision_payload(row: MinimumWageApplicability | None) -> dict:
+    if row is None:
+        return {"status": "not_set", "applicable": None, "effective_from": None}
+    return {
+        "status": "applicable" if row.applicable else "not_applicable",
+        "applicable": row.applicable,
+        "effective_from": row.effective_from.isoformat(),
+        "reason": row.reason,
+        "source_reference": row.source_reference,
+    }
+
+
+@router.get("/applicability")
+def get_applicability(
+    as_of: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    decision = mw.applicability_as_of(db, entity.id, as_of or date.today())
+    history = (
+        db.query(MinimumWageApplicability)
+        .filter(MinimumWageApplicability.entity_id == entity.id)
+        .order_by(MinimumWageApplicability.effective_from.desc())
+        .all()
+    )
+    return ok({"current": _decision_payload(decision), "history": [_decision_payload(row) for row in history]})
+
+
+@router.post("/applicability")
+def set_applicability(
+    body: MinimumWageDecisionIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    exists = (
+        db.query(MinimumWageApplicability)
+        .filter(
+            MinimumWageApplicability.entity_id == entity.id,
+            MinimumWageApplicability.effective_from == body.effective_from,
+        )
+        .first()
+    )
+    if exists:
+        raise HTTPException(status_code=409, detail="A decision already exists for this effective date.")
+    decision = MinimumWageApplicability(
+        entity_id=entity.id, user_id=user.id, **body.model_dump()
+    )
+    db.add(decision)
+    audit.record(
+        db, entity_id=entity.id, user=user, action="minimum_wage.applicability_set",
+        object_type="minimum_wage_applicability", object_id=body.effective_from.isoformat(),
+        summary=f"Minimum-wage check {'applies' if body.applicable else 'does not apply'} from {body.effective_from}",
+        detail={"reason": body.reason, "source_reference": body.source_reference},
+    )
+    db.commit()
+    return ok(_decision_payload(decision))
 
 
 @router.get("/rates")
@@ -116,7 +178,8 @@ def coverage(
         for r in master.values()
         if r.work_state and r.skill_category
     ]
-    report = mw.coverage_report(db, entity.id, required)
+    report = mw.coverage_report(db, entity.id, required, as_of=cutoff)
+    report["applicability"] = _decision_payload(mw.applicability_as_of(db, entity.id, cutoff))
     report["employees_without_classification"] = sum(
         1 for r in master.values() if not r.work_state or not r.skill_category
     )
@@ -142,6 +205,24 @@ def check_period(
     except ValueError:
         raise HTTPException(status_code=400, detail="'period' must be an ISO date (YYYY-MM-DD)")
 
+    month_end = date(
+        period_month.year, period_month.month,
+        calendar.monthrange(period_month.year, period_month.month)[1],
+    )
+    decision = mw.applicability_as_of(db, entity.id, month_end)
+    if decision is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Select Yes or No for minimum-wage applicability before checking this entity and period.",
+        )
+    if not decision.applicable:
+        return ok({
+            "period": period_month.isoformat(), "status": "not_applicable",
+            "reason": decision.reason, "effective_from": decision.effective_from.isoformat(),
+            "employees_checked": 0, "below_minimum": 0, "could_not_verify": 0,
+            "total_shortfall": 0, "findings": [],
+        })
+
     register = (
         db.query(SalaryRegister)
         .filter(
@@ -155,11 +236,6 @@ def check_period(
 
     # The master as it stood at month end, so a later transfer or reclassification
     # does not rewrite what was owed then.
-    month_end = date(
-        period_month.year,
-        period_month.month,
-        calendar.monthrange(period_month.year, period_month.month)[1],
-    )
     master = master_as_of(db, entity.id, month_end)
     calendar_days = Decimal(calendar.monthrange(period_month.year, period_month.month)[1])
 

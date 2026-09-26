@@ -11,6 +11,7 @@ from app.models.component import ComponentConfig
 from app.models.import_profile import ImportProfile
 from app.models.reference import PtSlab, LwfRate
 from app.models.minimum_wage import MinimumWageRate
+from app.models.minimum_wage_applicability import MinimumWageApplicability
 from app.models.payroll_run import PayrollRun
 from app.models.statutory import StatutorySettings
 from app.models.statutory_config import StatutoryConfig
@@ -76,6 +77,7 @@ __all__ = [
     "ImportProfile",
     "PtSlab",
     "MinimumWageRate",
+    "MinimumWageApplicability",
     "LwfRate",
     "PayrollRun",
     "StatutorySettings",

@@ -114,6 +114,7 @@ const navGroups = [
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
       { href: "/rule-engine/formula", label: "Formulas", icon: Code2 },
       { href: "/rule-engine/slabs", label: "PT / LWF slabs", icon: BarChart3 },
+      { href: "/config/minimum-wage", label: "Minimum wage", icon: IndianRupee },
       { href: "/config/team", label: "Team & invitations", icon: UserPlus },
       { href: "/audit", label: "Audit trail", icon: ScrollText },
     ],
