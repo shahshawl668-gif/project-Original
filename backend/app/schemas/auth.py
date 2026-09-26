@@ -27,11 +27,21 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class PlatformInviteAccept(BaseModel):
+    token: str
+    password: str = Field(min_length=8)
+
+
+class SupportSessionRequest(BaseModel):
+    org_id: uuid.UUID
+
+
 class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
     company_name: str | None
     role: str
+    platform_role: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

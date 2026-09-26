@@ -12,7 +12,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -55,6 +55,7 @@ router = APIRouter()
 
 @router.get("/context")
 def get_context(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     entity: Entity = Depends(get_current_entity),
@@ -62,9 +63,12 @@ def get_context(
     membership = tenancy.get_membership(db, user)
     org = db.get(Organization, membership.org_id) if membership else None
     entities = tenancy.accessible_entities(db, user)
+    if getattr(request.state, "auth_claims", {}).get("portal") == "support":
+        org = db.get(Organization, entity.org_id)
+        entities = [item for item in entities if item.org_id == entity.org_id]
     payload = ContextOut(
         organization=OrganizationOut.model_validate(org) if org else None,
-        role=membership.role if membership else None,
+        role=membership.role if membership and membership.org_id == entity.org_id else "viewer" if org else None,
         active_entity=EntityOut.model_validate(entity),
         entities=[EntityOut.model_validate(e) for e in entities],
     )

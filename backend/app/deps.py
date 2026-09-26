@@ -60,12 +60,20 @@ def get_current_user(
     user = db.get(User, uid)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    if settings.is_production and payload.get("portal") not in {"client", "platform"}:
+    if settings.is_production and payload.get("portal") not in {"client", "platform", "support"}:
         raise HTTPException(status_code=401, detail="Please sign in again")
     if settings.is_production and payload.get("portal") == "client":
         membership = tenancy.get_membership(db, user)
         if not membership or str(membership.org_id) != payload.get("org_id"):
             raise HTTPException(status_code=401, detail="Workspace access revoked")
+    if settings.is_production and payload.get("portal") == "support":
+        from app.services import support_access
+        try:
+            org_id = uuid.UUID(str(payload.get("org_id")))
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Invalid support session")
+        if support_access.active_grant(db, user, org_id) is None:
+            raise HTTPException(status_code=401, detail="Support access ended")
     if settings.is_production and payload.get("portal") == "platform" and not request.url.path.startswith(("/api/admin", "/api/auth", "/api/v1/admin", "/api/v1/auth")):
         raise HTTPException(status_code=403, detail="Client workspace session required")
     request.state.auth_claims = payload
@@ -123,10 +131,10 @@ def get_current_entity(
     created before entities existed keep working without a manual repair.
     """
     claims = getattr(request.state, "auth_claims", {})
-    if settings.is_production and claims.get("portal") != "client":
+    if settings.is_production and claims.get("portal") not in {"client", "support"}:
         raise HTTPException(status_code=403, detail="Client workspace session required")
     def scoped(entity: Entity) -> Entity:
-        if claims.get("org_id") and str(entity.org_id) != claims["org_id"] and tenancy.support_grant_for(db, user, entity) is None:
+        if claims.get("org_id") and str(entity.org_id) != claims["org_id"] and (claims.get("portal") != "client" or tenancy.support_grant_for(db, user, entity) is None):
             raise HTTPException(status_code=404, detail="Entity not found")
         if settings.is_production and not claims.get("org_id"):
             raise HTTPException(status_code=401, detail="Please sign in again")
@@ -145,7 +153,10 @@ def get_current_entity(
         _note_support_use(db, user, entity)
         return scoped(entity)
 
-    entity = tenancy.default_entity(db, user)
+    if claims.get("portal") == "support":
+        entity = next((item for item in tenancy.accessible_entities(db, user) if str(item.org_id) == claims.get("org_id")), None)
+    else:
+        entity = tenancy.default_entity(db, user)
     if entity is not None:
         return scoped(entity)
 

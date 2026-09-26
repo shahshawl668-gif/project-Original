@@ -153,16 +153,21 @@ def provision_legacy_tenants(conn: Connection) -> dict[str, str]:
     if not {"users", "organizations", "entities", "org_memberships"} <= tables:
         return {}
 
-    rows = conn.execute(
-        text(
-            """
+    if "platform_role" in _columns(conn, "users"):
+        query = text("""
+            SELECT u.id, u.email, u.company_name
+            FROM users u
+            LEFT JOIN org_memberships m ON m.user_id = u.id
+            WHERE m.id IS NULL AND (u.platform_role IS NULL OR u.platform_role = '')
+            """)
+    else:
+        query = text("""
             SELECT u.id, u.email, u.company_name
             FROM users u
             LEFT JOIN org_memberships m ON m.user_id = u.id
             WHERE m.id IS NULL
-            """
-        )
-    ).fetchall()
+            """)
+    rows = conn.execute(query).fetchall()
 
     mapping: dict[str, str] = {}
     for user_id, email, company_name in rows:
