@@ -39,3 +39,15 @@ def test_unmapped_columns_are_not_inferred_as_earnings():
     df = parse_payroll_file(b"EMP ID,Basic,Loan Recovery\n17,1000,500\n", "register.csv")
     mapped = apply_mapping(df, {"EMP ID": "employee_id", "Basic": "basic"})
     assert "Loan Recovery" not in mapped.columns
+
+
+def test_row_specific_arrear_window_and_increment_survive_auto_mapping():
+    df = parse_payroll_file(
+        b"Employee ID,Basic,Basic Arrear,Arrear From,Arrear Months,Increment Arrear\n"
+        b"E003,25000,6000,01/06/2026,3,9000\n", "mixed.csv"
+    )
+    mapping = suggested_mapping(list(df.columns), {"Basic"})
+    _, rows = dataframe_to_employees(apply_mapping(df, mapping))
+    assert rows[0]["arrear_from"] == "01/06/2026"
+    assert rows[0]["arrear_months"] == 3.0
+    assert rows[0]["increment_arrear"] == 9000.0

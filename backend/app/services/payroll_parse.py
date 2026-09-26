@@ -19,7 +19,8 @@ IMPORT_FIELDS = (
     "gross", "total_deductions", "net", "pf_employee", "pf_employer",
     "esic_employee", "esic_employer", "pt", "lwf_employee",
     "lwf_employer", "tds", "bank_account", "ifsc", "pan", "uan",
-    "arrear_days", "increment_arrear_total", "previous_months_lop_days",
+    "arrear_days", "arrear_from", "arrear_to", "arrear_months",
+    "increment_arrear", "increment_arrear_total", "previous_months_lop_days",
     "notice_period_recovery", "loan_recovery",
 )
 ALIASES = {
