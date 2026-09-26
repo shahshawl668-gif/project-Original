@@ -11,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 from sqlalchemy import JSON
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -24,6 +25,13 @@ from app.models import (
     StatutoryConfig, StatutorySettings, TenantRulePreference, User,
 )
 from app.services import audit
+from app.schemas.component import ComponentCreate
+from app.schemas.exposure_config import ExposureConfig
+from app.schemas.income_tax_config import IncomeTaxConfig
+from app.schemas.minimum_wage import MinimumWageRateIn
+from app.schemas.rule_engine import SlabRow
+from app.schemas.rule_thresholds import RuleThresholdsConfig
+from app.schemas.statutory_config import ComponentMappingConfig, ESICConfig, PFConfig
 
 router = APIRouter()
 
@@ -139,6 +147,31 @@ def _validate(payload: dict) -> dict:
             validated.append(converted)
         if key in ("statutory_settings", "statutory_engine") and len(validated) > 1:
             raise ValueError(f"{key} accepts at most one row")
+        try:
+            if key == "components":
+                for row in validated:
+                    ComponentCreate.model_validate(row)
+            elif key == "pt_lwf_slabs":
+                for row in validated:
+                    if row["rule_type"] not in ("PT", "LWF") or row["min_salary"] > row["max_salary"]:
+                        raise ValueError("PT/LWF row has an invalid type or salary band")
+                    SlabRow.model_validate(row)
+            elif key == "minimum_wage_rates":
+                for row in validated:
+                    MinimumWageRateIn.model_validate(row)
+            elif key == "statutory_engine":
+                for row in validated:
+                    for field, schema in (
+                        ("pf_config", PFConfig), ("esic_config", ESICConfig),
+                        ("component_mapping_config", ComponentMappingConfig),
+                        ("income_tax_config", IncomeTaxConfig),
+                        ("rule_thresholds_config", RuleThresholdsConfig),
+                        ("exposure_config", ExposureConfig),
+                    ):
+                        if row[field] is not None:
+                            schema.model_validate(row[field])
+        except ValidationError as exc:
+            raise ValueError(f"{key}: {exc}") from exc
         cleaned[key] = validated
     return cleaned
 
