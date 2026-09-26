@@ -71,6 +71,7 @@ export default function UploadPage() {
     setWarnings([]);
     setError(null);
     setMapping({});
+    setProfileName("");
     setUploaded(false);
     if (f) {
       setStep(1);

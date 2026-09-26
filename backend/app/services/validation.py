@@ -878,8 +878,10 @@ def validate_employees(
         # the tenant's configured default. State must be one of the
         # tenant's configured states for that scheme; otherwise treated
         # as "no state" so PT / LWF won't be computed for that row.
+        master_record = master_rows.get(eid)
         row_state_raw = (
-            row.get("state")
+            (master_record.work_state if master_record is not None else None)
+            or row.get("state")
             or row.get("work_state")
             or row.get("state_pt")
             or row.get("location_state")
@@ -943,7 +945,6 @@ def validate_employees(
         # then the entity default. Two people on one payroll can sit on
         # different bases, and applying one switch to both mis-states PF for
         # whoever is on the other — compounding every month.
-        master_record = master_rows.get(eid)
         pf_basis = resolve_pf_basis(
             row,
             master_record.pf_restricted if master_record is not None else None,
