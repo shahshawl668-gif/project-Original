@@ -105,9 +105,10 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         _row(0, _TOP, 10, 30, freq="half-yearly"),
     ],
     "Maharashtra": [
-        # ₹3,000 wage threshold (statutory definition uses "salary or wages").
-        _row(0, 3000, 6, 18, freq="half-yearly"),
-        _row(3001, _TOP, 12, 36, freq="half-yearly"),
+        # Maharashtra Act XXV of 2024, section 6BB(2), gazetted 18 Mar 2024.
+        # ₹25 employee and 3× employer for each June/December period; no wage band.
+        # https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf
+        _row(0, _TOP, 25, 75, freq="half-yearly"),
     ],
     "Odisha": [
         _row(0, _TOP, 20, 40, freq="half-yearly"),
