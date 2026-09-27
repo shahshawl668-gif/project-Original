@@ -104,7 +104,7 @@ def evaluate(rule: ValidationRuleVersion, row: dict[str, Any]) -> dict[str, Any]
     else:
         if rule.condition:
             group = rule.condition
-            items = group["items"] if "items" in group else [group]
+            items = group.get("items", [group])
             results = [_compare(item, row)[0] for item in items]
             mode = group.get("mode", "all")
             if (mode == "all" and False in results) or (mode == "any" and True not in results and None not in results):
