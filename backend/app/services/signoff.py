@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 from app.models import (
     Entity,
     FindingState,
+    FindingRecord,
+    ValidationRuleVersion,
     MinimumWageRate,
     PeriodSignOff,
     SignOffEvent,
@@ -231,6 +233,10 @@ def submit(db: Session, entity: Entity, period_month: date, actor: User, notes: 
     return signoff
 
 
+class MatrixSignoffBlocked(Exception):
+    pass
+
+
 def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) -> PeriodSignOff:
     """
     Approve the period.
@@ -244,6 +250,27 @@ def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) ->
     entity = db.get(Entity, signoff.entity_id)
 
     snapshot = build_snapshot(db, entity, signoff.period_month)
+    current_run = db.query(ValidationRun).filter(
+        ValidationRun.entity_id == entity.id,
+        ValidationRun.period_month == signoff.period_month,
+    ).first()
+    if current_run:
+        blocked = {
+            record.fingerprint for record, version in db.query(FindingRecord, ValidationRuleVersion).join(
+                ValidationRuleVersion, FindingRecord.rule_version_id == ValidationRuleVersion.id
+            ).filter(
+                FindingRecord.run_id == current_run.id,
+                ValidationRuleVersion.blocks_signoff.is_(True),
+            ).all()
+        }
+        unresolved = [
+            finding for finding in snapshot["outstanding_findings"]
+            if finding["fingerprint"] in blocked
+        ]
+        if unresolved:
+            raise MatrixSignoffBlocked(
+                f"{len(unresolved)} blocking matrix finding(s) need resolution or a documented waiver"
+            )
     signoff.snapshot = snapshot
     signoff.snapshot_digest = digest(snapshot)
     signoff.state = "signed"
