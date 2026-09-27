@@ -1,9 +1,10 @@
 """Decision matrix contract: scope, approval, date selection and auditable findings."""
 from datetime import date
+import uuid
 from decimal import Decimal
 
 from app.database import SessionLocal
-from app.models import FindingRecord, SalaryRegister, SalaryRegisterRow
+from app.models import SalaryRegister, SalaryRegisterRow
 from app.services import validation_matrix
 
 PASSWORD = "Passw0rd!x"
@@ -44,13 +45,13 @@ def test_draft_simulation_publish_and_version_date_selection(client):
     db = SessionLocal()
     try:
         register = SalaryRegister(
-            entity_id=entity["id"], user_id=draft["created_by"],
+            entity_id=uuid.UUID(entity["id"]), user_id=uuid.UUID(draft["created_by"]),
             period_month=date(2026, 8, 1), employee_count=1,
         )
         db.add(register)
         db.flush()
         db.add(SalaryRegisterRow(
-            register_id=register.id, entity_id=entity["id"], user_id=draft["created_by"],
+            register_id=register.id, entity_id=uuid.UUID(entity["id"]), user_id=uuid.UUID(draft["created_by"]),
             period_month=date(2026, 8, 1), employee_id="E01", employee_name="Test",
             lop_days=Decimal("3"), components={"Basic": 10000}, dimensions={},
             arrears={}, deductions={}, net_pay=Decimal("10000"),
@@ -69,7 +70,7 @@ def test_draft_simulation_publish_and_version_date_selection(client):
     assert data(client.post(f"/api/validation-matrix/{draft['id']}/publish", headers=headers))["status"] == "published"
     db = SessionLocal()
     try:
-        assert validation_matrix.published_for(db, entity["id"], date(2026, 7, 1)) == []
+        assert validation_matrix.published_for(db, uuid.UUID(entity["id"]), date(2026, 7, 1)) == []
         selected = validation_matrix.published_for(db, entity["id"], date(2026, 8, 1))
         assert [str(row.id) for row in selected] == [draft["id"]]
     finally:
@@ -85,8 +86,6 @@ def test_draft_simulation_publish_and_version_date_selection(client):
 
 
 def test_statutory_publication_requires_group_owner(client):
-    from app.models import OrgMembership, User
-
     headers = owner(client, "matrix-statutory")
     draft = data(client.post("/api/validation-matrix", headers=headers,
                              json=rule_body("STATX-LOP-01", "statutory")))
@@ -114,7 +113,7 @@ def test_missing_inputs_and_unknown_component_are_not_silent_passes(client):
     db = SessionLocal()
     try:
         from app.models import ValidationRuleVersion
-        row = db.get(ValidationRuleVersion, draft["id"])
+        row = db.get(ValidationRuleVersion, uuid.UUID(draft["id"]))
         issue = validation_matrix.evaluate(row, {"employee_id": "E02", "components": {}})
         assert issue["evidence"]["unverifiable"] is True
         assert issue["status"] == "FAIL"
