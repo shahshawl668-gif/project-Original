@@ -82,6 +82,7 @@ class ContextOut(BaseModel):
     role: str | None
     active_role: str | None = None
     entity_roles: dict[str, str] = Field(default_factory=dict)
+    can_manage_group: bool = False
     active_entity: EntityOut | None
     entities: list[EntityOut]
 
