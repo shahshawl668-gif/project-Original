@@ -80,6 +80,8 @@ class ContextOut(BaseModel):
 
     organization: OrganizationOut | None
     role: str | None
+    active_role: str | None = None
+    entity_roles: dict[str, str] = Field(default_factory=dict)
     active_entity: EntityOut | None
     entities: list[EntityOut]
 
@@ -165,3 +167,9 @@ class MemberOut(BaseModel):
     entity_ids: list[str] = Field(default_factory=list)
     is_you: bool = False
     joined_at: datetime | None = None
+
+
+class EntityRoleUpdate(BaseModel):
+    """Set a company-specific role; null restores the organization default."""
+
+    role: Literal["owner", "manager", "analyst", "viewer"] | None
