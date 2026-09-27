@@ -45,6 +45,17 @@ const failure = (status, detail) => Response.json({
   success: false, data: null, error: { detail },
 }, { status });
 
+test("the UI recognizes platform and client sessions before routing", () => {
+  const h = harness(async () => ok(user));
+  const token = (portal) => `header.${Buffer.from(JSON.stringify({ portal })).toString("base64url")}.signature`;
+  h.api.setTokens(token("client"), "refresh");
+  assert.equal(h.api.getSessionPortal(), "client");
+  h.api.setTokens(token("platform"), "refresh");
+  assert.equal(h.api.getSessionPortal(), "platform");
+  h.api.clearTokens();
+  assert.equal(h.api.getSessionPortal(), null);
+});
+
 test("sign-in loads the profile with the new token and bypasses cached responses", async () => {
   const calls = [];
   const h = harness(async (url, init) => {

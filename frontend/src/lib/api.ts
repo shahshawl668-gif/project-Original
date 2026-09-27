@@ -100,17 +100,23 @@ export type TokenPairData = {
 };
 
 /** Decode JWT payload (browser only; no crypto verification — used for expiry scheduling). */
-export function parseJwtPayload(token: string): { exp?: number } | null {
+export function parseJwtPayload(token: string): { exp?: number; portal?: string } | null {
   try {
     const parts = token.split(".");
     if (parts.length < 2) return null;
     const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
     const json = atob(b64 + pad);
-    return JSON.parse(json) as { exp?: number };
+    return JSON.parse(json) as { exp?: number; portal?: string };
   } catch {
     return null;
   }
+}
+
+/** UI routing hint only; the API enforces the actual portal authorization. */
+export function getSessionPortal(): string | null {
+  const token = getAccessToken();
+  return token ? parseJwtPayload(token)?.portal ?? "client" : null;
 }
 
 function authHeader(): Record<string, string> {

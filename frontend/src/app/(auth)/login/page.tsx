@@ -14,7 +14,7 @@ export default function LoginPage() {
   const pathname = usePathname();
   const slug = pathname.match(/^\/w\/([a-z0-9-]+)\/login\/?$/)?.[1];
   const platform = pathname.startsWith("/platform/login") || pathname === "/login";
-  const { login, isAuthenticated } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,10 +32,6 @@ export default function LoginPage() {
 
   const secondsRemaining = Math.max(0, Math.ceil((retryUntil - now) / 1000));
 
-  useEffect(() => {
-    if (isAuthenticated) router.replace(platform ? "/platform" : "/dashboard");
-  }, [isAuthenticated, platform, router]);
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (busy || secondsRemaining > 0) return;
@@ -43,6 +39,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login(email.trim(), password, slug, platform ? "platform" : "client");
+      router.replace(platform ? "/platform" : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in. Please try again.");
       if (err instanceof ApiError && err.status === 429 && err.retryAfterSeconds) {
