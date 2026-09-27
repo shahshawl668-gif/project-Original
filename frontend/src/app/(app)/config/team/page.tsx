@@ -41,6 +41,7 @@ import {
   resendInvitation,
   revokeInvitation,
   updateMember,
+  updateCompanyRole,
   type Invitation,
   type Member,
   type OrgRole,
@@ -97,6 +98,16 @@ export default function TeamPage() {
   const patch = useMutation({
     mutationFn: ({ userId, body }: { userId: string; body: { role?: OrgRole; entity_ids?: string[] } }) =>
       updateMember(userId, body),
+    onSuccess: () => {
+      setError(null);
+      refresh();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const companyRole = useMutation({
+    mutationFn: ({ userId, entityId, role }: { userId: string; entityId: string; role: OrgRole | null }) =>
+      updateCompanyRole(userId, entityId, role),
     onSuccess: () => {
       setError(null);
       refresh();
@@ -178,11 +189,12 @@ export default function TeamPage() {
                 member={member}
                 myRole={myRole}
                 entities={entities}
-                busy={patch.isPending || drop.isPending}
+                busy={patch.isPending || drop.isPending || companyRole.isPending}
                 onRole={(role) => patch.mutate({ userId: member.user_id, body: { role } })}
                 onScope={(entity_ids) =>
                   patch.mutate({ userId: member.user_id, body: { entity_ids } })
                 }
+                onCompanyRole={(entityId, role) => companyRole.mutate({ userId: member.user_id, entityId, role })}
                 onRemove={() => drop.mutate(member.user_id)}
               />
             ))}
@@ -465,6 +477,7 @@ function MemberRow({
   busy,
   onRole,
   onScope,
+  onCompanyRole,
   onRemove,
 }: {
   member: Member;
@@ -473,6 +486,7 @@ function MemberRow({
   busy: boolean;
   onRole: (role: OrgRole) => void;
   onScope: (entityIds: string[]) => void;
+  onCompanyRole: (entityId: string, role: OrgRole | null) => void;
   onRemove: () => void;
 }) {
   // You cannot act on yourself, nor on anyone whose role is wider than yours.
@@ -480,7 +494,8 @@ function MemberRow({
   const grantable = ROLES.filter((r) => canGrant(myRole, r.key));
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+    <div className="py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900 dark:text-white">
           {member.email}
@@ -570,6 +585,29 @@ function MemberRow({
           </span>
         )}
       </div>
+      {mayManage && (
+        <details className="mt-2 rounded-lg border border-ink-200/70 px-3 py-2 text-xs dark:border-ink-700">
+          <summary className="cursor-pointer font-semibold text-brand-700">Company roles</summary>
+          <p className="py-2 text-ink-500">The organization role is the default. A company role overrides it only for that employer.</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {entities.filter((entity) => member.entity_ids.length === 0 || member.entity_ids.includes(entity.id)).map((entity) => (
+              <label key={entity.id} className="flex items-center justify-between gap-2 rounded-lg bg-ink-50 p-2 text-ink-700">
+                <span className="min-w-0 truncate">{entity.name}</span>
+                <select
+                  aria-label={`Role for ${member.email} in ${entity.name}`}
+                  value={member.entity_roles?.[entity.id] ?? ""}
+                  disabled={busy}
+                  onChange={(event) => onCompanyRole(entity.id, (event.target.value || null) as OrgRole | null)}
+                  className="max-w-[10rem] rounded-md border border-ink-200 bg-white px-2 py-1 text-xs"
+                >
+                  <option value="">Default ({ROLE_LABEL[member.role]})</option>
+                  {grantable.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
