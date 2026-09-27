@@ -102,7 +102,8 @@ export default function ValidationMatrixPage() {
   const [blocks, setBlocks] = useState(false);
   const [fix, setFix] = useState("");
   const [assertion, setAssertion] = useState<Comparison>(initial);
-  const [condition, setCondition] = useState<Comparison | null>(null);
+  const [conditions, setConditions] = useState<Comparison[]>([]);
+  const [conditionMode, setConditionMode] = useState<"all" | "any">("all");
   const [period, setPeriod] = useState("");
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [activeTest, setActiveTest] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export default function ValidationMatrixPage() {
   const create = useMutation({
     mutationFn: () => apiJson<Rule>("/api/validation-matrix", { method: "POST", body: JSON.stringify({
       rule_key: key.trim().toUpperCase(), name: name.trim(), category, effective_from: effectiveFrom,
-      state: state.trim() || null, condition, assertion, severity, blocks_signoff: blocks,
+      state: state.trim() || null, conditions, condition_mode: conditionMode, assertion, severity, blocks_signoff: blocks,
       suggested_fix: fix.trim() || null, source_reference: source.trim() || null, change_reason: reason.trim(),
     }) }),
     onSuccess: () => { setError(null); setName(""); setReason(""); refresh(); },
@@ -160,8 +161,12 @@ export default function ValidationMatrixPage() {
               <label className="text-xs font-semibold text-ink-700">Severity<select className={`mt-1 ${input}`} value={severity} onChange={(event) => setSeverity(event.target.value as typeof severity)}><option>INFO</option><option>WARNING</option><option>CRITICAL</option></select></label>
             </div>
             <ComparisonEditor title="Expected check" value={assertion} onChange={setAssertion} catalog={catalogData} />
-            <label className="flex items-center gap-2 text-xs font-semibold text-ink-700"><input type="checkbox" checked={!!condition} onChange={(event) => setCondition(event.target.checked ? initial : null)} /> Apply only when a condition matches</label>
-            {condition && <ComparisonEditor title="Condition" value={condition} onChange={setCondition} catalog={catalogData} />}
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-ink-700">Apply rule when</span>
+              <select aria-label="Condition matching" className={`max-w-48 ${input}`} value={conditionMode} onChange={(event) => setConditionMode(event.target.value as "all" | "any")}><option value="all">All conditions match</option><option value="any">Any condition matches</option></select>
+              <button type="button" disabled={conditions.length >= 5} onClick={() => setConditions([...conditions, { ...initial }])} className="rounded-lg border border-brand-300 px-3 py-1.5 text-xs font-semibold text-brand-700 disabled:opacity-50">Add condition</button>
+            </div>
+            {conditions.map((item, index) => <div key={index} className="space-y-2"><ComparisonEditor title={`Condition ${index + 1}`} value={item} onChange={(next) => setConditions(conditions.map((existing, i) => i === index ? next : existing))} catalog={catalogData} /><button type="button" onClick={() => setConditions(conditions.filter((_, i) => i !== index))} className="text-xs font-semibold text-ink-600">Remove condition</button></div>)}
             <label className="flex items-center gap-2 text-xs font-semibold text-ink-700"><input type="checkbox" checked={blocks} onChange={(event) => setBlocks(event.target.checked)} /> Block sign-off when this check fails</label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-semibold text-ink-700">Source notification or policy reference{category === "statutory" ? " *" : ""}<input required={category === "statutory"} className={`mt-1 ${input}`} value={source} onChange={(event) => setSource(event.target.value)} placeholder="Official URL or policy identifier" /></label>
