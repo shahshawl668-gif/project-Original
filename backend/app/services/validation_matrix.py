@@ -103,10 +103,13 @@ def evaluate(rule: ValidationRuleVersion, row: dict[str, Any]) -> dict[str, Any]
         actual, expected = "", rule.state
     else:
         if rule.condition:
-            applies, _, _ = _compare(rule.condition, row)
-            if applies is False:
+            group = rule.condition
+            items = group["items"] if "items" in group else [group]
+            results = [_compare(item, row)[0] for item in items]
+            mode = group.get("mode", "all")
+            if (mode == "all" and False in results) or (mode == "any" and True not in results and None not in results):
                 return None
-            if applies is None:
+            if None in results and (mode == "all" or True not in results):
                 problem, actual, expected = "Cannot validate: condition input is missing or invalid", "", ""
             else:
                 problem = ""
