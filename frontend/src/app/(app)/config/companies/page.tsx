@@ -71,7 +71,7 @@ async function saveCompany(form: CompanyForm, id?: string): Promise<Entity> {
 }
 
 export default function CompanySettingsPage() {
-  const { organization, role, entities, loading, reload, switchEntity } = useEntity();
+  const { organization, role, entity, entities, loading, reload, switchEntity } = useEntity();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [form, setForm] = useState<CompanyForm>(blank);
@@ -201,7 +201,7 @@ export default function CompanySettingsPage() {
                     {opening === company.id ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <ArrowRight size={13} aria-hidden />} Select company
                   </button>
                   {mayManage && <button type="button" onClick={() => start(company)} className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700">Edit details</button>}
-                  <Link href="/config/statutory" className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700">Statutory setup</Link>
+                  {entity?.id === company.id && <Link href="/config/statutory" className="rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700">Statutory setup</Link>}
                 </div>
               </CardContent>
             </Card>
