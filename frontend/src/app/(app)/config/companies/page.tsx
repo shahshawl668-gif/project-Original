@@ -117,7 +117,7 @@ export default function CompanySettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Group companies"
-        description={`Manage the legal employers inside ${organization?.name ?? "this workspace"}. Each company&apos;s registers, components and validation settings stay separate.`}
+        description={`Manage the legal employers inside ${organization?.name ?? "this workspace"}. Each company's registers, components and validation settings stay separate.`}
       />
 
       {message && <AlertBanner variant="info" title="Company setup">{message}</AlertBanner>}
