@@ -4,8 +4,8 @@ import uuid
 from decimal import Decimal
 
 from app.database import SessionLocal
-from app.models import SalaryRegister, SalaryRegisterRow
-from app.services import validation_matrix
+from app.models import FindingRecord, SalaryRegister, SalaryRegisterRow
+from app.services import finding_store, validation_matrix
 
 PASSWORD = "Passw0rd!x"
 
@@ -73,6 +73,19 @@ def test_draft_simulation_publish_and_version_date_selection(client):
         assert validation_matrix.published_for(db, uuid.UUID(entity["id"]), date(2026, 7, 1)) == []
         selected = validation_matrix.published_for(db, entity["id"], date(2026, 8, 1))
         assert [str(row.id) for row in selected] == [draft["id"]]
+        issue = validation_matrix.evaluate(
+            selected[0], {"employee_id": "E01", "lop_days": Decimal("3")}
+        )
+        run = finding_store.record_run(
+            db, entity_id=uuid.UUID(entity["id"]),
+            user_id=uuid.UUID(draft["created_by"]),
+            period_month=date(2026, 8, 1), findings=[issue],
+            employee_count=1,
+        )
+        db.commit()
+        stored = db.query(FindingRecord).filter(FindingRecord.run_id == run.id).one()
+        assert str(stored.rule_version_id) == draft["id"]
+        assert stored.evidence["source_reference"] == "HR policy 2026"
     finally:
         db.close()
     assert client.post(f"/api/validation-matrix/{draft['id']}/publish", headers=headers).status_code == 409
