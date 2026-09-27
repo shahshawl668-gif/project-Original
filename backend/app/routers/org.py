@@ -26,6 +26,7 @@ from app.deps import (
 from app.envelope import ok
 from app.models import (
     Entity,
+    EntityAccess,
     EntityRoleOverride,
     FindingState,
     OrgInvitation,
@@ -69,7 +70,19 @@ def get_context(
         org = db.get(Organization, entity.org_id)
         entities = [item for item in entities if item.org_id == entity.org_id]
     entity_roles = {str(item.id): tenancy.effective_entity_role(db, user, item) or "viewer" for item in entities}
+    can_manage_group = bool(
+        membership and membership.org_id == entity.org_id
+        and tenancy.role_at_least(db, user, "manager")
+        and (
+            membership.role == "owner"
+            or db.query(EntityAccess.id).filter(
+                EntityAccess.org_id == membership.org_id,
+                EntityAccess.user_id == user.id,
+            ).first() is None
+        )
+    )
     payload = ContextOut(
+        can_manage_group=can_manage_group,
         active_role=entity_roles.get(str(entity.id), "viewer"),
         entity_roles=entity_roles,
         organization=OrganizationOut.model_validate(org) if org else None,
