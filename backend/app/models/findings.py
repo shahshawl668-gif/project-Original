@@ -116,6 +116,8 @@ class FindingRecord(Base):
         Numeric(16, 2), nullable=False, default=Decimal("0")
     )
     reason: Mapped[str | None] = mapped_column(Text)
+    rule_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("validation_rule_versions.id", ondelete="SET NULL"))
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     suggested_fix: Mapped[str | None] = mapped_column(Text)
 
     # Denormalised from FindingState at write time so a historical run can be

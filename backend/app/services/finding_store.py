@@ -150,6 +150,8 @@ def record_run(
                 difference=_truncate(finding.get("difference")),
                 financial_impact=impact,
                 reason=finding.get("reason"),
+                rule_version_id=uuid.UUID(finding["rule_version_id"]) if finding.get("rule_version_id") else None,
+                evidence=finding.get("evidence"),
                 suggested_fix=finding.get("suggested_fix"),
                 was_waived=is_waived,
             )

@@ -41,6 +41,7 @@ from app.models.support import (
     SUPPORT_POLICIES,
     SupportAccessGrant,
 )
+from app.models.validation_rule import ValidationRuleVersion
 from app.models.validation_job import (
     ACTIVE_STATES,
     CHUNK_SIZE,
@@ -97,6 +98,7 @@ __all__ = [
     "SlabRule",
     "TenantRulePreference",
     "ValidationRun",
+    "ValidationRuleVersion",
     "FindingRecord",
     "FindingState",
     "FindingStateEvent",
