@@ -196,7 +196,7 @@ def require_entity_write(
 ) -> Entity:
     """Entity context for mutating endpoints — viewers are read-only."""
     _must_be_member(db, user, entity)
-    if not tenancy.role_at_least(db, user, "analyst"):
+    if not tenancy.role_at_least(db, user, "analyst", entity):
         raise HTTPException(status_code=403, detail="Your role does not permit changes")
     return entity
 
@@ -215,7 +215,7 @@ def require_entity_admin(
     organization — not merely somewhere.
     """
     _must_be_member(db, user, entity)
-    if not tenancy.role_at_least(db, user, "manager"):
+    if not tenancy.role_at_least(db, user, "manager", entity):
         raise HTTPException(status_code=403, detail="Owner or manager access required")
     return user
 
@@ -272,7 +272,7 @@ def require_pay_equity(
             detail="Pay equity analysis is not enabled for this entity. An owner or "
                    "manager can turn it on, and who did so is recorded.",
         )
-    if not tenancy.role_at_least(db, user, "manager"):
+    if not tenancy.role_at_least(db, user, "manager", entity):
         raise HTTPException(
             status_code=403,
             detail="Pay equity analysis is restricted to owners and managers.",
