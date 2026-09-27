@@ -94,6 +94,8 @@ def create_rule(
         validation_matrix.validate_comparison(body.assertion.model_dump(), configured)
         if body.condition:
             validation_matrix.validate_comparison(body.condition.model_dump(), configured)
+        for condition in body.conditions:
+            validation_matrix.validate_comparison(condition.model_dump(), configured)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     version = (db.query(func.max(ValidationRuleVersion.version)).filter(
@@ -102,9 +104,12 @@ def create_rule(
     ).scalar() or 0) + 1
     rule = ValidationRuleVersion(
         org_id=entity.org_id, entity_id=entity.id, rule_key=body.rule_key,
-        version=version, created_by=user.id, **body.model_dump(exclude={"rule_key"}),
+        version=version, created_by=user.id, **body.model_dump(exclude={"rule_key", "conditions", "condition_mode"}),
     )
-    rule.condition = body.condition.model_dump() if body.condition else None
+    rule.condition = (
+        {"mode": body.condition_mode, "items": [item.model_dump() for item in body.conditions]}
+        if body.conditions else body.condition.model_dump() if body.condition else None
+    )
     rule.assertion = body.assertion.model_dump()
     db.add(rule)
     db.flush()

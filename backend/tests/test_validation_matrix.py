@@ -136,3 +136,29 @@ def test_missing_inputs_and_unknown_component_are_not_silent_passes(client):
         assert issue["status"] == "FAIL"
     finally:
         db.close()
+
+
+def test_grouped_conditions_are_scoped_and_missing_inputs_are_reported(client):
+    headers = owner(client, "matrix-grouped")
+    body = rule_body("CUST-GROUP-01")
+    body["conditions"] = [
+        {"left": {"source": "field", "key": "department"}, "operator": "eq",
+         "right": {"source": "literal", "value": "Stores"}, "tolerance": "0"},
+        {"left": {"source": "field", "key": "paid_days"}, "operator": "gte",
+         "right": {"source": "literal", "value": "20"}, "tolerance": "0"},
+    ]
+    body["condition_mode"] = "all"
+    draft = data(client.post("/api/validation-matrix", headers=headers, json=body))
+    from app.models import ValidationRuleVersion
+    db = SessionLocal()
+    try:
+        rule = db.get(ValidationRuleVersion, uuid.UUID(draft["id"]))
+        assert validation_matrix.evaluate(rule, {"employee_id": "E1", "department": "Office", "lop_days": 3}) is None
+        missing = validation_matrix.evaluate(rule, {"employee_id": "E1", "department": "Stores", "lop_days": 3})
+        assert missing["evidence"]["unverifiable"] is True
+        failed = validation_matrix.evaluate(rule, {"employee_id": "E1", "department": "Stores", "paid_days": 24, "lop_days": 3})
+        assert failed["rule_version_id"] == draft["id"]
+        rule.condition["mode"] = "any"
+        assert validation_matrix.evaluate(rule, {"employee_id": "E1", "department": "Stores", "lop_days": 3})["evidence"]["unverifiable"] is False
+    finally:
+        db.close()
