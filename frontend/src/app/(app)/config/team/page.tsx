@@ -585,6 +585,7 @@ function MemberRow({
           </span>
         )}
       </div>
+      </div>
       {mayManage && (
         <details className="mt-2 rounded-lg border border-ink-200/70 px-3 py-2 text-xs dark:border-ink-700">
           <summary className="cursor-pointer font-semibold text-brand-700">Company roles</summary>
