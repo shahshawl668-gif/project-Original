@@ -368,8 +368,7 @@ function InviteForm({
           <UserPlus size={16} className="text-ink-400" /> Invite someone
         </h3>
         <p className="pb-4 text-xs text-ink-500 dark:text-ink-400">
-          You can only invite at your own level or below. Leave the entities empty to give
-          access to all of them.
+          Choose a role and company access. All companies also includes companies added later.
         </p>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -412,14 +411,14 @@ function InviteForm({
 
           <Menu
             label="Entities"
-            summary={scope.length === 0 ? "All entities" : `${scope.length} selected`}
+            summary={scope.length === 0 ? "All companies" : `${scope.length} companies`}
             count={scope.length || undefined}
             width="w-72"
           >
             {() => (
               <>
                 <MenuItem selected={scope.length === 0} onClick={() => setScope([])}>
-                  All entities
+                  All companies, including future additions
                 </MenuItem>
                 {entities.map((entity) => (
                   <MenuItem
@@ -428,7 +427,7 @@ function InviteForm({
                     onClick={() =>
                       setScope((current) =>
                         current.includes(entity.id)
-                          ? current.filter((id) => id !== entity.id)
+                          ? (current.length > 1 ? current.filter((id) => id !== entity.id) : current)
                           : [...current, entity.id],
                       )
                     }
@@ -489,8 +488,8 @@ function MemberRow({
         </p>
         <p className="text-xs text-ink-500 dark:text-ink-400">
           {member.entity_ids.length === 0
-            ? "Every entity"
-            : `${member.entity_ids.length} of ${entities.length} entities`}
+            ? "All companies, including future additions"
+            : `${member.entity_ids.length} of ${entities.length} companies`}
           {member.joined_at && ` · joined ${formatWhen(member.joined_at)}`}
         </p>
       </div>
@@ -507,7 +506,7 @@ function MemberRow({
                       selected={option.key === member.role}
                       hint={option.hint}
                       onClick={() => {
-                        if (option.key !== member.role) onRole(option.key);
+                        if (!busy && option.key !== member.role) onRole(option.key);
                         close();
                       }}
                     >
@@ -520,7 +519,7 @@ function MemberRow({
 
             <Menu
               label=""
-              summary={member.entity_ids.length === 0 ? "All entities" : `${member.entity_ids.length} entities`}
+              summary={member.entity_ids.length === 0 ? "All companies" : `${member.entity_ids.length} companies`}
               width="w-72"
               align="right"
             >
@@ -530,16 +529,16 @@ function MemberRow({
                     selected={member.entity_ids.length === 0}
                     onClick={() => onScope([])}
                   >
-                    All entities
+                    All companies, including future additions
                   </MenuItem>
                   {entities.map((entity) => (
                     <MenuItem
                       key={entity.id}
                       selected={member.entity_ids.includes(entity.id)}
                       onClick={() =>
-                        onScope(
+                        !busy && onScope(
                           member.entity_ids.includes(entity.id)
-                            ? member.entity_ids.filter((id) => id !== entity.id)
+                            ? (member.entity_ids.length > 1 ? member.entity_ids.filter((id) => id !== entity.id) : member.entity_ids)
                             : [...member.entity_ids, entity.id],
                         )
                       }
