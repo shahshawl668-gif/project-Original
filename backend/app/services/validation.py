@@ -20,6 +20,7 @@ from app.models import (
     Entity,
     StatutorySettings,
 )
+from app.services import validation_matrix
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
@@ -854,6 +855,7 @@ def validate_employees(
     # Note: individual rows may override days_in_month via total_days / month_days column
 
     prior_rows = _prior_register_rows(db, entity.id, period_month) if period_month else {}
+    active_matrix_rules = validation_matrix.published_for(db, entity.id, period_month or as_of)
 
     # The master as it stood at period end — used for the PF basis and for the
     # cost dimensions snapshotted onto each result row.
@@ -1184,6 +1186,20 @@ def validate_employees(
             expected_monthly_tds=expected_monthly_tds,
             composition=composition,
         )
+        matrix_row = {
+            **row,
+            "employee_id": eid,
+            "employee_name": ename,
+            "components": regular,
+            "deductions": {key: row.get(key) for key in validation_matrix.DEDUCTIONS},
+            "paid_days": paid_days,
+            "lop_days": lop_days,
+            "gross": sum(regular.values(), Decimal("0")),
+        }
+        matrix_findings = [
+            issue for rule in active_matrix_rules
+            if (issue := validation_matrix.evaluate(rule, matrix_row)) is not None
+        ]
         for scheme, configured, selected in (
             ("PT", pt_states_cfg, state_pt), ("LWF", lwf_states_cfg, state_lwf),
         ):
@@ -1254,7 +1270,7 @@ def validate_employees(
                 "increment_arrear_total": float(inc_arrear_total),
                 "tds_risk_flags": tds_risk,
                 "errors": errors,
-                "findings": [f.to_dict() for f in emp_findings],
+                "findings": [f.to_dict() for f in emp_findings] + matrix_findings,
                 # risk placeholders — filled after batch_findings merge below
                 "risk_score": 0,
                 "risk_level": "LOW",
