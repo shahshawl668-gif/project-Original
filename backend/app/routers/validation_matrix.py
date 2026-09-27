@@ -14,6 +14,7 @@ from app.envelope import ok
 from app.models import ComponentConfig, Entity, SalaryRegister, SalaryRegisterRow, User, ValidationRuleVersion
 from app.schemas.validation_matrix import RuleCreate, SimulationRequest
 from app.services import audit, tenancy, validation_matrix
+from app.services.validation_catalog import BUILTIN_RULES, rule_family
 from app.services.payroll_parse import normalize_col
 
 router = APIRouter()
@@ -59,6 +60,10 @@ def catalog(db: Session = Depends(get_db), entity: Entity = Depends(get_current_
     components = db.query(ComponentConfig.component_name).filter(ComponentConfig.entity_id == entity.id).all()
     return ok({
         "built_in": BUILTIN_CATALOG, "templates": TEMPLATES,
+        "built_in_rules": [
+            {"rule_id": rule_id, "name": name, "family": rule_family(rule_id)}
+            for rule_id, name in BUILTIN_RULES
+        ],
         "fields": sorted(validation_matrix.FIELDS),
         "deductions": sorted(validation_matrix.DEDUCTIONS),
         "components": [name for (name,) in components],

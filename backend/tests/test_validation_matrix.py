@@ -162,3 +162,25 @@ def test_grouped_conditions_are_scoped_and_missing_inputs_are_reported(client):
         assert validation_matrix.evaluate(rule, {"employee_id": "E1", "department": "Stores", "lop_days": 3})["evidence"]["unverifiable"] is False
     finally:
         db.close()
+
+
+def test_prefilled_catalog_and_company_rule_toggle(client):
+    headers = owner(client, "matrix-catalog")
+    catalog = data(client.get("/api/validation-matrix/catalog", headers=headers))
+    indexed = {item["rule_id"]: item for item in catalog["built_in_rules"]}
+    assert indexed["AGG-002"]["name"] == "Net Pay Mismatch"
+    assert indexed["STAT-001"]["family"] == "Statutory and wage"
+    assert indexed["ATT-001"]["family"] == "Attendance and LOP"
+    assert data(client.put("/api/rule-preferences", headers=headers, json={
+        "rule_id": "AGG-002", "suppressed": True,
+    }))["suppressed"] is True
+    preferences = data(client.get("/api/rule-preferences", headers=headers))
+    assert {"rule_id": "AGG-002", "suppressed": True} in preferences
+    from app.services.validation import apply_suppressed_rules
+    results = [{"employee_id": "E1", "findings": [
+        {"rule_id": "AGG-002", "status": "FAIL", "severity": "CRITICAL"},
+        {"rule_id": "DATA-004", "status": "FAIL", "severity": "WARNING"},
+    ]}]
+    summary = apply_suppressed_rules(results, {"AGG-002"})
+    assert [item["rule_id"] for item in results[0]["findings"]] == ["DATA-004"]
+    assert summary["total_findings"] == 1
