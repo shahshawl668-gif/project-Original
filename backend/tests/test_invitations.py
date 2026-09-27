@@ -597,3 +597,37 @@ def test_an_owner_can_build_a_team_from_an_empty_organization(client, owner):
     scoped = next(m for m in members if m["email"] == "client.b.analyst@invite-example.com")
     assert scoped["entity_ids"] == [client_b["id"]]
     assert next(m for m in members if m["email"] == owner_email)["entity_ids"] == []
+
+
+def test_company_scoped_manager_cannot_administer_the_whole_group(client, owner):
+    headers, _ = owner
+    first = data(client.get("/api/org/context", headers=headers))["active_entity"]["id"]
+    second = data(client.post("/api/org/entities", headers=headers, json={"name": "Group Company B"}))["id"]
+    manager_invite = data(invite(
+        client, headers, "company-manager@invite-example.com",
+        role="manager", entity_ids=[second],
+    ))
+    manager = accept_as_new_user(client, manager_invite["token"])
+    visible = data(client.get("/api/org/portfolio", headers=manager))
+    assert [row["id"] for row in visible["entities"]] == [second]
+    assert client.get("/api/components", headers={**manager, "X-Entity-Id": first}).status_code == 404
+    assert client.post(
+        "/api/components",
+        headers={**manager, "X-Entity-Id": second},
+        json={"component_name": "Basic", "pf_applicable": True, "taxable": True},
+    ).status_code == 201
+
+    # Global team and company administration would let this manager grant
+    # themselves or another person access beyond Company B.
+    assert client.get("/api/org/members", headers=manager).status_code == 403
+    assert invite(client, manager, "wider@invite-example.com").status_code == 403
+    assert client.post("/api/org/entities", headers=manager, json={"name": "Company C"}).status_code == 403
+    member = next(
+        row for row in data(client.get("/api/org/members", headers=headers))
+        if row["email"] == "company-manager@invite-example.com"
+    )
+    assert client.patch(
+        f"/api/org/members/{member['user_id']}", headers=manager,
+        json={"entity_ids": []},
+    ).status_code == 403
+    assert [row["id"] for row in data(client.get("/api/org/entities", headers=manager))] == [second]
