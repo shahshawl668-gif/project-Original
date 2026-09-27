@@ -38,6 +38,8 @@ class RuleCreate(BaseModel):
     effective_to: date | None = None
     state: str | None = Field(default=None, max_length=100)
     condition: Comparison | None = None
+    conditions: list[Comparison] = Field(default_factory=list, max_length=5)
+    condition_mode: Literal["all", "any"] = "all"
     assertion: Comparison
     severity: Literal["CRITICAL", "WARNING", "INFO"] = "WARNING"
     blocks_signoff: bool = False
@@ -50,6 +52,8 @@ class RuleCreate(BaseModel):
     def valid_dates(self):
         if self.effective_to and self.effective_to < self.effective_from:
             raise ValueError("End date must be on or after start date")
+        if self.condition and self.conditions:
+            raise ValueError("Use either a single condition or a condition group")
         if self.category == "statutory" and not self.source_reference:
             raise ValueError("Statutory rules need an official source reference")
         return self
