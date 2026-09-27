@@ -15,7 +15,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.models import Entity, EntityAccess, OrgMembership, Organization, User
+from app.models import Entity, EntityAccess, EntityRoleOverride, OrgMembership, Organization, User
 from app.models.org import ORG_ROLE_RANK
 
 # Actions gated by role. Anything not listed is readable by every member.
@@ -230,17 +230,30 @@ def can_access_entity(db: Session, user: User, entity: Entity) -> bool:
     )
 
 
-def role_at_least(db: Session, user: User, minimum: str) -> bool:
-    """
-    Whether the user holds at least this role in their own organization.
-
-    Reads membership only, never a support grant — which is what makes a
-    support session read-only without a single explicit check: every mutating
-    endpoint in the product is gated on this, and a support user has no seat.
-    """
+def effective_entity_role(db: Session, user: User, entity: Entity) -> str | None:
+    """Resolve the role for this employer only after checking its access boundary."""
     membership = get_membership(db, user)
-    if membership is None:
+    if membership is None or membership.org_id != entity.org_id:
+        return None
+    if not can_access_entity(db, user, entity):
+        return None
+    override = db.query(EntityRoleOverride).filter(
+        EntityRoleOverride.org_id == entity.org_id,
+        EntityRoleOverride.user_id == user.id,
+        EntityRoleOverride.entity_id == entity.id,
+    ).first()
+    return override.role if override else membership.role
+
+
+def role_at_least(
+    db: Session, user: User, minimum: str, entity: Entity | None = None
+) -> bool:
+    """Check company role for a company action, or org role for an org action."""
+    role = effective_entity_role(db, user, entity) if entity is not None else (
+        membership.role if (membership := get_membership(db, user)) else None
+    )
+    if role is None:
         return False
-    have = ORG_ROLE_RANK.get(membership.role, len(ORG_ROLE_RANK))
+    have = ORG_ROLE_RANK.get(role, len(ORG_ROLE_RANK))
     want = ORG_ROLE_RANK.get(minimum, 0)
     return have <= want
