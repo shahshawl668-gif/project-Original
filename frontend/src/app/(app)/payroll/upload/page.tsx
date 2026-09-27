@@ -156,12 +156,18 @@ export default function UploadPage() {
       setWarnings(data.warnings);
       setUploaded(true);
       if (profileName.trim()) {
-        const saved = await apiFetch("/api/payroll/import-profiles", {
-          method: "POST", body: JSON.stringify({ name: profileName.trim(), column_mapping: mapping }),
-        });
-        await parseEnvelopeResponse(saved);
-        const refreshed = await apiFetch("/api/payroll/import-profiles");
-        setProfiles(await parseEnvelopeResponse(refreshed));
+        try {
+          const saved = await apiFetch("/api/payroll/import-profiles", {
+            method: "POST", body: JSON.stringify({ name: profileName.trim(), column_mapping: mapping }),
+          });
+          await parseEnvelopeResponse(saved);
+          const refreshed = await apiFetch("/api/payroll/import-profiles");
+          setProfiles(await parseEnvelopeResponse(refreshed));
+        } catch (err) {
+          toast.error("Register is ready, but the mapping format was not saved", {
+            description: err instanceof Error ? err.message : "Try saving the format again later.",
+          });
+        }
       }
       toast.success("Mapped register ready", { description: `${data.employees.length.toLocaleString("en-IN")} employees` });
     } catch (err) {
@@ -177,17 +183,17 @@ export default function UploadPage() {
     }
     setBusy(true);
     setError(null);
-    const res = await apiFetch("/api/payroll/validate", {
-      method: "POST",
-      body: JSON.stringify({
-        employees,
-        run_type: runType,
-        period_month: periodMonth || null,
-        effective_month_from: from || null,
-        effective_month_to: to || null,
-      }),
-    });
     try {
+      const res = await apiFetch("/api/payroll/validate", {
+        method: "POST",
+        body: JSON.stringify({
+          employees,
+          run_type: runType,
+          period_month: periodMonth || null,
+          effective_month_from: from || null,
+          effective_month_to: to || null,
+        }),
+      });
       const data = await parseEnvelopeResponse(res) as {
         results: unknown[];
         findings?: unknown[];
