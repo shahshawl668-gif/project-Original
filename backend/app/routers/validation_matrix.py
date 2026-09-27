@@ -104,7 +104,7 @@ def create_rule(
     ).scalar() or 0) + 1
     rule = ValidationRuleVersion(
         org_id=entity.org_id, entity_id=entity.id, rule_key=body.rule_key,
-        version=version, created_by=user.id, **body.model_dump(exclude={"rule_key"}),
+        version=version, created_by=user.id, **body.model_dump(exclude={"rule_key", "conditions", "condition_mode"}),
     )
     rule.condition = (
         {"mode": body.condition_mode, "items": [item.model_dump() for item in body.conditions]}
