@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_entity, get_current_user, require_entity_admin
+from app.deps import get_current_entity, require_entity_admin
 from app.envelope import ok
 from app.models import ComponentConfig, Entity, SalaryRegister, SalaryRegisterRow, User, ValidationRuleVersion
 from app.schemas.validation_matrix import RuleCreate, SimulationRequest
