@@ -12,7 +12,7 @@ import { apiJson } from "@/lib/api";
 
 type Source = "field" | "component" | "deduction" | "literal";
 type Operand = { source: Source; key?: string; value?: string };
-type Comparison = { left: Operand; operator: "eq" | "ne" | "gt" | "gte" | "lt" | "lte"; right: Operand; tolerance: string };
+type Comparison = { left: Operand; operator: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "present" | "in" | "not_in"; right: Operand; tolerance: string };
 type Rule = {
   id: string; rule_key: string; version: number; name: string; category: "custom" | "statutory";
   status: string; effective_from: string; state: string | null; severity: string;
@@ -36,6 +36,7 @@ const initial: Comparison = {
 };
 const labels: Record<Comparison["operator"], string> = {
   eq: "Equals", ne: "Does not equal", gt: "Greater than", gte: "At least", lt: "Less than", lte: "At most",
+  present: "Has a value", in: "In approved list", not_in: "Outside list",
 };
 
 function OperandEditor({ label, value, onChange, catalog }: {
@@ -81,7 +82,7 @@ function ComparisonEditor({ title, value, onChange, catalog }: {
             {Object.entries(labels).map(([key, text]) => <option key={key} value={key}>{text}</option>)}
           </select>
         </label>
-        <OperandEditor label="Against this" value={value.right} onChange={(right) => onChange({ ...value, right })} catalog={catalog} />
+        {value.operator === "present" ? <p className="self-end text-xs text-ink-500">Checks that the selected field has a value.</p> : <OperandEditor label={value.operator === "in" || value.operator === "not_in" ? "Allowed list (use | between values)" : "Against this"} value={value.right} onChange={(right) => onChange({ ...value, right })} catalog={catalog} />}
       </div>
       <label className="block max-w-[11rem] text-xs font-semibold text-ink-700">Allowed difference
         <input className={`mt-1 ${input}`} inputMode="decimal" value={value.tolerance} onChange={(event) => onChange({ ...value, tolerance: event.target.value })} />
@@ -183,6 +184,14 @@ export default function ValidationMatrixPage() {
               <label className="text-xs font-semibold text-ink-700">Work state (optional)<input className={`mt-1 ${input}`} value={state} onChange={(event) => setState(event.target.value)} placeholder="Applies to all states if blank" /></label>
               <label className="text-xs font-semibold text-ink-700">Severity<select className={`mt-1 ${input}`} value={severity} onChange={(event) => setSeverity(event.target.value as typeof severity)}><option>INFO</option><option>WARNING</option><option>CRITICAL</option></select></label>
             </div>
+            <div className="space-y-2 rounded-xl border border-brand-100 bg-brand-50 p-3"><p className="text-xs font-semibold text-ink-800">Start from a validation point</p><div className="flex flex-wrap gap-2">{[
+              { label: "Work state required", field: "location_state", op: "present" as const, value: "1" },
+              { label: "PAN required", field: "pan", op: "present" as const, value: "1" },
+              { label: "Bank account required", field: "bank_account", op: "present" as const, value: "1" },
+              { label: "IFSC required", field: "ifsc", op: "present" as const, value: "1" },
+              { label: "Paid days within month", field: "paid_days", op: "lte" as const, value: "total_days" },
+              { label: "Approved employment type", field: "employment_type", op: "in" as const, value: "Permanent|Contract" },
+            ].map((preset) => <button key={preset.label} type="button" onClick={() => { setName(preset.label); setAssertion({ left: { source: "field", key: preset.field }, operator: preset.op, right: preset.value === "total_days" ? { source: "field", key: "total_days" } : { source: "literal", value: preset.value }, tolerance: "0" }); }} className="rounded-lg border border-brand-200 bg-white px-2 py-1 text-xs font-semibold text-brand-700">{preset.label}</button>)}</div><p className="text-xs text-ink-500">These are editable company rule starters. Review the applicability and simulate before publishing.</p></div>
             <ComparisonEditor title="Expected check" value={assertion} onChange={setAssertion} catalog={catalogData} />
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-xs font-semibold text-ink-700">Apply rule when</span>
