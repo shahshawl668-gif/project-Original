@@ -117,7 +117,7 @@ export default function CompanySettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Group companies"
-        description={`Manage the legal employers inside ${organization?.name ?? "this workspace"}. Each company's registers, components and validation settings stay separate.`}
+        description={`Manage the legal employers inside ${organization?.name ?? "this workspace"}. Each company&apos;s registers, components and validation settings stay separate.`}
       />
 
       {message && <AlertBanner variant="info" title="Company setup">{message}</AlertBanner>}
@@ -144,7 +144,7 @@ export default function CompanySettingsPage() {
           <CardContent className="space-y-4 py-5">
             <div>
               <h2 className="text-base font-semibold text-ink-900">{editing === "new" ? "Add legal employer" : "Edit company details"}</h2>
-              <p className="mt-1 text-xs text-ink-500">Use the identifiers shown on this company's registrations. State rules and salary components are configured after creation.</p>
+              <p className="mt-1 text-xs text-ink-500">Use the identifiers shown on this company&apos;s registrations. State rules and salary components are configured after creation.</p>
             </div>
             <form onSubmit={(event) => { event.preventDefault(); if (!save.isPending) save.mutate(); }} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
