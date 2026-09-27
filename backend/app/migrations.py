@@ -471,6 +471,17 @@ def set_membership_defaults(conn: Connection) -> None:
     )
 
 
+def add_finding_evidence(conn: Connection) -> None:
+    """Add version/evidence columns to existing findings; new installs get them from metadata."""
+    if "finding_records" not in _table_names(conn):
+        return
+    cols = _columns(conn, "finding_records")
+    if "rule_version_id" not in cols:
+        conn.execute(text(f"ALTER TABLE finding_records ADD COLUMN rule_version_id {_uuid_type(conn)}"))
+    if "evidence" not in cols:
+        conn.execute(text("ALTER TABLE finding_records ADD COLUMN evidence JSON"))
+
+
 def run_migrations(engine: Engine) -> None:
     """Run every step in order, inside one transaction per step."""
     steps = (
@@ -482,6 +493,7 @@ def run_migrations(engine: Engine) -> None:
         enforce_entity_not_null,
         set_membership_defaults,
         backfill_org_slugs,
+        add_finding_evidence,
     )
     for step in steps:
         with engine.begin() as conn:
