@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { apiFetch, parseEnvelopeResponse, setTokens } from "@/lib/api";
+import { apiFetch, getSessionPortal, parseEnvelopeResponse, setTokens } from "@/lib/api";
 
 type Workspace = { id: string; name: string; slug: string; login_path: string; invitation_path?: string };
 type SupportOrg = { id: string; name: string; support_access_policy: string };
@@ -26,15 +27,16 @@ export default function PlatformPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const platformSession = user && getSessionPortal() === "platform";
 
   useEffect(() => {
     if (!loading && !user) router.replace("/platform/login");
-    if (user) {
+    if (platformSession) {
       if (user.platform_role !== "support") void apiFetch("/api/admin/organizations").then(parseEnvelopeResponse<Workspace[]>).then(setRows).catch((e) => setError(String(e)));
       void apiFetch("/api/admin/support/organizations").then(parseEnvelopeResponse<SupportOrg[]>).then(setSupportOrgs).catch((e) => setError(String(e)));
       if (user.platform_role === "owner") void apiFetch("/api/admin/staff").then(parseEnvelopeResponse<Staff[]>).then(setStaff).catch((e) => setError(String(e)));
     }
-  }, [user, loading, router]);
+  }, [user, platformSession, loading, router]);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -82,6 +84,7 @@ export default function PlatformPage() {
   }
 
   if (loading || !user) return <main className="p-8">Checking platform session…</main>;
+  if (!platformSession) return <main className="mx-auto max-w-md p-8"><h1 className="text-xl font-semibold">Platform sign-in required</h1><p className="mt-2">This session belongs to a client workspace.</p><Link className="mt-4 inline-block text-sky-700 underline" href="/platform/login">Sign in to the platform</Link></main>;
   return <main className="mx-auto max-w-4xl space-y-8 p-6 text-ink-900">
     <header className="flex items-center justify-between"><h1 className="text-2xl font-bold">Peopleopslab platform</h1><button onClick={() => void logout().then(() => router.push("/platform/login"))}>Sign out</button></header>
     {user.platform_role !== "support" && <section className="rounded-xl border p-6"><h2 className="mb-4 text-lg font-semibold">Create client workspace</h2>
