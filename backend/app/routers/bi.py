@@ -287,7 +287,7 @@ def pay_equity_settings(
             entity.pay_equity_enabled_at.isoformat()
             if getattr(entity, "pay_equity_enabled_at", None) else None
         ),
-        "can_change": tenancy.role_at_least(db, user, "manager"),
+        "can_change": tenancy.role_at_least(db, user, "manager", entity),
         "minimum_group_size": pay_equity.MIN_GROUP_SIZE,
     })
 
