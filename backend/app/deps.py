@@ -217,14 +217,6 @@ def require_entity_admin(
     _must_be_member(db, user, entity)
     if not tenancy.role_at_least(db, user, "manager"):
         raise HTTPException(status_code=403, detail="Owner or manager access required")
-    # A company-limited manager may approve work in their companies, but
-    # organization administration can grant access to every company. Keep
-    # those global controls with owners and unrestricted managers.
-    if membership and membership.role != "owner" and db.query(EntityAccess).filter(
-        EntityAccess.org_id == membership.org_id,
-        EntityAccess.user_id == user.id,
-    ).first() is not None:
-        raise HTTPException(status_code=403, detail="Organization-wide access required")
     return user
 
 
@@ -300,4 +292,12 @@ def require_org_admin(
         raise HTTPException(status_code=403, detail="Workspace access required")
     if not tenancy.role_at_least(db, user, "manager"):
         raise HTTPException(status_code=403, detail="Owner or manager access required")
+    # A company-limited manager may approve work in their companies, but
+    # organization administration can grant access to every company. Keep
+    # those global controls with owners and unrestricted managers.
+    if membership and membership.role != "owner" and db.query(EntityAccess).filter(
+        EntityAccess.org_id == membership.org_id,
+        EntityAccess.user_id == user.id,
+    ).first() is not None:
+        raise HTTPException(status_code=403, detail="Organization-wide access required")
     return user
