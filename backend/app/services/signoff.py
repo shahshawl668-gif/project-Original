@@ -28,7 +28,7 @@ from app.models import (
     User,
     ValidationRun,
 )
-from app.services import analytics
+from app.services import analytics, validation_matrix
 from app.services.config_service import ConfigService
 
 
@@ -151,6 +151,16 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
             "statutory": config_service.get_full_config(entity.id).model_dump(mode="json"),
             "rule_thresholds": config_service.get_rule_thresholds(entity.id).model_dump(mode="json"),
             "exposure": exposure_config.model_dump(mode="json"),
+            "validation_matrix_rules": [
+                {
+                    "id": str(rule.id), "rule_key": rule.rule_key, "version": rule.version,
+                    "category": rule.category, "condition": rule.condition,
+                    "assertion": rule.assertion, "source_reference": rule.source_reference,
+                    "effective_from": rule.effective_from.isoformat(),
+                    "approved_by": str(rule.approved_by) if rule.approved_by else None,
+                }
+                for rule in validation_matrix.published_for(db, entity.id, period_month)
+            ],
             "minimum_wage_rates": [
                 {
                     "state": r.state,
