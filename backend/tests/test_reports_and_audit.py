@@ -296,4 +296,8 @@ def test_the_trail_does_not_leak_between_entities(client, workspace):
                         headers=headers).json()["data"]["id"]
 
     events = client.get("/api/audit", headers={**headers, "X-Entity-Id": other})
-    assert events.json()["data"]["events"] == []
+    assert events.status_code == 200
+    actions = [event["action"] for event in events.json()["data"]["events"]]
+    assert actions and set(actions) == {"entity.created"}
+    # Group-level company setup is visible in the shared audit trail, while
+    # the other employer's report access remains isolated.

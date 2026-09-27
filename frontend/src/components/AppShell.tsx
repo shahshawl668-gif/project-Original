@@ -106,6 +106,7 @@ const navGroups = [
     icon: Settings2,
     blurb: "Rules, people and history",
     items: [
+      { href: "/config/companies", label: "Group companies", icon: Building2 },
       { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
       { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
       { href: "/config/components", label: "Salary components", icon: Layers },

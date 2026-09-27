@@ -27,6 +27,7 @@ export type Entity = {
   esic_employer_code: string | null;
   tan: string | null;
   pan: string | null;
+  cin: string | null;
   primary_state: string | null;
   is_active: boolean;
 };

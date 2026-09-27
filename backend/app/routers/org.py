@@ -198,6 +198,12 @@ def create_entity(
         **body.model_dump(exclude={"code"}),
     )
     db.add(entity)
+    db.flush()
+    audit.record(
+        db, entity_id=entity.id, org_id=membership.org_id, user=user,
+        action="entity.created", object_type="entity", object_id=str(entity.id),
+        summary=f"Added group company {entity.name}",
+    )
     db.commit()
     db.refresh(entity)
     return ok(EntityOut.model_validate(entity).model_dump(mode="json"))
@@ -216,6 +222,11 @@ def update_entity(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(entity, field, value)
     db.add(entity)
+    audit.record(
+        db, entity_id=entity.id, org_id=entity.org_id, user=user,
+        action="entity.updated", object_type="entity", object_id=str(entity.id),
+        summary=f"Updated group company {entity.name}",
+    )
     db.commit()
     db.refresh(entity)
     return ok(EntityOut.model_validate(entity).model_dump(mode="json"))
