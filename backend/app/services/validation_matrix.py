@@ -128,7 +128,7 @@ def evaluate(rule: ValidationRuleVersion, row: dict[str, Any]) -> dict[str, Any]
         "rule_name": rule.name,
         "component": rule.assertion["left"].get("key") or "value",
         "expected_value": str(expected) if expected is not None else "",
-        "actual_value": str(actual or ""),
+        "actual_value": str(actual) if actual is not None else "",
         "difference": "",
         "severity": "CRITICAL" if rule.blocks_signoff else rule.severity,
         "status": "FAIL",
