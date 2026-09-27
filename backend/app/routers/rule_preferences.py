@@ -9,6 +9,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import Entity, TenantRulePreference, User
+from app.services import audit
 from app.schemas.rule_preferences import TenantRulePreferenceOut, TenantRulePreferenceUpsert
 
 router = APIRouter(prefix="/rule-preferences", tags=["rule-preferences"])
@@ -54,6 +55,10 @@ def upsert_preference(
                 suppressed=body.suppressed,
             )
         )
+    audit.record(db, entity_id=entity.id, org_id=entity.org_id, user=user,
+                 action="validation_rule.disabled" if body.suppressed else "validation_rule.enabled",
+                 object_type="validation_rule", object_id=rid,
+                 summary=f"{'Disabled' if body.suppressed else 'Enabled'} {rid} findings")
     db.commit()
     return ok({"rule_id": rid, "suppressed": body.suppressed})
 
