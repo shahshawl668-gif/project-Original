@@ -68,7 +68,7 @@ export default function TeamPage() {
   const [issued, setIssued] = useState<Invitation | null>(null);
 
   const { data: context } = useQuery({ queryKey: ["org-context"], queryFn: fetchContext });
-  const { data: members } = useQuery({ queryKey: ["org-members"], queryFn: fetchMembers });
+  const { data: members, error: membersError } = useQuery({ queryKey: ["org-members"], queryFn: fetchMembers });
   const { data: invitations } = useQuery({
     queryKey: ["org-invitations"],
     queryFn: fetchInvitations,
@@ -131,6 +131,10 @@ export default function TeamPage() {
     },
     onError: (err: Error) => setError(err.message),
   });
+
+  if (membersError) {
+    return <div className="space-y-6"><PageHeader title="Team" description="Group owners manage invitations and company access." /><AlertBanner variant="warning" title="Team administration unavailable">{membersError.message}</AlertBanner></div>;
+  }
 
   const pending = (invitations ?? []).filter((i) => i.state === "pending" || i.state === "expired");
   const history = (invitations ?? []).filter((i) => i.state === "accepted" || i.state === "revoked");
