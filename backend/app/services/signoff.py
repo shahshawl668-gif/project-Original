@@ -22,6 +22,7 @@ from app.models import (
     FindingState,
     FindingRecord,
     ValidationRuleVersion,
+    TenantRulePreference,
     MinimumWageRate,
     PeriodSignOff,
     SignOffEvent,
@@ -265,12 +266,19 @@ def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) ->
         ValidationRun.period_month == signoff.period_month,
     ).first()
     if current_run:
+        suppressed = {
+            rule_id for (rule_id,) in db.query(TenantRulePreference.rule_id).filter(
+                TenantRulePreference.entity_id == entity.id,
+                TenantRulePreference.suppressed.is_(True),
+            ).all()
+        }
         blocked = {
             record.fingerprint for record, version in db.query(FindingRecord, ValidationRuleVersion).join(
                 ValidationRuleVersion, FindingRecord.rule_version_id == ValidationRuleVersion.id
             ).filter(
                 FindingRecord.run_id == current_run.id,
                 ValidationRuleVersion.blocks_signoff.is_(True),
+                ValidationRuleVersion.rule_key.notin_(suppressed),
             ).all()
         }
         unresolved = [
