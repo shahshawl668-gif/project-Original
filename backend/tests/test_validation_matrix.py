@@ -71,7 +71,7 @@ def test_draft_simulation_publish_and_version_date_selection(client):
     db = SessionLocal()
     try:
         assert validation_matrix.published_for(db, uuid.UUID(entity["id"]), date(2026, 7, 1)) == []
-        selected = validation_matrix.published_for(db, entity["id"], date(2026, 8, 1))
+        selected = validation_matrix.published_for(db, uuid.UUID(entity["id"]), date(2026, 8, 1))
         assert [str(row.id) for row in selected] == [draft["id"]]
         issue = validation_matrix.evaluate(
             selected[0], {"employee_id": "E01", "lop_days": Decimal("3")}
@@ -97,7 +97,7 @@ def test_draft_simulation_publish_and_version_date_selection(client):
     assert new["version"] == 2
     db = SessionLocal()
     try:
-        assert validation_matrix.published_for(db, entity["id"], date(2026, 9, 1))[0].version == 1
+        assert validation_matrix.published_for(db, uuid.UUID(entity["id"]), date(2026, 9, 1))[0].version == 1
     finally:
         db.close()
 
