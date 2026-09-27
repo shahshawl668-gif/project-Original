@@ -88,6 +88,10 @@ def test_draft_simulation_publish_and_version_date_selection(client):
         assert stored.evidence["source_reference"] == "HR policy 2026"
     finally:
         db.close()
+    data(client.post("/api/signoff/submit", headers=headers, json={"period_month": "2026-08-01"}))
+    blocked = client.post("/api/signoff/sign", headers=headers, json={"period_month": "2026-08-01"})
+    assert blocked.status_code == 409
+    assert "blocking matrix" in blocked.json()["error"]["detail"]
     assert client.post(f"/api/validation-matrix/{draft['id']}/publish", headers=headers).status_code == 409
     new = data(client.post("/api/validation-matrix", headers=headers, json=rule_body(effective="2026-09-01")))
     assert new["version"] == 2
