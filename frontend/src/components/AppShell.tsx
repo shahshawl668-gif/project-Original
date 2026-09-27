@@ -112,6 +112,7 @@ const navGroups = [
       { href: "/config/components", label: "Salary components", icon: Layers },
       { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
       { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },
+      { href: "/config/validation-matrix", label: "Validation matrix", icon: ClipboardCheck },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
       { href: "/rule-engine/formula", label: "Formulas", icon: Code2 },
       { href: "/rule-engine/slabs", label: "PT / LWF slabs", icon: BarChart3 },
