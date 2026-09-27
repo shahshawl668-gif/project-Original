@@ -39,6 +39,7 @@ export type Member = {
   role: OrgRole;
   /** Empty means every entity in the organization. */
   entity_ids: string[];
+  entity_roles: Record<string, OrgRole>;
   is_you: boolean;
   joined_at: string | null;
 };
@@ -108,6 +109,14 @@ export function updateMember(userId: string, body: { role?: OrgRole; entity_ids?
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then((r) => parseEnvelopeResponse<Member>(r));
+}
+
+export function updateCompanyRole(userId: string, entityId: string, role: OrgRole | null) {
+  return apiFetch(`${base}/members/${userId}/company-roles/${entityId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  }).then((r) => parseEnvelopeResponse<{ user_id: string; entity_id: string; role: OrgRole }>(r));
 }
 
 export const removeMember = (userId: string) =>

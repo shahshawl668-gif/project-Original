@@ -4,6 +4,7 @@ from app.models.org import (
     ORG_ROLES,
     Entity,
     EntityAccess,
+    EntityRoleOverride,
     OrgMembership,
     Organization,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "Entity",
     "OrgMembership",
     "EntityAccess",
+    "EntityRoleOverride",
     "RefreshToken",
     "PasswordResetToken",
     "PlatformInvitation",

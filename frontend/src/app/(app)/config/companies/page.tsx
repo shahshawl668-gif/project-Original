@@ -71,7 +71,7 @@ async function saveCompany(form: CompanyForm, id?: string): Promise<Entity> {
 }
 
 export default function CompanySettingsPage() {
-  const { organization, role, entity, entities, loading, reload, switchEntity } = useEntity();
+  const { organization, entity, entities, canManageGroup, loading, reload, switchEntity } = useEntity();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [form, setForm] = useState<CompanyForm>(blank);
@@ -90,7 +90,7 @@ export default function CompanySettingsPage() {
     },
   });
 
-  const mayManage = role === "owner" || role === "manager";
+  const mayManage = canManageGroup;
   const inputClass = "mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20";
 
   function start(company?: Entity) {

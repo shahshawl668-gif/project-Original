@@ -41,6 +41,9 @@ export type Organization = {
 type OrgContextPayload = {
   organization: Organization | null;
   role: string | null;
+  active_role: string | null;
+  entity_roles: Record<string, string>;
+  can_manage_group: boolean;
   active_entity: Entity | null;
   entities: Entity[];
 };
@@ -48,6 +51,9 @@ type OrgContextPayload = {
 type EntityContextValue = {
   organization: Organization | null;
   role: string | null;
+  activeRole: string | null;
+  entityRoles: Record<string, string>;
+  canManageGroup: boolean;
   entity: Entity | null;
   entities: Entity[];
   /** A practice has clients to switch between; an enterprise usually does not. */
@@ -108,6 +114,9 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
     return {
       organization: payload?.organization ?? null,
       role: payload?.role ?? null,
+      activeRole: payload?.active_role ?? null,
+      entityRoles: payload?.entity_roles ?? {},
+      canManageGroup: payload?.can_manage_group ?? false,
       entity: payload?.active_entity ?? null,
       entities,
       isMultiEntity: entities.length > 1 || payload?.organization?.org_type === "practice",
