@@ -20,9 +20,11 @@ type Rule = {
 };
 type Catalog = {
   built_in: { family: string; examples: string[] }[];
+  built_in_rules: { rule_id: string; name: string; family: string }[];
   templates: { key: string; label: string; description: string }[];
   fields: string[]; components: string[]; deductions: string[];
 };
+type Preference = { rule_id: string; suppressed: boolean };
 type Simulation = { period_month: string; sampled: number; truncated: boolean; findings: { employee_id: string; rule_name: string; reason: string; actual_value: string; expected_value: string }[] };
 
 const input = "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-500 focus:outline-none";
@@ -92,6 +94,7 @@ export default function ValidationMatrixPage() {
   const { entity, role, activeRole, canManageGroup } = useEntity();
   const qc = useQueryClient();
   const [key, setKey] = useState("CUST-");
+  const [search, setSearch] = useState("");
   const [name, setName] = useState("");
   const [category, setCategory] = useState<"custom" | "statutory">("custom");
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -111,6 +114,14 @@ export default function ValidationMatrixPage() {
 
   const catalog = useQuery({ queryKey: ["matrix-catalog", entity?.id], queryFn: () => apiJson<Catalog>("/api/validation-matrix/catalog"), enabled: !!entity });
   const rules = useQuery({ queryKey: ["matrix-rules", entity?.id], queryFn: () => apiJson<Rule[]>("/api/validation-matrix"), enabled: !!entity });
+  const preferences = useQuery({ queryKey: ["matrix-preferences", entity?.id], queryFn: () => apiJson<Preference[]>("/api/rule-preferences"), enabled: !!entity });
+  const toggle = useMutation({
+    mutationFn: ({ rule_id, enabled }: { rule_id: string; enabled: boolean }) => apiJson("/api/rule-preferences", {
+      method: "PUT", body: JSON.stringify({ rule_id, suppressed: !enabled }),
+    }),
+    onSuccess: () => { setError(null); void qc.invalidateQueries({ queryKey: ["matrix-preferences", entity?.id] }); },
+    onError: (e: Error) => setError(e.message),
+  });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["matrix-rules", entity?.id] }); };
   const create = useMutation({
     mutationFn: () => apiJson<Rule>("/api/validation-matrix", { method: "POST", body: JSON.stringify({
@@ -136,6 +147,10 @@ export default function ValidationMatrixPage() {
   });
   const canDraft = activeRole === "owner" || activeRole === "manager";
   const catalogData = catalog.data;
+  const disabledRules = new Set((preferences.data ?? []).filter((p) => p.suppressed).map((p) => p.rule_id));
+  const displayedRules = (catalogData?.built_in_rules ?? []).filter((item) =>
+    `${item.rule_id} ${item.name} ${item.family}`.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -145,7 +160,15 @@ export default function ValidationMatrixPage() {
       <div className="grid gap-3 md:grid-cols-3">
         {(catalogData?.built_in ?? []).map((group) => <Card key={group.family}><CardContent className="py-4"><h2 className="text-sm font-semibold text-ink-900">{group.family}</h2><p className="mt-1 text-xs leading-relaxed text-ink-500">{group.examples.join(" · ")}</p></CardContent></Card>)}
       </div>
-      <p className="text-xs text-ink-500">Built-in statutory checks use their existing configuration. Matrix rules add a versioned company policy or a reviewed statutory check; they do not replace official PT, LWF, PF, ESIC or minimum wage tables.</p>
+      <p className="text-xs text-ink-500">Built-in statutory checks use their existing configuration. Disabling a check hides its findings for this company; it does not alter statutory calculations. Review notifications and effective dates in statutory configuration.</p>
+      <Card><CardContent className="space-y-3 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold text-ink-900">Prefilled validation checks</h2><p className="text-xs text-ink-500">{catalogData?.built_in_rules.length ?? 0} implemented checks · enabled by default for this company</p></div><input aria-label="Search validation checks" className={`max-w-xs ${input}`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search rule, topic or ID" /></div>
+        {preferences.isError && <AlertBanner variant="error" title="Could not load rule settings">Refresh before changing a check.</AlertBanner>}
+        <div className="max-h-[28rem] divide-y divide-ink-200 overflow-auto">
+          {displayedRules.map((item) => <div key={item.rule_id} className="flex items-center justify-between gap-3 py-2"><div><p className="text-sm font-semibold text-ink-900">{item.name} <span className="font-mono text-xs font-normal text-ink-500">{item.rule_id}</span></p><p className="text-xs text-ink-500">{item.family}</p></div><label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-700"><input type="checkbox" checked={!disabledRules.has(item.rule_id)} disabled={!canDraft || preferences.isPending || preferences.isError || toggle.isPending} onChange={(event) => toggle.mutate({ rule_id: item.rule_id, enabled: event.target.checked })} /> Enabled</label></div>)}
+          {catalogData && displayedRules.length === 0 && <p className="py-4 text-sm text-ink-500">No matching checks.</p>}
+        </div>
+      </CardContent></Card>
 
       {canDraft && catalogData && (
         <Card><CardContent className="space-y-4 py-5">
@@ -187,9 +210,10 @@ export default function ValidationMatrixPage() {
             <div key={rule.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div>
                 <p className="text-sm font-semibold text-ink-900">{rule.name} <span className="text-xs font-normal text-ink-500">· {rule.rule_key} v{rule.version}</span></p>
-                <p className="text-xs text-ink-500">{rule.category} · {rule.status} · from {rule.effective_from}{rule.state ? ` · ${rule.state}` : ""}{rule.blocks_signoff ? " · blocks sign-off" : ""}</p>
+                <p className="text-xs text-ink-500">{rule.category} · {rule.status} · from {rule.effective_from}{rule.state ? ` · ${rule.state}` : ""}{rule.blocks_signoff ? " · blocks sign-off" : ""}{disabledRules.has(rule.rule_key) ? " · disabled" : ""}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {canDraft && rule.status === "published" && <label className="flex items-center gap-1 text-xs font-semibold text-ink-700"><input type="checkbox" checked={!disabledRules.has(rule.rule_key)} disabled={preferences.isPending || preferences.isError || toggle.isPending} onChange={(event) => toggle.mutate({ rule_id: rule.rule_key, enabled: event.target.checked })} /> Enabled</label>}
                 {canDraft && <button type="button" disabled={!period || simulate.isPending} onClick={() => { setActiveTest(rule.id); setSimulation(null); simulate.mutate(rule.id); }} className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 disabled:opacity-50"><FlaskConical size={13} /> Simulate</button>}
                 {canDraft && rule.status === "draft" && <button type="button" disabled={action.isPending} onClick={() => action.mutate({ id: rule.id, verb: "submit" })} className="rounded-lg border border-brand-300 px-3 py-1.5 text-xs font-semibold text-brand-700">Submit</button>}
                 {rule.status === "pending" && (rule.category === "custom" ? canDraft : canManageGroup && role === "owner") && <button type="button" disabled={action.isPending} onClick={() => action.mutate({ id: rule.id, verb: "publish" })} className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white"><ShieldCheck size={13} /> Publish</button>}
