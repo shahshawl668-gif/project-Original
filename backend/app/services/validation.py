@@ -265,6 +265,16 @@ def _normalize_gender(g: Any) -> str:
     return "ALL"
 
 
+def _dated_slab_cohort(rows: list[SlabRule], as_of: date) -> list[SlabRule]:
+    """Select one effective schedule, falling back to legacy undated rows."""
+    active = [r for r in rows if (r.effective_from is None or r.effective_from <= as_of)
+              and (r.effective_to is None or r.effective_to >= as_of)]
+    if not active:
+        return []
+    latest = max((r.effective_from for r in active if r.effective_from is not None), default=None)
+    return [r for r in active if r.effective_from == latest]
+
+
 def lookup_pt(
     db: Session,
     state: str | None,
@@ -308,6 +318,7 @@ def lookup_pt(
             .all()
         )
         if tenant_rows:
+            tenant_rows = _dated_slab_cohort(tenant_rows, as_of)
             best: tuple[int, int, SlabRule, Decimal, str] | None = None
             for r in tenant_rows:
                 factor = _annualize_factor(r.frequency)
@@ -392,6 +403,7 @@ def lookup_lwf(
             .all()
         )
         if tenant_rows:
+            tenant_rows = _dated_slab_cohort(tenant_rows, as_of)
             for r in tenant_rows:
                 factor = _annualize_factor(r.frequency)
                 w_period = float(wage) * factor
