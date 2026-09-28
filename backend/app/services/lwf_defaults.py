@@ -15,14 +15,10 @@ Each row carries:
                                     validator scales wage to the same period
                                     and divides amounts by the same factor to
                                     produce a per-month equivalent.
-  * `applicable_months`          — list[int]; only meaningful for half-yearly /
-                                    yearly contributions where the deduction
-                                    must hit a specific month (e.g. June &
-                                    December for Maharashtra). Currently the
-                                    validator treats the full annualised total
-                                    as a per-period number rather than gating
-                                    on the month, so this field is mostly
-                                    informational and kept None.
+  * `applicable_months`          — list[int] for the months in which a full
+                                    contribution is due. A missing list keeps
+                                    monthly-equivalent behavior for states
+                                    whose collection month is unverified.
 
 States with NO statutory LWF (Bihar, Jharkhand, Uttar Pradesh, Uttarakhand,
 Himachal Pradesh, Jammu & Kashmir, Ladakh, Sikkim, all North-East states
@@ -108,7 +104,7 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         # Maharashtra Act XXV of 2024, section 6BB(2), gazetted 18 Mar 2024.
         # ₹25 employee and 3× employer for each June/December period; no wage band.
         # https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf
-        _row(0, _TOP, 25, 75, freq="half-yearly"),
+        _row(0, _TOP, 25, 75, freq="half-yearly", months=[6, 12]),
     ],
     "Odisha": [
         _row(0, _TOP, 20, 40, freq="half-yearly"),
