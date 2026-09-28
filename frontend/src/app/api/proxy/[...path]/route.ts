@@ -42,7 +42,9 @@ async function proxy(req: NextRequest, segments: string[]): Promise<Response> {
   if (!base) {
     return envelopeError(
       502,
-      "Server proxy is enabled but BACKEND_URL is unset. Set BACKEND_URL=https://api.peopleopslab.in on the host (Vercel → Environment Variables, NOT NEXT_PUBLIC) and redeploy.",
+      // Name the variable, never a guessed address: this once suggested a
+      // hostname that has never existed, which would have kept an outage going.
+      "Server proxy is enabled but BACKEND_URL is unset. Set BACKEND_URL on the web service to the API's own address (for example https://<api-service>.onrender.com — not NEXT_PUBLIC) and redeploy.",
       "proxy_misconfigured",
     );
   }

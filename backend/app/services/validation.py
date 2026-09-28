@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import calendar
 import math
 import re
@@ -833,6 +835,12 @@ def _compare_uploaded(
     return None
 
 
+#: How often ``validate_employees`` reports progress. Small enough that a lease
+#: renewed on each call never expires mid-register, large enough that the
+#: callback is not the thing making validation slow.
+PROGRESS_EVERY = 100
+
+
 def validate_employees(
     db: Session,
     entity: Entity,
@@ -843,7 +851,21 @@ def validate_employees(
     effective_to: date | None,
     as_of: date | None,
     period_month: date | None = None,
+    on_progress: Callable[[int], None] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Validate a register.
+
+    ``as_of`` fixes the date slab lookups are resolved against. Left unset it
+    falls to the end of ``period_month``, so re-running June next year still
+    reads June's PT and LWF schedule rather than today's.
+
+    ``on_progress`` is called with the number of employees assessed so far, every
+    ``PROGRESS_EVERY`` rows. A background worker uses it to renew its lease and
+    publish progress *without* splitting the call: findings like "this person is
+    on the attendance register but on no payslip" are computed against the whole
+    set, so validating in separate batches would report everyone outside the
+    current batch as missing from the register.
+    """
     if as_of is None and period_month is not None:
         end_day = calendar.monthrange(period_month.year, period_month.month)[1]
         as_of = period_month.replace(day=end_day)
@@ -1251,6 +1273,9 @@ def validate_employees(
                     reason=f"Cannot calculate {scheme}: no saved {selected} schedule covers this payroll period.",
                     suggested_fix="Load an official, effective-dated schedule for this period.",
                 ))
+
+        if on_progress is not None and len(results) % PROGRESS_EVERY == 0 and results:
+            on_progress(len(results))
 
         results.append(
             {

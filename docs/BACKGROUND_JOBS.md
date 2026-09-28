@@ -173,38 +173,70 @@ every worker. The `ORDER BY` becomes round-robin over `entity_id` at that point
 
 ## 6. The worker loop
 
+> **Corrected during implementation.** This section originally chunked the
+> validation *call* — 200 employees at a time, committing between chunks. That
+> is wrong for this codebase, and building it would have shipped a serious bug.
+>
+> `validate_employees` compares the register against the whole set: findings
+> such as "this person is on the attendance register but on no payslip" come
+> from `unmatched_findings`, computed by asking who the register does *not*
+> contain. Validating 200 at a time would report the other 9,800 as missing from
+> the register — on a 10,000-employee month, tens of thousands of fabricated
+> findings.
+>
+> What shipped instead: `validate_employees` takes an `on_progress` callback and
+> the worker renews its lease from inside the single call. Same progress, same
+> live lease, and what gets reported does not change.
+
 ```python
-def run_once(db, worker_id) -> bool:
-    job = claim(db, worker_id)          # the SQL above
+def run_once(db, worker) -> bool:
+    job = claim(db, worker)             # the SQL above
     if job is None:
         return False
+    db.commit()
 
     try:
-        rows = load_register_rows(db, job.register_id)
-        job.employee_total = len(rows)
-
-        results = []
-        for i, chunk in enumerate(chunked(rows, 200)):
-            results.extend(validate_chunk(db, job, chunk))
-            job.employee_done = min((i + 1) * 200, job.employee_total)
-            job.heartbeat_at = now()
-            db.commit()                 # progress is visible, lease is renewed
-
-        run = finding_store.record_run(db, ...)   # unchanged
-        job.run_id, job.state, job.finished_at = run.id, "succeeded", now()
-        db.commit()
+        run_id = execute(db, job)       # validates, records the run
     except Exception as exc:
         db.rollback()
-        job.error = str(exc)[:2000]
-        job.state = "failed" if job.attempts >= job.max_attempts else "queued"
+        job = db.get(ValidationJob, job_id)   # the rollback detached it
+        jobs.fail(db, job, error=f"{type(exc).__name__}: {exc}")
         db.commit()
-        raise
+        return True
+
+    jobs.succeed(db, job, run_id=run_id)
+    db.commit()
     return True
 ```
 
-The chunked commit does three jobs at once: progress the UI can show, a renewed
-lease, and a bounded transaction. One transaction spanning 10,000 employees
-would hold locks for minutes and bloat WAL.
+and inside `execute`:
+
+```python
+def progress(done: int) -> None:
+    # Renewing the lease is the point; the number is the bonus. Its own
+    # transaction, so a later failure does not roll progress back.
+    jobs.heartbeat(db, job, done=done)
+    db.commit()
+
+rows, summary = validate_employees(..., on_progress=progress)
+```
+
+`PROGRESS_EVERY = 100`: small enough that a lease renewed on each call never
+expires mid-register, large enough that the callback is not what makes
+validation slow.
+
+### The claim had to become atomic on both dialects
+
+`FOR UPDATE SKIP LOCKED` protects the claim on PostgreSQL. SQLite has no such
+clause, and the original code assumed that was fine because SQLite has one
+writer. It is not fine: two threads can `SELECT` the same id and both proceed to
+run the job. A concurrency test caught it immediately.
+
+The claim now does a guarded `UPDATE ... WHERE id = :id AND (still claimable)`
+and checks `rowcount`. Whichever update lands second matches no rows and that
+worker backs off. On PostgreSQL the row lock already made this safe, so the
+guard costs nothing — and the queue is now correct on the dialect the tests
+actually run on, which was the whole argument for testing on both.
 
 ---
 
@@ -303,8 +335,15 @@ Four changes, each shippable and reversible.
 query, `run_once`. Tested directly: enqueue, claim, complete, expire a lease,
 reclaim, exhaust attempts. Nothing calls it yet.
 
-**2. Worker thread behind a flag**, default off. Turn it on in a non-production
-environment and watch a real register through it.
+**2. Worker thread behind a flag**, default off. ✅ **Shipped.**
+`VALIDATION_WORKER_ENABLED` (default `false`) and
+`VALIDATION_WORKER_CONCURRENCY` (default 1); `python -m app.worker` runs the
+same loop as its own process for step 4.
+
+Watched through with a real register before merging: 5,000 employees, validated
+in 25s with progress visible throughout, the HTTP request never waiting. Then a
+job was abandoned mid-run the way a deploy abandons one — a live worker
+reclaimed it after the lease expired, `attempts` went to 2, and it finished.
 
 **3. Switch the endpoint.** `/validate` enqueues and returns 202; the frontend
 polls. The old synchronous path goes in the same PR — leaving both means the

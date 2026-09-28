@@ -160,6 +160,16 @@ _CLAIMABLE = """
 """
 
 
+def _bind_id(db: Session, value: uuid.UUID) -> object:
+    """A UUID in the form this dialect stores it.
+
+    SQLite keeps them as 32-character hex with no dashes; PostgreSQL has a real
+    UUID type. Passing the wrong one silently matches no rows, which in a claim
+    query looks exactly like "another worker got there first".
+    """
+    return value if db.bind.dialect.name != "sqlite" else value.hex
+
+
 def claim(db: Session, worker_id: str, at: datetime | None = None) -> ValidationJob | None:
     """
     Take the oldest piece of work nobody else holds, or return ``None``.
@@ -190,16 +200,40 @@ def claim(db: Session, worker_id: str, at: datetime | None = None) -> Validation
     # PostgreSQL, a 32-character hex string on SQLite. Coerce before looking it
     # up, or the ORM tries to read `.hex` off a str.
     raw = row[0]
-    job = db.get(ValidationJob, raw if isinstance(raw, uuid.UUID) else uuid.UUID(str(raw)))
-    if job is None:
+    job_id = raw if isinstance(raw, uuid.UUID) else uuid.UUID(str(raw))
+
+    # Take it with a guarded UPDATE rather than by assigning to the ORM object.
+    # On PostgreSQL the row lock above already made this safe; on SQLite there
+    # is no such lock, and two workers selecting the same id would both proceed
+    # to run the job. The WHERE clause repeats the claimable condition, so
+    # whichever UPDATE lands second matches no rows and that worker backs off.
+    # A queue that is only correct on the production dialect is a queue whose
+    # concurrency is never actually tested.
+    claimed = db.execute(
+        text(
+            """
+            UPDATE validation_jobs
+            SET state = 'running',
+                locked_by = :worker,
+                started_at = COALESCE(started_at, :now),
+                heartbeat_at = :now,
+                attempts = attempts + 1
+            WHERE id = :id
+              AND (state = 'queued'
+                   OR (state = 'running'
+                       AND (heartbeat_at IS NULL OR heartbeat_at < :stale)))
+            """
+        ),
+        {"worker": worker_id[:64], "now": now, "stale": stale,
+         "id": _bind_id(db, job_id)},
+    )
+    if claimed.rowcount != 1:
         return None
 
-    job.state = "running"
-    job.locked_by = worker_id[:64]
-    job.started_at = job.started_at or now
-    job.heartbeat_at = now
-    job.attempts = (job.attempts or 0) + 1
-    db.flush()
+    job = db.get(ValidationJob, job_id)
+    if job is not None:
+        # The UPDATE went round the ORM, so the in-session copy is stale.
+        db.refresh(job)
     return job
 
 

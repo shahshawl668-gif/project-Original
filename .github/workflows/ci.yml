@@ -50,3 +50,15 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
         run: npm run build
+
+  docs:
+    # The handbook is the thing people act on. Nothing else in CI notices when
+    # it stops describing the code, so this does.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Handbook still describes the code
+        run: python docs/tools/check_docs_current.py

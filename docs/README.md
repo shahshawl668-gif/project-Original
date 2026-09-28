@@ -76,3 +76,40 @@ Everything else is either a pre-existing statutory engine (`rule_engine_v2.py`,
 `validation.py`, the PF, ESIC and income-tax engines) or presentation code. Each
 is inventoried in section 6 with its line count and responsibility. Embedding all
 ~27,500 lines would run past 600 pages and stop being a reference.
+
+## Sendable manuals
+
+The markdown here is the source. What goes to a client is a PDF:
+
+```bash
+pip install markdown playwright     # binding only; Chromium is already present
+python docs/tools/build_manuals.py  # writes docs/pdf/
+```
+
+Each PDF carries a cover naming its audience, a contents page, page numbers,
+and its screenshots embedded rather than linked — a manual that depends on
+files next to it is one that arrives broken.
+
+The PDFs are not committed. They are a build output, they are several megabytes
+each, and a stale one in the repository is worse than none: regenerate whenever
+the screenshots or the markdown change.
+
+## Keeping the handbook honest
+
+`docs/handbook.html` is the operations handbook, and it is a file in this
+repository rather than a page that lives somewhere else. That is deliberate: a
+copy on a website drifts silently, and a copy in git shows up in a diff.
+
+```bash
+python docs/tools/check_docs_current.py
+```
+
+It reads the routes, admin endpoints, settings, health endpoints and roles out
+of the code and asserts the handbook names the same ones — in both directions,
+because a route the handbook lists that no longer exists sends someone to a 404
+just as surely as an undocumented one leaves them guessing.
+
+CI runs it. A pull request that adds a route without documenting it fails.
+
+It does not check prose, and cannot: whether an explanation is still true is a
+judgement. `CLAUDE.md` carries that half of the rule.

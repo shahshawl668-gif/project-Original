@@ -471,6 +471,22 @@ def set_membership_defaults(conn: Connection) -> None:
     )
 
 
+def record_register_source_columns(conn: Connection) -> None:
+    """
+    Add ``salary_registers.source_columns``.
+
+    Nothing backfills it: the uploaded file's headings were never kept, so for a
+    register stored before this column existed the honest value is NULL. A
+    reader must treat NULL as "unknown", not as "the file had no extra columns"
+    — the second would let an old register validate clean where a re-upload
+    would raise COMP-001.
+    """
+    if "salary_registers" not in _table_names(conn):
+        return
+    if "source_columns" not in _columns(conn, "salary_registers"):
+        conn.execute(text("ALTER TABLE salary_registers ADD COLUMN source_columns JSON"))
+
+
 def add_finding_evidence(conn: Connection) -> None:
     """Add version/evidence columns to existing findings; new installs get them from metadata."""
     if "finding_records" not in _table_names(conn):
@@ -505,6 +521,7 @@ def run_migrations(engine: Engine) -> None:
         backfill_org_slugs,
         add_finding_evidence,
         add_slab_provenance,
+        record_register_source_columns,
     )
     for step in steps:
         with engine.begin() as conn:

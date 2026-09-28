@@ -106,8 +106,13 @@ service + database in one click.
 1. Vercel → **Add New** → **Project** → import the GitHub repo.
 2. **Root Directory:** `frontend` (Vercel detects Next.js).
 3. **Environment Variables (Production):**
-   * `BACKEND_URL=https://api.peopleopslab.in`   ← server-only (NO `NEXT_PUBLIC_` prefix)
-   * Optional: `NEXT_PUBLIC_API_URL=https://api.peopleopslab.in` (for any direct fallback path)
+   * `BACKEND_URL=<the API's address>`   ← server-only (NO `NEXT_PUBLIC_` prefix).
+     That is `https://api.peopleopslab.in` **only if** §2 step 5's custom domain
+     exists and shows a green lock; otherwise the API's own
+     `https://<service>.onrender.com` address. The live site uses the latter —
+     `api.peopleopslab.in` was never created, and pointing `BACKEND_URL` at it
+     fails every sign-in.
+   * Optional: `NEXT_PUBLIC_API_URL=<the same address>` (for any direct fallback path)
 4. Deploy. Verify on the assigned URL:
    * `/` — login page renders.
    * `/api/proxy/api/health` — returns the health JSON envelope through the proxy.

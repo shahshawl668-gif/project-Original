@@ -3,13 +3,21 @@ End-to-end check against a running deployment.
 
 ``pytest tests`` proves the code is right. This proves a *deployment* is right:
 the same three-module scenario, driven over real HTTP against whatever host you
-point it at, through the same signup → configure → upload → validate →
+point it at, through the same onboard → configure → upload → validate →
 reconcile path a first client takes on day one.
 
     python e2e_deployed.py                                   # a local server
-    PEOPLEOPSLAB_BASE_URL=https://api.example.com python e2e_deployed.py
+    PEOPLEOPSLAB_BASE_URL=https://api.example.com \
+    PEOPLEOPSLAB_PLATFORM_EMAIL=you@example.com \
+    PEOPLEOPSLAB_PLATFORM_PASSWORD=... python e2e_deployed.py
 
-It signs up a throwaway organization each run, so it is safe against a live
+Production has no public signup, so there it onboards the way a client really
+arrives — platform staff provision a workspace, the owner accepts the
+invitation — which is what the two platform variables are for. Where signup is
+open it simply signs up. ``PEOPLEOPSLAB_E2E_PASSWORD`` optionally fixes the
+throwaway owner's password so you can sign in and look; otherwise it is random.
+
+It creates a throwaway organization each run, so it is safe against a live
 deployment: entity scoping keeps everything it creates inside that
 organization, and it touches no existing client's data. It writes, so do not
 point it at a production tenant you care about the audit trail of.
@@ -25,6 +33,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import secrets
 import sys
 import time
 import uuid
@@ -42,7 +51,10 @@ from tests.test_regression_end_to_end import (
 )
 
 BASE = os.environ.get("PEOPLEOPSLAB_BASE_URL", "http://localhost:8000").rstrip("/")
-PASSWORD = "Passw0rd!x"
+# The runner leaves a real workspace behind on the deployment it checks, so its
+# owner never gets a password that is written down anywhere — least of all in a
+# repository. A fresh one per run unless you set it to sign in and look around.
+PASSWORD = os.environ.get("PEOPLEOPSLAB_E2E_PASSWORD") or f"{secrets.token_urlsafe(18)}Aa1!"
 JUNE = PERIODS[2]
 
 # A cold free-tier instance can take the better part of a minute to wake.
@@ -96,6 +108,80 @@ def upload(path: str, filename: str, content: str, meta: dict) -> requests.Respo
     )
 
 
+PLATFORM_EMAIL = os.environ.get("PEOPLEOPSLAB_PLATFORM_EMAIL", "").strip()
+PLATFORM_PASSWORD = os.environ.get("PEOPLEOPSLAB_PLATFORM_PASSWORD", "")
+
+
+def onboard(email: str) -> str | None:
+    """Get a client session for a throwaway organisation, the way a real one arrives.
+
+    Where public signup is open (development), that is one call. In production
+    it is closed — onboarding is by invitation — so this does what the
+    platform console does: platform staff provision a workspace, the owner
+    accepts the invitation by setting a password, and signs in at their
+    workspace's own address.
+
+    That path needs platform credentials, read from
+    PEOPLEOPSLAB_PLATFORM_EMAIL and PEOPLEOPSLAB_PLATFORM_PASSWORD. They are
+    never defaulted and never written anywhere: a release gate that ships with
+    an admin password is a release gate that leaks one.
+    """
+    signed = call("POST", "/api/auth/signup",
+                  json={"email": email, "password": PASSWORD, "company_name": "E2E Check Pvt Ltd"})
+    if signed.status_code == 200:
+        run.check("self-registration succeeds (public signup is open)", True)
+        return body(signed)["access_token"]
+    if signed.status_code != 404:
+        run.check("signup answers", False, f"HTTP {signed.status_code}: {signed.text[:200]}")
+        return None
+
+    print("         public signup is closed — onboarding by invitation, as production does")
+    if not (PLATFORM_EMAIL and PLATFORM_PASSWORD):
+        run.check("platform credentials supplied", False,
+                  "this deployment is invitation-only; set PEOPLEOPSLAB_PLATFORM_EMAIL and "
+                  "PEOPLEOPSLAB_PLATFORM_PASSWORD to a platform owner or admin account")
+        return None
+
+    # Platform calls carry their own header; the shared one is for the client.
+    staff = session.post(f"{BASE}/api/auth/platform-login", timeout=TIMEOUT,
+                         json={"email": PLATFORM_EMAIL, "password": PLATFORM_PASSWORD})
+    if not run.check("platform staff can sign in", staff.status_code == 200, staff.text[:200]):
+        return None
+    staff_header = {"Authorization": f"Bearer {body(staff)['access_token']}"}
+
+    provisioned = session.post(f"{BASE}/api/admin/organizations", headers=staff_header,
+                               timeout=TIMEOUT,
+                               json={"name": "E2E Check Pvt Ltd", "owner_email": email})
+    if not run.check("workspace provisioned", provisioned.status_code == 201,
+                     provisioned.text[:300]):
+        return None
+    workspace = body(provisioned)
+    invite_token = workspace["invitation_path"].split("token=", 1)[-1]
+
+    registered = session.post(f"{BASE}/api/org/invitations/register", timeout=TIMEOUT,
+                              json={"token": invite_token, "password": PASSWORD})
+    if not run.check("owner accepts the invitation", registered.status_code == 200,
+                     registered.text[:300]):
+        return None
+
+    # The address a client is actually given, rather than the token the
+    # invitation happened to return.
+    signed_in = session.post(f"{BASE}/api/auth/login", timeout=TIMEOUT,
+                             json={"email": email, "password": PASSWORD,
+                                   "workspace_slug": workspace["slug"]})
+    if not run.check(f"owner signs in at {workspace['login_path']}",
+                     signed_in.status_code == 200, signed_in.text[:200]):
+        return None
+
+    # A workspace sign-in must be bound to that workspace, not merely succeed.
+    wrong = session.post(f"{BASE}/api/auth/login", timeout=TIMEOUT,
+                         json={"email": email, "password": PASSWORD,
+                               "workspace_slug": workspace["slug"] + "-not-it"})
+    run.check("the same credentials are refused at another workspace",
+              wrong.status_code in (400, 401, 404), f"HTTP {wrong.status_code}")
+    return body(signed_in)["access_token"]
+
+
 # ---------------------------------------------------------------------------
 def main() -> int:
     print(f"\n=== Peopleopslab end-to-end against {BASE} ===")
@@ -122,13 +208,14 @@ def main() -> int:
     else:
         print(f"  [SKIP] env={env}, not asserting auth enforcement (HTTP {anon.status_code})")
 
-    run.section("Signup and entity")
+    run.section("Onboarding")
     email = f"e2e-{uuid.uuid4().hex[:12]}@e2e-check.com"
-    signed = call("POST", "/api/auth/signup",
-                  json={"email": email, "password": PASSWORD, "company_name": "E2E Check Pvt Ltd"})
-    if not run.check("signup succeeds", signed.status_code == 200, signed.text[:300]):
+    token = onboard(email)
+    if token is None:
         return report()
-    headers["Authorization"] = f"Bearer {body(signed)['access_token']}"
+    headers["Authorization"] = f"Bearer {token}"
+
+    run.section("Entity")
 
     entity = call("POST", "/api/org/entities",
                   json={"name": "E2E Check", "primary_state": "Karnataka"})

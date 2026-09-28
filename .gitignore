@@ -47,3 +47,4 @@ backend/e2e_test_report.txt
 *.log
 frontend/tsconfig.tsbuildinfo
 docs/node_modules/
+docs/pdf/

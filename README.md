@@ -49,10 +49,15 @@ than drawn, so they show the real interface — regenerate them with
 
 | Role | URL | Hosts |
 |------|-----|--------|
-| **Web app (Next.js)** | `https://peopleopslab.in` and `https://www.peopleopslab.in` | Vercel, Render Web, etc. |
-| **API (FastAPI)** | `https://api.peopleopslab.in` | Render, Fly.io, VM + reverse proxy, etc. |
+| **Web app (Next.js)** | `https://peopleopslab.in` and `https://www.peopleopslab.in` | Render (live); Vercel also works |
+| **API (FastAPI)** | `https://payroll-saas-api-r6a8.onrender.com` | Render (live); Fly.io, a VM, etc. also work |
 
-### Default: same-origin API proxy (recommended on Vercel)
+`api.peopleopslab.in` does **not** exist. It appears in older notes as a planned
+custom domain that was never created; pointing `BACKEND_URL` at it breaks every
+sign-in. See `DEPLOYMENT.md` §0 for what is live and `docs/handbook.html` for
+the full picture.
+
+### Default: same-origin API proxy
 
 On **`peopleopslab.in`** / **`www.peopleopslab.in`**, the SPA **automatically** calls **`/api/proxy/api/…`** (same host as the website). A **Route Handler** in Next forwards those requests server-side to your real API. That avoids **CORS**, **mixed content**, and several **browser “Failed to fetch”** scenarios.
 
@@ -60,13 +65,13 @@ You must set **`BACKEND_URL`** on the **Next.js** host:
 
 | Variable | Where | Example |
 |---------|-------|---------|
-| **`BACKEND_URL`** | Server-only env on Vercel (Production) — **do not** use `NEXT_PUBLIC_` prefix | `https://api.peopleopslab.in` |
+| **`BACKEND_URL`** | Server-only env on the web service — **do not** use `NEXT_PUBLIC_` prefix | `https://payroll-saas-api-r6a8.onrender.com` |
 
 No trailing slash. Redeploy after adding it.
 
 Smoke tests:
 
-1. `https://YOUR_VERCEL_SITE/api/proxy/api/health` → should return backend JSON wrapped as usual (`success: true`).
+1. `https://YOUR_WEB_SERVICE/api/proxy/api/health` → should return backend JSON wrapped as usual (`success: true`).
 2. `https://peopleopslab.in/api/proxy/api/health` after DNS is correct.
 
 Optional overrides:
@@ -76,7 +81,7 @@ Optional overrides:
 
 ### Direct browser → API (no proxy)
 
-Set **`NEXT_PUBLIC_API_URL=https://api.peopleopslab.in`** on the frontend build **and** use **`NEXT_PUBLIC_DIRECT_API=1`** so proxied routing is explicitly off — or preview on a hostname that isn’t **peopleopslab.in** without `NEXT_PUBLIC_USE_API_RELAY`.
+Set **`NEXT_PUBLIC_API_URL`** to the API's address on the frontend build **and** use **`NEXT_PUBLIC_DIRECT_API=1`** so proxied routing is explicitly off — or preview on a hostname that isn’t **peopleopslab.in** without `NEXT_PUBLIC_USE_API_RELAY`.
 
 **API** **`CORS_ORIGINS`** must still list your web origins if the browser hits the API directly.
 
@@ -84,8 +89,8 @@ Set **`NEXT_PUBLIC_API_URL=https://api.peopleopslab.in`** on the frontend build 
 
 | Check | Action |
 |--------|--------|
-| Proxy without `BACKEND_URL` | Vercel returns **502** with a JSON message — set **`BACKEND_URL`** and redeploy. |
-| Upstream unreachable from Vercel | **502** with `upstream_unreachable` — DNS/TLS/firewall from Vercel to `api.*`. |
+| Proxy without `BACKEND_URL` | The web service returns **502** with a JSON message — set **`BACKEND_URL`** and redeploy. |
+| Upstream unreachable | **502** with `upstream_unreachable` — check `BACKEND_URL` names a host that exists, and DNS/TLS from the web service to it. |
 | You want legacy direct calls | **`NEXT_PUBLIC_DIRECT_API=1`** + **`NEXT_PUBLIC_API_URL`**, fix backend CORS. |
 
 ## Local development
@@ -123,7 +128,7 @@ CI runs via `.github/workflows/ci.yml`.
 
 ## Production environment variables (summary)
 
-**API (`api.peopleopslab.in`)**
+**API (`payroll-saas-api-r6a8.onrender.com`)**
 
 | Variable | Value |
 |----------|--------|
@@ -132,11 +137,11 @@ CI runs via `.github/workflows/ci.yml`.
 | `CORS_ORIGINS` | Include `https://peopleopslab.in`, `https://www.peopleopslab.in` (required if browsers call the API **directly**; optional if everyone uses **`/api/proxy`**) |
 | `ALLOW_ANONYMOUS_API` | `false` |
 
-**Frontend (peopleopslab.in on Vercel)**
+**Frontend (peopleopslab.in)**
 
 | Variable | Value |
 |----------|--------|
-| **`BACKEND_URL`** | **`https://api.peopleopslab.in`** (server-side for `/api/proxy`) |
+| **`BACKEND_URL`** | **`https://payroll-saas-api-r6a8.onrender.com`** (server-side for `/api/proxy`) |
 | `NEXT_PUBLIC_API_URL` | Optional; used when **`NEXT_PUBLIC_DIRECT_API=1`** or outside **peopleopslab.in** inference |
 
 ## DNS
