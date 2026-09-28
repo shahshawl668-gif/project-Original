@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowRight,
@@ -166,7 +167,11 @@ function CompanyCard({ row }: { row: CompanyRow }) {
     setOpening(true);
     try {
       if (!isActive) await switchEntity(row.id);
-      router.push(row.last_register_period ? "/payroll/results" : "/payroll/upload");
+      router.push(row.last_register_period ? "/payroll/history" : "/payroll/upload");
+    } catch (err) {
+      toast.error("Could not open company", {
+        description: err instanceof Error ? err.message : "Please try again.",
+      });
     } finally {
       setOpening(false);
     }
@@ -229,7 +234,7 @@ function CompanyCard({ row }: { row: CompanyRow }) {
           className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
         >
           {opening ? <Loader2 size={13} className="animate-spin" aria-hidden /> : null}
-          {row.last_register_period ? "Open" : "Upload register"}
+          {row.last_register_period ? "View history" : "Upload register"}
           {!opening && <ArrowRight size={13} aria-hidden />}
         </button>
       </div>
