@@ -263,3 +263,32 @@ def test_effective_dated_statutory_slab_selection(client):
             assert amount == Decimal(expected)
     finally:
         db.close()
+
+
+def test_karnataka_lwf_annual_deduction_is_in_december(client):
+    headers = owner(client, "karnataka-lwf-timing")
+    entity = data(client.get("/api/org/context", headers=headers))["active_entity"]
+    response = client.post(
+        "/api/rule-engine/slabs/import-defaults?state=Karnataka&rule_type=LWF",
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    rows = data(response)["slabs"]
+    assert rows[0]["effective_from"] == "2025-01-10"
+    assert rows[0]["applicable_months"] == [12]
+    assert "klwb.karnataka.gov.in" in rows[0]["source_reference"]
+    db = SessionLocal()
+    try:
+        from app.services.validation import lookup_lwf
+        entity_id = uuid.UUID(entity["id"])
+        for month, expected in ((1, Decimal("0")), (11, Decimal("0")), (12, Decimal("50"))):
+            period, employer, due, employer_due = lookup_lwf(
+                db, "Karnataka", Decimal("20000"), date(2026, month, 1), entity_id=entity_id,
+            )
+            assert (period, employer) == (Decimal("50"), Decimal("100"))
+            assert (due, employer_due) == (expected, expected * 2)
+        assert lookup_lwf(
+            db, "Karnataka", Decimal("20000"), date(2024, 12, 1), entity_id=entity_id,
+        )[2] == Decimal("0")
+    finally:
+        db.close()
