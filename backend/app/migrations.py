@@ -596,6 +596,7 @@ def run_migrations(engine: Engine) -> None:
         add_slab_provenance,
         record_register_source_columns,
         preserve_run_history,
+        track_finding_work,
     )
     for step in steps:
         with engine.begin() as conn:
@@ -625,3 +626,22 @@ def backfill_org_slugs(conn: Connection) -> None:
         # One-time bootstrap for the existing product owner. New privileges are
         # managed explicitly; a legacy client role never creates platform access.
         conn.execute(text("UPDATE users SET platform_role = 'owner' WHERE role = 'admin' AND email != 'system@payrollcheck.local'"))
+
+
+def track_finding_work(conn: Connection) -> None:
+    """
+    Let a finding carry an owner and a due date.
+
+    Additive and idempotent. Comments and attachments are new tables and arrive
+    through ``create_all``. Rollback: both columns are nullable and unread by
+    the previous release.
+    """
+    if "finding_states" not in _table_names(conn):
+        return
+    have = _columns(conn, "finding_states")
+    for column, ddl in (("owner_user_id", _uuid_type(conn)), ("due_date", "DATE")):
+        if column not in have:
+            conn.execute(text(f"ALTER TABLE finding_states ADD COLUMN {column} {ddl}"))  # nosec B608
+    conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_finding_states_owner ON finding_states (entity_id, owner_user_id)"
+    ))

@@ -716,6 +716,9 @@ function PayrollResultsContent() {
               </Button>
             ) : null}
             <Button variant="outline" asChild>
+              <Link href="/payroll/issues" className="gap-2"><Shield size={15} /> Work the issues</Link>
+            </Button>
+            <Button variant="outline" asChild>
               <Link href="/payroll/upload" className="gap-2"><UploadCloud size={15} /> New run</Link>
             </Button>
           </>

@@ -58,8 +58,12 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
     point of the record is that the accepted ones were accepted knowingly, which
     requires them to have been in front of the person who signed.
     """
+    from app.services.issues import expire_waivers
+
     period_month = period_month.replace(day=1)
     config_service = ConfigService(db)
+    # A waiver that has lapsed is not an accepted finding any more; it is open.
+    expire_waivers(db, entity.id)
 
     run = current_run(db, entity.id, period_month)
 

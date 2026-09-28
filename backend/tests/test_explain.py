@@ -57,12 +57,12 @@ def test_the_review_history_travels_with_the_explanation(client):
     run_id = _run(client, headers, _register(BASE_ROWS))
     finding = _finding(client, headers, run_id, "STAT-001", "E002")
     r = client.post(f"/api/findings/{finding['fingerprint']}/decision", headers=headers,
-                    json={"state": "waived", "reason": "Recovered in July payroll",
-                          "waived_until": "2026-07-31"})
+                    json={"state": "waived", "reason": "Recovered in the next payroll"})
     assert r.status_code == 200, r.text
     why = _data(client.get(f"/api/validation/runs/{run_id}/findings/{finding['id']}/explain", headers=headers))
     assert why["review"]["state"] == "waived"
-    assert why["review"]["waiver_reason"] == "Recovered in July payroll"
+    assert why["review"]["waiver_reason"] == "Recovered in the next payroll"
+    assert why["review"]["waived_until"] is not None  # a waiver always ends
     assert why["review"]["history"][-1]["to"] == "waived"
 
 

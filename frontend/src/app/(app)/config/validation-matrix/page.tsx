@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, FlaskConical, Plus, ShieldCheck } from "lu
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
+import { RulePacks } from "@/components/validation/RulePacks";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEntity } from "@/context/EntityContext";
 import { apiJson } from "@/lib/api";
@@ -161,6 +162,7 @@ export default function ValidationMatrixPage() {
       <div className="grid gap-3 md:grid-cols-3">
         {(catalogData?.built_in ?? []).map((group) => <Card key={group.family}><CardContent className="py-4"><h2 className="text-sm font-semibold text-ink-900">{group.family}</h2><p className="mt-1 text-xs leading-relaxed text-ink-500">{group.examples.join(" · ")}</p></CardContent></Card>)}
       </div>
+      <RulePacks entityId={entity?.id} canChange={activeRole === "owner" || activeRole === "manager"} />
       <p className="text-xs text-ink-500">Built-in statutory checks use their existing configuration. Disabling a check hides its findings for this company; it does not alter statutory calculations. Review notifications and effective dates in statutory configuration.</p>
       <Card><CardContent className="space-y-3 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold text-ink-900">Prefilled validation checks</h2><p className="text-xs text-ink-500">{catalogData?.built_in_rules.length ?? 0} implemented checks · enabled by default for this company</p></div><input aria-label="Search validation checks" className={`max-w-xs ${input}`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search rule, topic or ID" /></div>

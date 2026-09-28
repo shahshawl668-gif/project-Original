@@ -197,6 +197,22 @@ actual, financial impact and a suggested fix.
 > is the point. Work them in severity order. Most first-run CRITICALs trace back
 > to a component flag (Step 2), not to the payroll.
 
+**Then read the coverage, not just the failures.** **Settings → Validation
+matrix → Rule packs** groups the built-in checks by what they protect — import
+integrity, lifecycle and identity, salary structure, PF, ESIC, PT and LWF, TDS,
+minimum wage, bonus and gratuity, attendance, arrears, period comparison — and
+says, for the latest run, how much of each pack could actually be checked and
+which inputs it was missing (employee master, a register column, a minimum-wage
+decision). Close those gaps before the parallel run.
+
+![Rule packs](images/22-rule-packs.png)
+
+If the client genuinely does not want a pack — PF run by an exempted trust, say
+— an owner or manager can switch it off with a reason. Its checks then report
+**Disabled** in every run, never Passed, and the reason is in the audit trail.
+Bank and ledger reconciliation are not a validation pack: they are checked on
+their own pages from the bank file and the voucher.
+
 ### Step 8 — Bank file profile
 
 **Settings → Bank file profiles.** Every bank and every client formats payment

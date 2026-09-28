@@ -39,6 +39,7 @@ import {
   BookOpen,
   Loader2,
   Loader,
+  ListTodo,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -70,6 +71,7 @@ const navGroups = [
       { href: "/payroll/upload", label: "Upload & validate", icon: UploadCloud },
       { href: "/payroll/validation", label: "Validations", icon: Loader },
       { href: "/payroll/results", label: "Results", icon: ClipboardCheck },
+      { href: "/payroll/issues", label: "Issues", icon: ListTodo },
       { href: "/payroll/history", label: "Register history", icon: History },
       { href: "/ctc/upload", label: "Upload CTC", icon: FileSpreadsheet },
       { href: "/ctc/history", label: "CTC history", icon: FolderArchive },

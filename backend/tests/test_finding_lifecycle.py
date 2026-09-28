@@ -7,7 +7,7 @@ recurring should say so; and none of it should leak between entities.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -188,7 +188,7 @@ def test_a_waiver_requires_a_reason(client, workspace):
     r = client.post(
         f"/api/findings/{fp}/decision",
         json={"state": "waived", "reason": "Employee opted out under PF para 26(6)",
-              "waived_until": "2026-03-31"},
+              "waived_until": (date.today() + timedelta(days=60)).isoformat()},
         headers=h,
     )
     assert r.status_code == 200
@@ -203,7 +203,8 @@ def test_a_waiver_carries_forward_to_later_months(client, workspace):
     fp = client.get("/api/findings", headers=h).json()["data"][0]["fingerprint"]
     client.post(
         f"/api/findings/{fp}/decision",
-        json={"state": "waived", "reason": "Accepted by CFO", "waived_until": "2026-03-31"},
+        json={"state": "waived", "reason": "Accepted by CFO",
+              "waived_until": (date.today() + timedelta(days=60)).isoformat()},
         headers=h,
     )
 
@@ -226,16 +227,25 @@ def test_a_waiver_carries_forward_to_later_months(client, workspace):
 
 
 def test_an_expired_waiver_stops_suppressing(client, workspace):
+    """A waiver given for last year no longer hides this year's finding — and it
+    is reopened, with the lapse recorded, rather than left reading "waived"."""
     entity, user, h = workspace
 
     _record(entity, user, date(2025, 4, 1), [_finding("1001", "STAT-001", 1800.0)])
     fp = client.get("/api/findings", headers=h).json()["data"][0]["fingerprint"]
-    client.post(
+    r = client.post(
         f"/api/findings/{fp}/decision",
-        json={"state": "waived", "reason": "Accepted for this financial year",
-              "waived_until": "2025-05-31"},
+        json={"state": "waived", "reason": "Accepted for this financial year"},
         headers=h,
     )
+    assert r.status_code == 200
+    db = SessionLocal()
+    try:  # the waiver was given long ago and ran to 31 May 2025
+        state = db.query(FindingState).filter(FindingState.fingerprint == fp).one()
+        state.waived_until = date(2025, 5, 31)
+        db.commit()
+    finally:
+        db.close()
 
     run_id = _record(entity, user, date(2025, 6, 1), [_finding("1001", "STAT-001", 1800.0)])
 
@@ -245,6 +255,8 @@ def test_an_expired_waiver_stops_suppressing(client, workspace):
 
         run = db.get(ValidationRun, run_id)
         assert float(run.open_financial_impact) == 1800.0
+        state = db.query(FindingState).filter(FindingState.fingerprint == fp).one()
+        assert state.state == "open"
     finally:
         db.close()
 

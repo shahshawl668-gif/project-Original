@@ -288,8 +288,10 @@ trail that can survive a rolled-back change records events that never happened.
 
 - Re-verify every statutory rate against current notifications (§9).
 - Review PT and LWF slabs per state.
-- Review rule suppressions — a suppression made once should not become
-  invisible forever. Waivers expire by default for the same reason.
+- Review rule suppressions and switched-off rule packs (Settings → Validation
+  matrix) — a suppression made once should not become invisible forever.
+  Waivers end by themselves for the same reason (90 days unless a date is
+  given, at most 366) and reopen their finding when they lapse.
 
 ### On a change of staff
 
@@ -363,6 +365,24 @@ decision for the client, not a housekeeping task.
   they recorded.
 - **Rollback:** redeploy the previous release. The new column is nullable and
   unread by the old code. Sign-offs made under the new rules stay valid records.
+
+### Upgrading to the issues release
+
+- **Automatic on first start.** `track_finding_work` adds `owner_user_id` and
+  `due_date` to `finding_states`; `finding_comments` and `finding_attachments`
+  are new tables. Additive and idempotent.
+- **Waivers now always end.** New waivers get 90 days unless a date is given
+  (at most 366); a lapsed waiver reopens its finding with a recorded event, and
+  a sign-off lists it as outstanding, not accepted. **Existing waivers with no
+  end date are not rewritten** — nobody chose a date for them — and the Issues
+  page flags each one "no end date — review". Ask the client to re-waive them
+  with a date or reopen them.
+- **Resolving a finding by hand now needs a reason**, like waiving always did.
+- **Evidence files** are stored in the database (5 MB each, PDF, PNG, JPEG,
+  XLSX, XLS, CSV or text, content checked against the extension). Budget for
+  them alongside run history.
+- **Rollback:** redeploy the previous release. The new columns are nullable and
+  the new tables are unread by it; waivers it sees keep their end dates.
 
 ---
 

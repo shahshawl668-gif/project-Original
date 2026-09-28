@@ -173,6 +173,10 @@ def record_run(
     )
     run_number = max((r.run_number or 1 for r in previous), default=0) + 1
 
+    from app.services.issues import expire_waivers
+
+    # Lapsed waivers reopen before the run reads them, with their own event.
+    expire_waivers(db, entity_id)
     waived_now = waived_fingerprints(db, entity_id, period_month)
 
     run = ValidationRun(

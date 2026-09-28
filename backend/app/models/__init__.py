@@ -64,6 +64,8 @@ from app.models.register_upload import RegisterUpload
 from app.models.findings import (
     ENGINE_VERSION,
     RUN_STATUSES,
+    FindingAttachment,
+    FindingComment,
     FindingRecord,
     FindingState,
     FindingStateEvent,
@@ -108,6 +110,8 @@ __all__ = [
     "ValidationRun",
     "ValidationRuleVersion",
     "FindingRecord",
+    "FindingAttachment",
+    "FindingComment",
     "FindingState",
     "FindingStateEvent",
     "PeriodSignOff",

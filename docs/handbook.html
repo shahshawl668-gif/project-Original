@@ -262,7 +262,7 @@
   <p class="standfirst">Everything in one place: how the product is put together, every route and who can reach it, how support access actually works, what to run to test it, and where it lives. Written against the code on <code>main</code>, not from memory.</p>
   <div class="meta">
     <span><b>Commit</b> 7eadc51 (branch) · 4cc2103 (main)</span>
-    <span><b>Tests</b> 958 passing, SQLite + PostgreSQL</span>
+    <span><b>Tests</b> 978 passing, SQLite + PostgreSQL</span>
     <span><b>Compiled</b> 25 Sep 2026</span>
   </div>
 </header>
@@ -329,7 +329,7 @@
       <div class="arrow">↓</div>
       <div class="tier">
         <div class="tname">PostgreSQL 16</div>
-        <div class="tbody">45 tables. Also the job queue: <code>validation_jobs</code> claimed with <code>SELECT … FOR UPDATE SKIP LOCKED</code>. Schema managed by <code>create_all</code> plus hand-rolled idempotent dialect-aware migrations in <code>app/migrations.py</code>.</div>
+        <div class="tbody">53 tables. Also the job queue: <code>validation_jobs</code> claimed with <code>SELECT … FOR UPDATE SKIP LOCKED</code>. Schema managed by <code>create_all</code> plus hand-rolled idempotent dialect-aware migrations in <code>app/migrations.py</code>.</div>
       </div>
     </div>
 
@@ -366,7 +366,7 @@
           <tr><td>4 · Register upload</td><td>The salary register. Each flat row is decomposed into components, arrears, stated deductions and a dimension snapshot taken <em>as at that month</em> — a reorganisation in November must not rewrite what April cost by department. <strong>Every upload is also frozen, never overwritten</strong>: the file's SHA-256, the column mapping, a revision number, and the rows exactly as parsed (gzip). The decomposed register keeps only what the cost model reads; the frozen upload keeps everything validation reads (PAN, UAN, ESI number, dates, payment mode).</td><td><span class="mono">salary_registers</span>, <span class="mono">salary_register_rows</span>, <span class="mono">register_uploads</span></td></tr>
           <tr><td>5 · Validate</td><td><strong>Queued, not run in the request.</strong> The upload page enqueues a job; a worker thread claims it (<code>FOR UPDATE SKIP LOCKED</code>), validates the frozen upload and moves it through visible stages — queued, reading, checking, saving. Cancel and retry are supported; a failed or cancelled attempt writes nothing. The result is a <em>run</em> with an id, read back paged and filtered from the server. Validating a month again creates run N+1 and marks the previous run <code>superseded</code> — it is never deleted — and any two runs can be compared finding by finding. Each run records digests of every input it read (register, master, attendance, CTC, prior month, configuration, engine version) and the effective configuration itself, so a later change to any of them is reported as "revalidation required", naming the input. <strong>Every check reaches one of five outcomes for every employee</strong> — passed, failed, cannot validate, not applicable, disabled — from a registry of 97 checks (<code>services/coverage.py</code>) that says what each needs and when it applies; a check whose input was not supplied is <em>cannot validate</em>, never a pass, and coverage is reported beside the failures, not merged into them. Minimum wage runs inside every validation. Exposure counts overlapping findings once, and a finding the engine does not price says "Impact not calculated" rather than ₹0.</td><td><span class="mono">validation_jobs</span>, <span class="mono">validation_runs</span>, <span class="mono">validation_run_employees</span>, <span class="mono">finding_records</span></td></tr>
           <tr><td>6 · Reconcile</td><td>Bank file against the register, employee by employee. Then the journal voucher, which must balance before it exports.</td><td><span class="mono">bank_files</span>, <span class="mono">jv_templates</span></td></tr>
-          <tr><td>7 · Sign off</td><td>Findings are waived, accepted or actioned — with who and when. Waivers carry forward, so recurrence becomes countable. The month is then submitted and approved on Month close. <strong>Neither is possible</strong> for a month that was never validated or whose inputs changed since its run; statutory checks that could not be performed block approval unless the approver states why the gap is acceptable, and that reason is kept. Where the owner requires it (<code>organizations.approval_policy</code>), the preparer cannot approve their own month and a rule's author cannot publish it; every sign-off snapshot records the run, its input digests, its coverage and whether the approval was independent.</td><td><span class="mono">period_signoffs</span>, <span class="mono">signoff_events</span>, <span class="mono">audit_events</span></td></tr>
+          <tr><td>7 · Sign off</td><td>Findings are waived, accepted or actioned — with who and when. Waivers carry forward, so recurrence becomes countable, and <strong>every waiver ends</strong> — 90 days unless a date is given, never more than 366; a lapsed waiver reopens its finding with a recorded event. Each finding can carry an owner, a due date, comments and evidence files (PDF, image, spreadsheet, CSV or text, 5 MB, content checked against the extension), and a decision can be applied to many findings at once — one event per finding, same reason. The month is then submitted and approved on Month close. <strong>Neither is possible</strong> for a month that was never validated or whose inputs changed since its run; statutory checks that could not be performed block approval unless the approver states why the gap is acceptable, and that reason is kept. Where the owner requires it (<code>organizations.approval_policy</code>), the preparer cannot approve their own month and a rule's author cannot publish it; every sign-off snapshot records the run, its input digests, its coverage and whether the approval was independent.</td><td><span class="mono">finding_states</span>, <span class="mono">finding_state_events</span>, <span class="mono">finding_comments</span>, <span class="mono">finding_attachments</span>, <span class="mono">period_signoffs</span>, <span class="mono">signoff_events</span>, <span class="mono">audit_events</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -406,6 +406,7 @@
           <tr><td class="mono">/payroll/validation</td><td>Validation jobs: progress of a queued validation (<code>?job=</code>), cancel and retry, or the recent list. Safe to close and return to</td><td><span class="pill p-ok">Any role</span> (cancel/retry: write roles)</td></tr>
           <tr><td class="mono">/payroll/results</td><td>A validation run, read from the server by <code>?run=</code> (defaults to the latest current run). Paged employee and finding tables, a Coverage tab (five outcomes per check, the inputs that were missing, the employees who could not be fully checked), run history for the month, staleness banner, Excel export of the run as recorded</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/results/why</td><td>Why this result? One finding (<code>?run=&amp;finding=</code>) with the file, sheet, row and column it came from, the calculation, the tolerance, the rule in force, its review history and the month's approval</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/issues</td><td>Issues — the findings worklist across months, paged on the server: filter by state, severity, rule, owner, overdue, recurring; bulk decisions and assignment; owner, due date, comments, evidence and history per finding</td><td><span class="pill p-ok">Any role</span> (changes: write roles)</td></tr>
           <tr><td class="mono">/payroll/runs/compare</td><td>Two runs compared finding by finding: new, resolved, changed, unchanged, with rupee totals</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/history</td><td>Register history — re-open any stored run</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/employee/[id]</td><td>One employee in one run (<code>?run=</code>): computed amounts, every finding, every check's outcome with its reason, the file row it came from</td><td><span class="pill p-ok">Any role</span></td></tr>
@@ -428,7 +429,7 @@
           <tr><td class="mono">/config/team</td><td>Users and roles within the organisation; approval controls (maker–checker — changed by an owner only, audited); support access</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/companies</td><td>Group companies — the entities in this organisation</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/minimum-wage</td><td>Minimum wage rates by state and skill category</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
-          <tr><td class="mono">/config/validation-matrix</td><td>Validation decision matrix — which rules run and how</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/validation-matrix</td><td>Validation decision matrix — rule packs (built-in checks by what they protect, what each needs, last run's coverage; a pack switched off reports Disabled, with a reason in the audit trail), individual checks, and company rules</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/upload</td><td>Bulk configuration upload</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/rule-engine/formula</td><td>Formula editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/rule-engine/slabs</td><td>Slab editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
@@ -568,7 +569,7 @@ python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.
     <h2>Testing points</h2>
     <p class="sub">Five things you can run. The first four take minutes; the fifth is the one with a deadline.</p>
 
-    <h3>1 · The unit suite — 958 tests</h3>
+    <h3>1 · The unit suite — 978 tests</h3>
     <pre><code>cd backend
 python -m pytest tests/ -q                 # SQLite, ~2m45s
 

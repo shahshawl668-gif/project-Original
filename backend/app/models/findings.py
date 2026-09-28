@@ -277,6 +277,12 @@ class FindingState(Base):
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # --- who is working it ----------------------------------------------------
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    due_date: Mapped[date | None] = mapped_column(Date)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -325,3 +331,46 @@ class FindingStateEvent(Base):
 
     state = relationship("FindingState", back_populates="events")
 
+
+class FindingComment(Base):
+    """A remark on a finding. Append-only: a comment that can be edited is not a record."""
+
+    __tablename__ = "finding_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    state_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("finding_states.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"))
+    author_email: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FindingAttachment(Base):
+    """
+    Evidence attached to a finding — the bank letter, the revised offer, the
+    signed waiver. Stored in the database with its digest, so it travels with
+    the backup and the record it supports; size and type are capped at upload.
+    """
+
+    __tablename__ = "finding_attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    state_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("finding_states.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    uploaded_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"))
+    uploaded_by_email: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

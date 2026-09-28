@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -13,7 +14,7 @@ from app.deps import get_current_entity, require_entity_admin
 from app.envelope import ok
 from app.models import ComponentConfig, Entity, SalaryRegister, SalaryRegisterRow, User, ValidationRuleVersion
 from app.schemas.validation_matrix import RuleCreate, SimulationRequest
-from app.services import audit, tenancy, validation_matrix
+from app.services import audit, rule_packs, tenancy, validation_matrix
 from app.services.validation_catalog import BUILTIN_RULES, rule_family
 from app.services.payroll_parse import normalize_col
 
@@ -71,6 +72,32 @@ def catalog(db: Session = Depends(get_db), entity: Entity = Depends(get_current_
         "components": [name for (name,) in components],
         "operators": sorted(validation_matrix.OPS),
     })
+
+
+class PackToggle(BaseModel):
+    enabled: bool
+    reason: str = Field(min_length=8, max_length=1000)
+
+
+@router.get("/packs")
+def list_packs(db: Session = Depends(get_db), entity: Entity = Depends(get_current_entity)):
+    """Built-in checks by what they protect, what they need, and how the last run went."""
+    return ok(rule_packs.describe(db, entity))
+
+
+@router.put("/packs/{key}")
+def toggle_pack(
+    key: str, body: PackToggle,
+    db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Switch a whole pack on or off, with a reason. Its checks report Disabled, never Passed."""
+    try:
+        changed = rule_packs.set_enabled(db, entity, user, key, body.enabled, body.reason.strip())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="No such rule pack") from exc
+    db.commit()
+    return ok({"key": key, "enabled": body.enabled, "changed": changed})
 
 
 @router.get("")

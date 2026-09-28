@@ -84,7 +84,7 @@ Once payroll is run and before it is paid:
 ```
   1  Upload attendance        →  do the days add up?
   2  Upload the register      →  does the pay match the statute and the days?
-  3  Work the findings        →  fix, or explain
+  3  Work the findings        →  fix, or explain (Payroll → Issues)
   4  Reconcile the bank file  →  did the right money reach the right accounts?
   5  Post the journal voucher →  does the ledger agree?
   6  Sign the period off      →  closed, with a record of who closed it
@@ -215,18 +215,47 @@ configuration at the time of the run — not a statement of the law.
 it computed and what your register said. Sometimes the register is right and the
 configuration is wrong — say so, and it stops asking.
 
-For each finding you can:
+### Working the issues
 
-- **Fix it in payroll** and re-upload. The finding disappears when it stops
-  being true.
-- **Note it** — record why it is as it is, and leave it open.
-- **Waive it** — with a reason. Waivers **expire by default**, so "accepted
-  once" does not quietly become "invisible forever" across a change of staff or
-  of law.
+**Payroll → Issues** is where findings get worked. It lists every finding
+still open across months — not just this upload — worst first: critical before
+warning, the ones that keep coming back before the new ones, the expensive
+before the cheap. Filter by state, severity, rule, owner, overdue or recurring,
+or search by employee.
+
+![Issues](images/20-issues.png)
+
+Open a finding to:
+
+- **Give it an owner and a due date.** Overdue findings are counted at the top
+  of the page, and **Assigned to me** filters to your own.
+- **Comment** — what you asked, who answered. Comments cannot be edited or
+  deleted; they are the record.
+- **Attach evidence** — the vendor's letter, the revised offer, the signed
+  approval. PDF, PNG, JPEG, XLSX, XLS, CSV or text, up to 5 MB each. A file
+  whose contents do not match its extension is refused.
+- **Decide:**
+  - **Mark in progress** — someone is on it.
+  - **Resolve** — with a reason: what was corrected, or why it was never an
+    error. If the next run finds it again, it reopens by itself.
+  - **Waive** — with a reason, and **always with an end date**: 90 days if
+    you give none, at most 366. When the date passes, the finding reopens and
+    the history says the waiver expired. A waiver given before waivers had to
+    end shows **"no end date — review"**; waive it again with a date, or reopen it.
+
+![An issue](images/21-issue-detail.png)
+
+**Many findings at once.** Tick them (or tick the header to select the page)
+and choose **Resolve…**, **Waive…**, **Assign…** or **Mark in progress**. Each
+finding gets its own entry in its history with the shared reason, exactly as
+if you had done them one by one.
 
 A finding in its first month is a mistake. The same finding in its ninth month
-is a process problem — the product counts how many periods each one has survived
-so you can tell those apart.
+is a process problem — the product counts how many months each one has
+survived, and **Recurring (3+ months)** shows you those.
+
+Anyone can read the issues; changing them needs an analyst, manager or owner
+role, and only people who can work this company can be given one.
 
 ### Step 4 — Bank payments
 
@@ -368,6 +397,10 @@ Because some statutory checks could not run — most often, no decision on
 whether minimum wage applies, or no employee master. The approval panel links
 to exactly what is missing. Supply it and revalidate, or approve stating why
 the gap is acceptable.
+
+**Can a waiver last forever?**
+No. Every waiver has an end date — 90 days by default, a year at most. When it
+lapses the finding reopens, and the history says why.
 
 **Why does a finding say "Impact not calculated"?**
 Because the product did not work out a rupee figure for it — not because it
