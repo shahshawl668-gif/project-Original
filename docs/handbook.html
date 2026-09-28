@@ -336,6 +336,17 @@
     <h3>Tenancy, in one paragraph</h3>
     <p>An <strong>Organization</strong> holds many <strong>Entities</strong> (the employers whose payroll you check). A user gets an <strong>OrgMembership</strong> with one of four roles, and <strong>EntityAccess</strong> rows decide which entities they see. Write operations require <code>owner</code>, <code>manager</code> or <code>analyst</code>; <code>viewer</code> is read-only. The <code>X-Entity-Id</code> header selects the active entity on every request, and a value the caller has no access to returns 404 — not 403, because which entities exist is not something the API should confirm to a stranger.</p>
 
+    <h3>Two front doors, since 27 September 2026</h3>
+    <p>Sign-in is split. A client signs in at <code>/w/[slug]/login</code>, addressed by their own
+    workspace slug. Platform staff sign in at <code>/platform/login</code>, which is a different
+    door into a different set of permissions. Neither can be reached from the other, and a client
+    never sees a page that hints platform staff exist.</p>
+    <p><strong>Onboarding is invitation-only in production.</strong> <code>ALLOW_PUBLIC_SIGNUP</code>
+    is forced <code>false</code> there, the same way <code>ALLOW_ANONYMOUS_API</code> is, so a
+    client workspace is provisioned from the platform console and staff arrive through
+    <code>POST /api/admin/staff/invitations</code>. Nobody signs themselves up into a product
+    holding other people's payroll.</p>
+
     <h3>The claim that makes the product sellable</h3>
     <p>Peopleopslab never runs payroll. It checks the register your payroll system produced. That is not a limitation to apologise for — it is the reason it can independently check one. An HRMS auditing its own output is marking its own homework.</p>
   </section>
@@ -384,7 +395,11 @@
         <tbody>
           <tr><td class="mono">/</td><td>Redirects to <code>/dashboard</code></td><td><span class="pill p-info">Public</span></td></tr>
           <tr><td class="mono">/login</td><td>Sign in</td><td><span class="pill p-info">Public</span></td></tr>
-          <tr><td class="mono">/signup</td><td>Create an organisation</td><td><span class="pill p-info">Public</span></td></tr>
+          <tr><td class="mono">/signup</td><td>Create an organisation. Disabled in production — <code>ALLOW_PUBLIC_SIGNUP</code> is forced false there, so onboarding is by invitation</td><td><span class="pill p-info">Public</span></td></tr>
+          <tr><td class="mono">/w/[slug]/login</td><td>A client's own sign-in, addressed by workspace slug</td><td><span class="pill p-info">Public</span></td></tr>
+          <tr><td class="mono">/platform/login</td><td>Platform staff sign-in, separate from any client's</td><td><span class="pill p-info">Public</span></td></tr>
+          <tr><td class="mono">/platform/join</td><td>Accept a platform staff invitation and set a password</td><td><span class="pill p-info">Token</span></td></tr>
+          <tr><td class="mono">/platform</td><td>Platform console — provision a client workspace</td><td><span class="pill p-stop">Platform admin</span></td></tr>
           <tr><td class="mono">/invite</td><td>Accept an invitation</td><td><span class="pill p-info">Token</span></td></tr>
           <tr><td class="mono">/dashboard</td><td>Companies portfolio — every employer, ordered by what needs attention</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/upload</td><td>Upload and validate a register</td><td><span class="pill p-warn">Write roles</span></td></tr>
@@ -408,6 +423,10 @@
           <tr><td class="mono">/config/bank-profiles</td><td>Bank file layouts</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/jv-templates</td><td>JV templates</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/team</td><td>Users and roles within the organisation</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/companies</td><td>Group companies — the entities in this organisation</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/minimum-wage</td><td>Minimum wage rates by state and skill category</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/validation-matrix</td><td>Validation decision matrix — which rules run and how</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/upload</td><td>Bulk configuration upload</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/rule-engine/formula</td><td>Formula editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/rule-engine/slabs</td><td>Slab editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/admin/users</td><td>Platform accounts and roles</td><td><span class="pill p-stop">Platform admin</span></td></tr>
@@ -464,6 +483,11 @@
       <table>
         <thead><tr><th>Endpoint</th><th>Does</th></tr></thead>
         <tbody>
+          <tr><td class="mono">GET /api/admin/staff</td><td>List platform staff</td></tr>
+          <tr><td class="mono">PATCH /api/admin/staff/{user_id}/role</td><td>Change a staff member's platform role</td></tr>
+          <tr><td class="mono">POST /api/admin/staff/invitations</td><td>Invite platform staff — the only way in, there is no public staff signup</td></tr>
+          <tr><td class="mono">GET /api/admin/organizations</td><td>List client workspaces</td></tr>
+          <tr><td class="mono">POST /api/admin/organizations</td><td>Provision a client workspace</td></tr>
           <tr><td class="mono">GET /api/admin/users</td><td>List platform accounts</td></tr>
           <tr><td class="mono">PATCH /api/admin/users/{target_id}/role</td><td>Grant or revoke the admin role</td></tr>
           <tr><td class="mono">GET /api/admin/support/organizations</td><td>Which organisations exist, and their support policy</td></tr>
@@ -475,7 +499,13 @@
     </div>
 
     <h3>Making yourself an admin</h3>
-    <p>The first user to sign up on a fresh installation becomes the platform admin. After that, an existing admin promotes others from <code>/admin/users</code>. There is no environment variable, no seed account with a default password, and no console command — deliberately, because each of those is a credential that ends up in a repository.</p>
+    <p>The first user to sign up on a fresh installation becomes the platform admin. There is no
+    environment variable, no seed account with a default password, and no console command —
+    deliberately, because each of those is a credential that ends up in a repository.</p>
+    <p>After that, staff are <strong>invited, not promoted from the client population</strong>:
+    an existing admin issues an invitation, the recipient accepts it at <code>/platform/join</code>
+    and sets their own password. Platform staff and client users are now separate populations with
+    separate sign-in pages, so there is no path from an ordinary client account to platform access.</p>
   </section>
 
   <!-- ============================================ -->
@@ -628,6 +658,7 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
           <tr><td class="mono">DATABASE_URL</td><td class="mono">sqlite</td><td><code>postgres://</code> is normalised automatically</td></tr>
           <tr><td class="mono">JWT_SECRET</td><td>—</td><td>Unset in production means an ephemeral secret and tokens dying on every restart</td></tr>
           <tr><td class="mono">ALLOW_ANONYMOUS_API</td><td class="mono">true</td><td>Forced to <code>false</code> in production regardless</td></tr>
+          <tr><td class="mono">ALLOW_PUBLIC_SIGNUP</td><td class="mono">true</td><td>Also forced <code>false</code> in production. Onboarding there is invitation-only, through the platform console</td></tr>
           <tr><td class="mono">CORS_ORIGINS</td><td class="mono">localhost:3000, peopleopslab.in</td><td>Comma-separated. A browser calling from anywhere else is refused</td></tr>
           <tr><td class="mono">BACKEND_URL</td><td>—</td><td>Where the Next.js relay forwards. Server-side only, never <code>NEXT_PUBLIC_</code></td></tr>
           <tr><td class="mono">VALIDATION_WORKER_ENABLED</td><td class="mono">false</td><td>Starts background worker threads in the API container</td></tr>
