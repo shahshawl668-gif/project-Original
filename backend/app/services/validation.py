@@ -369,8 +369,10 @@ def lookup_lwf(
     Each tenant row stores the per-period employee contribution in
     `deduction_amount` and the per-period employer contribution in
     `employer_amount`. The validator converts both to a monthly equivalent
-    by dividing by the slab's frequency factor (1 for monthly, 6 for
-    half-yearly, 12 for yearly).
+    by dividing by the slab's frequency factor for accrual-only rows. Rows
+    with explicit contribution months are due in full in those months and
+    zero in the other months. Maharashtra half-yearly rows follow the June
+    and December employee register dates in the 2024 amendment.
     """
     if not state or wage <= 0:
         # No LWF-flagged wages this month (or no state): no LWF expectation.
@@ -397,8 +399,16 @@ def lookup_lwf(
                 if lo <= w_period <= hi:
                     emp_period = Decimal(str(r.deduction_amount))
                     er_period = Decimal(str(r.employer_amount or 0))
-                    emp_monthly = _q(emp_period / Decimal(str(factor)))
-                    er_monthly = _q(er_period / Decimal(str(factor)))
+                    months = r.applicable_months or (
+                        [6, 12] if state == "Maharashtra" and r.frequency == "half-yearly" else None
+                    )
+                    if months:
+                        due = as_of.month in months
+                        emp_monthly = emp_period if due else Decimal("0")
+                        er_monthly = er_period if due else Decimal("0")
+                    else:
+                        emp_monthly = _q(emp_period / Decimal(str(factor)))
+                        er_monthly = _q(er_period / Decimal(str(factor)))
                     return emp_period, er_period, emp_monthly, er_monthly
             return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
