@@ -276,7 +276,7 @@ def test_karnataka_lwf_annual_deduction_is_in_december(client):
     rows = data(response)["slabs"]
     assert rows[0]["effective_from"] == "2025-01-10"
     assert rows[0]["applicable_months"] == [12]
-    assert "klwb.karnataka.gov.in" in rows[0]["source_reference"]
+    assert "indiacode.nic.in" in rows[0]["source_reference"]
     db = SessionLocal()
     try:
         from app.services.validation import lookup_lwf
