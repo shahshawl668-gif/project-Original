@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
+import { clearPayrollResults, tagPayrollResultsForCurrentEntity } from "@/lib/payroll-session";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
@@ -200,6 +201,8 @@ export default function UploadPage() {
         findings_summary?: unknown;
         risk_scores?: unknown[];
       };
+      clearPayrollResults();
+      tagPayrollResultsForCurrentEntity();
       sessionStorage.setItem("payroll_results", JSON.stringify(data.results));
       sessionStorage.setItem("payroll_findings", JSON.stringify(data.findings || []));
       sessionStorage.setItem("payroll_findings_summary", JSON.stringify(data.findings_summary || {}));
