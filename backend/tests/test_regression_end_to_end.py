@@ -611,18 +611,10 @@ def test_the_voucher_credits_the_same_net_the_dashboard_computes(
     assert round(salary_payable, 2) == round(analysis["totals"]["net"], 2)
 
 
-def test_the_bank_is_reconciled_against_the_net_the_register_itself_stated(
+def test_the_bank_does_not_invent_an_annual_lwf_deduction_in_april(
     client, company, bank_files
 ):
-    """
-    Stated net and computed net differ here, and that is correct.
-
-    This register states PF, ESI, PT and TDS but no LWF, so the engine fills
-    the LWF in and computed net comes out lower than the net the register
-    declared. The bank file was instructed with the *stated* figure, so that is
-    what it is reconciled against — and the gap between the two is reported as
-    an exception rather than quietly resolved in either direction.
-    """
+    """April bank reconciliation should not include December-only Karnataka LWF."""
     analysis = data(client.get(
         "/api/bi/cost-analysis?date_from=2026-04-01&date_to=2026-04-01", headers=company
     ))
@@ -633,11 +625,10 @@ def test_the_bank_is_reconciled_against_the_net_the_register_itself_stated(
     # A clean month: the file pays exactly what the register said it would.
     assert round(recon["summary"]["paid_total"], 2) == round(recon["summary"]["due_total"], 2)
 
-    # And the gap against the taxonomy is exactly the deduction the register
-    # never itemised — not a rounding drift, and not unexplained.
-    gap = recon["summary"]["due_total"] - analysis["totals"]["net"]
-    assert round(gap, 2) == round(analysis["totals"]["ee_lwf"], 2)
-    assert any(e["code"] == "net.stated_vs_computed" for e in recon["exceptions"])
+    # The contribution is annual and belongs to December wages.
+    assert analysis["totals"]["ee_lwf"] == 0
+    assert round(recon["summary"]["due_total"] - analysis["totals"]["net"], 2) == 0
+    assert not any(e["code"] == "net.stated_vs_computed" for e in recon["exceptions"])
 
 
 def test_headcount_is_one_number_across_the_register_the_dashboard_and_the_voucher(
