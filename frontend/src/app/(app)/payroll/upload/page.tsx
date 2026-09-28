@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
+import { apiFetch, getActiveEntityId, parseEnvelopeResponse } from "@/lib/api";
 import { clearPayrollResults, tagPayrollResultsForCurrentEntity } from "@/lib/payroll-session";
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -110,6 +110,7 @@ export default function UploadPage() {
 
   const parseUpload = useCallback(async () => {
     if (!file) return;
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     const fd = new FormData();
@@ -124,6 +125,10 @@ export default function UploadPage() {
     try {
       const res = await apiFetch("/api/payroll/preview", { method: "POST", body: fd });
       data = await parseEnvelopeResponse(res);
+      if (getActiveEntityId() !== requestEntityId) {
+        setBusy(false);
+        return;
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload failed — check your file format.";
       setError(msg);
@@ -163,6 +168,7 @@ export default function UploadPage() {
       setError("Map the Employee ID column before uploading.");
       return;
     }
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     try {
@@ -178,6 +184,7 @@ export default function UploadPage() {
         columns: string[]; preview: PreviewRow[]; employees: PreviewRow[];
         missing_required: string[]; warnings: string[];
       }>(res);
+      if (getActiveEntityId() !== requestEntityId) return;
       setColumns(data.columns);
       setPreview(data.preview);
       setEmployees(data.employees);
@@ -210,6 +217,7 @@ export default function UploadPage() {
       toast.error("Nothing to validate", { description: "Parse the register before running validation." });
       return;
     }
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     try {
@@ -229,6 +237,7 @@ export default function UploadPage() {
         findings_summary?: unknown;
         risk_scores?: unknown[];
       };
+      if (getActiveEntityId() !== requestEntityId) return;
       clearPayrollResults();
       tagPayrollResultsForCurrentEntity();
       sessionStorage.setItem("payroll_results", JSON.stringify(data.results));
