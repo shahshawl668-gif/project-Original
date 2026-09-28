@@ -1,15 +1,18 @@
-from app.models.user import PasswordResetToken, RefreshToken, User
+from app.models.user import PasswordResetToken, PlatformInvitation, RefreshToken, User
 from app.models.org import (
     ORG_ROLE_RANK,
     ORG_ROLES,
     Entity,
     EntityAccess,
+    EntityRoleOverride,
     OrgMembership,
     Organization,
 )
 from app.models.component import ComponentConfig
+from app.models.import_profile import ImportProfile
 from app.models.reference import PtSlab, LwfRate
 from app.models.minimum_wage import MinimumWageRate
+from app.models.minimum_wage_applicability import MinimumWageApplicability
 from app.models.payroll_run import PayrollRun
 from app.models.statutory import StatutorySettings
 from app.models.statutory_config import StatutoryConfig
@@ -38,6 +41,7 @@ from app.models.support import (
     SUPPORT_POLICIES,
     SupportAccessGrant,
 )
+from app.models.validation_rule import ValidationRuleVersion
 from app.models.validation_job import (
     ACTIVE_STATES,
     CHUNK_SIZE,
@@ -69,11 +73,15 @@ __all__ = [
     "Entity",
     "OrgMembership",
     "EntityAccess",
+    "EntityRoleOverride",
     "RefreshToken",
     "PasswordResetToken",
+    "PlatformInvitation",
     "ComponentConfig",
+    "ImportProfile",
     "PtSlab",
     "MinimumWageRate",
+    "MinimumWageApplicability",
     "LwfRate",
     "PayrollRun",
     "StatutorySettings",
@@ -90,6 +98,7 @@ __all__ = [
     "SlabRule",
     "TenantRulePreference",
     "ValidationRun",
+    "ValidationRuleVersion",
     "FindingRecord",
     "FindingState",
     "FindingStateEvent",

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import uuid
+import secrets
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,14 +17,105 @@ from app.models import (
     DEFAULT_MINUTES,
     MAX_MINUTES,
     OrgMembership,
+    Entity,
     Organization,
+    PlatformInvitation,
     SupportAccessGrant,
     User,
 )
 from app.schemas.auth import AdminRoleUpdate, UserOut
-from app.services import audit, support_access, tenancy
+from app.security import token_fingerprint
+from app.services import audit, invitations, support_access, tenancy
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+class StaffInviteRequest(BaseModel):
+    email: EmailStr
+    role: str = Field(pattern="^(admin|support)$")
+
+
+class StaffRoleUpdate(BaseModel):
+    role: str = Field(pattern="^(admin|support|none)$")
+
+
+@router.get("/staff")
+def list_staff(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role != "owner":
+        raise HTTPException(status_code=403, detail="Platform owner required")
+    rows = db.query(User).filter(User.platform_role.is_not(None)).order_by(User.email).all()
+    return ok([{"id": str(u.id), "email": u.email, "role": u.platform_role} for u in rows])
+
+
+@router.patch("/staff/{user_id}/role")
+def update_staff_role(user_id: uuid.UUID, body: StaffRoleUpdate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role != "owner":
+        raise HTTPException(status_code=403, detail="Platform owner required")
+    target = db.get(User, user_id)
+    if not target or target.platform_role not in {"admin", "support"}:
+        raise HTTPException(status_code=404, detail="Staff account not found")
+    target.platform_role = None if body.role == "none" else body.role
+    db.commit()
+    return ok({"id": str(target.id), "email": target.email, "role": target.platform_role})
+
+
+@router.post("/staff/invitations", status_code=201)
+def invite_platform_staff(body: StaffInviteRequest, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role != "owner":
+        raise HTTPException(status_code=403, detail="Platform owner required")
+    email = str(body.email).lower()
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="This email already has an account")
+    db.query(PlatformInvitation).filter(PlatformInvitation.email == email, PlatformInvitation.used_at.is_(None)).update({"used_at": datetime.now(UTC)})
+    token = secrets.token_urlsafe(32)
+    invite = PlatformInvitation(email=email, role=body.role, token_hash=token_fingerprint(token),
+                                invited_by_user_id=admin.id, expires_at=datetime.now(UTC) + timedelta(days=7))
+    db.add(invite)
+    db.commit()
+    return ok({"email": email, "role": body.role, "invitation_path": f"/platform/join?token={token}"})
+
+
+class WorkspaceProvision(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+    owner_email: EmailStr
+    org_type: str = Field(default="enterprise", pattern="^(enterprise|practice)$")
+    products: list[str] = Field(default_factory=lambda: ["payroll-validation"])
+
+
+@router.get("/organizations")
+def list_organizations(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role not in {"owner", "admin"}:
+        raise HTTPException(status_code=403, detail="Platform administrator required")
+    rows = db.query(Organization).order_by(Organization.created_at.desc()).limit(200).all()
+    return ok([{"id": str(o.id), "name": o.name, "slug": o.slug, "cell": o.deployment_cell,
+                "products": o.enabled_products, "login_path": f"/w/{o.slug}/login"} for o in rows])
+
+
+@router.post("/organizations", status_code=201)
+def provision_organization(body: WorkspaceProvision, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin.platform_role not in {"owner", "admin"}:
+        raise HTTPException(status_code=403, detail="Platform administrator required")
+    if not body.products or any(p not in {"payroll-validation"} for p in body.products):
+        raise HTTPException(status_code=400, detail="Unknown product")
+    org = Organization(name=body.name.strip(), slug=tenancy.unique_org_slug(db, body.name),
+                       org_type=body.org_type, enabled_products=list(set(body.products)))
+    db.add(org)
+    db.flush()
+    entity = Entity(org_id=org.id, name=org.name, legal_name=org.name,
+                    code=tenancy.unique_entity_code(db, org.id, org.name), is_active=True)
+    db.add(entity)
+    try:
+        issued = invitations.create(db, org_id=org.id, actor=admin, actor_role="owner",
+                                    email=str(body.owner_email), role="owner")
+    except invitations.InvitationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+    audit.record(db, entity_id=None, org_id=org.id, user=admin, action="platform.org.provision",
+                 object_type="organization", summary=f"Provisioned {org.name} and invited its owner")
+    db.commit()
+    return ok({"id": str(org.id), "name": org.name, "slug": org.slug, "cell": org.deployment_cell,
+               "products": org.enabled_products, "login_path": f"/w/{org.slug}/login",
+               "invitation_path": f"/invite?token={issued.token}"})
 
 
 def _admin_count(db: Session) -> int:

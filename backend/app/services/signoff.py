@@ -20,13 +20,17 @@ from sqlalchemy.orm import Session
 from app.models import (
     Entity,
     FindingState,
+    FindingRecord,
+    ValidationRuleVersion,
+    SlabRule,
+    TenantRulePreference,
     MinimumWageRate,
     PeriodSignOff,
     SignOffEvent,
     User,
     ValidationRun,
 )
-from app.services import analytics
+from app.services import analytics, validation_matrix
 from app.services.config_service import ConfigService
 
 
@@ -149,6 +153,32 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
             "statutory": config_service.get_full_config(entity.id).model_dump(mode="json"),
             "rule_thresholds": config_service.get_rule_thresholds(entity.id).model_dump(mode="json"),
             "exposure": exposure_config.model_dump(mode="json"),
+            "validation_matrix_rules": [
+                {
+                    "id": str(rule.id), "rule_key": rule.rule_key, "version": rule.version,
+                    "category": rule.category, "condition": rule.condition,
+                    "assertion": rule.assertion, "source_reference": rule.source_reference,
+                    "effective_from": rule.effective_from.isoformat(),
+                    "approved_by": str(rule.approved_by) if rule.approved_by else None,
+                }
+                for rule in validation_matrix.published_for(db, entity.id, period_month)
+            ],
+            "pt_lwf_slabs": [
+                {
+                    "state": row.state, "rule_type": row.rule_type,
+                    "min_salary": str(row.min_salary), "max_salary": str(row.max_salary),
+                    "deduction_amount": str(row.deduction_amount),
+                    "employer_amount": str(row.employer_amount or 0),
+                    "frequency": row.frequency, "gender": row.gender,
+                    "applicable_months": row.applicable_months,
+                    "effective_from": row.effective_from.isoformat() if row.effective_from else None,
+                    "effective_to": row.effective_to.isoformat() if row.effective_to else None,
+                    "source_reference": row.source_reference,
+                }
+                for row in db.query(SlabRule).filter(SlabRule.entity_id == entity.id).all()
+                if (row.effective_from is None or row.effective_from <= period_month)
+                and (row.effective_to is None or row.effective_to >= period_month)
+            ],
             "minimum_wage_rates": [
                 {
                     "state": r.state,
@@ -231,6 +261,10 @@ def submit(db: Session, entity: Entity, period_month: date, actor: User, notes: 
     return signoff
 
 
+class MatrixSignoffBlocked(Exception):
+    pass
+
+
 def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) -> PeriodSignOff:
     """
     Approve the period.
@@ -244,6 +278,34 @@ def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) ->
     entity = db.get(Entity, signoff.entity_id)
 
     snapshot = build_snapshot(db, entity, signoff.period_month)
+    current_run = db.query(ValidationRun).filter(
+        ValidationRun.entity_id == entity.id,
+        ValidationRun.period_month == signoff.period_month,
+    ).first()
+    if current_run:
+        suppressed = {
+            rule_id for (rule_id,) in db.query(TenantRulePreference.rule_id).filter(
+                TenantRulePreference.entity_id == entity.id,
+                TenantRulePreference.suppressed.is_(True),
+            ).all()
+        }
+        blocked = {
+            record.fingerprint for record, version in db.query(FindingRecord, ValidationRuleVersion).join(
+                ValidationRuleVersion, FindingRecord.rule_version_id == ValidationRuleVersion.id
+            ).filter(
+                FindingRecord.run_id == current_run.id,
+                ValidationRuleVersion.blocks_signoff.is_(True),
+                ValidationRuleVersion.rule_key.notin_(suppressed),
+            ).all()
+        }
+        unresolved = [
+            finding for finding in snapshot["outstanding_findings"]
+            if finding["fingerprint"] in blocked
+        ]
+        if unresolved:
+            raise MatrixSignoffBlocked(
+                f"{len(unresolved)} blocking matrix finding(s) need resolution or a documented waiver"
+            )
     signoff.snapshot = snapshot
     signoff.snapshot_digest = digest(snapshot)
     signoff.state = "signed"

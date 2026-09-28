@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { useAuth } from "@/context/AuthContext";
+import { clearPayrollResults } from "@/lib/payroll-session";
 import {
   apiFetch,
   getActiveEntityId,
@@ -27,6 +28,7 @@ export type Entity = {
   esic_employer_code: string | null;
   tan: string | null;
   pan: string | null;
+  cin: string | null;
   primary_state: string | null;
   is_active: boolean;
 };
@@ -40,6 +42,9 @@ export type Organization = {
 type OrgContextPayload = {
   organization: Organization | null;
   role: string | null;
+  active_role: string | null;
+  entity_roles: Record<string, string>;
+  can_manage_group: boolean;
   active_entity: Entity | null;
   entities: Entity[];
 };
@@ -47,6 +52,9 @@ type OrgContextPayload = {
 type EntityContextValue = {
   organization: Organization | null;
   role: string | null;
+  activeRole: string | null;
+  entityRoles: Record<string, string>;
+  canManageGroup: boolean;
   entity: Entity | null;
   entities: Entity[];
   /** A practice has clients to switch between; an enterprise usually does not. */
@@ -92,9 +100,15 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
     async (entityId: string) => {
       // Set it locally first so the request that persists the choice is itself
       // made against the new entity, then reload everything downstream.
+      const previous = getActiveEntityId();
       setActiveEntityId(entityId);
       try {
-        await apiFetch(`/api/org/entities/${entityId}/select`, { method: "POST" });
+        const res = await apiFetch(`/api/org/entities/${entityId}/select`, { method: "POST" });
+        await parseEnvelopeResponse(res);
+        if (previous !== entityId) clearPayrollResults();
+      } catch (err) {
+        setActiveEntityId(previous);
+        throw err;
       } finally {
         await reload();
       }
@@ -107,6 +121,9 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
     return {
       organization: payload?.organization ?? null,
       role: payload?.role ?? null,
+      activeRole: payload?.active_role ?? null,
+      entityRoles: payload?.entity_roles ?? {},
+      canManageGroup: payload?.can_manage_group ?? false,
       entity: payload?.active_entity ?? null,
       entities,
       isMultiEntity: entities.length > 1 || payload?.organization?.org_type === "practice",

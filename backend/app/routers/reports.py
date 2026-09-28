@@ -38,7 +38,7 @@ def catalogue(
     always 403s teaches people to ignore errors.
     """
     allowed = getattr(entity, "pay_equity_enabled", False) and tenancy.role_at_least(
-        db, user, "manager"
+        db, user, "manager", entity
     )
     reports = [
         report for report in reporting.catalogue()
@@ -76,7 +76,7 @@ def download(
                 status_code=403,
                 detail="Pay equity analysis is not enabled for this entity.",
             )
-        if not tenancy.role_at_least(db, user, "manager"):
+        if not tenancy.role_at_least(db, user, "manager", entity):
             raise HTTPException(
                 status_code=403,
                 detail="Pay equity analysis is restricted to owners and managers.",

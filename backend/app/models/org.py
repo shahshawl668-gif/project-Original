@@ -20,6 +20,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     ForeignKey,
@@ -45,6 +46,10 @@ class Organization(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Stable URL handle; the UUID remains the security and data key.
+    slug: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    deployment_cell: Mapped[str] = mapped_column(String(64), nullable=False, default="primary", server_default="primary")
+    enabled_products: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     # practice | enterprise — affects defaults and UI copy, never access control.
     org_type: Mapped[str] = mapped_column(String(32), nullable=False, default="enterprise")
     # Whether platform staff may read this organization's data to support it,
@@ -160,4 +165,24 @@ class EntityAccess(Base):
     entity_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EntityRoleOverride(Base):
+    """An optional company-specific role; membership.role remains the default."""
+
+    __tablename__ = "entity_role_overrides"
+    __table_args__ = (UniqueConstraint("user_id", "entity_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

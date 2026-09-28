@@ -158,7 +158,10 @@ def sign(
     row = _load(db, entity, body.period_month)
     if row.state == "signed":
         raise HTTPException(status_code=400, detail="This period is already signed")
-    signoff_service.sign(db, row, user, body.notes)
+    try:
+        signoff_service.sign(db, row, user, body.notes)
+    except signoff_service.MatrixSignoffBlocked as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     db.commit()
     db.refresh(row)
     return ok(_out(row))

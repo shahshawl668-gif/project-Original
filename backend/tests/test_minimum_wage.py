@@ -267,3 +267,35 @@ def test_coverage_report_names_the_gaps(client, workspace):
     assert report["missing"] == [{"state": "Tamil Nadu", "skill_category": "unskilled"}]
     assert report["employees_without_classification"] == 1
     assert report["coverage_pct"] == 50.0
+
+
+def test_minimum_wage_requires_an_explicit_effective_dated_yes_or_no(client, workspace):
+    _, _, headers = workspace
+    unconfigured = client.post("/api/minimum-wage/check?period=2025-06-01", headers=headers)
+    assert unconfigured.status_code == 409
+
+    no_reason = client.post("/api/minimum-wage/applicability", headers=headers, json={
+        "effective_from": "2025-04-01", "applicable": False,
+    })
+    assert no_reason.status_code == 422
+
+    excluded = client.post("/api/minimum-wage/applicability", headers=headers, json={
+        "effective_from": "2025-04-01", "applicable": False,
+        "reason": "Reviewed scope for this entity", "source_reference": "Legal review A",
+    })
+    assert excluded.status_code == 200, excluded.text
+    skipped = client.post("/api/minimum-wage/check?period=2025-06-01", headers=headers)
+    assert skipped.status_code == 200
+    assert skipped.json()["data"]["status"] == "not_applicable"
+    assert skipped.json()["data"]["findings"] == []
+
+    included = client.post("/api/minimum-wage/applicability", headers=headers, json={
+        "effective_from": "2026-04-01", "applicable": True,
+        "source_reference": "Notification B",
+    })
+    assert included.status_code == 200, included.text
+    historical = client.get("/api/minimum-wage/applicability?as_of=2025-06-30", headers=headers)
+    assert historical.json()["data"]["current"]["applicable"] is False
+    current = client.get("/api/minimum-wage/applicability?as_of=2026-06-30", headers=headers)
+    assert current.json()["data"]["current"]["applicable"] is True
+    assert len(current.json()["data"]["history"]) == 2

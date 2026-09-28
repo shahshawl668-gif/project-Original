@@ -126,17 +126,23 @@ export type TokenPairData = {
 };
 
 /** Decode JWT payload (browser only; no crypto verification — used for expiry scheduling). */
-export function parseJwtPayload(token: string): { exp?: number } | null {
+export function parseJwtPayload(token: string): { exp?: number; portal?: string } | null {
   try {
     const parts = token.split(".");
     if (parts.length < 2) return null;
     const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
     const json = atob(b64 + pad);
-    return JSON.parse(json) as { exp?: number };
+    return JSON.parse(json) as { exp?: number; portal?: string };
   } catch {
     return null;
   }
+}
+
+/** UI routing hint only; the API enforces the actual portal authorization. */
+export function getSessionPortal(): string | null {
+  const token = getAccessToken();
+  return token ? parseJwtPayload(token)?.portal ?? "client" : null;
 }
 
 function authHeader(): Record<string, string> {
@@ -191,9 +197,13 @@ async function shouldFallbackToDirect(res: Response): Promise<boolean> {
 
 async function fetchWithProxyFallback(path: string, init: RequestInit): Promise<Response> {
   const usingProxy = usesServerSideProxy();
+  // Authentication must use one configured API endpoint. A proxy failure
+  // should be shown to the user, never retried against a second host where
+  // sessions, rate limits and credentials may differ.
+  const isAuth = path.startsWith("/api/auth/");
   try {
     const res = await fetch(apiAbsoluteUrl(path), init);
-    if (usingProxy && (await shouldFallbackToDirect(res))) {
+    if (usingProxy && !isAuth && (await shouldFallbackToDirect(res))) {
       try {
         const direct = await fetch(directApiUrl(path), init);
         if (direct.status !== 502) return direct;
@@ -203,7 +213,7 @@ async function fetchWithProxyFallback(path: string, init: RequestInit): Promise<
     }
     return res;
   } catch (e) {
-    if (usingProxy && e instanceof TypeError) {
+    if (usingProxy && !isAuth && e instanceof TypeError) {
       // Proxy path itself is unreachable; attempt direct API call.
       return fetch(directApiUrl(path), init);
     }
@@ -235,6 +245,8 @@ export async function refreshSession(): Promise<boolean> {
         } catch {
           return false;
         }
+        // A refresh that started before login/logout must not replace that newer session.
+        if (getRefreshToken() !== rt) return false;
         if (!res.ok || !body?.success || !body.data?.access_token || !body.data?.refresh_token) {
           clearTokens();
           return false;
@@ -321,12 +333,28 @@ function formatErrorDetail(detail: unknown): string {
 /** An API failure that still remembers which status produced it. */
 export class ApiError extends Error {
   readonly status: number;
+  readonly retryAfterSeconds: number | null;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfterSeconds: number | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+function retryAfterSeconds(res: Response): number | null {
+  const raw = res.headers.get("Retry-After");
+  if (!raw) return null;
+  const seconds = /^\d+$/.test(raw) ? Number(raw) : Math.ceil((Date.parse(raw) - Date.now()) / 1000);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 86400) : null;
+}
+
+function rateLimitMessage(res: Response): string {
+  const seconds = retryAfterSeconds(res);
+  return seconds === null
+    ? "Sign-in is temporarily rate limited. Please wait before trying again."
+    : `Sign-in is temporarily rate limited. Please try again in ${seconds} seconds.`;
 }
 
 export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
@@ -335,6 +363,9 @@ export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
   try {
     body = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
   } catch {
+    if (res.status === 429) {
+      throw new ApiError(rateLimitMessage(res), res.status, retryAfterSeconds(res));
+    }
     throw new ApiError(`Invalid JSON (${res.status})`, res.status);
   }
   const env = body as ApiEnvelope<T>;
@@ -342,8 +373,8 @@ export async function parseEnvelopeResponse<T>(res: Response): Promise<T> {
     const errObj = env && typeof env === "object" && "error" in env ? env.error : null;
     const fallback =
       typeof body === "object" && body && "detail" in body ? (body as { detail: unknown }).detail : undefined;
-    const detail = errObj?.detail ?? fallback ?? `HTTP ${res.status}`;
-    throw new ApiError(formatErrorDetail(detail), res.status);
+    const detail = res.status === 429 ? rateLimitMessage(res) : errObj?.detail ?? fallback ?? `HTTP ${res.status}`;
+    throw new ApiError(formatErrorDetail(detail), res.status, retryAfterSeconds(res));
   }
   return env.data;
 }

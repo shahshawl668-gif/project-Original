@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -69,6 +69,9 @@ class SlabRow(BaseModel):
     gender: Gender = "ALL"
     # Months 1..12 the row applies in. None / [] = every month.
     applicable_months: list[int] | None = None
+    effective_from: date | None = None
+    effective_to: date | None = None
+    source_reference: str | None = Field(default=None, max_length=1000)
 
     @field_validator("applicable_months", mode="before")
     @classmethod

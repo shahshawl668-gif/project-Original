@@ -28,7 +28,7 @@ class ValidateRequest(BaseModel):
     effective_month_to: date | None = None
     as_of_date: date | None = Field(
         default=None,
-        description="Reference date for PT/LWF slab lookup (defaults to today).",
+        description="Reference date for statutory rules (defaults to the payroll period end).",
     )
 
 

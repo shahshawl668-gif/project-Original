@@ -41,6 +41,7 @@ import {
   resendInvitation,
   revokeInvitation,
   updateMember,
+  updateCompanyRole,
   type Invitation,
   type Member,
   type OrgRole,
@@ -68,7 +69,7 @@ export default function TeamPage() {
   const [issued, setIssued] = useState<Invitation | null>(null);
 
   const { data: context } = useQuery({ queryKey: ["org-context"], queryFn: fetchContext });
-  const { data: members } = useQuery({ queryKey: ["org-members"], queryFn: fetchMembers });
+  const { data: members, error: membersError } = useQuery({ queryKey: ["org-members"], queryFn: fetchMembers });
   const { data: invitations } = useQuery({
     queryKey: ["org-invitations"],
     queryFn: fetchInvitations,
@@ -104,6 +105,16 @@ export default function TeamPage() {
     onError: (err: Error) => setError(err.message),
   });
 
+  const companyRole = useMutation({
+    mutationFn: ({ userId, entityId, role }: { userId: string; entityId: string; role: OrgRole | null }) =>
+      updateCompanyRole(userId, entityId, role),
+    onSuccess: () => {
+      setError(null);
+      refresh();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
   const drop = useMutation({
     mutationFn: removeMember,
     onSuccess: () => {
@@ -131,6 +142,10 @@ export default function TeamPage() {
     },
     onError: (err: Error) => setError(err.message),
   });
+
+  if (membersError) {
+    return <div className="space-y-6"><PageHeader title="Team" description="Group owners manage invitations and company access." /><AlertBanner variant="warning" title="Team administration unavailable">{membersError.message}</AlertBanner></div>;
+  }
 
   const pending = (invitations ?? []).filter((i) => i.state === "pending" || i.state === "expired");
   const history = (invitations ?? []).filter((i) => i.state === "accepted" || i.state === "revoked");
@@ -174,11 +189,12 @@ export default function TeamPage() {
                 member={member}
                 myRole={myRole}
                 entities={entities}
-                busy={patch.isPending || drop.isPending}
+                busy={patch.isPending || drop.isPending || companyRole.isPending}
                 onRole={(role) => patch.mutate({ userId: member.user_id, body: { role } })}
                 onScope={(entity_ids) =>
                   patch.mutate({ userId: member.user_id, body: { entity_ids } })
                 }
+                onCompanyRole={(entityId, role) => companyRole.mutate({ userId: member.user_id, entityId, role })}
                 onRemove={() => drop.mutate(member.user_id)}
               />
             ))}
@@ -368,8 +384,7 @@ function InviteForm({
           <UserPlus size={16} className="text-ink-400" /> Invite someone
         </h3>
         <p className="pb-4 text-xs text-ink-500 dark:text-ink-400">
-          You can only invite at your own level or below. Leave the entities empty to give
-          access to all of them.
+          Choose a role and company access. All companies also includes companies added later.
         </p>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -412,14 +427,14 @@ function InviteForm({
 
           <Menu
             label="Entities"
-            summary={scope.length === 0 ? "All entities" : `${scope.length} selected`}
+            summary={scope.length === 0 ? "All companies" : `${scope.length} companies`}
             count={scope.length || undefined}
             width="w-72"
           >
             {() => (
               <>
                 <MenuItem selected={scope.length === 0} onClick={() => setScope([])}>
-                  All entities
+                  All companies, including future additions
                 </MenuItem>
                 {entities.map((entity) => (
                   <MenuItem
@@ -428,7 +443,7 @@ function InviteForm({
                     onClick={() =>
                       setScope((current) =>
                         current.includes(entity.id)
-                          ? current.filter((id) => id !== entity.id)
+                          ? (current.length > 1 ? current.filter((id) => id !== entity.id) : current)
                           : [...current, entity.id],
                       )
                     }
@@ -462,6 +477,7 @@ function MemberRow({
   busy,
   onRole,
   onScope,
+  onCompanyRole,
   onRemove,
 }: {
   member: Member;
@@ -470,6 +486,7 @@ function MemberRow({
   busy: boolean;
   onRole: (role: OrgRole) => void;
   onScope: (entityIds: string[]) => void;
+  onCompanyRole: (entityId: string, role: OrgRole | null) => void;
   onRemove: () => void;
 }) {
   // You cannot act on yourself, nor on anyone whose role is wider than yours.
@@ -477,7 +494,8 @@ function MemberRow({
   const grantable = ROLES.filter((r) => canGrant(myRole, r.key));
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+    <div className="py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900 dark:text-white">
           {member.email}
@@ -489,8 +507,8 @@ function MemberRow({
         </p>
         <p className="text-xs text-ink-500 dark:text-ink-400">
           {member.entity_ids.length === 0
-            ? "Every entity"
-            : `${member.entity_ids.length} of ${entities.length} entities`}
+            ? "All companies, including future additions"
+            : `${member.entity_ids.length} of ${entities.length} companies`}
           {member.joined_at && ` · joined ${formatWhen(member.joined_at)}`}
         </p>
       </div>
@@ -507,7 +525,7 @@ function MemberRow({
                       selected={option.key === member.role}
                       hint={option.hint}
                       onClick={() => {
-                        if (option.key !== member.role) onRole(option.key);
+                        if (!busy && option.key !== member.role) onRole(option.key);
                         close();
                       }}
                     >
@@ -520,7 +538,7 @@ function MemberRow({
 
             <Menu
               label=""
-              summary={member.entity_ids.length === 0 ? "All entities" : `${member.entity_ids.length} entities`}
+              summary={member.entity_ids.length === 0 ? "All companies" : `${member.entity_ids.length} companies`}
               width="w-72"
               align="right"
             >
@@ -530,16 +548,16 @@ function MemberRow({
                     selected={member.entity_ids.length === 0}
                     onClick={() => onScope([])}
                   >
-                    All entities
+                    All companies, including future additions
                   </MenuItem>
                   {entities.map((entity) => (
                     <MenuItem
                       key={entity.id}
                       selected={member.entity_ids.includes(entity.id)}
                       onClick={() =>
-                        onScope(
+                        !busy && onScope(
                           member.entity_ids.includes(entity.id)
-                            ? member.entity_ids.filter((id) => id !== entity.id)
+                            ? (member.entity_ids.length > 1 ? member.entity_ids.filter((id) => id !== entity.id) : member.entity_ids)
                             : [...member.entity_ids, entity.id],
                         )
                       }
@@ -567,6 +585,30 @@ function MemberRow({
           </span>
         )}
       </div>
+      </div>
+      {mayManage && (
+        <details className="mt-2 rounded-lg border border-ink-200/70 px-3 py-2 text-xs dark:border-ink-700">
+          <summary className="cursor-pointer font-semibold text-brand-700">Company roles</summary>
+          <p className="py-2 text-ink-500">The organization role is the default. A company role overrides it only for that employer.</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {entities.filter((entity) => member.entity_ids.length === 0 || member.entity_ids.includes(entity.id)).map((entity) => (
+              <label key={entity.id} className="flex items-center justify-between gap-2 rounded-lg bg-ink-50 p-2 text-ink-700">
+                <span className="min-w-0 truncate">{entity.name}</span>
+                <select
+                  aria-label={`Role for ${member.email} in ${entity.name}`}
+                  value={member.entity_roles?.[entity.id] ?? ""}
+                  disabled={busy}
+                  onChange={(event) => onCompanyRole(entity.id, (event.target.value || null) as OrgRole | null)}
+                  className="max-w-[10rem] rounded-md border border-ink-200 bg-white px-2 py-1 text-xs"
+                >
+                  <option value="">Default ({ROLE_LABEL[member.role]})</option>
+                  {grantable.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

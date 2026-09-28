@@ -24,10 +24,25 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models import MinimumWageRate
+from app.models import MinimumWageApplicability, MinimumWageRate
 from app.models.minimum_wage import ANY_SCHEDULE, ANY_ZONE
 
 CENT = Decimal("0.01")
+
+
+def applicability_as_of(
+    db: Session, entity_id: uuid.UUID, as_of: date
+) -> MinimumWageApplicability | None:
+    """No matching decision means setup is incomplete, not an implicit Yes or No."""
+    return (
+        db.query(MinimumWageApplicability)
+        .filter(
+            MinimumWageApplicability.entity_id == entity_id,
+            MinimumWageApplicability.effective_from <= as_of,
+        )
+        .order_by(MinimumWageApplicability.effective_from.desc())
+        .first()
+    )
 
 
 def _q(value: Decimal) -> Decimal:
@@ -191,18 +206,20 @@ def _key(rate: MinimumWageRate) -> tuple:
     )
 
 
-def coverage_report(db: Session, entity_id: uuid.UUID, required: list[tuple[str, str]]) -> dict:
+def coverage_report(
+    db: Session, entity_id: uuid.UUID, required: list[tuple[str, str]], as_of: date | None = None
+) -> dict:
     """
     Which (state, skill) combinations present in the workforce have no rate.
 
     Surfaced as its own report so a practice can see the gaps in its rate table
     before a validation run turns each one into a finding.
     """
-    today = date.today()
+    cutoff = as_of or date.today()
     missing = []
     covered = []
     for state, skill in sorted(set(required)):
-        rate = lookup_rate(db, entity_id, state=state, skill_category=skill, as_of=today)
+        rate = lookup_rate(db, entity_id, state=state, skill_category=skill, as_of=cutoff)
         target = covered if rate is not None else missing
         target.append({"state": state, "skill_category": skill})
     return {

@@ -15,7 +15,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.models import Entity, EntityAccess, OrgMembership, Organization, User
+from app.models import Entity, EntityAccess, EntityRoleOverride, OrgMembership, Organization, User
 from app.models.org import ORG_ROLE_RANK
 
 # Actions gated by role. Anything not listed is readable by every member.
@@ -26,6 +26,21 @@ ADMIN_ROLES = ("owner", "manager")
 def slugify_code(name: str, fallback: str = "ENTITY") -> str:
     cleaned = re.sub(r"[^A-Za-z0-9]+", "", (name or "").upper())[:12]
     return cleaned or fallback
+
+
+RESERVED_SLUGS = {"admin", "api", "www", "app", "login", "platform", "support", "sales"}
+
+
+def unique_org_slug(db: Session, name: str) -> str:
+    base = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")[:48] or "client"
+    if base in RESERVED_SLUGS:
+        base += "-client"
+    candidate = base
+    suffix = 2
+    while db.query(Organization.id).filter(Organization.slug == candidate).first():
+        candidate = f"{base[:48]}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def unique_entity_code(db: Session, org_id: uuid.UUID, name: str) -> str:
@@ -58,7 +73,7 @@ def provision_org_for_user(
     entities. Commits nothing — the caller owns the transaction.
     """
     display = (org_name or user.company_name or (user.email or "").split("@")[0] or "My organization").strip()
-    org = Organization(name=display, org_type=org_type)
+    org = Organization(name=display, slug=unique_org_slug(db, display), org_type=org_type)
     db.add(org)
     db.flush()
 
@@ -215,17 +230,30 @@ def can_access_entity(db: Session, user: User, entity: Entity) -> bool:
     )
 
 
-def role_at_least(db: Session, user: User, minimum: str) -> bool:
-    """
-    Whether the user holds at least this role in their own organization.
-
-    Reads membership only, never a support grant — which is what makes a
-    support session read-only without a single explicit check: every mutating
-    endpoint in the product is gated on this, and a support user has no seat.
-    """
+def effective_entity_role(db: Session, user: User, entity: Entity) -> str | None:
+    """Resolve the role for this employer only after checking its access boundary."""
     membership = get_membership(db, user)
-    if membership is None:
+    if membership is None or membership.org_id != entity.org_id:
+        return None
+    if not can_access_entity(db, user, entity):
+        return None
+    override = db.query(EntityRoleOverride).filter(
+        EntityRoleOverride.org_id == entity.org_id,
+        EntityRoleOverride.user_id == user.id,
+        EntityRoleOverride.entity_id == entity.id,
+    ).first()
+    return override.role if override else membership.role
+
+
+def role_at_least(
+    db: Session, user: User, minimum: str, entity: Entity | None = None
+) -> bool:
+    """Check company role for a company action, or org role for an org action."""
+    role = effective_entity_role(db, user, entity) if entity is not None else (
+        membership.role if (membership := get_membership(db, user)) else None
+    )
+    if role is None:
         return False
-    have = ORG_ROLE_RANK.get(membership.role, len(ORG_ROLE_RANK))
+    have = ORG_ROLE_RANK.get(role, len(ORG_ROLE_RANK))
     want = ORG_ROLE_RANK.get(minimum, 0)
     return have <= want

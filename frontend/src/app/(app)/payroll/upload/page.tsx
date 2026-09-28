@@ -1,6 +1,8 @@
 "use client";
 
-import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
+import { apiFetch, getActiveEntityId, parseEnvelopeResponse } from "@/lib/api";
+import { clearPayrollResults, tagPayrollResultsForCurrentEntity } from "@/lib/payroll-session";
+import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
@@ -8,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   UploadCloud,
@@ -22,14 +24,18 @@ import {
   History,
   Info,
   Loader2,
+  Download,
 } from "lucide-react";
 
 type PreviewRow = Record<string, unknown>;
+type ImportProfile = { id: string; name: string; column_mapping: Record<string, string> };
 
 const STEP_LABELS = ["Upload file", "Configure run", "Validate"];
 
 export default function UploadPage() {
   const router = useRouter();
+  const { entity } = useEntity();
+  const previousEntityId = useRef<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [strict, setStrict] = useState(true);
@@ -39,21 +45,64 @@ export default function UploadPage() {
   const [to, setTo] = useState("");
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
+  const [sourceColumns, setSourceColumns] = useState<string[]>([]);
+  const [rawPreview, setRawPreview] = useState<PreviewRow[]>([]);
   const [employees, setEmployees] = useState<PreviewRow[]>([]);
   const [missing, setMissing] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [destinations, setDestinations] = useState<string[]>([]);
+  const [profiles, setProfiles] = useState<ImportProfile[]>([]);
+  const [profileName, setProfileName] = useState("");
+  const [uploaded, setUploaded] = useState(false);
+
+  useEffect(() => {
+    if (!entity?.id) return;
+    if (previousEntityId.current && previousEntityId.current !== entity.id) {
+      setFile(null);
+      setStep(0);
+      setPreview([]);
+      setRawPreview([]);
+      setEmployees([]);
+      setColumns([]);
+      setSourceColumns([]);
+      setMissing([]);
+      setWarnings([]);
+      setMapping({});
+      setDestinations([]);
+      setProfileName("");
+      setUploaded(false);
+      setError(null);
+      setBusy(false);
+      setPeriodMonth("");
+      setFrom("");
+      setTo("");
+    }
+    previousEntityId.current = entity.id;
+    setProfiles([]);
+    let cancelled = false;
+    void apiFetch("/api/payroll/import-profiles").then(parseEnvelopeResponse<ImportProfile[]>)
+      .then((data) => { if (!cancelled) setProfiles(data); })
+      .catch(() => { if (!cancelled) setProfiles([]); });
+    return () => { cancelled = true; };
+  }, [entity?.id]);
 
   const onFile = (f: File | null) => {
     setFile(f);
     setPreview([]);
     setEmployees([]);
     setColumns([]);
+    setSourceColumns([]);
+    setRawPreview([]);
     setMissing([]);
     setWarnings([]);
     setError(null);
+    setMapping({});
+    setProfileName("");
+    setUploaded(false);
     if (f) {
       setStep(1);
       toast.info("File ready", { description: f.name });
@@ -62,31 +111,30 @@ export default function UploadPage() {
 
   const parseUpload = useCallback(async () => {
     if (!file) return;
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     const fd = new FormData();
     fd.append("file", file);
-    fd.append(
-      "meta",
-      JSON.stringify({
-        run_type: runType,
-        period_month: periodMonth || null,
-        effective_month_from: from || null,
-        effective_month_to: to || null,
-        strict_header_check: strict,
-      }),
-    );
-    const res = await apiFetch("/api/payroll/upload", { method: "POST", body: fd });
     let data: {
       columns: string[];
       preview: PreviewRow[];
-      employees: PreviewRow[];
-      missing_required?: string[];
-      warnings?: string[];
+      mapping: Record<string, string>;
+      destinations: string[];
+      employee_count: number;
     };
     try {
+      const res = await apiFetch("/api/payroll/preview", { method: "POST", body: fd });
       data = await parseEnvelopeResponse(res);
+      if (getActiveEntityId() !== requestEntityId) {
+        setBusy(false);
+        return;
+      }
     } catch (err) {
+      if (getActiveEntityId() !== requestEntityId) {
+        setBusy(false);
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Upload failed — check your file format.";
       setError(msg);
       toast.error("Parse failed", { description: msg });
@@ -95,15 +143,81 @@ export default function UploadPage() {
     }
     setColumns(data.columns);
     setPreview(data.preview);
-    setEmployees(data.employees);
-    setMissing(data.missing_required || []);
-    setWarnings(data.warnings || []);
+    setSourceColumns(data.columns);
+    setRawPreview(data.preview);
+    setMapping(data.mapping);
+    setDestinations(data.destinations);
+    setUploaded(false);
     setBusy(false);
     setStep(2);
     toast.success("Register parsed", {
-      description: `${data.employees.length.toLocaleString("en-IN")} employees · ${data.columns.length} columns`,
+      description: `${data.employee_count.toLocaleString("en-IN")} employees · review ${data.columns.length} columns`,
     });
-  }, [file, runType, periodMonth, from, to, strict]);
+  }, [file]);
+
+  const downloadTemplate = async () => {
+    try {
+      const res = await apiFetch("/api/payroll/template.csv");
+      if (!res.ok) throw new Error("Could not download the template.");
+      const url = URL.createObjectURL(await res.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "salary-register-template.csv";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Download failed."); }
+  };
+
+  const uploadMapped = async () => {
+    if (!file || !Object.values(mapping).includes("employee_id")) {
+      setError("Map the Employee ID column before uploading.");
+      return;
+    }
+    const requestEntityId = getActiveEntityId();
+    setBusy(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("meta", JSON.stringify({
+        run_type: runType, period_month: periodMonth || null,
+        effective_month_from: from || null, effective_month_to: to || null,
+        strict_header_check: strict, column_mapping: mapping,
+      }));
+      const res = await apiFetch("/api/payroll/upload", { method: "POST", body: fd });
+      const data = await parseEnvelopeResponse<{
+        columns: string[]; preview: PreviewRow[]; employees: PreviewRow[];
+        missing_required: string[]; warnings: string[];
+      }>(res);
+      if (getActiveEntityId() !== requestEntityId) return;
+      setColumns(data.columns);
+      setPreview(data.preview);
+      setEmployees(data.employees);
+      setMissing(data.missing_required);
+      setWarnings(data.warnings);
+      setUploaded(true);
+      if (profileName.trim()) {
+        try {
+          const saved = await apiFetch("/api/payroll/import-profiles", {
+            method: "POST", body: JSON.stringify({ name: profileName.trim(), column_mapping: mapping }),
+          });
+          await parseEnvelopeResponse(saved);
+          if (getActiveEntityId() !== requestEntityId) return;
+          const refreshed = await apiFetch("/api/payroll/import-profiles");
+          const formats = await parseEnvelopeResponse<ImportProfile[]>(refreshed);
+          if (getActiveEntityId() === requestEntityId) setProfiles(formats);
+        } catch (err) {
+          toast.error("Register is ready, but the mapping format was not saved", {
+            description: err instanceof Error ? err.message : "Try saving the format again later.",
+          });
+        }
+      }
+      toast.success("Mapped register ready", { description: `${data.employees.length.toLocaleString("en-IN")} employees` });
+    } catch (err) {
+      if (getActiveEntityId() === requestEntityId)
+        setError(err instanceof Error ? err.message : "Upload failed.");
+    } finally { setBusy(false); }
+  };
 
   const runValidate = async () => {
     if (!employees.length) {
@@ -111,25 +225,29 @@ export default function UploadPage() {
       toast.error("Nothing to validate", { description: "Parse the register before running validation." });
       return;
     }
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
-    const res = await apiFetch("/api/payroll/validate", {
-      method: "POST",
-      body: JSON.stringify({
-        employees,
-        run_type: runType,
-        period_month: periodMonth || null,
-        effective_month_from: from || null,
-        effective_month_to: to || null,
-      }),
-    });
     try {
+      const res = await apiFetch("/api/payroll/validate", {
+        method: "POST",
+        body: JSON.stringify({
+          employees,
+          run_type: runType,
+          period_month: periodMonth || null,
+          effective_month_from: from || null,
+          effective_month_to: to || null,
+        }),
+      });
       const data = await parseEnvelopeResponse(res) as {
         results: unknown[];
         findings?: unknown[];
         findings_summary?: unknown;
         risk_scores?: unknown[];
       };
+      if (getActiveEntityId() !== requestEntityId) return;
+      clearPayrollResults();
+      tagPayrollResultsForCurrentEntity();
       sessionStorage.setItem("payroll_results", JSON.stringify(data.results));
       sessionStorage.setItem("payroll_findings", JSON.stringify(data.findings || []));
       sessionStorage.setItem("payroll_findings_summary", JSON.stringify(data.findings_summary || {}));
@@ -160,6 +278,7 @@ export default function UploadPage() {
       });
       router.push("/payroll/results");
     } catch (err) {
+      if (getActiveEntityId() !== requestEntityId) return;
       const msg = err instanceof Error ? err.message : "Validation failed.";
       setError(msg);
       toast.error("Validation failed", { description: msg });
@@ -184,6 +303,14 @@ export default function UploadPage() {
           </Button>
         }
       />
+
+      <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-ink-700">
+        <p className="font-semibold">Use your existing payroll register</p>
+        <p className="mt-1">Upload a CSV or Excel file, map its headers to your configured salary components and payroll fields, then save the mapping for the next month. The optional CSV template uses this entity&apos;s component names.</p>
+        <Button type="button" variant="outline" className="mt-3" onClick={() => void downloadTemplate()}>
+          <Download size={15} /> Download sample CSV
+        </Button>
+      </div>
 
       {/* Step indicator — segmented progress */}
       <div className="flex items-center gap-3 rounded-2xl border border-ink-200/70 bg-white p-3 shadow-soft">
@@ -285,8 +412,7 @@ export default function UploadPage() {
                 </p>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
                   Payroll CSV / Excel (<code className="rounded bg-ink-100 px-1 text-[11px]">.csv</code>,{" "}
-                  <code className="rounded bg-ink-100 px-1 text-[11px]">.xlsx</code>,{" "}
-                  <code className="rounded bg-ink-100 px-1 text-[11px]">.xls</code>).
+                  <code className="rounded bg-ink-100 px-1 text-[11px]">.xlsx</code>).
                 </p>
               </div>
               <label className="group/btn inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 px-6 py-3 text-sm font-semibold text-white shadow-soft transition-all hover:shadow-glow">
@@ -294,7 +420,7 @@ export default function UploadPage() {
                 Choose file
                 <input
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv,.xlsx"
                   className="hidden"
                   onChange={(e) => onFile(e.target.files?.[0] || null)}
                 />
@@ -478,8 +604,51 @@ export default function UploadPage() {
         </AlertBanner>
       ) : null}
 
+      {step >= 2 && !uploaded && columns.length > 0 ? (
+        <Card><CardContent className="space-y-4 p-6">
+          <h2 className="text-base font-semibold">Map register columns</h2>
+          <p className="text-sm text-ink-600">Choose a destination for each source column. Components come from Salary Components. Unmapped columns are ignored, so map all earnings and deductions needed for validation.</p>
+          <label className="block text-sm font-medium">Reuse a saved format
+            <select className="mt-1 block w-full rounded-lg border p-2" value={profileName}
+              onChange={(e) => {
+                const name = e.target.value;
+                setProfileName(name);
+                const profile = profiles.find((p) => p.name === name);
+                if (profile) setMapping(Object.fromEntries(Object.entries(profile.column_mapping).filter(([source, target]) => sourceColumns.includes(source) && destinations.includes(target))));
+              }}>
+              <option value="">New mapping</option>
+              {profiles.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </select>
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {sourceColumns.map((source) => <label key={source} className="text-sm font-medium">
+              <span className="block truncate" title={source}>{source}</span>
+              <select className="mt-1 w-full rounded-lg border p-2" value={mapping[source] || ""}
+                onChange={(e) => setMapping((old) => {
+                  const next = { ...old };
+                  if (e.target.value) next[source] = e.target.value;
+                  else delete next[source];
+                  return next;
+                })}>
+                <option value="">Ignore this column</option>
+                {destinations.map((destination) => <option key={destination} value={destination}
+                  disabled={Object.entries(mapping).some(([s, d]) => s !== source && d === destination)}>
+                  {destination.replaceAll("_", " ")}
+                </option>)}
+              </select>
+            </label>)}
+          </div>
+          <label className="block text-sm font-medium">Save or update this format (optional)
+            <input className="mt-1 w-full rounded-lg border p-2" value={profileName} maxLength={100}
+              onChange={(e) => setProfileName(e.target.value)} placeholder="e.g. Darwinbox monthly payroll" />
+          </label>
+          <Button type="button" disabled={busy || !Object.values(mapping).includes("employee_id")}
+            onClick={() => void uploadMapped()}>{busy ? "Uploading…" : "Apply mapping & preview"}</Button>
+        </CardContent></Card>
+      ) : null}
+
       {/* Step 2: Preview + Validate */}
-      {step >= 2 && employees.length > 0 ? (
+      {step >= 2 && uploaded && employees.length > 0 ? (
         <Card className="overflow-hidden shadow-soft ring-1 ring-slate-900/[0.04]">
           <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -495,7 +664,7 @@ export default function UploadPage() {
             </div>
             <Button
               type="button"
-              disabled={busy}
+              disabled={busy || missing.length > 0}
               onClick={() => void runValidate()}
               className="w-full shrink-0 rounded-xl px-6 font-semibold shadow-soft sm:w-auto"
             >
@@ -509,6 +678,10 @@ export default function UploadPage() {
                 </>
               )}
             </Button>
+            <Button type="button" variant="outline" onClick={() => {
+              setUploaded(false); setColumns(sourceColumns); setPreview(rawPreview);
+              setEmployees([]); setMissing([]); setWarnings([]);
+            }}>Edit mapping</Button>
           </div>
 
           <div className="border-b border-slate-100 bg-slate-50/70 px-6 py-4">

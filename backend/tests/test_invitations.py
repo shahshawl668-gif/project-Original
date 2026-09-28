@@ -597,3 +597,92 @@ def test_an_owner_can_build_a_team_from_an_empty_organization(client, owner):
     scoped = next(m for m in members if m["email"] == "client.b.analyst@invite-example.com")
     assert scoped["entity_ids"] == [client_b["id"]]
     assert next(m for m in members if m["email"] == owner_email)["entity_ids"] == []
+
+
+def test_company_scoped_manager_cannot_administer_the_whole_group(client, owner):
+    headers, _ = owner
+    first = data(client.get("/api/org/context", headers=headers))["active_entity"]["id"]
+    second = data(client.post("/api/org/entities", headers=headers, json={"name": "Group Company B"}))["id"]
+    manager_invite = data(invite(
+        client, headers, "company-manager@invite-example.com",
+        role="manager", entity_ids=[second],
+    ))
+    manager = accept_as_new_user(client, manager_invite["token"])
+    visible = data(client.get("/api/org/portfolio", headers=manager))
+    assert [row["id"] for row in visible["entities"]] == [second]
+    assert client.get("/api/components", headers={**manager, "X-Entity-Id": first}).status_code == 404
+    assert client.post(
+        "/api/components",
+        headers={**manager, "X-Entity-Id": second},
+        json={"component_name": "Basic", "pf_applicable": True, "taxable": True},
+    ).status_code == 201
+
+    # Global team and company administration would let this manager grant
+    # themselves or another person access beyond Company B.
+    assert client.get("/api/org/members", headers=manager).status_code == 403
+    assert invite(client, manager, "wider@invite-example.com").status_code == 403
+    assert client.post("/api/org/entities", headers=manager, json={"name": "Company C"}).status_code == 403
+    member = next(
+        row for row in data(client.get("/api/org/members", headers=headers))
+        if row["email"] == "company-manager@invite-example.com"
+    )
+    assert client.patch(
+        f"/api/org/members/{member['user_id']}", headers=manager,
+        json={"entity_ids": []},
+    ).status_code == 403
+    assert [row["id"] for row in data(client.get("/api/org/entities", headers=manager))] == [second]
+
+
+def test_one_member_can_manage_company_a_and_view_company_b(client, owner):
+    headers, _ = owner
+    company_a = data(client.get("/api/org/context", headers=headers))["active_entity"]["id"]
+    company_b = data(client.post(
+        "/api/org/entities", headers=headers, json={"name": "Group Company B"}
+    ))["id"]
+    issued = data(invite(
+        client, headers, "mixed-role@invite-example.com", role="viewer",
+        entity_ids=[company_a, company_b],
+    ))
+    member_headers = accept_as_new_user(client, issued["token"])
+    member = next(
+        row for row in data(client.get("/api/org/members", headers=headers))
+        if row["email"] == "mixed-role@invite-example.com"
+    )
+    route = f"/api/org/members/{member['user_id']}/company-roles/{company_a}"
+    assert data(client.patch(route, headers=headers, json={"role": "manager"}))["role"] == "manager"
+    context_a = data(client.get("/api/org/context", headers={**member_headers, "X-Entity-Id": company_a}))
+    context_b = data(client.get("/api/org/context", headers={**member_headers, "X-Entity-Id": company_b}))
+    assert context_a["active_role"] == "manager"
+    assert context_b["active_role"] == "viewer"
+    assert context_a["entity_roles"][company_b] == "viewer"
+    payload = {"component_name": "Basic", "pf_applicable": True, "taxable": True}
+    assert client.post(
+        "/api/components", headers={**member_headers, "X-Entity-Id": company_a}, json=payload
+    ).status_code == 201
+    assert client.post(
+        "/api/components", headers={**member_headers, "X-Entity-Id": company_b}, json=payload
+    ).status_code == 403
+    assert client.get(
+        "/api/components", headers={**member_headers, "X-Entity-Id": company_b}
+    ).status_code == 200
+    assert client.patch(route, headers=member_headers, json={"role": "owner"}).status_code == 403
+    assert data(client.patch(route, headers=headers, json={"role": None}))["role"] == "viewer"
+    assert client.post(
+        "/api/components", headers={**member_headers, "X-Entity-Id": company_a},
+        json={"component_name": "HRA", "pf_applicable": False, "taxable": True},
+    ).status_code == 403
+
+
+def test_company_role_override_cannot_cross_an_org_or_expand_scope(client, owner):
+    headers, _ = owner
+    outsider = signup(client, "other-company-role@invite-example.com", "Other Org")
+    foreign = data(client.get("/api/org/context", headers=outsider))["active_entity"]["id"]
+    company = data(client.get("/api/org/context", headers=headers))["active_entity"]["id"]
+    issued = data(invite(client, headers, "scoped-role@invite-example.com", role="viewer", entity_ids=[company]))
+    accept_as_new_user(client, issued["token"])
+    member = next(row for row in data(client.get("/api/org/members", headers=headers))
+                  if row["email"] == "scoped-role@invite-example.com")
+    assert client.patch(
+        f"/api/org/members/{member['user_id']}/company-roles/{foreign}",
+        headers=headers, json={"role": "manager"},
+    ).status_code == 404

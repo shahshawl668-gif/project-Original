@@ -1,34 +1,51 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { ApiError, probeApiHealth } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAuth();
+  const pathname = usePathname();
+  const slug = pathname.match(/^\/w\/([a-z0-9-]+)\/login\/?$/)?.[1];
+  const platform = pathname.startsWith("/platform/login") || pathname === "/login";
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showPwd, setShowPwd] = useState(false);
+  const [retryUntil, setRetryUntil] = useState(0);
+  const [now, setNow] = useState(0);
+  const [serviceStatus, setServiceStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace("/dashboard");
-  }, [isAuthenticated, router]);
+    if (!retryUntil) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [retryUntil]);
+
+  const secondsRemaining = Math.max(0, Math.ceil((retryUntil - now) / 1000));
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy || secondsRemaining > 0) return;
+    setError(null);
     setBusy(true);
     try {
-      await login(email, password);
-      router.push("/dashboard");
-    } catch {
-      /* AuthContext shows toast */
+      await login(email.trim(), password, slug, platform ? "platform" : "client");
+      router.replace(platform ? "/platform" : "/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to sign in. Please try again.");
+      if (err instanceof ApiError && err.status === 429 && err.retryAfterSeconds) {
+        setRetryUntil(Date.now() + err.retryAfterSeconds * 1000);
+        setNow(Date.now());
+      }
     } finally {
       setBusy(false);
     }
@@ -41,14 +58,23 @@ export default function LoginPage() {
           Welcome back
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
-          Sign in to your <span className="text-gradient">workspace</span>
+          Sign in to {platform ? "the platform" : <span className="text-gradient">{slug} workspace</span>}
         </h1>
         <p className="mt-2.5 text-sm leading-relaxed text-ink-500">
-          Enter your work email and password. We&apos;ll match you to the right tenant and statutory
-          configuration automatically.
+          Enter your work email and password for this {platform ? "platform" : "client"} account.
         </p>
 
-        <form onSubmit={onSubmit} className="mt-8 space-y-5">
+        <form onSubmit={onSubmit} className="mt-8 space-y-5" aria-busy={busy}>
+          {error && (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <p>{error}</p>
+              <button type="button" className="mt-2 font-semibold underline" onClick={async () => {
+                const health = await probeApiHealth();
+                setServiceStatus(health.ok ? "API is reachable. Please retry when the limit clears." : "API is unavailable. Please contact your workspace administrator.");
+              }}>Check service status</button>
+              {serviceStatus && <p className="mt-1">{serviceStatus}</p>}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="email" className="text-[12px] font-semibold text-ink-800">
               Work email
@@ -69,12 +95,7 @@ export default function LoginPage() {
               <Label htmlFor="password" className="text-[12px] font-semibold text-ink-800">
                 Password
               </Label>
-              <Link
-                href="/login"
-                className="text-[11px] font-semibold text-brand-600 hover:text-brand-700"
-              >
-                Forgot?
-              </Link>
+              <span className="text-[11px] text-ink-500">Forgot password? Contact your workspace administrator.</span>
             </div>
             <div className="relative">
               <input
@@ -101,7 +122,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || secondsRemaining > 0}
             className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(2,132,199,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(2,132,199,0.7)] disabled:opacity-60"
           >
             <span
@@ -116,7 +137,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  Sign in
+                  {secondsRemaining > 0 ? `Retry in ${secondsRemaining}s` : "Sign in"}
                   <ArrowRight
                     size={16}
                     strokeWidth={2.25}
@@ -128,15 +149,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-8 text-center text-sm text-ink-500">
-          Don&apos;t have an account?{" "}
-          <Link
-            href="/signup"
-            className="font-semibold text-brand-600 hover:text-brand-700 hover:underline"
-          >
-            Create workspace
-          </Link>
-        </p>
       </div>
     </AuthShell>
   );

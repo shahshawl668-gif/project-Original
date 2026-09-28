@@ -83,6 +83,9 @@ export default function SlabsPage() {
           frequency: s.frequency,
           gender: s.gender ?? "ALL",
           applicable_months: s.applicable_months ?? null,
+          effective_from: s.effective_from ?? null,
+          effective_to: s.effective_to ?? null,
+          source_reference: s.source_reference ?? null,
         }))
       );
       setErrors({});
@@ -161,6 +164,9 @@ export default function SlabsPage() {
           frequency: s.frequency,
           gender: s.gender ?? "ALL",
           applicable_months: s.applicable_months ?? null,
+          effective_from: s.effective_from ?? null,
+          effective_to: s.effective_to ?? null,
+          source_reference: s.source_reference ?? null,
         }))
       );
       toast.success(`Imported ${r.slabs.length} default ${ruleType} slabs for ${state}`);
@@ -245,7 +251,7 @@ export default function SlabsPage() {
       <PageHeader
         eyebrow="Rule engine"
         title="State slab configuration"
-        description="Manage state-wise PT & LWF slabs. These override seeded reference data when present."
+        description="Manage state-wise PT & LWF slabs. Review each official notification and effective period before importing defaults or using these values for compliance checks."
       />
 
       <Card>

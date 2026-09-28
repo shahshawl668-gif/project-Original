@@ -15,14 +15,10 @@ Each row carries:
                                     validator scales wage to the same period
                                     and divides amounts by the same factor to
                                     produce a per-month equivalent.
-  * `applicable_months`          — list[int]; only meaningful for half-yearly /
-                                    yearly contributions where the deduction
-                                    must hit a specific month (e.g. June &
-                                    December for Maharashtra). Currently the
-                                    validator treats the full annualised total
-                                    as a per-period number rather than gating
-                                    on the month, so this field is mostly
-                                    informational and kept None.
+  * `applicable_months`          — list[int] for the months in which a full
+                                    contribution is due. A missing list keeps
+                                    monthly-equivalent behavior for states
+                                    whose collection month is unverified.
 
 States with NO statutory LWF (Bihar, Jharkhand, Uttar Pradesh, Uttarakhand,
 Himachal Pradesh, Jammu & Kashmir, Ladakh, Sikkim, all North-East states
@@ -30,6 +26,7 @@ except Tripura, and the smaller UTs) are intentionally absent.
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Literal, TypedDict
 
@@ -43,6 +40,8 @@ class DefaultLwfSlab(TypedDict, total=False):
     employer_amount: Decimal
     frequency: Frequency
     applicable_months: list[int] | None
+    effective_from: date | None
+    source_reference: str | None
 
 
 def _row(
@@ -52,6 +51,8 @@ def _row(
     employer: float,
     freq: Frequency = "half-yearly",
     months: list[int] | None = None,
+    effective_from: date | None = None,
+    source_reference: str | None = None,
 ) -> DefaultLwfSlab:
     return {
         "min_salary": Decimal(str(lo)),
@@ -60,6 +61,8 @@ def _row(
         "employer_amount": Decimal(str(employer)),
         "frequency": freq,
         "applicable_months": months,
+        "effective_from": effective_from,
+        "source_reference": source_reference,
     }
 
 
@@ -73,8 +76,13 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         _row(0, _TOP, 30, 70, freq="yearly"),
     ],
     "Karnataka": [
-        # AP/KA twin LWF Acts; KA pays in Jan.
-        _row(0, _TOP, 20, 40, freq="yearly"),
+        # Karnataka Act 05 of 2025, published 10 Jan 2025, amended section 7A(2).
+        # Employee ₹50 and employer ₹100 for the 31 December roster.
+        # Employer remits by 15 January; validate the December payroll deduction.
+        # https://www.indiacode.nic.in/bitstream/123456789/7601/1/15_of_1965_%28e%29.pdf
+        _row(0, _TOP, 50, 100, freq="yearly", months=[12],
+             effective_from=date(2025, 1, 10),
+             source_reference="https://www.indiacode.nic.in/bitstream/123456789/7601/1/15_of_1965_%28e%29.pdf"),
     ],
     "Tamil Nadu": [
         # Annual contribution remitted by 31 Jan.
@@ -103,9 +111,12 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         _row(0, _TOP, 10, 30, freq="half-yearly"),
     ],
     "Maharashtra": [
-        # ₹3,000 wage threshold (statutory definition uses "salary or wages").
-        _row(0, 3000, 6, 18, freq="half-yearly"),
-        _row(3001, _TOP, 12, 36, freq="half-yearly"),
+        # Maharashtra Act XXV of 2024, section 6BB(2), gazetted 18 Mar 2024.
+        # ₹25 employee and 3× employer for each June/December period; no wage band.
+        # https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf
+        _row(0, _TOP, 25, 75, freq="half-yearly", months=[6, 12],
+             effective_from=date(2024, 3, 18),
+             source_reference="https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf"),
     ],
     "Odisha": [
         _row(0, _TOP, 20, 40, freq="half-yearly"),

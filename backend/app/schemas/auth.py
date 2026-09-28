@@ -14,6 +14,7 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    workspace_slug: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
 
 
 class TokenPair(BaseModel):
@@ -26,11 +27,21 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class PlatformInviteAccept(BaseModel):
+    token: str
+    password: str = Field(min_length=8)
+
+
+class SupportSessionRequest(BaseModel):
+    org_id: uuid.UUID
+
+
 class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
     company_name: str | None
     role: str
+    platform_role: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

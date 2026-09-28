@@ -8,13 +8,15 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.deps import SYSTEM_USER_EMAIL, get_current_user
+from app.deps import SYSTEM_USER_EMAIL, get_current_user, require_admin
 from app.envelope import ok
-from app.models import RefreshToken, User
-from app.services import tenancy
+from app.models import Organization, PlatformInvitation, RefreshToken, User
+from app.services import support_access, tenancy
 from app.models.user import PasswordResetToken
 from app.schemas.auth import (
     LoginRequest,
+    PlatformInviteAccept,
+    SupportSessionRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
@@ -34,9 +36,13 @@ from app.security import (
 router = APIRouter()
 
 
-def _issue_tokens(db: Session, user: User) -> TokenPair:
-    access = create_access_token(str(user.id), extra={"role": user.role})
-    refresh = create_refresh_token(str(user.id))
+def _issue_tokens(db: Session, user: User, *, portal: str = "client", org_id: uuid.UUID | None = None) -> TokenPair:
+    if portal == "client" and org_id is None:
+        membership = tenancy.get_membership(db, user)
+        org_id = membership.org_id if membership else None
+    claims = {"portal": portal, "org_id": str(org_id) if org_id else None}
+    access = create_access_token(str(user.id), extra=claims)
+    refresh = create_refresh_token(str(user.id), extra=claims)
     rt = RefreshToken(
         user_id=user.id,
         token_hash=token_fingerprint(refresh),
@@ -49,6 +55,8 @@ def _issue_tokens(db: Session, user: User) -> TokenPair:
 
 @router.post("/signup")
 def signup(body: SignupRequest, db: Session = Depends(get_db)):
+    if not settings.allow_public_signup:
+        raise HTTPException(status_code=404, detail="Workspace registration is invitation-only")
     email = body.email.lower().strip()
     if email == SYSTEM_USER_EMAIL:
         raise HTTPException(status_code=400, detail="Reserved email address")
@@ -63,6 +71,7 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
         password_hash=hash_password(body.password),
         company_name=body.company_name,
         role=role,
+        platform_role="owner" if role == "admin" else None,
     )
     db.add(user)
     db.flush()
@@ -88,8 +97,50 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         or not verify_password(body.password, user.password_hash)
     ):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    tokens = _issue_tokens(db, user)
+    if settings.is_production and not body.workspace_slug:
+        raise HTTPException(status_code=400, detail="Use your organization's workspace login URL")
+    membership = tenancy.get_membership(db, user)
+    if not membership:
+        raise HTTPException(status_code=401, detail="No workspace membership for this account")
+    org = db.get(Organization, membership.org_id)
+    if not org or (body.workspace_slug and org.slug != body.workspace_slug):
+        raise HTTPException(status_code=401, detail="Invalid workspace or credentials")
+    tokens = _issue_tokens(db, user, org_id=org.id)
     return ok(tokens.model_dump())
+
+
+@router.post("/platform-login")
+def platform_login(body: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == body.email.lower()).first()
+    if not user or user.email == SYSTEM_USER_EMAIL or user.platform_role not in {"owner", "admin", "support"} or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid platform credentials")
+    return ok(_issue_tokens(db, user, portal="platform").model_dump())
+
+
+@router.post("/platform-invitations/register")
+def register_platform_staff(body: PlatformInviteAccept, db: Session = Depends(get_db)):
+    invite = db.query(PlatformInvitation).filter(
+        PlatformInvitation.token_hash == token_fingerprint(body.token),
+        PlatformInvitation.used_at.is_(None),
+        PlatformInvitation.expires_at > datetime.now(UTC),
+    ).first()
+    if not invite:
+        raise HTTPException(status_code=400, detail="Invalid or expired invitation")
+    if db.query(User).filter(User.email == invite.email).first():
+        raise HTTPException(status_code=409, detail="This email already has an account")
+    user = User(email=invite.email, password_hash=hash_password(body.password), role="user", platform_role=invite.role)
+    db.add(user)
+    invite.used_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(user)
+    return ok(_issue_tokens(db, user, portal="platform").model_dump())
+
+
+@router.post("/support-session")
+def open_support_session(body: SupportSessionRequest, staff: User = Depends(require_admin), db: Session = Depends(get_db)):
+    if support_access.active_grant(db, staff, body.org_id) is None:
+        raise HTTPException(status_code=403, detail="An active support grant is required")
+    return ok(_issue_tokens(db, staff, portal="support", org_id=body.org_id).model_dump())
 
 
 @router.post("/refresh")
@@ -116,10 +167,25 @@ def refresh_token(body: RefreshRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
+    portal = payload.get("portal", "client")
+    org_id = payload.get("org_id")
+    if portal == "platform":
+        if user.platform_role not in {"owner", "admin", "support"}:
+            raise HTTPException(status_code=401, detail="Platform access revoked")
+    elif portal == "client":
+        membership = tenancy.get_membership(db, user)
+        if not membership or (org_id and str(membership.org_id) != org_id) or (settings.is_production and not org_id):
+            raise HTTPException(status_code=401, detail="Workspace access revoked")
+        org_id = str(membership.org_id)
+    elif portal == "support":
+        if not org_id or support_access.active_grant(db, user, uuid.UUID(org_id)) is None:
+            raise HTTPException(status_code=401, detail="Support access ended")
+    else:
+        raise HTTPException(status_code=401, detail="Invalid session")
     db.delete(row)
     db.commit()
 
-    tokens = _issue_tokens(db, user)
+    tokens = _issue_tokens(db, user, portal=portal, org_id=uuid.UUID(org_id) if org_id else None)
     return ok(tokens.model_dump())
 
 

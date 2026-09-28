@@ -22,6 +22,7 @@ from app.models import (
     Entity,
     StatutorySettings,
 )
+from app.services import validation_matrix
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
@@ -266,6 +267,16 @@ def _normalize_gender(g: Any) -> str:
     return "ALL"
 
 
+def _dated_slab_cohort(rows: list[SlabRule], as_of: date) -> list[SlabRule]:
+    """Select one effective schedule, falling back to legacy undated rows."""
+    active = [r for r in rows if (r.effective_from is None or r.effective_from <= as_of)
+              and (r.effective_to is None or r.effective_to >= as_of)]
+    if not active:
+        return []
+    latest = max((r.effective_from for r in active if r.effective_from is not None), default=None)
+    return [r for r in active if r.effective_from == latest]
+
+
 def lookup_pt(
     db: Session,
     state: str | None,
@@ -309,6 +320,7 @@ def lookup_pt(
             .all()
         )
         if tenant_rows:
+            tenant_rows = _dated_slab_cohort(tenant_rows, as_of)
             best: tuple[int, int, SlabRule, Decimal, str] | None = None
             for r in tenant_rows:
                 factor = _annualize_factor(r.frequency)
@@ -370,8 +382,10 @@ def lookup_lwf(
     Each tenant row stores the per-period employee contribution in
     `deduction_amount` and the per-period employer contribution in
     `employer_amount`. The validator converts both to a monthly equivalent
-    by dividing by the slab's frequency factor (1 for monthly, 6 for
-    half-yearly, 12 for yearly).
+    by dividing by the slab's frequency factor for accrual-only rows. Rows
+    with explicit contribution months are due in full in those months and
+    zero in the other months. Maharashtra half-yearly rows follow the June
+    and December employee register dates in the 2024 amendment.
     """
     if not state or wage <= 0:
         # No LWF-flagged wages this month (or no state): no LWF expectation.
@@ -391,6 +405,7 @@ def lookup_lwf(
             .all()
         )
         if tenant_rows:
+            tenant_rows = _dated_slab_cohort(tenant_rows, as_of)
             for r in tenant_rows:
                 factor = _annualize_factor(r.frequency)
                 w_period = float(wage) * factor
@@ -398,8 +413,16 @@ def lookup_lwf(
                 if lo <= w_period <= hi:
                     emp_period = Decimal(str(r.deduction_amount))
                     er_period = Decimal(str(r.employer_amount or 0))
-                    emp_monthly = _q(emp_period / Decimal(str(factor)))
-                    er_monthly = _q(er_period / Decimal(str(factor)))
+                    months = r.applicable_months or (
+                        [6, 12] if state == "Maharashtra" and r.frequency == "half-yearly" else None
+                    )
+                    if months:
+                        due = as_of.month in months
+                        emp_monthly = emp_period if due else Decimal("0")
+                        er_monthly = er_period if due else Decimal("0")
+                    else:
+                        emp_monthly = _q(emp_period / Decimal(str(factor)))
+                        er_monthly = _q(er_period / Decimal(str(factor)))
                     return emp_period, er_period, emp_monthly, er_monthly
             return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
@@ -832,6 +855,10 @@ def validate_employees(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Validate a register.
 
+    ``as_of`` fixes the date slab lookups are resolved against. Left unset it
+    falls to the end of ``period_month``, so re-running June next year still
+    reads June's PT and LWF schedule rather than today's.
+
     ``on_progress`` is called with the number of employees assessed so far, every
     ``PROGRESS_EVERY`` rows. A background worker uses it to renew its lease and
     publish progress *without* splitting the call: findings like "this person is
@@ -839,6 +866,9 @@ def validate_employees(
     set, so validating in separate batches would report everyone outside the
     current batch as missing from the register.
     """
+    if as_of is None and period_month is not None:
+        end_day = calendar.monthrange(period_month.year, period_month.month)[1]
+        as_of = period_month.replace(day=end_day)
     as_of = as_of or date.today()
 
     # ── Load configs ──────────────────────────────────────────────────────────
@@ -853,8 +883,8 @@ def validate_employees(
     comp_by_key = _component_key_map(components)
     pt_states_cfg: list[str] = list(settings.pt_states or [])
     lwf_states_cfg: list[str] = list(settings.lwf_states or [])
-    default_pt_state = pt_states_cfg[0] if pt_states_cfg else None
-    default_lwf_state = lwf_states_cfg[0] if lwf_states_cfg else None
+    default_pt_state = pt_states_cfg[0] if len(pt_states_cfg) == 1 else None
+    default_lwf_state = lwf_states_cfg[0] if len(lwf_states_cfg) == 1 else None
     months = num_months(effective_from, effective_to)
     month_labels = month_iter(effective_from, effective_to)
 
@@ -869,10 +899,18 @@ def validate_employees(
     # Note: individual rows may override days_in_month via total_days / month_days column
 
     prior_rows = _prior_register_rows(db, entity.id, period_month) if period_month else {}
+    active_matrix_rules = validation_matrix.published_for(db, entity.id, period_month or as_of)
+    slab_versions: dict[tuple[str, str], list[SlabRule]] = {}
+    for version in db.query(SlabRule).filter(SlabRule.entity_id == entity.id).all():
+        slab_versions.setdefault((version.rule_type, version.state), []).append(version)
+    slab_version_gaps = {
+        key for key, versions in slab_versions.items()
+        if not _dated_slab_cohort(versions, period_month or as_of)
+    }
 
     # The master as it stood at period end — used for the PF basis and for the
     # cost dimensions snapshotted onto each result row.
-    master_rows = master_as_of(db, entity.id, period_month or as_of) if (period_month or as_of) else {}
+    master_rows = master_as_of(db, entity.id, as_of)
 
     results: list[dict[str, Any]] = []
 
@@ -893,22 +931,23 @@ def validate_employees(
         # the tenant's configured default. State must be one of the
         # tenant's configured states for that scheme; otherwise treated
         # as "no state" so PT / LWF won't be computed for that row.
+        master_record = master_rows.get(eid)
         row_state_raw = (
-            row.get("state")
+            (master_record.work_state if master_record is not None else None)
+            or row.get("state")
             or row.get("work_state")
             or row.get("state_pt")
             or row.get("location_state")
         )
         row_state = str(row_state_raw).strip() if row_state_raw not in (None, "") else None
 
-        if row_state and pt_states_cfg and row_state in pt_states_cfg:
-            state_pt: str | None = row_state
+        pt_match = next((s for s in pt_states_cfg if row_state and s.casefold() == row_state.casefold()), None)
+        lwf_match = next((s for s in lwf_states_cfg if row_state and s.casefold() == row_state.casefold()), None)
+        if row_state:
+            state_pt: str | None = pt_match
+            state_lwf: str | None = lwf_match
         else:
             state_pt = default_pt_state
-
-        if row_state and lwf_states_cfg and row_state in lwf_states_cfg:
-            state_lwf: str | None = row_state
-        else:
             state_lwf = default_lwf_state
 
         # Per-row working-days override: allow upload rows to carry
@@ -959,7 +998,6 @@ def validate_employees(
         # then the entity default. Two people on one payroll can sit on
         # different bases, and applying one switch to both mis-states PF for
         # whoever is on the other — compounding every month.
-        master_record = master_rows.get(eid)
         pf_basis = resolve_pf_basis(
             row,
             master_record.pf_restricted if master_record is not None else None,
@@ -1199,6 +1237,42 @@ def validate_employees(
             expected_monthly_tds=expected_monthly_tds,
             composition=composition,
         )
+        matrix_row = {
+            **row,
+            "employee_id": eid,
+            "employee_name": ename,
+            "components": regular,
+            "deductions": {key: row.get(key) for key in validation_matrix.DEDUCTIONS},
+            "paid_days": paid_days,
+            "lop_days": lop_days,
+            "gross": sum(regular.values(), Decimal("0")),
+        }
+        matrix_findings = [
+            issue for rule in active_matrix_rules
+            if (issue := validation_matrix.evaluate(rule, matrix_row)) is not None
+        ]
+        for scheme, configured, selected in (
+            ("PT", pt_states_cfg, state_pt), ("LWF", lwf_states_cfg, state_lwf),
+        ):
+            if configured and selected is None:
+                emp_findings.append(ValidationFinding(
+                    employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
+                    rule_id=f"DATA-{scheme}-STATE", rule_name=f"{scheme} State Not Mapped",
+                    component="state", expected_value=", ".join(configured),
+                    actual_value=row_state or "(missing)", difference="",
+                    severity="CRITICAL", status="FAIL",
+                    reason=f"Cannot calculate {scheme}: the employee state is missing or not configured for this entity.",
+                    suggested_fix="Correct the location/state mapping or configure this state before validating.",
+                ))
+            elif selected and (scheme, selected) in slab_version_gaps:
+                emp_findings.append(ValidationFinding(
+                    employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
+                    rule_id=f"DATA-{scheme}-RATE", rule_name=f"{scheme} Rate Version Missing",
+                    component="state", expected_value=f"Rate for {(period_month or as_of).isoformat()}",
+                    actual_value="(missing)", difference="", severity="CRITICAL", status="FAIL",
+                    reason=f"Cannot calculate {scheme}: no saved {selected} schedule covers this payroll period.",
+                    suggested_fix="Load an official, effective-dated schedule for this period.",
+                ))
 
         if on_progress is not None and len(results) % PROGRESS_EVERY == 0 and results:
             on_progress(len(results))
@@ -1259,7 +1333,7 @@ def validate_employees(
                 "increment_arrear_total": float(inc_arrear_total),
                 "tds_risk_flags": tds_risk,
                 "errors": errors,
-                "findings": [f.to_dict() for f in emp_findings],
+                "findings": [f.to_dict() for f in emp_findings] + matrix_findings,
                 # risk placeholders — filled after batch_findings merge below
                 "risk_score": 0,
                 "risk_level": "LOW",

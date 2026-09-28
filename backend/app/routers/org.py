@@ -12,7 +12,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,8 @@ from app.deps import (
 from app.envelope import ok
 from app.models import (
     Entity,
+    EntityAccess,
+    EntityRoleOverride,
     FindingState,
     OrgInvitation,
     OrgMembership,
@@ -38,6 +40,7 @@ from app.models import (
 from app.schemas.org import (
     ContextOut,
     EntityCreate,
+    EntityRoleUpdate,
     EntityOut,
     EntityUpdate,
     InvitationAccept,
@@ -55,6 +58,7 @@ router = APIRouter()
 
 @router.get("/context")
 def get_context(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     entity: Entity = Depends(get_current_entity),
@@ -62,9 +66,27 @@ def get_context(
     membership = tenancy.get_membership(db, user)
     org = db.get(Organization, membership.org_id) if membership else None
     entities = tenancy.accessible_entities(db, user)
+    if getattr(request.state, "auth_claims", {}).get("portal") == "support":
+        org = db.get(Organization, entity.org_id)
+        entities = [item for item in entities if item.org_id == entity.org_id]
+    entity_roles = {str(item.id): tenancy.effective_entity_role(db, user, item) or "viewer" for item in entities}
+    can_manage_group = bool(
+        membership and membership.org_id == entity.org_id
+        and tenancy.role_at_least(db, user, "manager")
+        and (
+            membership.role == "owner"
+            or db.query(EntityAccess.id).filter(
+                EntityAccess.org_id == membership.org_id,
+                EntityAccess.user_id == user.id,
+            ).first() is None
+        )
+    )
     payload = ContextOut(
+        can_manage_group=can_manage_group,
+        active_role=entity_roles.get(str(entity.id), "viewer"),
+        entity_roles=entity_roles,
         organization=OrganizationOut.model_validate(org) if org else None,
-        role=membership.role if membership else None,
+        role=membership.role if membership and membership.org_id == entity.org_id else "viewer" if org else None,
         active_entity=EntityOut.model_validate(entity),
         entities=[EntityOut.model_validate(e) for e in entities],
     )
@@ -194,6 +216,12 @@ def create_entity(
         **body.model_dump(exclude={"code"}),
     )
     db.add(entity)
+    db.flush()
+    audit.record(
+        db, entity_id=entity.id, org_id=membership.org_id, user=user,
+        action="entity.created", object_type="entity", object_id=str(entity.id),
+        summary=f"Added group company {entity.name}",
+    )
     db.commit()
     db.refresh(entity)
     return ok(EntityOut.model_validate(entity).model_dump(mode="json"))
@@ -212,6 +240,11 @@ def update_entity(
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(entity, field, value)
     db.add(entity)
+    audit.record(
+        db, entity_id=entity.id, org_id=entity.org_id, user=user,
+        action="entity.updated", object_type="entity", object_id=str(entity.id),
+        summary=f"Updated group company {entity.name}",
+    )
     db.commit()
     db.refresh(entity)
     return ok(EntityOut.model_validate(entity).model_dump(mode="json"))
@@ -262,6 +295,10 @@ def list_members(db: Session = Depends(get_db), user: User = Depends(require_org
             u.email,
             invitations.entity_access_for(db, membership.org_id, m.user_id),
             m.user_id == user.id,
+            {str(row.entity_id): row.role for row in db.query(EntityRoleOverride).filter(
+                EntityRoleOverride.org_id == membership.org_id,
+                EntityRoleOverride.user_id == m.user_id,
+            )},
         )
         for m, u in rows
     ])
@@ -299,13 +336,15 @@ def _guard(exc: invitations.InvitationError):
     return HTTPException(status_code=exc.status, detail=str(exc))
 
 
-def _member_out(membership: OrgMembership, email: str | None, scoped: list[str], you: bool) -> dict:
+def _member_out(membership: OrgMembership, email: str | None, scoped: list[str], you: bool,
+                entity_roles: dict[str, str]) -> dict:
     return {
         "id": str(membership.id),
         "user_id": str(membership.user_id),
         "email": email,
         "role": membership.role,
         "entity_ids": scoped,
+        "entity_roles": entity_roles,
         "is_you": you,
         "joined_at": membership.created_at.isoformat() if membership.created_at else None,
     }
@@ -388,8 +427,61 @@ def update_member(
     db.refresh(target)
 
     scoped = invitations.entity_access_for(db, membership.org_id, user_id)
+    roles = {str(row.entity_id): row.role for row in db.query(EntityRoleOverride).filter(
+        EntityRoleOverride.org_id == membership.org_id,
+        EntityRoleOverride.user_id == user_id,
+    )}
     return ok(_member_out(target, getattr(target_user, "email", None), scoped,
-                          target.user_id == user.id))
+                          target.user_id == user.id, roles))
+
+
+@router.patch("/members/{user_id}/company-roles/{entity_id}")
+def update_company_role(
+    user_id: uuid.UUID,
+    entity_id: uuid.UUID,
+    body: EntityRoleUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_org_admin),
+):
+    """Set or reset one member's role in one company without changing others."""
+    actor = tenancy.get_membership(db, user)
+    target = db.query(OrgMembership).filter(
+        OrgMembership.org_id == actor.org_id,
+        OrgMembership.user_id == user_id,
+    ).first()
+    entity = db.get(Entity, entity_id)
+    if target is None or entity is None or entity.org_id != actor.org_id or not entity.is_active:
+        raise HTTPException(status_code=404, detail="Member or company not found")
+    target_user = db.get(User, user_id)
+    if target_user is None or not tenancy.can_access_entity(db, target_user, entity):
+        raise HTTPException(status_code=404, detail="Member has no access to this company")
+    if user_id == user.id:
+        raise HTTPException(status_code=403, detail="You cannot change your own company role")
+    previous = tenancy.effective_entity_role(db, target_user, entity)
+    next_role = body.role or target.role
+    if not invitations.can_grant_role(actor.role, previous) or not invitations.can_grant_role(actor.role, next_role):
+        raise HTTPException(status_code=403, detail="You cannot change or grant this role")
+    override = db.query(EntityRoleOverride).filter(
+        EntityRoleOverride.org_id == actor.org_id,
+        EntityRoleOverride.user_id == user_id,
+        EntityRoleOverride.entity_id == entity_id,
+    ).first()
+    if body.role is None or body.role == target.role:
+        if override is not None:
+            db.delete(override)
+    elif override is None:
+        db.add(EntityRoleOverride(
+            org_id=actor.org_id, user_id=user_id, entity_id=entity_id, role=body.role,
+        ))
+    else:
+        override.role = body.role
+    audit.record(
+        db, entity_id=entity_id, org_id=actor.org_id, user=user,
+        action="member.company_role_updated", object_type="org_membership",
+        object_id=str(user_id), summary=f"Company role for {target_user.email}: {previous} → {next_role}",
+    )
+    db.commit()
+    return ok({"user_id": str(user_id), "entity_id": str(entity_id), "role": next_role})
 
 
 @router.delete("/members/{user_id}")
