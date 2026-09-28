@@ -77,9 +77,12 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
     ],
     "Karnataka": [
         # Karnataka Act 05 of 2025, published 10 Jan 2025, amended section 7A(2).
-        # Employee ₹50 and employer ₹100, annual contribution.
-        # https://www.indiacode.nic.in/bitstream/123456789/7601/1/15_of_1965_%28e%29.pdf
-        _row(0, _TOP, 50, 100, freq="yearly"),
+        # Employee ₹50 and employer ₹100 for the 31 December roster.
+        # Employer remits by 15 January; validate the December payroll deduction.
+        # https://klwb.karnataka.gov.in/storage/pdf-files/brouchernew.pdf
+        _row(0, _TOP, 50, 100, freq="yearly", months=[12],
+             effective_from=date(2025, 1, 10),
+             source_reference="https://klwb.karnataka.gov.in/storage/pdf-files/brouchernew.pdf"),
     ],
     "Tamil Nadu": [
         # Annual contribution remitted by 31 Jan.
