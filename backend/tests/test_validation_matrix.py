@@ -216,3 +216,25 @@ def test_required_field_and_approved_list_operators(client):
         assert validation_matrix.evaluate(rule, {"employee_id": "E1", "employment_type": "Intern"})["status"] == "FAIL"
     finally:
         db.close()
+
+
+def test_maharashtra_lwf_is_due_in_june_and_december(client):
+    headers = owner(client, "lwf-timing")
+    entity = data(client.get("/api/org/context", headers=headers))["active_entity"]
+    response = client.post(
+        "/api/rule-engine/slabs/import-defaults?state=Maharashtra&rule_type=LWF",
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    db = SessionLocal()
+    try:
+        from app.services.validation import lookup_lwf
+        entity_id = uuid.UUID(entity["id"])
+        for month, expected in ((5, Decimal("0")), (6, Decimal("25")), (7, Decimal("0")), (12, Decimal("25"))):
+            period, employer, due, employer_due = lookup_lwf(
+                db, "Maharashtra", Decimal("20000"), date(2026, month, 1), entity_id=entity_id,
+            )
+            assert (period, employer) == (Decimal("25"), Decimal("75"))
+            assert (due, employer_due) == (expected, expected * 3)
+    finally:
+        db.close()
