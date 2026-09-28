@@ -23,6 +23,7 @@ import {
 } from "@/lib/api";
 
 import { signIn, type AuthUser } from "@/lib/auth";
+import { clearPayrollResults } from "@/lib/payroll-session";
 export type { AuthUser } from "@/lib/auth";
 
 type AuthContextValue = {
@@ -99,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string, workspaceSlug?: string, portal: "client" | "platform" = "client") => {
     sessionRevision.current += 1;
     const me = await signIn(email, password, workspaceSlug, portal);
+    clearPayrollResults();
     setUser(me);
     setLoading(false);
     toast.success("Signed in");
@@ -134,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionRevision.current += 1;
     const refresh = getRefreshToken();
     clearTokens();
+    clearPayrollResults();
     setUser(null);
     if (refresh) {
       try {
