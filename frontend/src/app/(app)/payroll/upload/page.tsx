@@ -1,6 +1,8 @@
 "use client";
 
-import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
+import { apiFetch, getActiveEntityId, parseEnvelopeResponse } from "@/lib/api";
+import { clearPayrollResults, tagPayrollResultsForCurrentEntity } from "@/lib/payroll-session";
+import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
@@ -8,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   UploadCloud,
@@ -32,6 +34,8 @@ const STEP_LABELS = ["Upload file", "Configure run", "Validate"];
 
 export default function UploadPage() {
   const router = useRouter();
+  const { entity } = useEntity();
+  const previousEntityId = useRef<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [strict, setStrict] = useState(true);
@@ -56,9 +60,35 @@ export default function UploadPage() {
   const [uploaded, setUploaded] = useState(false);
 
   useEffect(() => {
+    if (!entity?.id) return;
+    if (previousEntityId.current && previousEntityId.current !== entity.id) {
+      setFile(null);
+      setStep(0);
+      setPreview([]);
+      setRawPreview([]);
+      setEmployees([]);
+      setColumns([]);
+      setSourceColumns([]);
+      setMissing([]);
+      setWarnings([]);
+      setMapping({});
+      setDestinations([]);
+      setProfileName("");
+      setUploaded(false);
+      setError(null);
+      setBusy(false);
+      setPeriodMonth("");
+      setFrom("");
+      setTo("");
+    }
+    previousEntityId.current = entity.id;
+    setProfiles([]);
+    let cancelled = false;
     void apiFetch("/api/payroll/import-profiles").then(parseEnvelopeResponse<ImportProfile[]>)
-      .then(setProfiles).catch(() => undefined);
-  }, []);
+      .then((data) => { if (!cancelled) setProfiles(data); })
+      .catch(() => { if (!cancelled) setProfiles([]); });
+    return () => { cancelled = true; };
+  }, [entity?.id]);
 
   const onFile = (f: File | null) => {
     setFile(f);
@@ -81,6 +111,7 @@ export default function UploadPage() {
 
   const parseUpload = useCallback(async () => {
     if (!file) return;
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     const fd = new FormData();
@@ -95,7 +126,15 @@ export default function UploadPage() {
     try {
       const res = await apiFetch("/api/payroll/preview", { method: "POST", body: fd });
       data = await parseEnvelopeResponse(res);
+      if (getActiveEntityId() !== requestEntityId) {
+        setBusy(false);
+        return;
+      }
     } catch (err) {
+      if (getActiveEntityId() !== requestEntityId) {
+        setBusy(false);
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Upload failed — check your file format.";
       setError(msg);
       toast.error("Parse failed", { description: msg });
@@ -134,6 +173,7 @@ export default function UploadPage() {
       setError("Map the Employee ID column before uploading.");
       return;
     }
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     try {
@@ -149,6 +189,7 @@ export default function UploadPage() {
         columns: string[]; preview: PreviewRow[]; employees: PreviewRow[];
         missing_required: string[]; warnings: string[];
       }>(res);
+      if (getActiveEntityId() !== requestEntityId) return;
       setColumns(data.columns);
       setPreview(data.preview);
       setEmployees(data.employees);
@@ -161,8 +202,10 @@ export default function UploadPage() {
             method: "POST", body: JSON.stringify({ name: profileName.trim(), column_mapping: mapping }),
           });
           await parseEnvelopeResponse(saved);
+          if (getActiveEntityId() !== requestEntityId) return;
           const refreshed = await apiFetch("/api/payroll/import-profiles");
-          setProfiles(await parseEnvelopeResponse(refreshed));
+          const formats = await parseEnvelopeResponse<ImportProfile[]>(refreshed);
+          if (getActiveEntityId() === requestEntityId) setProfiles(formats);
         } catch (err) {
           toast.error("Register is ready, but the mapping format was not saved", {
             description: err instanceof Error ? err.message : "Try saving the format again later.",
@@ -171,7 +214,8 @@ export default function UploadPage() {
       }
       toast.success("Mapped register ready", { description: `${data.employees.length.toLocaleString("en-IN")} employees` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      if (getActiveEntityId() === requestEntityId)
+        setError(err instanceof Error ? err.message : "Upload failed.");
     } finally { setBusy(false); }
   };
 
@@ -181,6 +225,7 @@ export default function UploadPage() {
       toast.error("Nothing to validate", { description: "Parse the register before running validation." });
       return;
     }
+    const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     try {
@@ -200,6 +245,9 @@ export default function UploadPage() {
         findings_summary?: unknown;
         risk_scores?: unknown[];
       };
+      if (getActiveEntityId() !== requestEntityId) return;
+      clearPayrollResults();
+      tagPayrollResultsForCurrentEntity();
       sessionStorage.setItem("payroll_results", JSON.stringify(data.results));
       sessionStorage.setItem("payroll_findings", JSON.stringify(data.findings || []));
       sessionStorage.setItem("payroll_findings_summary", JSON.stringify(data.findings_summary || {}));
@@ -230,6 +278,7 @@ export default function UploadPage() {
       });
       router.push("/payroll/results");
     } catch (err) {
+      if (getActiveEntityId() !== requestEntityId) return;
       const msg = err instanceof Error ? err.message : "Validation failed.";
       setError(msg);
       toast.error("Validation failed", { description: msg });

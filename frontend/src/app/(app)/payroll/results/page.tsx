@@ -1,6 +1,8 @@
 "use client";
 
 import { apiBlob } from "@/lib/api";
+import { useEntity } from "@/context/EntityContext";
+import { hasCurrentPayrollResults } from "@/lib/payroll-session";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -180,6 +182,7 @@ function RiskBadge({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 function PayrollResultsContent() {
+  const { entity } = useEntity();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -201,6 +204,14 @@ function PayrollResultsContent() {
   const [exportBusy, setExportBusy] = useState(false);
 
   useEffect(() => {
+    setResults([]);
+    setFindings([]);
+    setSummary(null);
+    setRiskScores([]);
+    if (!hasCurrentPayrollResults() || !entity || entity.id !== sessionStorage.getItem("payroll_results_entity_id")) {
+      setReady(true);
+      return;
+    }
     try {
       const r = sessionStorage.getItem("payroll_results");
       const f = sessionStorage.getItem("payroll_findings");
@@ -214,7 +225,7 @@ function PayrollResultsContent() {
       /* ignore */
     }
     setReady(true);
-  }, []);
+  }, [entity]);
 
   useEffect(() => {
     const t = searchParams.get("tab");

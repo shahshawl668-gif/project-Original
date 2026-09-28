@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEntity } from "@/context/EntityContext";
+import { hasCurrentPayrollResults } from "@/lib/payroll-session";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -191,6 +193,7 @@ function FindingCard({ f }: { f: Finding }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EmployeeDrilldownPage() {
+  const { entity } = useEntity();
   const params = useParams();
   const rawId = params?.id as string | undefined;
   const employeeId = rawId ? decodeURIComponent(rawId) : "";
@@ -199,6 +202,8 @@ export default function EmployeeDrilldownPage() {
   const [filterSev, setFilterSev] = useState<"ALL"|"CRITICAL"|"WARNING"|"INFO"|"PASS">("ALL");
 
   useEffect(() => {
+    setEmpData(null);
+    if (!hasCurrentPayrollResults() || !entity || entity.id !== sessionStorage.getItem("payroll_results_entity_id")) return;
     try {
       const raw = sessionStorage.getItem("payroll_results");
       if (!raw) return;
@@ -206,7 +211,7 @@ export default function EmployeeDrilldownPage() {
       const found = rows.find(r => String(r.employee_id).trim() === String(employeeId).trim());
       if (found) setEmpData(found);
     } catch { /* ignore */ }
-  }, [employeeId]);
+  }, [employeeId, entity]);
 
   const allFindings = useMemo(() => empData?.findings ?? [], [empData]);
 
