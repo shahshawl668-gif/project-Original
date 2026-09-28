@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { useAuth } from "@/context/AuthContext";
+import { clearPayrollResults } from "@/lib/payroll-session";
 import {
   apiFetch,
   getActiveEntityId,
@@ -99,9 +100,15 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
     async (entityId: string) => {
       // Set it locally first so the request that persists the choice is itself
       // made against the new entity, then reload everything downstream.
+      const previous = getActiveEntityId();
       setActiveEntityId(entityId);
       try {
-        await apiFetch(`/api/org/entities/${entityId}/select`, { method: "POST" });
+        const res = await apiFetch(`/api/org/entities/${entityId}/select`, { method: "POST" });
+        await parseEnvelopeResponse(res);
+        if (previous !== entityId) clearPayrollResults();
+      } catch (err) {
+        setActiveEntityId(previous);
+        throw err;
       } finally {
         await reload();
       }
