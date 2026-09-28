@@ -22,6 +22,7 @@ from app.models import (
     FindingState,
     FindingRecord,
     ValidationRuleVersion,
+    SlabRule,
     TenantRulePreference,
     MinimumWageRate,
     PeriodSignOff,
@@ -161,6 +162,22 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
                     "approved_by": str(rule.approved_by) if rule.approved_by else None,
                 }
                 for rule in validation_matrix.published_for(db, entity.id, period_month)
+            ],
+            "pt_lwf_slabs": [
+                {
+                    "state": row.state, "rule_type": row.rule_type,
+                    "min_salary": str(row.min_salary), "max_salary": str(row.max_salary),
+                    "deduction_amount": str(row.deduction_amount),
+                    "employer_amount": str(row.employer_amount or 0),
+                    "frequency": row.frequency, "gender": row.gender,
+                    "applicable_months": row.applicable_months,
+                    "effective_from": row.effective_from.isoformat() if row.effective_from else None,
+                    "effective_to": row.effective_to.isoformat() if row.effective_to else None,
+                    "source_reference": row.source_reference,
+                }
+                for row in db.query(SlabRule).filter(SlabRule.entity_id == entity.id).all()
+                if (row.effective_from is None or row.effective_from <= period_month)
+                and (row.effective_to is None or row.effective_to >= period_month)
             ],
             "minimum_wage_rates": [
                 {
