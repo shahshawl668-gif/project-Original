@@ -338,11 +338,17 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
     rows += [r2 for st in _lwf.LWF_DEFAULTS.values() for r2 in st]
     cited = sum(1 for r2 in rows if r2.get("source_reference"))
 
+    pt_states, lwf_states = len(_pt.PT_DEFAULTS), len(_lwf.LWF_DEFAULTS)
+    pt_rows = sum(len(v) for v in _pt.PT_DEFAULTS.values())
+    lwf_rows = sum(len(v) for v in _lwf.LWF_DEFAULTS.values())
+
     r += 2
-    ws.cell(row=r, column=1, value="State rates citing a source").font = Font(FONT, size=10, bold=True)
+    ws.cell(row=r, column=1, value="Slab rows citing a source").font = Font(FONT, size=10, bold=True)
     ws.cell(row=r, column=2, value=f"{cited} of {len(rows)}").font = Font(FONT, size=10, bold=True)
     note = ws.cell(row=r + 1, column=1, value=(
-        f"{len(rows) - cited} of the {len(rows)} state PT and LWF rows carry no source in the code. "
+        f"Counted in slab rows, not states: PT is banded by wage, so {pt_states} states "
+        f"become {pt_rows} rows, and LWF's {lwf_states} states become {lwf_rows}. "
+        f"{len(rows) - cited} of those {len(rows)} rows carry no source in the code. "
         "They are not wrong — most predate the provenance field — but they are the rows "
         "to check first, because nothing records where they came from."))
     note.font = Font(FONT, size=9, italic=True, color="475569")
