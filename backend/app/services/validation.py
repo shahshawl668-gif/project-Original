@@ -912,6 +912,20 @@ def validate_employees(
     # cost dimensions snapshotted onto each result row.
     master_rows = master_as_of(db, entity.id, as_of)
 
+    # CTC records for everyone, once: the two latest in force at the cutoff,
+    # per employee — exactly what _latest_ctcs returns, without a query per
+    # employee (20,000 of them on a large register).
+    ctc_cutoff = period_month or as_of
+    ctcs_by_employee: dict[str, list[CtcRecord]] = {}
+    for record in (
+        db.query(CtcRecord)
+        .filter(CtcRecord.entity_id == entity.id, CtcRecord.effective_from <= ctc_cutoff)
+        .order_by(CtcRecord.employee_id, CtcRecord.effective_from.desc())
+    ):
+        bucket = ctcs_by_employee.setdefault(record.employee_id, [])
+        if len(bucket) < 2:
+            bucket.append(record)
+
     results: list[dict[str, Any]] = []
 
     for row in employees:
@@ -1085,7 +1099,7 @@ def validate_employees(
 
         # Loaded before the row is classified: a CTC revision's effective date
         # is one of the sources for this employee's arrear window.
-        ctcs = _latest_ctcs(db, entity.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
+        ctcs = ctcs_by_employee.get(eid, []) if eid != "UNKNOWN" else []
 
         # Every register is validated in one pass. What a row contains is read
         # from the row, so an operator never has to split a file or declare a

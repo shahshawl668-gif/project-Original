@@ -1,7 +1,7 @@
 "use client";
 
 import { apiFetch, getActiveEntityId, parseEnvelopeResponse } from "@/lib/api";
-import { clearPayrollResults, tagPayrollResultsForCurrentEntity } from "@/lib/payroll-session";
+import { monthLabel, validationApi, type RegisterUpload, type ValidationJob } from "@/lib/validation";
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
@@ -47,7 +47,6 @@ export default function UploadPage() {
   const [columns, setColumns] = useState<string[]>([]);
   const [sourceColumns, setSourceColumns] = useState<string[]>([]);
   const [rawPreview, setRawPreview] = useState<PreviewRow[]>([]);
-  const [employees, setEmployees] = useState<PreviewRow[]>([]);
   const [missing, setMissing] = useState<string[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -58,6 +57,9 @@ export default function UploadPage() {
   const [profiles, setProfiles] = useState<ImportProfile[]>([]);
   const [profileName, setProfileName] = useState("");
   const [uploaded, setUploaded] = useState(false);
+  const [employeeCount, setEmployeeCount] = useState(0);
+  const [upload, setUpload] = useState<RegisterUpload | null>(null);
+  const [activeJobs, setActiveJobs] = useState<ValidationJob[]>([]);
 
   useEffect(() => {
     if (!entity?.id) return;
@@ -66,7 +68,6 @@ export default function UploadPage() {
       setStep(0);
       setPreview([]);
       setRawPreview([]);
-      setEmployees([]);
       setColumns([]);
       setSourceColumns([]);
       setMissing([]);
@@ -75,6 +76,8 @@ export default function UploadPage() {
       setDestinations([]);
       setProfileName("");
       setUploaded(false);
+      setEmployeeCount(0);
+      setUpload(null);
       setError(null);
       setBusy(false);
       setPeriodMonth("");
@@ -87,13 +90,17 @@ export default function UploadPage() {
     void apiFetch("/api/payroll/import-profiles").then(parseEnvelopeResponse<ImportProfile[]>)
       .then((data) => { if (!cancelled) setProfiles(data); })
       .catch(() => { if (!cancelled) setProfiles([]); });
+    // A validation someone started and walked away from is still running.
+    setActiveJobs([]);
+    void validationApi.jobs({ active: true })
+      .then((jobs) => { if (!cancelled) setActiveJobs(jobs); })
+      .catch(() => { if (!cancelled) setActiveJobs([]); });
     return () => { cancelled = true; };
   }, [entity?.id]);
 
   const onFile = (f: File | null) => {
     setFile(f);
     setPreview([]);
-    setEmployees([]);
     setColumns([]);
     setSourceColumns([]);
     setRawPreview([]);
@@ -103,6 +110,8 @@ export default function UploadPage() {
     setMapping({});
     setProfileName("");
     setUploaded(false);
+    setEmployeeCount(0);
+    setUpload(null);
     if (f) {
       setStep(1);
       toast.info("File ready", { description: f.name });
@@ -183,16 +192,21 @@ export default function UploadPage() {
         run_type: runType, period_month: periodMonth || null,
         effective_month_from: from || null, effective_month_to: to || null,
         strict_header_check: strict, column_mapping: mapping,
+        // The register is validated on the server from the stored upload, so
+        // there is no reason to ship every row back to this page.
+        return_employees: false,
       }));
       const res = await apiFetch("/api/payroll/upload", { method: "POST", body: fd });
       const data = await parseEnvelopeResponse<{
         columns: string[]; preview: PreviewRow[]; employees: PreviewRow[];
         missing_required: string[]; warnings: string[];
+        employee_count: number; upload: RegisterUpload;
       }>(res);
       if (getActiveEntityId() !== requestEntityId) return;
       setColumns(data.columns);
       setPreview(data.preview);
-      setEmployees(data.employees);
+      setEmployeeCount(data.employee_count);
+      setUpload(data.upload);
       setMissing(data.missing_required);
       setWarnings(data.warnings);
       setUploaded(true);
@@ -212,7 +226,9 @@ export default function UploadPage() {
           });
         }
       }
-      toast.success("Mapped register ready", { description: `${data.employees.length.toLocaleString("en-IN")} employees` });
+      toast.success("Mapped register ready", {
+        description: `${data.employee_count.toLocaleString("en-IN")} employees · upload ${data.upload.revision} for this month`,
+      });
     } catch (err) {
       if (getActiveEntityId() === requestEntityId)
         setError(err instanceof Error ? err.message : "Upload failed.");
@@ -220,68 +236,41 @@ export default function UploadPage() {
   };
 
   const runValidate = async () => {
-    if (!employees.length) {
-      setError("Parse a file first.");
-      toast.error("Nothing to validate", { description: "Parse the register before running validation." });
+    if (!upload || !employeeCount) {
+      setError("Upload and map a register first.");
+      return;
+    }
+    if (!periodMonth || !upload.period_month) {
+      setError("Choose the payroll month, then apply the mapping again — validation is recorded against a month.");
       return;
     }
     const requestEntityId = getActiveEntityId();
     setBusy(true);
     setError(null);
     try {
-      const res = await apiFetch("/api/payroll/validate", {
-        method: "POST",
-        body: JSON.stringify({
-          employees,
-          run_type: runType,
-          period_month: periodMonth || null,
-          effective_month_from: from || null,
-          effective_month_to: to || null,
-        }),
+      const { job, already_queued } = await validationApi.enqueue({
+        period_month: upload.period_month,
+        upload_id: upload.id,
+        run_type: runType,
+        effective_month_from: from || null,
+        effective_month_to: to || null,
       });
-      const data = await parseEnvelopeResponse(res) as {
-        results: unknown[];
-        findings?: unknown[];
-        findings_summary?: unknown;
-        risk_scores?: unknown[];
-      };
       if (getActiveEntityId() !== requestEntityId) return;
-      clearPayrollResults();
-      tagPayrollResultsForCurrentEntity();
-      sessionStorage.setItem("payroll_results", JSON.stringify(data.results));
-      sessionStorage.setItem("payroll_findings", JSON.stringify(data.findings || []));
-      sessionStorage.setItem("payroll_findings_summary", JSON.stringify(data.findings_summary || {}));
-      sessionStorage.setItem("payroll_risk_scores", JSON.stringify(data.risk_scores || []));
-      sessionStorage.setItem(
-        "payroll_validate_request",
-        JSON.stringify({
-          employees,
-          run_type: runType,
-          period_month: periodMonth || null,
-          effective_month_from: from || null,
-          effective_month_to: to || null,
-        }),
-      );
-      sessionStorage.setItem(
-        "payroll_meta",
-        JSON.stringify({
-          run_type: runType,
-          period_month: periodMonth,
-          from,
-          to,
-          columns,
-          filename: file?.name,
-        }),
-      );
-      toast.success("Validation complete", {
-        description: "Opening detailed results.",
-      });
-      router.push("/payroll/results");
+      if (already_queued) {
+        toast.info("Validation already in progress", {
+          description: `Joining the validation already running for ${monthLabel(job.period_month)}.`,
+        });
+      } else {
+        toast.success("Validation queued", {
+          description: "You can leave this page — it keeps running and you can come back to it.",
+        });
+      }
+      router.push(`/payroll/validation?job=${encodeURIComponent(job.id)}`);
     } catch (err) {
       if (getActiveEntityId() !== requestEntityId) return;
-      const msg = err instanceof Error ? err.message : "Validation failed.";
+      const msg = err instanceof Error ? err.message : "Validation could not be started.";
       setError(msg);
-      toast.error("Validation failed", { description: msg });
+      toast.error("Validation not started", { description: msg });
     } finally {
       setBusy(false);
     }
@@ -294,7 +283,7 @@ export default function UploadPage() {
       <PageHeader
         eyebrow="Validation engine"
         title="Upload & validate payroll"
-        description="Import a salary register (CSV / Excel), set run parameters, preview rows, then run a full statutory validation pass."
+        description="Import a salary register (CSV / Excel), map its columns, then queue a full statutory validation. It runs on the server — you can close the page and return to it."
         actions={
           <Button variant="outline" asChild>
             <Link href="/payroll/history" className="gap-2">
@@ -303,6 +292,20 @@ export default function UploadPage() {
           </Button>
         }
       />
+
+      {activeJobs.length > 0 ? (
+        <AlertBanner variant="info" title="A validation is still running">
+          {activeJobs.map((job) => (
+            <span key={job.id} className="mt-1 flex flex-wrap items-center gap-2">
+              {monthLabel(job.period_month)} · {job.stage_label}
+              {job.employee_total ? ` · ${job.employee_done.toLocaleString("en-IN")} of ${job.employee_total.toLocaleString("en-IN")} employees` : ""}
+              <Link className="font-semibold underline" href={`/payroll/validation?job=${encodeURIComponent(job.id)}`}>
+                View progress
+              </Link>
+            </span>
+          ))}
+        </AlertBanner>
+      ) : null}
 
       <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-ink-700">
         <p className="font-semibold">Use your existing payroll register</p>
@@ -648,7 +651,7 @@ export default function UploadPage() {
       ) : null}
 
       {/* Step 2: Preview + Validate */}
-      {step >= 2 && uploaded && employees.length > 0 ? (
+      {step >= 2 && uploaded && employeeCount > 0 ? (
         <Card className="overflow-hidden shadow-soft ring-1 ring-slate-900/[0.04]">
           <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -657,9 +660,12 @@ export default function UploadPage() {
               </div>
               <div>
                 <p className="font-semibold text-slate-900">
-                  {employees.length.toLocaleString("en-IN")} employees parsed
+                  {employeeCount.toLocaleString("en-IN")} employees parsed
                 </p>
-                <p className="text-sm text-slate-600">{columns.length} columns mapped</p>
+                <p className="text-sm text-slate-600">
+                  {columns.length} columns mapped
+                  {upload ? ` · ${monthLabel(upload.period_month)} upload ${upload.revision} · file ${upload.file_sha256.slice(0, 10)}…` : ""}
+                </p>
               </div>
             </div>
             <Button
@@ -670,7 +676,7 @@ export default function UploadPage() {
             >
               {busy ? (
                 <>
-                  <Loader2 size={17} strokeWidth={2} className="animate-spin" /> Validating…
+                  <Loader2 size={17} strokeWidth={2} className="animate-spin" /> Queuing…
                 </>
               ) : (
                 <>
@@ -680,7 +686,7 @@ export default function UploadPage() {
             </Button>
             <Button type="button" variant="outline" onClick={() => {
               setUploaded(false); setColumns(sourceColumns); setPreview(rawPreview);
-              setEmployees([]); setMissing([]); setWarnings([]);
+              setEmployeeCount(0); setUpload(null); setMissing([]); setWarnings([]);
             }}>Edit mapping</Button>
           </div>
 

@@ -29,6 +29,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -43,9 +44,26 @@ from app.database import Base
 # Lifecycle states for a fingerprint.
 FINDING_STATES = ("open", "acknowledged", "waived", "resolved")
 
+# A run is written once, complete, in the same transaction as the job that
+# produced it. So there is no "running" or "failed" run: a failed job leaves no
+# run behind at all, and the only thing that ever happens to a run afterwards is
+# that a later one replaces it as the period's answer.
+RUN_STATUSES = ("current", "superseded")
+
+#: Bumped whenever a change to the engine could change what a run reports.
+#: Stored on every run, so "this was validated by an older engine" is visible.
+ENGINE_VERSION = "2026.10.1"
+
 
 class ValidationRun(Base):
-    """One validation of one period, and the totals it produced."""
+    """
+    One validation of one period, and the totals it produced.
+
+    Runs are immutable and never deleted. Validating a period again marks the
+    previous run ``superseded`` and points it at its replacement; both stay
+    readable, so what was reported on the 3rd can still be shown on the 30th,
+    and two runs can be compared finding by finding.
+    """
 
     __tablename__ = "validation_runs"
 
@@ -77,7 +95,83 @@ class ValidationRun(Base):
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # --- history -------------------------------------------------------------
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="current", index=True)
+    # 1, 2, 3… per entity and period, so people can say "run 3" and mean one thing.
+    run_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    superseded_by_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # "job" (queued, the product's own journey), "api" (synchronous endpoint).
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="api")
+    job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+
+    # --- what was validated, frozen -------------------------------------------
+    upload_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("register_uploads.id", ondelete="SET NULL")
+    )
+    run_type: Mapped[str | None] = mapped_column(String(32))
+    params: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    engine_version: Mapped[str | None] = mapped_column(String(32))
+    # One digest per input the result depends on, so a later "revalidation
+    # required" can say *which* input changed rather than just "something".
+    input_digests: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # The configuration the engine read, as data — the rates, slabs, component
+    # flags and rule versions. Hashed into input_digests["configuration"].
+    config_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+
     findings = relationship("FindingRecord", back_populates="run", cascade="all, delete-orphan")
+
+
+class ValidationRunEmployee(Base):
+    """
+    One employee's result within one run.
+
+    What the results page lists, sorts and pages through on the server. The
+    columns are the ones people sort and filter by; ``detail_gz`` holds the rest
+    of the computed row — the recomputed statutory amounts and every check's
+    outcome, passes included — compressed, because it is read one employee at a
+    time and a table of 20,000 uncompressed JSON rows per run is the difference
+    between a database that lasts years and one that lasts months.
+    """
+
+    __tablename__ = "validation_run_employees"
+    __table_args__ = (
+        Index("ix_vre_run_employee", "run_id", "employee_id"),
+        Index("ix_vre_run_risk", "run_id", "risk_score"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("validation_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    employee_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    employee_name: Mapped[str | None] = mapped_column(String(255))
+    department: Mapped[str | None] = mapped_column(String(255))
+    work_state: Mapped[str | None] = mapped_column(String(64))
+    row_kind: Mapped[str | None] = mapped_column(String(64))
+
+    risk_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    risk_level: Mapped[str] = mapped_column(String(16), nullable=False, default="LOW")
+    failed_checks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    critical_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    passed_checks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    financial_impact: Mapped[Decimal] = mapped_column(
+        Numeric(16, 2), nullable=False, default=Decimal("0")
+    )
+    gross: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))
+    net_pay: Mapped[Decimal | None] = mapped_column(Numeric(16, 2))
+
+    # gzip(JSON(the computed row, findings included)).
+    detail_gz: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
 
 
 class FindingRecord(Base):

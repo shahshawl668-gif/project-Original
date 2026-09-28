@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEntity } from "@/context/EntityContext";
-import { hasCurrentPayrollResults } from "@/lib/payroll-session";
-import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { monthLabel, validationApi, type ValidationRun } from "@/lib/validation";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
   ResponsiveContainer, Tooltip,
@@ -192,26 +192,48 @@ function FindingCard({ f }: { f: Finding }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function EmployeeDrilldownPage() {
+function EmployeeDrilldown() {
   const { entity } = useEntity();
   const params = useParams();
   const rawId = params?.id as string | undefined;
   const employeeId = rawId ? decodeURIComponent(rawId) : "";
 
+  const searchParams = useSearchParams();
+  const runParam = searchParams.get("run");
   const [empData, setEmpData] = useState<ResultRow | null>(null);
+  const [run, setRun] = useState<ValidationRun | null>(null);
+  const [sourceRow, setSourceRow] = useState<Record<string, unknown> | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filterSev, setFilterSev] = useState<"ALL"|"CRITICAL"|"WARNING"|"INFO"|"PASS">("ALL");
 
   useEffect(() => {
+    let cancelled = false;
     setEmpData(null);
-    if (!hasCurrentPayrollResults() || !entity || entity.id !== sessionStorage.getItem("payroll_results_entity_id")) return;
-    try {
-      const raw = sessionStorage.getItem("payroll_results");
-      if (!raw) return;
-      const rows: ResultRow[] = JSON.parse(raw);
-      const found = rows.find(r => String(r.employee_id).trim() === String(employeeId).trim());
-      if (found) setEmpData(found);
-    } catch { /* ignore */ }
-  }, [employeeId, entity]);
+    setRun(null);
+    setSourceRow(null);
+    setLoadError(null);
+    if (!employeeId || !entity) return;
+    (async () => {
+      try {
+        let id = runParam;
+        if (!id) {
+          const latest = await validationApi.runs({ include_superseded: false, limit: 1 });
+          if (!latest.length) throw new Error("No validation run exists for this company yet.");
+          id = latest[0].id;
+        }
+        const detail = await validationApi.employee(id, employeeId);
+        if (cancelled) return;
+        setRun(detail.run);
+        setSourceRow(detail.source_row);
+        setEmpData(detail.result as unknown as ResultRow);
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Could not load this employee.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [employeeId, entity, runParam]);
+
+  const backHref = run ? `/payroll/results?run=${encodeURIComponent(run.id)}` : "/payroll/results";
 
   const allFindings = useMemo(() => empData?.findings ?? [], [empData]);
 
@@ -245,7 +267,7 @@ export default function EmployeeDrilldownPage() {
     return (
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         <Link
-          href="/payroll/results"
+          href={backHref}
           className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
         >
           <ArrowLeft size={14} /> Back to results
@@ -253,12 +275,14 @@ export default function EmployeeDrilldownPage() {
         <div className="rounded-2xl border border-ink-200 bg-white p-12 text-center shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
           <ShieldCheck size={48} className="mx-auto mb-4 text-ink-200 dark:text-ink-600" />
           <p className="text-lg font-semibold text-ink-700 dark:text-ink-200">
-            {employeeId
-              ? `Employee "${employeeId}" not found in session.`
-              : "No employee ID provided."}
+            {!employeeId
+              ? "No employee ID provided."
+              : loadError
+                ? loadError
+                : "Loading…"}
           </p>
           <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-            Run a validation first, then open this page.
+            Results are read from the validation run on the server.
           </p>
         </div>
       </div>
@@ -268,11 +292,19 @@ export default function EmployeeDrilldownPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <Link
-        href="/payroll/results"
+        href={backHref}
         className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
       >
         <ArrowLeft size={14} /> Back to results
       </Link>
+
+      {run ? (
+        <p className="text-xs text-ink-500">
+          {monthLabel(run.period_month)} · run #{run.run_number} ({run.status})
+          {run.upload ? ` · ${run.upload.filename ?? "register"}, upload ${run.upload.revision}` : ""}
+          {sourceRow && typeof sourceRow["_source_row"] === "number" ? ` · file row ${sourceRow["_source_row"] as number}` : ""}
+        </p>
+      ) : null}
 
       <div className={`rounded-2xl border p-5 ${risk.bg}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -472,5 +504,13 @@ export default function EmployeeDrilldownPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function EmployeeDrilldownPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-5xl p-6 text-sm text-ink-500">Loading…</div>}>
+      <EmployeeDrilldown />
+    </Suspense>
   );
 }

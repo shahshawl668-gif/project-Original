@@ -123,16 +123,23 @@ def findings_summary(
 
 @router.get("/runs")
 def list_runs(
+    include_superseded: bool = Query(default=False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     entity: Entity = Depends(get_current_entity),
 ):
-    rows = (
-        db.query(ValidationRun)
-        .filter(ValidationRun.entity_id == entity.id)
-        .order_by(ValidationRun.period_month.desc())
-        .all()
-    )
+    """Each period's current run; with ``include_superseded``, every run ever made.
+
+    Current-only by default because every existing reader of this list treats
+    it as one row per period — a trend chart fed superseded runs would count a
+    re-validated month twice.
+    """
+    query = db.query(ValidationRun).filter(ValidationRun.entity_id == entity.id)
+    if not include_superseded:
+        query = query.filter(ValidationRun.status == "current")
+    rows = query.order_by(
+        ValidationRun.period_month.desc(), ValidationRun.run_number.desc()
+    ).all()
     return ok([ValidationRunOut.model_validate(r).model_dump(mode="json") for r in rows])
 
 

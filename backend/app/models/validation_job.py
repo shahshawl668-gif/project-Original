@@ -125,6 +125,26 @@ class ValidationJob(Base):
         Integer, nullable=False, default=DEFAULT_MAX_ATTEMPTS
     )
 
+    # --- added when the product's own journey moved onto the queue ------------
+    # The upload whose frozen rows this job validates. Preferred over
+    # register_id: the register is replaced by a re-upload, the upload is not.
+    upload_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("register_uploads.id", ondelete="SET NULL")
+    )
+    # What the worker is doing now, for a progress display that says more than
+    # a percentage: queued → loading → validating → recording → finished.
+    stage: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
+    # Set by a person; honoured by the worker at its next progress point. A
+    # running job cannot be killed from outside safely, but it can be asked.
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # A retry is a new job, so the failed one stays exactly as it failed.
+    retry_of_job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # What the person is told, kept apart from ``error`` (the exception, for
+    # whoever runs the platform). A traceback is not an explanation.
+    error_code: Mapped[str | None] = mapped_column(String(48))
+    error_message: Mapped[str | None] = mapped_column(Text)
+
     queued_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
     )

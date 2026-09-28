@@ -273,6 +273,53 @@ trail that can survive a rolled-back change records events that never happened.
   which two people sharing an account is the right answer in a system whose
   output is evidence.
 
+### The validation queue
+
+Validations run as background jobs inside the API service, drained by worker
+threads that start with it.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `VALIDATION_WORKER_ENABLED` | `true` | Start worker threads in the API process. Turn off **only** if a separate `python -m app.worker` process runs instead — otherwise every validation waits forever. |
+| `VALIDATION_WORKER_CONCURRENCY` | `1` | Threads per process. Each holds one validation in memory; see the measured figures in `docs/BACKGROUND_JOBS.md` §15 before raising it on a small instance. |
+
+**A job whose worker died** (a deploy, the instance sleeping, out of memory) is
+reclaimed automatically once its lease is two minutes stale, and retried up to
+three attempts. Nothing to do.
+
+**A job that failed** shows its reason on the client's progress page, written
+for them (missing columns, no components configured). The raw error is kept in
+`validation_jobs.error` for you; the client never sees it. A retry is a new job
+and is always safe — a failed attempt writes nothing.
+
+**A job stuck in `queued`** means no worker is running. Check the API boot log
+line `validation_workers=N`; `0` means the setting is off.
+
+### Run history and storage
+
+Validation runs are **never deleted**: re-validating a month supersedes the
+previous run and keeps it. Uploads are kept too, with the rows as parsed,
+compressed. Budget the database for it — measured sizes per 1,000 employees are
+in `docs/BACKGROUND_JOBS.md` §15. There is no purge; removing evidence is a
+decision for the client, not a housekeeping task.
+
+### Upgrading to the run-history release (October 2026)
+
+- **Automatic on first start.** `preserve_run_history` in `app/migrations.py`
+  adds columns to `validation_runs` and `validation_jobs`, creates
+  `register_uploads` and `validation_run_employees`, and adds a unique index
+  allowing one `current` run per period. It is idempotent and additive.
+- **Existing runs** become run 1, `current` — true of every one, because the old
+  code deleted the previous run on each re-validation. They carry no input
+  digests, so they are reported as *"predates input tracking"* rather than as
+  current; revalidating the month gives them a successor with full evidence.
+- **Rollback:** redeploy the previous release. Every new column is nullable or
+  defaulted and the old code does not read them, so it runs unchanged. Runs made
+  by the new release stay in the table (the old code would show only the latest
+  per month, as before). The one thing the old code does that the new one
+  undoes is *delete* superseded runs on the next re-validation — so roll back
+  only if you must.
+
 ---
 
 ## 9. What an administrator must not delegate

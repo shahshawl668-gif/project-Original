@@ -118,13 +118,52 @@ Fix the file and upload again. When it validates clean, commit it.
 ![Upload and validate](images/02-payroll-upload.png)
 
 1. **Upload file** — CSV or Excel, straight out of your payroll system.
-2. **Configure run** — the period, and the run type (regular, increment,
-   arrears, full & final).
-3. **Validate** — runs the full statutory pass.
+2. **Configure run** — the payroll month, and the run type (regular, increment,
+   arrears, full & final). Map the file's columns once and save the mapping as
+   a format for next month.
+3. **Validate** — queues the full statutory pass.
+
+**Validation runs on the server, not in your browser.** After you press
+**Run validation** you are taken to a progress page showing the stage (reading
+the register, checking employees, saving results) and how many employees have
+been checked. **You can close the page** — the validation keeps going, the
+upload page shows a link back to it, and **Payroll → Validations** lists every
+validation with its outcome. A large register (thousands of employees) takes a
+few minutes.
+
+![Validation progress](images/16-validation-progress.png)
+
+- **Cancel** stops it; nothing from a cancelled attempt is kept.
+- If it **fails**, the page says why and what to fix. **Retry** is always safe:
+  a failed attempt saves nothing, so retrying cannot produce duplicates.
+- Pressing Validate twice, or in two tabs, does not start two validations — the
+  second joins the first.
+
+**Every upload is kept.** Re-uploading a corrected file does not erase the first
+one: each upload records the file's fingerprint (SHA-256) and a revision number,
+so months later you can show exactly which file was checked.
 
 ### Step 3 — Read the results
 
 ![Results](images/03-payroll-results.png)
+
+Results are a **run**: a numbered, dated record of one validation of one month.
+Validating the month again creates the next run; the earlier one is kept,
+marked *superseded*, and still shows exactly what it reported. The chips at the
+top of the results page switch between a month's runs, and **Compare** shows
+what changed between two of them — which findings are **new**, which were
+**resolved**, which **changed** and which are **unchanged**, with the rupee
+totals of each.
+
+If anything the result depended on changes after the run — the register is
+re-uploaded, the employee master or attendance changes, or a component flag,
+rate or rule is edited — the page shows **"Revalidation required"**, names
+what changed, and offers to revalidate. A month is never shown as current when
+its inputs have moved.
+
+Large results are paged: search and filter by employee, risk level, severity or
+rule, and download the whole run to Excel — exactly as it was recorded, not
+re-computed.
 
 Each finding carries a rule ID, a severity, what was expected, what the register
 actually said, the difference in rupees, and a suggested fix.
@@ -253,6 +292,14 @@ read-only, with identities masked — and you will see a banner the whole time a
 can revoke instantly. Your owner controls this under
 **Settings → Team & invitations → Support access**, including switching it off
 entirely.
+
+**I closed the browser during validation. Is it lost?**
+No. It kept running on the server. Open **Payroll → Validations**, or the upload
+page, which links to any validation still in progress.
+
+**We re-uploaded the register. Where did the first results go?**
+Nowhere. Each validation is kept as a run. Open the results and pick the earlier
+run from the chips at the top, or use **Compare**.
 
 **The first page of the day is slow.**
 On smaller hosting plans the server sleeps when idle and takes up to a minute to

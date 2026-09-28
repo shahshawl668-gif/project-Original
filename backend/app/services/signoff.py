@@ -28,10 +28,10 @@ from app.models import (
     PeriodSignOff,
     SignOffEvent,
     User,
-    ValidationRun,
 )
 from app.services import analytics, validation_matrix
 from app.services.config_service import ConfigService
+from app.services.finding_store import current_run
 
 
 def _json_default(value):
@@ -61,11 +61,7 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
     period_month = period_month.replace(day=1)
     config_service = ConfigService(db)
 
-    run = (
-        db.query(ValidationRun)
-        .filter(ValidationRun.entity_id == entity.id, ValidationRun.period_month == period_month)
-        .first()
-    )
+    run = current_run(db, entity.id, period_month)
 
     states = (
         db.query(FindingState)
@@ -278,11 +274,8 @@ def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) ->
     entity = db.get(Entity, signoff.entity_id)
 
     snapshot = build_snapshot(db, entity, signoff.period_month)
-    current_run = db.query(ValidationRun).filter(
-        ValidationRun.entity_id == entity.id,
-        ValidationRun.period_month == signoff.period_month,
-    ).first()
-    if current_run:
+    period_run = current_run(db, entity.id, signoff.period_month)
+    if period_run:
         suppressed = {
             rule_id for (rule_id,) in db.query(TenantRulePreference.rule_id).filter(
                 TenantRulePreference.entity_id == entity.id,
@@ -293,7 +286,7 @@ def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) ->
             record.fingerprint for record, version in db.query(FindingRecord, ValidationRuleVersion).join(
                 ValidationRuleVersion, FindingRecord.rule_version_id == ValidationRuleVersion.id
             ).filter(
-                FindingRecord.run_id == current_run.id,
+                FindingRecord.run_id == period_run.id,
                 ValidationRuleVersion.blocks_signoff.is_(True),
                 ValidationRuleVersion.rule_key.notin_(suppressed),
             ).all()

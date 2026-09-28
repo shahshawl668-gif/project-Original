@@ -48,10 +48,12 @@ class Settings(BaseSettings):
     allow_anonymous_api: bool = True
 
     # --- Background validation worker ----------------------------------------
-    # Off by default. A worker that started itself would begin draining the
-    # queue on every deploy of every environment, including ones nobody is
-    # watching. Turn it on deliberately, per environment.
-    validation_worker_enabled: bool = False
+    # On by default since the upload screen validates through the queue: a
+    # server with no worker would leave every validation waiting forever,
+    # which is a silent failure. It was off while nothing enqueued. Turn it off
+    # only on a process that must never run validations (e.g. an API replica
+    # beside a dedicated `python -m app.worker`).
+    validation_worker_enabled: bool = True
     validation_worker_concurrency: int = 1
 
     # ------------------------------------------------------------------ utils

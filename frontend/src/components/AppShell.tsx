@@ -38,6 +38,7 @@ import {
   Banknote,
   BookOpen,
   Loader2,
+  Loader,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -67,6 +68,7 @@ const navGroups = [
     blurb: "Registers, results and CTC",
     items: [
       { href: "/payroll/upload", label: "Upload & validate", icon: UploadCloud },
+      { href: "/payroll/validation", label: "Validations", icon: Loader },
       { href: "/payroll/results", label: "Results", icon: ClipboardCheck },
       { href: "/payroll/history", label: "Register history", icon: History },
       { href: "/ctc/upload", label: "Upload CTC", icon: FileSpreadsheet },
@@ -140,9 +142,15 @@ function useNavGroups() {
   }, [user?.role]);
 }
 
+/** Pages reached from a menu item rather than listed in the menu themselves. */
+const BELONGS_TO: Record<string, string[]> = {
+  "/payroll/results": ["/payroll/runs", "/payroll/employee"],
+};
+
 function isActiveHref(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const under = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
+  return under(href) || (BELONGS_TO[href] ?? []).some(under);
 }
 
 /** One collapsible box. Opens itself when you are somewhere inside it. */

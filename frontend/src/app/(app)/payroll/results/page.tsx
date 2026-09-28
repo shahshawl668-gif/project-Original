@@ -1,94 +1,32 @@
 "use client";
 
-import { apiBlob } from "@/lib/api";
 import { useEntity } from "@/context/EntityContext";
-import { hasCurrentPayrollResults } from "@/lib/payroll-session";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { AlertBanner } from "@/components/ui/alert-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  inr, monthLabel, validationApi,
+  type EmployeePage, type FindingPage, type RunEmployee, type ValidationRun,
+} from "@/lib/validation";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
   Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import {
-  AlertTriangle, CheckCircle2,
-  Users, XCircle, Search,
-  ArrowRight, Shield, Flame, Activity, UploadCloud,
-  TrendingUp, Download,
+  AlertTriangle, CheckCircle2, Users, XCircle, Search, ArrowRight, Shield, Flame,
+  Activity, UploadCloud, TrendingUp, Download, History, GitCompare, RefreshCw,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ResultRow = {
-  employee_id: string;
-  employee_name: string | null;
-  pf_wage: number;
-  pf_type: string;
-  pf_amount_employee: number;
-  pf_amount_employer: number;
-  pf_breakup: { wage_capped: number; eps: number; epf: number; edli: number; admin: number };
-  esic_wage: number;
-  esic_eligible: boolean;
-  esic_employee: number;
-  esic_employer: number;
-  pt_due: number;
-  lwf_employee: number;
-  lwf_employer: number;
-  paid_days: number | null;
-  lop_days: number | null;
-  days_in_month: number;
-  lop_check: { checked: boolean; diffs: { component: string; expected: number; actual: number; diff: number }[] };
-  increment_arrear: { applicable: boolean; expected_total: number; actual_total: number; months: number };
-  prior_month: { is_joiner: boolean; is_continuing: boolean; changed_components: Record<string, unknown> };
-  errors: string[];
-  tds_risk_flags: string[];
-  findings: Finding[];
-  risk_score: number;
-  risk_level: "LOW" | "MEDIUM" | "HIGH";
-  score_breakdown: Record<string, number>;
-};
-
-type Finding = {
-  employee_id: string;
-  employee_name: string;
-  rule_id: string;
-  rule_name: string;
-  component: string;
-  expected_value: string;
-  actual_value: string;
-  difference: string;
-  severity: "CRITICAL" | "WARNING" | "INFO";
-  status: "FAIL" | "PASS";
-  reason: string;
-  suggested_fix: string;
-  financial_impact: number;
-};
-
-type FindingsSummary = {
-  total_findings: number;
-  critical: number;
-  warning: number;
-  info: number;
-  pass: number;
-  total_financial_impact: number;
-  risk_distribution?: { LOW: number; MEDIUM: number; HIGH: number };
-  rules_triggered: { rule_id: string; rule_name: string; severity: string; fail_count: number }[];
-};
-
-type RiskScore = {
-  employee_id: string;
-  employee_name: string;
-  risk_score: number;
-  risk_level: "LOW" | "MEDIUM" | "HIGH";
-  score_breakdown: Record<string, number>;
-};
-
 type Tab = "overview" | "risk" | "findings" | "pf" | "esic" | "ptlwf" | "lop";
+const TABS: Tab[] = ["overview", "risk", "findings", "pf", "esic", "ptlwf", "lop"];
+const PAGE_SIZE = 50;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -179,6 +117,275 @@ function RiskBadge({ level }: { level: "LOW" | "MEDIUM" | "HIGH" }) {
   );
 }
 
+function Pager({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (p: number) => void }) {
+  if (pages <= 1) return <p className="text-xs text-ink-500">{total.toLocaleString("en-IN")} shown</p>;
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-ink-500">
+        Page {page} of {pages} · {total.toLocaleString("en-IN")} total
+      </span>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
+          <ChevronLeft size={15} />
+        </Button>
+        <Button type="button" variant="outline" disabled={page >= pages} onClick={() => onPage(page + 1)} aria-label="Next page">
+          <ChevronRight size={15} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function useDebounced<T>(value: T, ms = 300): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+const TABLE = "overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]";
+const THEAD = "bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300";
+const INPUT = "w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-900 shadow-sm outline-none ring-brand-500/20 placeholder:text-ink-400 focus-visible:ring-[3px] dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500";
+
+// ─── Employee table (server-paged) ───────────────────────────────────────────
+
+function EmployeeTable({
+  runId, mode,
+}: { runId: string; mode: "overview" | "risk" | "pf" | "esic" | "ptlwf" }) {
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [level, setLevel] = useState<"ALL" | "HIGH" | "MEDIUM" | "LOW">("ALL");
+  const [data, setData] = useState<EmployeePage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const q = useDebounced(search);
+  const computed = mode === "pf" || mode === "esic" || mode === "ptlwf" || mode === "risk";
+
+  useEffect(() => { setPage(1); }, [q, level, runId]);
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    validationApi
+      .employees(runId, {
+        page, page_size: PAGE_SIZE, q, risk_level: level === "ALL" ? undefined : level,
+        sort: mode === "overview" || mode === "risk" ? "risk_score" : "employee_id",
+        order: mode === "overview" || mode === "risk" ? "desc" : "asc",
+        include_computed: computed,
+      })
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load employees."); });
+    return () => { cancelled = true; };
+  }, [runId, page, q, level, mode, computed]);
+
+  if (error) return <AlertBanner variant="error" title="Could not load employees">{error}</AlertBanner>;
+  if (data && !data.employee_results_recorded) {
+    return (
+      <AlertBanner variant="info" title="Per-employee results were not recorded for this run">
+        This run was made before per-employee results were kept. Its findings are still available on the Findings tab; revalidate the month to see employee detail.
+      </AlertBanner>
+    );
+  }
+
+  const rows = data?.items ?? [];
+  const header: Record<typeof mode, string[]> = {
+    overview: ["Emp ID", "Name", "Risk", "Score", "Failed checks", "Impact", ""],
+    risk: ["Emp ID", "Name", "Risk level", "Score", "Breakdown", ""],
+    pf: ["Emp ID", "Name", "PF wage", "Type", "PF (emp)", "PF (er)", "EPS", "EPF", "EDLI+admin"],
+    esic: ["Emp ID", "Name", "ESIC wage", "Eligible?", "ESIC (emp)", "ESIC (er)"],
+    ptlwf: ["Emp ID", "Name", "PT state", "PT due", "LWF state", "LWF (emp)", "LWF (er)"],
+  };
+
+  const cells = (r: RunEmployee): ReactNode[] => {
+    const c = r.computed;
+    const link = (
+      <Link
+        href={`/payroll/employee/${encodeURIComponent(r.employee_id)}?run=${encodeURIComponent(runId)}`}
+        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300"
+      >
+        Drilldown <ArrowRight size={12} />
+      </Link>
+    );
+    switch (mode) {
+      case "overview":
+        return [
+          r.employee_id, r.employee_name || "—", <RiskBadge key="r" level={r.risk_level} />, r.risk_score,
+          r.failed_checks > 0 ? (
+            <span key="f" className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.critical_count ? "bg-danger-100 text-danger-700" : "bg-warning-100 text-warning-700"}`}>
+              {r.failed_checks} issue{r.failed_checks > 1 ? "s" : ""}
+            </span>
+          ) : (
+            <span key="f" className="rounded-full bg-success-100 px-2 py-0.5 text-xs font-semibold text-success-700" title="No check failed. See the employee view for which checks ran.">
+              No failures
+            </span>
+          ),
+          r.financial_impact ? inr(r.financial_impact) : "—", link,
+        ];
+      case "risk":
+        return [
+          r.employee_id, r.employee_name || "—", <RiskBadge key="r" level={r.risk_level} />, r.risk_score,
+          c?.score_breakdown ? Object.entries(c.score_breakdown).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(" · ") : "", link,
+        ];
+      case "pf":
+        return [
+          r.employee_id, r.employee_name || "—", fmt(c?.pf_wage), c?.pf_type ?? "–", fmt(c?.pf_amount_employee),
+          fmt(c?.pf_amount_employer), fmt(c?.pf_breakup?.eps), fmt(c?.pf_breakup?.epf),
+          fmt((c?.pf_breakup?.edli || 0) + (c?.pf_breakup?.admin || 0)),
+        ];
+      case "esic":
+        return [
+          r.employee_id, r.employee_name || "—", fmt(c?.esic_wage), c?.esic_eligible ? "Yes" : "Exempt",
+          c?.esic_eligible ? fmt(c?.esic_employee) : "–", c?.esic_eligible ? fmt(c?.esic_employer) : "–",
+        ];
+      case "ptlwf":
+        return [
+          r.employee_id, r.employee_name || "—", c?.pt_applicable_state || "–",
+          c?.pt_due ? fmt(c.pt_due) : "nil", c?.lwf_applicable_state || "–",
+          c?.lwf_employee ? fmt(c.lwf_employee) : "–", c?.lwf_employer ? fmt(c.lwf_employer) : "–",
+        ];
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-48 flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+          <input className={INPUT} placeholder="Search employee ID or name…" value={search}
+            onChange={(e) => setSearch(e.target.value)} aria-label="Search employees" />
+        </div>
+        {(mode === "risk" || mode === "overview") && (["ALL", "HIGH", "MEDIUM", "LOW"] as const).map((lvl) => (
+          <button key={lvl} type="button" onClick={() => setLevel(lvl)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${level === lvl ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "bg-ink-100 text-ink-600 hover:bg-ink-200"}`}>
+            {lvl}{data?.risk_levels?.[lvl] != null ? ` (${data.risk_levels[lvl]})` : ""}
+          </button>
+        ))}
+      </div>
+      <div className={TABLE}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className={THEAD}>
+              <tr>{header[mode].map((h) => <th key={h} className="px-4 py-2.5 text-left font-semibold">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+              {!data ? (
+                <tr><td colSpan={header[mode].length} className="p-4"><Skeleton className="h-24 w-full" /></td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={header[mode].length} className="px-4 py-10 text-center text-ink-400">No employees match these filters.</td></tr>
+              ) : rows.map((r) => (
+                <tr key={r.employee_id} className="hover:bg-ink-50/60 dark:hover:bg-white/[0.04]">
+                  {cells(r).map((cell, i) => (
+                    <td key={i} className={`px-4 py-3 ${i === 0 ? "font-mono text-ink-600" : "text-ink-700 dark:text-ink-200"}`}>{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {data ? <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} /> : null}
+    </div>
+  );
+}
+
+// ─── Findings list (server-paged) ────────────────────────────────────────────
+
+function FindingsList({ runId, rulePrefix }: { runId: string; rulePrefix?: string }) {
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [sev, setSev] = useState<"ALL" | "CRITICAL" | "WARNING" | "INFO">("ALL");
+  const [rule, setRule] = useState("");
+  const [data, setData] = useState<FindingPage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const q = useDebounced(search);
+
+  useEffect(() => { setPage(1); }, [q, sev, rule, runId, rulePrefix]);
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    validationApi
+      .findings(runId, {
+        page, page_size: PAGE_SIZE, q, severity: sev === "ALL" ? undefined : sev,
+        rule_id: rule || undefined, rule_prefix: rulePrefix,
+      })
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load findings."); });
+    return () => { cancelled = true; };
+  }, [runId, page, q, sev, rule, rulePrefix]);
+
+  if (error) return <AlertBanner variant="error" title="Could not load findings">{error}</AlertBanner>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-48 flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+          <input className={INPUT} placeholder="Search rule or employee…" value={search}
+            onChange={(e) => setSearch(e.target.value)} aria-label="Search findings" />
+        </div>
+        {(["ALL", "CRITICAL", "WARNING", "INFO"] as const).map((s) => (
+          <button key={s} type="button" onClick={() => setSev(s)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${sev === s ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "bg-ink-100 text-ink-600 hover:bg-ink-200"}`}>
+            {s}
+          </button>
+        ))}
+        {data?.rules?.length ? (
+          <select className="rounded-lg border border-ink-200 bg-white px-2 py-1.5 text-xs" value={rule}
+            onChange={(e) => setRule(e.target.value)} aria-label="Filter by rule">
+            <option value="">All rules</option>
+            {data.rules.map((r) => <option key={r.rule_id} value={r.rule_id}>{r.rule_id} · {r.rule_name} ({r.count})</option>)}
+          </select>
+        ) : null}
+      </div>
+      {!data ? <Skeleton className="h-40 w-full rounded-2xl" /> : data.items.length === 0 ? (
+        <div className="py-12 text-center text-ink-500">
+          <CheckCircle2 size={36} className="mx-auto mb-3 text-success-400" />
+          No failed checks match these filters. This is not a statement that every check ran — see the employee view for coverage.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {data.items.map((f) => (
+            <div key={f.id} className={`rounded-2xl border p-4 shadow-soft ${
+              f.severity === "CRITICAL" ? "border-danger-200/80 bg-gradient-to-br from-danger-50 to-white"
+                : f.severity === "WARNING" ? "border-warning-200/80 bg-gradient-to-br from-warning-50 to-white"
+                  : "border-sky-200/80 bg-gradient-to-br from-sky-50 to-white"
+            } dark:bg-none dark:bg-ink-900/60`}>
+              <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded px-2 py-0.5 font-mono text-xs font-semibold ${SEV_COLOR[f.severity]}`}>{f.rule_id}</span>
+                  <span className={`rounded px-2 py-0.5 text-xs font-semibold ${SEV_COLOR[f.severity]}`}>{f.severity}</span>
+                  <span className="text-sm font-semibold text-ink-800 dark:text-white">{f.rule_name}</span>
+                  {f.was_waived ? <span className="rounded bg-ink-100 px-2 py-0.5 text-xs text-ink-600">waived</span> : null}
+                  {f.occurrence_count && f.occurrence_count > 1 ? (
+                    <span className="rounded bg-ink-100 px-2 py-0.5 text-xs text-ink-600">seen in {f.occurrence_count} months</span>
+                  ) : null}
+                </div>
+                <Link href={`/payroll/employee/${encodeURIComponent(f.employee_id)}?run=${encodeURIComponent(runId)}`}
+                  className="text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300">
+                  {f.employee_id}{f.employee_name ? ` · ${f.employee_name}` : ""}
+                </Link>
+              </div>
+              {f.reason ? <p className="mb-1.5 text-sm text-ink-700 dark:text-ink-200">{f.reason}</p> : null}
+              <div className="mb-1.5 flex flex-wrap gap-4 text-xs text-ink-500">
+                {f.expected_value ? <span>Expected: <strong className="text-ink-700 dark:text-ink-200">{f.expected_value}</strong></span> : null}
+                {f.actual_value ? <span>Actual: <strong className="text-ink-700 dark:text-ink-200">{f.actual_value}</strong></span> : null}
+                {f.difference && f.difference !== "0.00" ? <span>Diff: <strong className="text-ink-700 dark:text-ink-200">{f.difference}</strong></span> : null}
+                {f.financial_impact ? <span className="font-semibold text-danger-600">Impact: {inr(f.financial_impact, 2)}</span> : null}
+              </div>
+              {f.suggested_fix ? (
+                <div className="mt-2 rounded-lg border border-brand-100 bg-brand-50/80 px-3 py-2 text-xs text-brand-950 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-100">
+                  <span className="font-semibold">Fix: </span>{f.suggested_fix}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {data ? <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} /> : null}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 function PayrollResultsContent() {
@@ -186,151 +393,61 @@ function PayrollResultsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [results, setResults] = useState<ResultRow[]>([]);
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [summary, setSummary] = useState<FindingsSummary | null>(null);
-  const [riskScores, setRiskScores] = useState<RiskScore[]>([]);
+  const runParam = searchParams.get("run");
+  const [run, setRun] = useState<ValidationRun | null>(null);
+  const [overview, setOverview] = useState<FindingPage | null>(null);
+  const [levels, setLevels] = useState<Record<string, number>>({});
+  const [state, setState] = useState<"loading" | "ready" | "none" | "error">("loading");
+  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
-  const [ready, setReady] = useState(false);
-
-  // Findings filters
-  const [fSev, setFSev] = useState<"ALL" | "CRITICAL" | "WARNING" | "INFO">("ALL");
-  const [fStatus, setFStatus] = useState<"ALL" | "FAIL" | "PASS">("FAIL");
-  const [fSearch, setFSearch] = useState("");
-
-  // Risk filters
-  const [rLevel, setRLevel] = useState<"ALL" | "HIGH" | "MEDIUM" | "LOW">("ALL");
-  const [rSearch, setRSearch] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
-
-  useEffect(() => {
-    setResults([]);
-    setFindings([]);
-    setSummary(null);
-    setRiskScores([]);
-    if (!hasCurrentPayrollResults() || !entity || entity.id !== sessionStorage.getItem("payroll_results_entity_id")) {
-      setReady(true);
-      return;
-    }
-    try {
-      const r = sessionStorage.getItem("payroll_results");
-      const f = sessionStorage.getItem("payroll_findings");
-      const s = sessionStorage.getItem("payroll_findings_summary");
-      const rs = sessionStorage.getItem("payroll_risk_scores");
-      if (r) setResults(JSON.parse(r));
-      if (f) setFindings(JSON.parse(f));
-      if (s) setSummary(JSON.parse(s));
-      if (rs) setRiskScores(JSON.parse(rs));
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
-  }, [entity]);
+  const [revalidating, setRevalidating] = useState(false);
 
   useEffect(() => {
     const t = searchParams.get("tab");
-    const valid: Tab[] = ["overview", "risk", "findings", "pf", "esic", "ptlwf", "lop"];
-    if (t && valid.includes(t as Tab)) setTab(t as Tab);
+    if (t && TABS.includes(t as Tab)) setTab(t as Tab);
   }, [searchParams]);
 
-  // Filtered findings
-  const filteredFindings = useMemo(() => {
-    return findings.filter(f => {
-      if (fSev !== "ALL" && f.severity !== fSev) return false;
-      if (fStatus !== "ALL" && f.status !== fStatus) return false;
-      if (fSearch) {
-        const q = fSearch.toLowerCase();
-        return (
-          f.employee_id.toLowerCase().includes(q) ||
-          (f.employee_name || "").toLowerCase().includes(q) ||
-          f.rule_id.toLowerCase().includes(q) ||
-          f.rule_name.toLowerCase().includes(q) ||
-          f.component.toLowerCase().includes(q)
-        );
+  const load = useCallback(async () => {
+    setState("loading");
+    setRun(null);
+    setOverview(null);
+    try {
+      let id = runParam;
+      if (!id) {
+        // No run named: open the most recent current run for this company.
+        const latest = await validationApi.runs({ include_superseded: false, limit: 1 });
+        if (!latest.length) { setState("none"); return; }
+        id = latest[0].id;
+        router.replace(`${pathname}?run=${encodeURIComponent(id)}`, { scroll: false });
       }
-      return true;
-    });
-  }, [findings, fSev, fStatus, fSearch]);
-
-  // Filtered risk
-  const filteredRisk = useMemo(() => {
-    return riskScores
-      .filter(r => {
-        if (rLevel !== "ALL" && r.risk_level !== rLevel) return false;
-        if (rSearch) {
-          const q = rSearch.toLowerCase();
-          return r.employee_id.toLowerCase().includes(q) ||
-            (r.employee_name || "").toLowerCase().includes(q);
-        }
-        return true;
-      })
-      .sort((a, b) => b.risk_score - a.risk_score);
-  }, [riskScores, rLevel, rSearch]);
-
-  const failFindings = findings.filter(f => f.status === "FAIL");
-  const critCount = failFindings.filter(f => f.severity === "CRITICAL").length;
-
-  const riskDist = useMemo(() => {
-    const d = { HIGH: 0, MEDIUM: 0, LOW: 0 };
-    riskScores.forEach(r => { d[r.risk_level] = (d[r.risk_level] || 0) + 1; });
-    return [
-      { name: "HIGH", value: d.HIGH },
-      { name: "MEDIUM", value: d.MEDIUM },
-      { name: "LOW", value: d.LOW },
-    ];
-  }, [riskScores]);
-
-  const ruleTriggerData = useMemo(() => {
-    return (summary?.rules_triggered || [])
-      .slice(0, 10)
-      .map(r => ({ name: r.rule_id, count: r.fail_count, severity: r.severity }));
-  }, [summary]);
-
-  const downloadExcelAudit = async () => {
-    const raw = typeof window !== "undefined" ? sessionStorage.getItem("payroll_validate_request") : null;
-    if (!raw) {
-      toast.error("Audit export unavailable", {
-        description: "Run validation again from Upload — we need the same payload for the Excel workbook.",
-      });
-      return;
+      const [r, f, e] = await Promise.all([
+        validationApi.run(id),
+        validationApi.findings(id, { page_size: 1 }),
+        validationApi.employees(id, { page_size: 1 }),
+      ]);
+      setRun(r);
+      setOverview(f);
+      setLevels(e.risk_levels || {});
+      setState("ready");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load this run.");
+      setState("error");
     }
-    let body: unknown;
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      toast.error("Could not read validation session");
-      return;
-    }
-    setExportBusy(true);
-    try {
-      const blob = await apiBlob("/api/payroll/validate/export-excel", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `payroll-audit-${new Date().toISOString().slice(0, 10)}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Audit workbook downloaded");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Export failed";
-      toast.error("Excel export failed", { description: msg });
-    } finally {
-      setExportBusy(false);
-    }
-  };
+  }, [runParam, pathname, router]);
 
-  const tabs: { id: Tab; label: string; badge?: number; badgeColor?: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "risk",     label: "Risk Scores",  badge: riskScores.filter(r => r.risk_level === "HIGH").length, badgeColor: "red" },
-    { id: "findings", label: "Findings",     badge: failFindings.length, badgeColor: critCount > 0 ? "red" : "yellow" },
-    { id: "pf",    label: "PF" },
-    { id: "esic",  label: "ESIC" },
-    { id: "ptlwf", label: "PT / LWF" },
-    { id: "lop",   label: "LOP / Arrear" },
-  ];
+  // Re-load on company switch too: a run id from another company answers 404.
+  useEffect(() => { void load(); }, [load, entity?.id]);
+
+  const riskDist = useMemo(() => [
+    { name: "HIGH", value: levels.HIGH || 0 },
+    { name: "MEDIUM", value: levels.MEDIUM || 0 },
+    { name: "LOW", value: levels.LOW || 0 },
+  ], [levels]);
+  const ruleTriggerData = useMemo(
+    () => (overview?.rules || []).slice(0, 10).map((r) => ({ name: r.rule_id, count: r.count, severity: r.severity })),
+    [overview],
+  );
 
   const commitTab = (id: Tab) => {
     setTab(id);
@@ -339,824 +456,233 @@ function PayrollResultsContent() {
     router.replace(`${pathname}?${p.toString()}`, { scroll: false });
   };
 
-  if (!ready) {
+  const download = async () => {
+    if (!run) return;
+    setExportBusy(true);
+    try {
+      const blob = await validationApi.exportRun(run.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `validation-${run.period_month.slice(0, 7)}-run${run.run_number}.xlsx`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Workbook downloaded", { description: "Exactly as this run recorded it." });
+    } catch (e) {
+      toast.error("Export failed", { description: e instanceof Error ? e.message : "" });
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
+  const revalidate = async () => {
+    if (!run) return;
+    setRevalidating(true);
+    try {
+      const { job } = await validationApi.enqueue({ period_month: run.period_month, run_type: run.run_type || undefined });
+      router.push(`/payroll/validation?job=${encodeURIComponent(job.id)}`);
+    } catch (e) {
+      toast.error("Could not start revalidation", { description: e instanceof Error ? e.message : "" });
+      setRevalidating(false);
+    }
+  };
+
+  if (state === "loading") {
     return (
       <div className="space-y-8">
-        <div className="space-y-3">
-          <Skeleton className="h-9 w-72" />
-          <Skeleton className="h-4 w-full max-w-md" />
+        <Skeleton className="h-9 w-72" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[5.5rem] rounded-2xl" />)}
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-[5.5rem] rounded-2xl" />
-          ))}
-        </div>
-        <Skeleton className="h-11 w-full max-w-xl rounded-xl" />
         <Skeleton className="h-[22rem] w-full rounded-2xl" />
       </div>
     );
   }
 
-  if (results.length === 0) {
+  if (state === "error") {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Validation results" />
+        <AlertBanner variant="error" title="This run could not be opened">
+          {error} It may belong to another company, or the link may be wrong.{" "}
+          <Link href="/payroll/results" className="font-semibold underline">Open the latest run</Link>
+        </AlertBanner>
+      </div>
+    );
+  }
+
+  if (state === "none" || !run) {
     return (
       <div className="space-y-8">
         <PageHeader
           title="Validation results"
-          description="Per-employee computations, statutory findings, and risk scores appear here after you complete an upload validation in this browser."
-          actions={
-            <Button asChild className="rounded-xl shadow-soft">
-              <Link href="/payroll/upload" className="gap-2">
-                <UploadCloud size={16} strokeWidth={2} /> New validation
-              </Link>
-            </Button>
-          }
+          description="Each validation is kept as a run on the server. Nothing has been validated for this company yet."
+          actions={<Button asChild className="rounded-xl shadow-soft"><Link href="/payroll/upload" className="gap-2"><UploadCloud size={16} /> Upload & validate</Link></Button>}
         />
         <EmptyState
-          icon={<Activity className="h-7 w-7 text-ink-400 dark:text-ink-300" strokeWidth={1.5} />}
-          title="No results in this session"
-          description="We keep the latest run in session storage so you can drill down without round-tripping the server. Start an upload to populate this view."
-          action={
-            <Button asChild variant="outline">
-              <Link href="/dashboard">Back to dashboard</Link>
-            </Button>
-          }
+          icon={<Activity className="h-7 w-7 text-ink-400" strokeWidth={1.5} />}
+          title="No validation runs yet"
+          description="Upload a register and queue its validation. If one is already running, follow it from Validations."
+          action={<Button asChild variant="outline"><Link href="/payroll/validation">Validations</Link></Button>}
         />
       </div>
     );
   }
 
+  const fresh = run.freshness;
+  const superseded = run.status === "superseded";
+  const tabs: { id: Tab; label: string; badge?: number; badgeColor?: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "risk", label: "Risk Scores", badge: levels.HIGH || 0, badgeColor: "red" },
+    { id: "findings", label: "Findings", badge: run.total_findings, badgeColor: run.critical_count > 0 ? "red" : "yellow" },
+    { id: "pf", label: "PF" },
+    { id: "esic", label: "ESIC" },
+    { id: "ptlwf", label: "PT / LWF" },
+    { id: "lop", label: "LOP / Arrear" },
+  ];
+
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Validation results"
+        title={`Validation results · ${monthLabel(run.period_month)}`}
         description={
           <>
-            {results.length.toLocaleString("en-IN")} employees · {failFindings.length} open findings · Financial exposure{" "}
-            {summary?.total_financial_impact != null
-              ? `₹${Math.round(summary.total_financial_impact).toLocaleString("en-IN")}`
-              : "—"}
+            Run #{run.run_number} ({run.status}) · {run.employee_count.toLocaleString("en-IN")} employees ·{" "}
+            {run.total_findings.toLocaleString("en-IN")} failed checks
+            {run.upload ? ` · ${run.upload.filename ?? "register"} (upload ${run.upload.revision})` : ""}
+            {run.finished_at ? ` · validated ${new Date(run.finished_at).toLocaleString("en-IN")}` : ""}
           </>
         }
         actions={
           <>
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2"
-              disabled={exportBusy}
-              onClick={() => void downloadExcelAudit()}
-            >
-              <Download size={15} strokeWidth={2} />
-              {exportBusy ? "Working…" : "Excel audit"}
+            <Button type="button" variant="outline" className="gap-2" disabled={exportBusy} onClick={() => void download()}>
+              <Download size={15} /> {exportBusy ? "Working…" : "Excel"}
             </Button>
+            {run.period_runs && run.period_runs.length > 1 ? (
+              <Button variant="outline" asChild>
+                <Link className="gap-2" href={`/payroll/runs/compare?base=${encodeURIComponent(
+                  (run.period_runs.find((r) => r.run_number < run.run_number) ?? run.period_runs[run.period_runs.length - 1]).id,
+                )}&target=${encodeURIComponent(run.id)}`}>
+                  <GitCompare size={15} /> Compare
+                </Link>
+              </Button>
+            ) : null}
             <Button variant="outline" asChild>
-              <Link href="/payroll/upload" className="gap-2">
-                <UploadCloud size={15} strokeWidth={2} /> New run
-              </Link>
+              <Link href="/payroll/upload" className="gap-2"><UploadCloud size={15} /> New run</Link>
             </Button>
           </>
         }
       />
 
-      {/* Summary stat cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Employees"   value={results.length}               icon={<Users size={20}/>}        color="brand" />
-        <StatCard label="Critical"    value={summary?.critical ?? 0}       icon={<XCircle size={20}/>}      color="red" />
-        <StatCard label="Warnings"    value={summary?.warning ?? 0}        icon={<AlertTriangle size={20}/>} color="yellow" />
-        <StatCard label="High Risk"   value={riskScores.filter(r=>r.risk_level==="HIGH").length} icon={<Flame size={20}/>} color="red" />
-        <StatCard label="Passed"      value={summary?.pass ?? 0}           icon={<CheckCircle2 size={20}/>} color="green" />
+      {superseded ? (
+        <AlertBanner variant="info" title={`This is run #${run.run_number}, which has been superseded`}>
+          It is kept exactly as it was reported.{" "}
+          {run.superseded_by_run_id ? (
+            <Link className="font-semibold underline" href={`/payroll/results?run=${encodeURIComponent(run.superseded_by_run_id)}`}>Open the run that replaced it</Link>
+          ) : null}
+        </AlertBanner>
+      ) : fresh?.revalidation_required ? (
+        <AlertBanner variant="warning" title="Revalidation required — inputs changed since this run">
+          <ul className="mt-1 list-disc pl-5">
+            {fresh.changes.map((c) => <li key={c.input}>{c.detail}</li>)}
+          </ul>
+          <Button type="button" className="mt-3 gap-2" disabled={revalidating} onClick={() => void revalidate()}>
+            <RefreshCw size={15} /> {revalidating ? "Queuing…" : "Revalidate this month"}
+          </Button>
+        </AlertBanner>
+      ) : null}
+
+      {run.period_runs && run.period_runs.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <History size={14} className="text-ink-400" />
+          <span className="text-ink-500">Runs for {monthLabel(run.period_month)}:</span>
+          {run.period_runs.map((r) => (
+            <Link key={r.id} href={`/payroll/results?run=${encodeURIComponent(r.id)}`}
+              className={`rounded-full border px-2.5 py-1 font-semibold ${r.id === run.id ? "border-brand-400 bg-brand-50 text-brand-800" : "border-ink-200 text-ink-600 hover:bg-ink-50"}`}>
+              #{r.run_number} · {r.total_findings} {r.status === "current" ? "· current" : ""}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-6">
+        <StatCard label="Employees" value={run.employee_count.toLocaleString("en-IN")} icon={<Users size={20} />} color="brand" />
+        <StatCard label="Critical (open)" value={run.critical_count} icon={<XCircle size={20} />} color="red" />
+        <StatCard label="Warnings (open)" value={run.warning_count} icon={<AlertTriangle size={20} />} color="yellow" />
+        <StatCard label="High Risk" value={levels.HIGH || 0} icon={<Flame size={20} />} color="red" />
+        <StatCard label="Failed checks" value={run.total_findings.toLocaleString("en-IN")} icon={<Shield size={20} />} color="blue" />
         <StatCard
-          label="Financial Impact"
-          value={summary?.total_financial_impact != null
-            ? `₹${Math.round(summary.total_financial_impact).toLocaleString("en-IN")}`
-            : "–"}
-          icon={<Activity size={20}/>}
+          label="Open exposure"
+          value={inr(run.open_financial_impact)}
+          icon={<Activity size={20} />}
           color="blue"
-          sub="est. total exposure"
+          sub={`${inr(run.total_financial_impact)} before waivers`}
         />
       </div>
 
-      {/* Tab bar */}
-      <div className="flex flex-wrap gap-1 rounded-2xl border border-ink-200/70 bg-ink-50/80 p-1.5 ring-1 ring-ink-900/[0.02] dark:border-white/10 dark:bg-white/[0.04] dark:ring-white/[0.04]">
+      <div className="flex flex-wrap gap-1 rounded-2xl border border-ink-200/70 bg-ink-50/80 p-1.5 dark:border-white/10 dark:bg-white/[0.04]" role="tablist">
         {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => commitTab(t.id)}
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => commitTab(t.id)}
             className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-              tab === t.id
-                ? "bg-white text-ink-900 shadow-soft ring-1 ring-ink-200/80 dark:bg-ink-900 dark:text-white dark:ring-white/10"
-                : "text-ink-600 hover:bg-white/70 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
-            }`}
-          >
+              tab === t.id ? "bg-white text-ink-900 shadow-soft ring-1 ring-ink-200/80 dark:bg-ink-900 dark:text-white"
+                : "text-ink-600 hover:bg-white/70 hover:text-ink-900 dark:text-ink-300"}`}>
             {t.label}
             {t.badge != null && t.badge > 0 && (
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${
-                  t.badgeColor === "red"
-                    ? "bg-danger-100 text-danger-700 dark:bg-danger-500/20 dark:text-danger-300"
-                    : "bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-300"
-                }`}
-              >
-                {t.badge}
+              <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${t.badgeColor === "red" ? "bg-danger-100 text-danger-700" : "bg-warning-100 text-warning-700"}`}>
+                {t.badge.toLocaleString("en-IN")}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {/* ── Overview Tab ── */}
       {tab === "overview" && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Risk distribution pie */}
-          <div className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
-            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold tracking-tight text-ink-900 dark:text-white">
-              <Shield size={16} className="text-brand-600 dark:text-brand-300" /> Risk distribution
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
+            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-ink-900 dark:text-white">
+              <Shield size={16} className="text-brand-600" /> Risk distribution
             </h3>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie
-                  data={riskDist}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="value"
-                  nameKey="name"
-                  // A zero slice has no arc to sit against, so its label lands at the
-                  // same angle as its neighbour and the two overlap into nonsense.
-                  // Severity that did not occur is read off the legend instead.
-                  label={({ name, value }) =>
-                    Number(value) > 0 ? `${name}: ${value}` : ""
-                  }
-                >
-                  {riskDist.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i]} />
-                  ))}
+                <Pie data={riskDist} cx="50%" cy="50%" outerRadius={80} dataKey="value" nameKey="name"
+                  label={({ name, value }) => (Number(value) > 0 ? `${name}: ${value}` : "")}>
+                  {riskDist.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    background: "rgba(15,18,32,0.95)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 10,
-                    color: "#fff",
-                    fontSize: 12,
-                  }}
-                />
+                <Tooltip />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
-
-          {/* Top violated rules */}
-          <div className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
-            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold tracking-tight text-ink-900 dark:text-white">
-              <TrendingUp size={16} className="text-brand-600 dark:text-brand-300" /> Top rule failures
+          <div className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
+            <h3 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-ink-900 dark:text-white">
+              <TrendingUp size={16} className="text-brand-600" /> Top rule failures
             </h3>
             {ruleTriggerData.length === 0 ? (
-              <div className="mt-8 flex items-center justify-center gap-2 text-success-600 dark:text-success-300">
-                <CheckCircle2 size={20} /> No violations found
-              </div>
+              <p className="mt-8 text-center text-sm text-ink-500">
+                No check failed in this run. Which checks ran, and which could not, is shown per employee.
+              </p>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={ruleTriggerData} layout="vertical" margin={{ left: 20 }}>
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 11, fill: "currentColor" }}
-                    className="text-ink-500 dark:text-ink-400"
-                  />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    tick={{ fontSize: 11, fill: "currentColor" }}
-                    className="text-ink-600 dark:text-ink-300"
-                    width={80}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(99,102,241,0.06)" }}
-                    contentStyle={{
-                      background: "rgba(15,18,32,0.95)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 10,
-                      color: "#fff",
-                      fontSize: 12,
-                    }}
-                  />
-                  <Bar dataKey="count" fill="url(#resBarGrad)" radius={[0, 6, 6, 0]} />
-                  <defs>
-                    <linearGradient id="resBarGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#0284c7" />
-                      <stop offset="100%" stopColor="#38bdf8" />
-                    </linearGradient>
-                  </defs>
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "currentColor" }} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "currentColor" }} width={80} />
+                  <Tooltip cursor={{ fill: "rgba(99,102,241,0.06)" }} />
+                  <Bar dataKey="count" fill="#0284c7" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
-
-          {/* Employee table with risk overview */}
-          <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04] lg:col-span-2">
-            <div className="flex items-center justify-between border-b border-ink-100 px-5 py-4 dark:border-white/[0.06]">
-              <h3 className="font-display text-base font-semibold tracking-tight text-ink-900 dark:text-white">
-                Employee summary
-              </h3>
-              <span className="text-sm text-ink-500 dark:text-ink-400">{results.length} employees</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
-                  <tr>
-                    {["Emp ID", "Name", "Risk", "Score", "PF emp", "ESIC", "PT", "Issues", ""].map((h) => (
-                      <th key={h} className="px-4 py-2.5 text-left font-semibold">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
-                  {results.map((r) => {
-                    const empFindings = r.findings || [];
-                    const fails = empFindings.filter((f) => f.status === "FAIL");
-                    const hasCrit = fails.some((f) => f.severity === "CRITICAL");
-                    return (
-                      <tr
-                        key={r.employee_id}
-                        className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
-                      >
-                        <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
-                        <td className="px-4 py-3 font-medium text-ink-800 dark:text-white">
-                          {r.employee_name || "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <RiskBadge level={r.risk_level || "LOW"} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-ink-200 dark:bg-white/10">
-                              <div
-                                className={`h-1.5 rounded-full ${
-                                  r.risk_level === "HIGH"
-                                    ? "bg-danger-500"
-                                    : r.risk_level === "MEDIUM"
-                                      ? "bg-warning-500"
-                                      : "bg-success-500"
-                                }`}
-                                style={{ width: `${r.risk_score || 0}%` }}
-                              />
-                            </div>
-                            <span className="num text-xs text-ink-500 dark:text-ink-400">
-                              {r.risk_score ?? 0}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
-                          {fmt(r.pf_amount_employee)}
-                        </td>
-                        <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
-                          {r.esic_eligible ? (
-                            fmt(r.esic_employee)
-                          ) : (
-                            <span className="text-xs text-ink-400 dark:text-ink-500">exempt</span>
-                          )}
-                        </td>
-                        <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
-                          {r.pt_due > 0 ? (
-                            fmt(r.pt_due)
-                          ) : (
-                            <span className="text-xs text-ink-400 dark:text-ink-500">nil</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {fails.length > 0 ? (
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                hasCrit
-                                  ? "bg-danger-100 text-danger-700 dark:bg-danger-500/15 dark:text-danger-300"
-                                  : "bg-warning-100 text-warning-700 dark:bg-warning-500/15 dark:text-warning-300"
-                              }`}
-                            >
-                              {fails.length} issue{fails.length > 1 ? "s" : ""}
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-success-100 px-2 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-300">
-                              OK
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link
-                            href={`/payroll/employee/${encodeURIComponent(r.employee_id)}`}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-                          >
-                            Drilldown <ArrowRight size={12} />
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="lg:col-span-2">
+            <EmployeeTable runId={run.id} mode="overview" />
           </div>
         </div>
       )}
-
-      {/* ── Risk Scores Tab ── */}
-      {tab === "risk" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-48 flex-1">
-              <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500"
-              />
-              <input
-                className="w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-900 shadow-sm outline-none ring-brand-500/20 placeholder:text-ink-400 focus-visible:ring-[3px] dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500"
-                placeholder="Search employee…"
-                value={rSearch}
-                onChange={(e) => setRSearch(e.target.value)}
-              />
-            </div>
-            {(["ALL", "HIGH", "MEDIUM", "LOW"] as const).map((lvl) => (
-              <button
-                key={lvl}
-                onClick={() => setRLevel(lvl)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  rLevel === lvl
-                    ? lvl === "HIGH"
-                      ? "bg-danger-600 text-white shadow-sm"
-                      : lvl === "MEDIUM"
-                        ? "bg-warning-500 text-white shadow-sm"
-                        : lvl === "LOW"
-                          ? "bg-success-600 text-white shadow-sm"
-                          : "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-sm"
-                    : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-white/[0.05] dark:text-ink-300 dark:hover:bg-white/[0.08]"
-                }`}
-              >
-                {lvl}
-              </button>
-            ))}
-          </div>
-          <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
-            <table className="w-full text-sm">
-              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
-                <tr>
-                  {["Emp ID", "Name", "Risk level", "Score", "Breakdown", ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left font-semibold">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
-                {filteredRisk.map((r) => (
-                  <tr
-                    key={r.employee_id}
-                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
-                  >
-                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">
-                      {r.employee_id}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-ink-800 dark:text-white">
-                      {r.employee_name || "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <RiskBadge level={r.risk_level} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-24 overflow-hidden rounded-full bg-ink-200 dark:bg-white/10">
-                          <div
-                            className={`h-2 rounded-full ${
-                              r.risk_level === "HIGH"
-                                ? "bg-danger-500"
-                                : r.risk_level === "MEDIUM"
-                                  ? "bg-warning-500"
-                                  : "bg-success-500"
-                            }`}
-                            style={{ width: `${r.risk_score}%` }}
-                          />
-                        </div>
-                        <span className="num text-sm font-semibold text-ink-700 dark:text-ink-200">
-                          {r.risk_score}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-ink-500 dark:text-ink-400">
-                      {r.score_breakdown && Object.entries(r.score_breakdown)
-                        .filter(([,v])=>v>0)
-                        .map(([k,v])=>`${k}: ${v}`).join(" · ")}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/payroll/employee/${encodeURIComponent(r.employee_id)}`}
-                        className="inline-flex items-center gap-1 text-xs text-brand-700 hover:text-brand-800 font-medium"
-                      >
-                        View <ArrowRight size={12}/>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-                {filteredRisk.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-10 text-center text-ink-400 dark:text-ink-500"
-                    >
-                      No results match your filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Findings Tab ── */}
-      {tab === "findings" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-48 flex-1">
-              <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500"
-              />
-              <input
-                className="w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-9 pr-3 text-sm text-ink-900 shadow-sm outline-none ring-brand-500/20 placeholder:text-ink-400 focus-visible:ring-[3px] dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500"
-                placeholder="Search rule, employee, component…"
-                value={fSearch}
-                onChange={(e) => setFSearch(e.target.value)}
-              />
-            </div>
-            {(["ALL", "CRITICAL", "WARNING", "INFO"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setFSev(s)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  fSev === s
-                    ? s === "CRITICAL"
-                      ? "bg-danger-600 text-white shadow-sm"
-                      : s === "WARNING"
-                        ? "bg-warning-500 text-white shadow-sm"
-                        : s === "INFO"
-                          ? "bg-sky-600 text-white shadow-sm"
-                          : "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-sm"
-                    : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-white/[0.05] dark:text-ink-300 dark:hover:bg-white/[0.08]"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-            <button
-              onClick={() => setFStatus((s) => (s === "FAIL" ? "ALL" : "FAIL"))}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                fStatus === "FAIL"
-                  ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900"
-                  : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-white/[0.05] dark:text-ink-300 dark:hover:bg-white/[0.08]"
-              }`}
-            >
-              Fails only
-            </button>
-          </div>
-
-          <p className="text-sm text-ink-500 dark:text-ink-400">
-            {filteredFindings.length} findings shown
-          </p>
-
-          <div className="space-y-2">
-            {filteredFindings.map((f, i) => (
-              <div
-                key={i}
-                className={`rounded-2xl border p-4 shadow-soft transition-colors ${
-                  f.status === "PASS"
-                    ? "border-success-200/80 bg-gradient-to-br from-success-50 to-white dark:border-success-500/20 dark:from-success-500/10 dark:to-ink-900/40"
-                    : f.severity === "CRITICAL"
-                      ? "border-danger-200/80 bg-gradient-to-br from-danger-50 to-white dark:border-danger-500/20 dark:from-danger-500/10 dark:to-ink-900/40"
-                      : f.severity === "WARNING"
-                        ? "border-warning-200/80 bg-gradient-to-br from-warning-50 to-white dark:border-warning-500/25 dark:from-warning-500/10 dark:to-ink-900/40"
-                        : "border-sky-200/80 bg-gradient-to-br from-sky-50 to-white dark:border-sky-500/25 dark:from-sky-500/10 dark:to-ink-900/40"
-                }`}
-              >
-                <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded px-2 py-0.5 font-mono text-xs font-semibold ${
-                        SEV_COLOR[f.status === "PASS" ? "PASS" : f.severity]
-                      }`}
-                    >
-                      {f.rule_id}
-                    </span>
-                    <span
-                      className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                        SEV_COLOR[f.status === "PASS" ? "PASS" : f.severity]
-                      }`}
-                    >
-                      {f.status === "PASS" ? "PASS" : f.severity}
-                    </span>
-                    <span className="text-sm font-semibold text-ink-800 dark:text-white">
-                      {f.rule_name}
-                    </span>
-                  </div>
-                  <Link
-                    href={`/payroll/employee/${encodeURIComponent(f.employee_id)}`}
-                    className="text-xs font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-                  >
-                    {f.employee_id} {f.employee_name ? `· ${f.employee_name}` : ""}
-                  </Link>
-                </div>
-                <p className="mb-1.5 text-sm text-ink-700 dark:text-ink-200">{f.reason}</p>
-                <div className="mb-1.5 flex flex-wrap gap-4 text-xs text-ink-500 dark:text-ink-400">
-                  {f.expected_value && (
-                    <span>
-                      Expected: <strong className="text-ink-700 dark:text-ink-200">{f.expected_value}</strong>
-                    </span>
-                  )}
-                  {f.actual_value && (
-                    <span>
-                      Actual: <strong className="text-ink-700 dark:text-ink-200">{f.actual_value}</strong>
-                    </span>
-                  )}
-                  {f.difference && f.difference !== "0.00" && (
-                    <span>
-                      Diff: <strong className="text-ink-700 dark:text-ink-200">{f.difference}</strong>
-                    </span>
-                  )}
-                  {f.financial_impact > 0 && (
-                    <span className="font-semibold text-danger-600 dark:text-danger-300">
-                      Impact: ₹{f.financial_impact.toLocaleString("en-IN")}
-                    </span>
-                  )}
-                </div>
-                {f.suggested_fix && (
-                  <div className="mt-2 rounded-lg border border-brand-100 bg-brand-50/80 px-3 py-2 text-xs text-brand-950 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-100">
-                    <span className="font-semibold">Fix: </span>
-                    {f.suggested_fix}
-                  </div>
-                )}
-              </div>
-            ))}
-            {filteredFindings.length === 0 && (
-              <div className="py-16 text-center text-ink-400 dark:text-ink-500">
-                <CheckCircle2 size={40} className="mx-auto mb-3 text-success-300 dark:text-success-400" />
-                <p className="text-lg font-medium text-ink-500 dark:text-ink-400">
-                  No findings match your filters
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── PF Tab ── */}
-      {tab === "pf" && (
-        <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
-                <tr>
-                  {["Emp ID", "Name", "PF wage", "Type", "PF (emp)", "PF (er)", "EPS", "EPF", "EDLI+admin"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left font-semibold">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
-                {results.map((r) => (
-                  <tr
-                    key={r.employee_id}
-                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
-                  >
-                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
-                    <td className="px-4 py-3 text-ink-800 dark:text-white">{r.employee_name || "—"}</td>
-                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">{fmt(r.pf_wage)}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                          r.pf_type === "uncapped"
-                            ? "bg-warning-100 text-warning-800 dark:bg-warning-500/15 dark:text-warning-300"
-                            : "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300"
-                        }`}
-                      >
-                        {r.pf_type}
-                      </span>
-                    </td>
-                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
-                      {fmt(r.pf_amount_employee)}
-                    </td>
-                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
-                      {fmt(r.pf_amount_employer)}
-                    </td>
-                    <td className="num px-4 py-3 text-ink-500 dark:text-ink-400">{fmt(r.pf_breakup?.eps)}</td>
-                    <td className="num px-4 py-3 text-ink-500 dark:text-ink-400">{fmt(r.pf_breakup?.epf)}</td>
-                    <td className="num px-4 py-3 text-ink-500 dark:text-ink-400">
-                      {fmt((r.pf_breakup?.edli || 0) + (r.pf_breakup?.admin || 0))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── ESIC Tab ── */}
-      {tab === "esic" && (
-        <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
-                <tr>
-                  {["Emp ID", "Name", "ESIC wage", "Eligible?", "ESIC (emp)", "ESIC (er)"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left font-semibold">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
-                {results.map((r) => (
-                  <tr
-                    key={r.employee_id}
-                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
-                  >
-                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
-                    <td className="px-4 py-3 text-ink-800 dark:text-white">{r.employee_name || "—"}</td>
-                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">{fmt(r.esic_wage)}</td>
-                    <td className="px-4 py-3">
-                      {r.esic_eligible ? (
-                        <span className="rounded bg-success-100 px-2 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-300">
-                          Yes
-                        </span>
-                      ) : (
-                        <span className="rounded bg-ink-100 px-2 py-0.5 text-xs font-semibold text-ink-500 dark:bg-white/[0.06] dark:text-ink-300">
-                          Exempt
-                        </span>
-                      )}
-                    </td>
-                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
-                      {r.esic_eligible ? fmt(r.esic_employee) : "–"}
-                    </td>
-                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
-                      {r.esic_eligible ? fmt(r.esic_employer) : "–"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── PT/LWF Tab ── */}
-      {tab === "ptlwf" && (
-        <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
-                <tr>
-                  {["Emp ID", "Name", "PT state", "PT due", "LWF state", "LWF (emp)", "LWF (er)"].map((h) => (
-                    <th key={h} className="px-4 py-2.5 text-left font-semibold">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
-                {results.map((r) => (
-                  <tr
-                    key={r.employee_id}
-                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
-                  >
-                    <td className="px-4 py-3 font-mono text-ink-600 dark:text-ink-300">{r.employee_id}</td>
-                    <td className="px-4 py-3 text-ink-800 dark:text-white">{r.employee_name || "—"}</td>
-                    <td className="px-4 py-3 text-ink-500 dark:text-ink-400">
-                      {(r as unknown as { pt_applicable_state: string }).pt_applicable_state || "–"}
-                    </td>
-                    <td className="num px-4 py-3 font-semibold text-ink-900 dark:text-white">
-                      {r.pt_due > 0 ? (
-                        fmt(r.pt_due)
-                      ) : (
-                        <span className="text-ink-400 dark:text-ink-500">nil</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-ink-500 dark:text-ink-400">
-                      {(r as unknown as { lwf_applicable_state: string }).lwf_applicable_state || "–"}
-                    </td>
-                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
-                      {r.lwf_employee > 0 ? fmt(r.lwf_employee) : "–"}
-                    </td>
-                    <td className="num px-4 py-3 text-ink-700 dark:text-ink-200">
-                      {r.lwf_employer > 0 ? fmt(r.lwf_employer) : "–"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── LOP/Arrear Tab ── */}
-      {tab === "lop" && (
-        <div className="space-y-4">
-          {results
-            .filter(
-              (r) =>
-                r.lop_check?.diffs?.length ||
-                r.increment_arrear?.applicable ||
-                r.tds_risk_flags?.length,
-            )
-            .map((r) => (
-              <div
-                key={r.employee_id}
-                className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]"
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold text-ink-800 dark:text-white">{r.employee_id}</span>
-                    {r.employee_name && (
-                      <span className="ml-2 text-sm text-ink-500 dark:text-ink-400">
-                        {r.employee_name}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {r.paid_days != null && (
-                      <span className="rounded bg-ink-100 px-2 py-0.5 text-xs text-ink-600 dark:bg-white/[0.06] dark:text-ink-300">
-                        Paid: {r.paid_days}d | LOP: {r.lop_days ?? 0}d
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {r.lop_check?.diffs?.length > 0 && (
-                  <div className="mb-3">
-                    <p className="mb-1 text-xs font-semibold text-ink-500 dark:text-ink-400">
-                      LOP proration diffs
-                    </p>
-                    <div className="space-y-1">
-                      {r.lop_check.diffs.map((d, i) => (
-                        <div key={i} className="flex items-center gap-3 text-xs">
-                          <span className="font-mono text-ink-600 dark:text-ink-300">{d.component}</span>
-                          <span className="text-ink-400 dark:text-ink-500">
-                            Expected:{" "}
-                            <strong className="text-ink-700 dark:text-ink-200">
-                              {d.expected.toFixed(2)}
-                            </strong>
-                          </span>
-                          <span className="text-ink-400 dark:text-ink-500">
-                            Actual:{" "}
-                            <strong className="text-ink-700 dark:text-ink-200">{d.actual.toFixed(2)}</strong>
-                          </span>
-                          <span
-                            className={
-                              d.diff > 0
-                                ? "font-semibold text-danger-600 dark:text-danger-300"
-                                : "font-semibold text-success-600 dark:text-success-300"
-                            }
-                          >
-                            {d.diff > 0 ? "+" : ""}
-                            {d.diff.toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {r.increment_arrear?.applicable && (
-                  <div className="rounded-lg bg-brand-50 p-3 text-xs text-brand-950 ring-1 ring-brand-100 dark:bg-brand-500/10 dark:text-brand-100 dark:ring-brand-500/30">
-                    <strong>Increment arrear:</strong> Expected ₹
-                    {r.increment_arrear.expected_total.toFixed(2)} over {r.increment_arrear.months}{" "}
-                    month(s) · Actual ₹{r.increment_arrear.actual_total.toFixed(2)}
-                  </div>
-                )}
-                {r.tds_risk_flags?.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {r.tds_risk_flags.map((f, i) => (
-                      <div
-                        key={i}
-                        className="rounded-lg border border-warning-200 bg-warning-50 p-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
-                      >
-                        <AlertTriangle size={12} className="mr-1.5 inline" /> {f}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          {results.filter(
-            (r) =>
-              r.lop_check?.diffs?.length ||
-              r.increment_arrear?.applicable ||
-              r.tds_risk_flags?.length,
-          ).length === 0 && (
-            <div className="py-16 text-center text-ink-400 dark:text-ink-500">
-              <CheckCircle2 size={40} className="mx-auto mb-3 text-success-300 dark:text-success-400" />
-              <p className="text-ink-500 dark:text-ink-400">No LOP/Arrear issues found.</p>
-            </div>
-          )}
-        </div>
-      )}
+      {tab === "risk" && <EmployeeTable runId={run.id} mode="risk" />}
+      {tab === "findings" && <FindingsList runId={run.id} />}
+      {tab === "pf" && <EmployeeTable runId={run.id} mode="pf" />}
+      {tab === "esic" && <EmployeeTable runId={run.id} mode="esic" />}
+      {tab === "ptlwf" && <EmployeeTable runId={run.id} mode="ptlwf" />}
+      {tab === "lop" && <FindingsList runId={run.id} rulePrefix="LOP,ATT,ARR,MOM,ADV,TDS" />}
     </div>
   );
 }
@@ -1164,16 +690,7 @@ function PayrollResultsContent() {
 function ResultsPageSkeleton() {
   return (
     <div className="space-y-8">
-      <div className="space-y-3">
-        <Skeleton className="h-9 w-72" />
-        <Skeleton className="h-4 w-full max-w-lg" />
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-[5.5rem] rounded-2xl" />
-        ))}
-      </div>
-      <Skeleton className="h-12 w-full max-w-xl rounded-xl" />
+      <Skeleton className="h-9 w-72" />
       <Skeleton className="h-[28rem] w-full rounded-2xl" />
     </div>
   );

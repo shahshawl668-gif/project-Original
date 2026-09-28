@@ -22,16 +22,16 @@ import os
 import socket
 import threading
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import ComponentConfig, Entity, User
-from app.services import finding_store
+from app.models import ComponentConfig, Entity, RegisterUpload, User
+from app.services import finding_store, register_uploads, run_inputs
 from app.services import validation_jobs as jobs
-from app.services.register_rows import count_employees, load_employees
+from app.services.register_rows import load_employees
 from app.services.validation import (
     _component_key_map,
     apply_suppressed_rules,
@@ -73,41 +73,102 @@ def _as_date(value: object) -> date | None:
     return None
 
 
+class JobCancelled(Exception):
+    """A person asked this job to stop; the worker noticed."""
+
+
+class PermanentJobError(Exception):
+    """A failure another attempt cannot fix. Stops at once, says what to do."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _load_rows(db: Session, job, comps) -> tuple[list[dict], RegisterUpload | None]:
+    """The rows to validate: the frozen upload, or (for older jobs) the register."""
+    if job.upload_id is not None:
+        upload = db.get(RegisterUpload, job.upload_id)
+        if upload is None:
+            raise PermanentJobError(
+                "upload_missing",
+                "The uploaded register this job was for no longer exists. Upload it again.",
+            )
+        if upload.missing_required:
+            raise PermanentJobError(
+                "missing_columns",
+                "The register is missing required columns: "
+                + ", ".join(upload.missing_required[:10])
+                + ". Map or add them and upload again.",
+            )
+        return register_uploads.decode_rows(upload.rows_gz), upload
+    if job.register_id is None:
+        raise PermanentJobError(
+            "no_register", "There is no register to validate for this month. Upload one first."
+        )
+    return load_employees(db, job.register_id, _component_key_map(comps)), None
+
+
 def execute(db: Session, job) -> uuid.UUID | None:
     """Run one claimed job to completion. Returns the run id it recorded.
 
-    Raises on anything it cannot finish; the caller decides whether that is a
-    retry or a terminal failure.
+    Raises ``PermanentJobError`` for what a retry cannot fix, ``JobCancelled``
+    when asked to stop, and anything else for the transient.
     """
+    started = datetime.now(UTC)
+    if job.cancel_requested_at is not None:
+        raise JobCancelled()
+
     entity = db.get(Entity, job.entity_id)
     user = db.get(User, job.user_id)
     if entity is None or user is None:
-        raise RuntimeError("the job's entity or user no longer exists")
+        raise PermanentJobError("entity_missing", "This company or its user no longer exists.")
 
     comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     if not comps:
-        raise RuntimeError("no salary components are configured for this entity")
+        raise PermanentJobError(
+            "no_components",
+            "No salary components are configured for this company. Configure them under "
+            "Settings → Components, then validate again.",
+        )
 
-    if job.register_id is None:
-        raise RuntimeError("the job names no register to validate")
-
-    job.employee_total = count_employees(db, job.register_id)
-    jobs.heartbeat(db, job, done=0)
+    jobs.set_stage(db, job, "loading")
     db.commit()
 
-    comp_by_key = _component_key_map(comps)
-    employees = load_employees(db, job.register_id, comp_by_key)
+    employees, upload = _load_rows(db, job, comps)
     if not employees:
-        raise RuntimeError("the register this job names has no rows")
+        raise PermanentJobError("empty_register", "The register has no employee rows.")
 
+    job.employee_total = len(employees)
     params = job.params or {}
+    period = job.period_month
+
+    # What the engine is about to read, fingerprinted before it reads it — so
+    # the digests describe the inputs of this run, not of some later moment.
+    config = run_inputs.configuration_snapshot(db, entity, period)
+    digests = run_inputs.input_digests(
+        db, entity, period,
+        rows_sha256=upload.rows_sha256 if upload is not None else None,
+        config=config,
+    )
+    if upload is not None:
+        digests["file"] = upload.file_sha256
+
+    jobs.set_stage(db, job, "validating")
+    jobs.heartbeat(db, job, done=0)
+    db.commit()
 
     def progress(done: int) -> None:
         # Renewing the lease is the point; the number is the bonus. Its own
         # transaction, so a later failure does not roll the progress back and
-        # leave the UI stuck at zero while the job is plainly running.
+        # leave the UI stuck at zero while the job is plainly running. The
+        # commit also expires the job, so the cancel flag below is re-read
+        # from the database rather than trusted from memory.
         jobs.heartbeat(db, job, done=done)
         db.commit()
+        if job.cancel_requested_at is not None:
+            raise JobCancelled()
 
     rows, findings_summary = validate_employees(
         db,
@@ -118,9 +179,10 @@ def execute(db: Session, job) -> uuid.UUID | None:
         _as_date(params.get("effective_month_from")),
         _as_date(params.get("effective_month_to")),
         _as_date(params.get("as_of_date")),
-        period_month=job.period_month,
+        period_month=period,
         on_progress=progress,
     )
+    progress(len(rows))
 
     findings_summary = apply_suppressed_rules(
         rows, _suppressed_rule_ids(db, entity.id),
@@ -130,14 +192,26 @@ def execute(db: Session, job) -> uuid.UUID | None:
     all_findings = [f for row in rows for f in row.get("findings", [])]
     all_findings.extend(findings_summary.get("unmatched_findings", []))
 
+    jobs.set_stage(db, job, "recording")
     run = finding_store.record_run(
         db,
         entity_id=entity.id,
         user_id=user.id,
-        period_month=job.period_month,
+        period_month=period,
         findings=all_findings,
         employee_count=len(rows),
+        register_id=upload.register_id if upload is not None else job.register_id,
         summary=findings_summary,
+        results=rows,
+        source_rows=employees,
+        upload_id=upload.id if upload is not None else None,
+        source="job",
+        job_id=job.id,
+        run_type=job.run_type,
+        params=params,
+        input_digests=digests,
+        config_snapshot=config,
+        started_at=started,
     )
     jobs.heartbeat(db, job, done=len(rows))
     return run.id
@@ -163,6 +237,17 @@ def run_once(db: Session, worker: str) -> bool:
         if job is None:
             # The register, and with it the job, was deleted while we worked.
             logger.info("job %s disappeared mid-run", job_id)
+            return True
+        if isinstance(exc, JobCancelled):
+            jobs.mark_cancelled(db, job)
+            db.commit()
+            logger.info("job %s cancelled on request", job_id)
+            return True
+        if isinstance(exc, PermanentJobError):
+            jobs.fail(db, job, error=f"{exc.code}: {exc.message}", permanent=True,
+                      code=exc.code, message=exc.message)
+            db.commit()
+            logger.info("job %s failed permanently: %s", job_id, exc.code)
             return True
         jobs.fail(db, job, error=f"{type(exc).__name__}: {exc}")
         db.commit()

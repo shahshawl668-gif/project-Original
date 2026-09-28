@@ -41,6 +41,8 @@ __all__ = [
     "fail",
     "heartbeat",
     "mark_cancelled",
+    "request_cancel",
+    "set_stage",
     "succeed",
 ]
 
@@ -110,6 +112,8 @@ def enqueue(
     register_id: uuid.UUID | None = None,
     run_type: str = "regular",
     params: dict | None = None,
+    upload_id: uuid.UUID | None = None,
+    retry_of_job_id: uuid.UUID | None = None,
 ) -> ValidationJob:
     """
     Queue one validation, or refuse because one is already live.
@@ -129,7 +133,10 @@ def enqueue(
         period_month=period_month,
         run_type=run_type,
         params=params or {},
+        upload_id=upload_id,
+        retry_of_job_id=retry_of_job_id,
         state="queued",
+        stage="queued",
         queued_at=_now(),
     )
     db.add(job)
@@ -214,6 +221,7 @@ def claim(db: Session, worker_id: str, at: datetime | None = None) -> Validation
             """
             UPDATE validation_jobs
             SET state = 'running',
+                stage = 'loading',
                 locked_by = :worker,
                 started_at = COALESCE(started_at, :now),
                 heartbeat_at = :now,
@@ -252,6 +260,9 @@ def heartbeat(db: Session, job: ValidationJob, *, done: int | None = None) -> Va
 
 def succeed(db: Session, job: ValidationJob, *, run_id: uuid.UUID | None) -> ValidationJob:
     job.state = "succeeded"
+    job.stage = "succeeded"
+    job.error_code = None
+    job.error_message = None
     job.run_id = run_id
     job.error = None
     job.finished_at = _now()
@@ -261,23 +272,77 @@ def succeed(db: Session, job: ValidationJob, *, run_id: uuid.UUID | None) -> Val
     return job
 
 
-def fail(db: Session, job: ValidationJob, *, error: str) -> ValidationJob:
+def fail(
+    db: Session,
+    job: ValidationJob,
+    *,
+    error: str,
+    permanent: bool = False,
+    code: str | None = None,
+    message: str | None = None,
+) -> ValidationJob:
     """
     Record a failure, and decide whether it is worth another go.
 
     Retries are for the transient — a dropped connection, a worker that died.
-    Once the attempts are spent the job stops, because a rule that raises on one
-    employee's data will raise every time, and an endless loop is a worse
-    failure than a visible one.
+    A ``permanent`` failure is one another attempt cannot fix: no components
+    configured, a register missing required columns. Retrying those only makes
+    the person wait three times as long for the same answer, so they stop at
+    once and say what to fix.
+
+    ``error`` is the raw exception, for whoever operates the platform.
+    ``message`` is what the person is shown — never a traceback.
     """
     job.error = (error or "")[:2000]
     job.locked_by = None
     job.heartbeat_at = None
-    if (job.attempts or 0) >= (job.max_attempts or 1):
+    attempts, limit = job.attempts or 0, job.max_attempts or 1
+    if permanent or attempts >= limit:
         job.state = "failed"
+        job.stage = "failed"
         job.finished_at = _now()
+        job.error_code = code or ("retries_exhausted" if not permanent else "failed")
+        job.error_message = message or (
+            f"Validation stopped unexpectedly and failed on all {attempts} attempts. "
+            f"Retry it; if it fails again, contact support quoting job {str(job.id)[:8]}."
+        )
     else:
         job.state = "queued"
+        job.stage = "queued"
+        job.error_code = code or "retrying"
+        job.error_message = message or (
+            f"Validation stopped unexpectedly and will be retried automatically "
+            f"(attempt {attempts + 1} of {limit})."
+        )
+    return job
+
+
+def request_cancel(db: Session, job: ValidationJob, user_id: uuid.UUID | None) -> ValidationJob:
+    """
+    Stop a job, as far as that can be done safely.
+
+    A queued job is cancelled outright — with a guarded UPDATE, because a
+    worker may be claiming it at this instant. A running job cannot be stopped
+    from outside without risking a half-written run, so it is *asked* to stop:
+    the worker checks at its next progress point, rolls back, and nothing of
+    the attempt is kept.
+    """
+    if job.state in TERMINAL_STATES:
+        return job
+    now = _now()
+    cancelled = db.execute(
+        text(
+            "UPDATE validation_jobs SET state = 'cancelled', stage = 'cancelled', "
+            "finished_at = :now, cancel_requested_at = :now, cancelled_by_user_id = :uid "
+            "WHERE id = :id AND state = 'queued'"
+        ),
+        {"now": now, "uid": _bind_id(db, user_id) if user_id else None, "id": _bind_id(db, job.id)},
+    )
+    if cancelled.rowcount != 1:
+        job.cancel_requested_at = now
+        job.cancelled_by_user_id = user_id
+    db.flush()
+    db.refresh(job)
     return job
 
 
@@ -285,27 +350,75 @@ def mark_cancelled(db: Session, job: ValidationJob) -> ValidationJob:
     if job.state in TERMINAL_STATES:
         return job
     job.state = "cancelled"
+    job.stage = "cancelled"
     job.finished_at = _now()
     job.locked_by = None
     job.heartbeat_at = None
+    job.error_code = None
+    job.error_message = None
     return job
 
 
-def describe(job: ValidationJob) -> dict:
-    """What a caller polling this job is entitled to know."""
+def set_stage(db: Session, job: ValidationJob, stage: str) -> ValidationJob:
+    job.stage = stage
+    job.heartbeat_at = _now()
+    return job
+
+
+def queue_position(db: Session, job: ValidationJob) -> int | None:
+    """How many jobs are ahead of this one. None once it has started."""
+    if job.state != "queued":
+        return None
+    return (
+        db.query(ValidationJob)
+        .filter(ValidationJob.state == "queued", ValidationJob.queued_at < job.queued_at)
+        .count()
+    )
+
+
+STAGE_LABELS = {
+    "queued": "Waiting to start",
+    "loading": "Reading the register and configuration",
+    "validating": "Checking employees",
+    "recording": "Saving results",
+    "succeeded": "Finished",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+}
+
+
+def describe(job: ValidationJob, db: Session | None = None) -> dict:
+    """What a caller polling this job is entitled to know.
+
+    The raw exception (``job.error``) is deliberately absent: it is for whoever
+    operates the platform. The person gets ``error_message``, written for them.
+    """
     total = job.employee_total or 0
     done = job.employee_done or 0
+    stage = job.stage or job.state
+    if job.state in TERMINAL_STATES:
+        stage = job.state
     return {
         "id": str(job.id),
         "state": job.state,
+        "stage": stage,
+        "stage_label": STAGE_LABELS.get(stage, stage),
         "period_month": job.period_month.isoformat() if job.period_month else None,
         "run_type": job.run_type,
+        "upload_id": str(job.upload_id) if job.upload_id else None,
         "employee_total": total,
         "employee_done": done,
         "percent": round(done * 100 / total) if total else 0,
         "run_id": str(job.run_id) if job.run_id else None,
-        "error": job.error,
+        "error": job.error_message if job.state != "succeeded" else None,
+        "error_code": job.error_code if job.state != "succeeded" else None,
         "attempts": job.attempts or 0,
+        "max_attempts": job.max_attempts or 0,
+        "cancel_requested": job.cancel_requested_at is not None and job.state not in TERMINAL_STATES,
+        "retry_of_job_id": str(job.retry_of_job_id) if job.retry_of_job_id else None,
+        "queue_position": queue_position(db, job) if db is not None else None,
+        "can_cancel": job.state in ACTIVE_STATES,
+        "can_retry": job.state in ("failed", "cancelled"),
         "queued_at": job.queued_at.isoformat() if job.queued_at else None,
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,

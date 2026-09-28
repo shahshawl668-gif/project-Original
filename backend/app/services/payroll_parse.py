@@ -9,6 +9,7 @@ EMPLOYEE_ID_HEADERS = {"employee_id", "emp_id", "employee_code", "employee_numbe
 IDENTIFIER_HEADERS = EMPLOYEE_ID_HEADERS | {
     "bank_account", "account_number", "saving_account_number", "uan", "pan", "pan_number",
     "ifsc", "ifsc_code", "bank_ifsc", "esi_number", "ip_number",
+    "esi_no", "esic_ip_number", "esic_number", "aadhaar", "aadhar", "aadhaar_number",
 }
 OPTIONAL_HEADERS = {"employee name", "location", "employment type"}
 
@@ -22,6 +23,13 @@ IMPORT_FIELDS = (
     "arrear_days", "arrear_from", "arrear_to", "arrear_months",
     "increment_arrear", "increment_arrear_total", "previous_months_lop_days",
     "notice_period_recovery", "loan_recovery",
+    # Read by the identity, lifecycle and statutory checks. Before these were
+    # admitted, an uploaded register could never supply them: the checks either
+    # never ran or — worse — reported an ESI number as missing when the file
+    # carried one. Every field the engine reads by name must be importable.
+    "aadhaar", "esi_number", "dob", "doj", "dol", "payment_mode", "tax_regime",
+    "employment_type", "disability", "international_worker", "adolescent_permit",
+    "death_or_disablement", "pf_eps", "bonus", "gratuity",
 )
 ALIASES = {
     "emp_id": "employee_id", "employee_code": "employee_id",
@@ -32,6 +40,15 @@ ALIASES = {
     "total_deduction": "total_deductions", "total_deductions_amount": "total_deductions",
     "pf_emp": "pf_employee", "pt_amount": "pt", "income_tax": "tds",
     "account_number": "bank_account", "bank_ifsc": "ifsc", "emp_name": "employee_name",
+    "ifsc_code": "ifsc", "sex": "gender", "lop": "lop_days",
+    "month_days": "total_days", "days_in_month": "total_days", "working_days": "total_days",
+    "aadhar": "aadhaar", "aadhaar_number": "aadhaar", "aadhaar_no": "aadhaar",
+    "esi_no": "esi_number", "ip_number": "esi_number", "esic_ip_number": "esi_number",
+    "esic_number": "esi_number", "esic_no": "esi_number",
+    "date_of_birth": "dob", "birth_date": "dob",
+    "date_of_joining": "doj", "joining_date": "doj",
+    "date_of_leaving": "dol", "date_of_exit": "dol", "exit_date": "dol", "leaving_date": "dol",
+    "regime": "tax_regime", "eps": "pf_eps", "eps_employer": "pf_eps",
 }
 
 

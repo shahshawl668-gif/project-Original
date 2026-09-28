@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Any
 from collections.abc import Iterable
 
+from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -23,7 +24,10 @@ from app.models import (
     FindingStateEvent,
     User,
     ValidationRun,
+    ValidationRunEmployee,
 )
+from app.models.findings import ENGINE_VERSION
+from app.services.register_uploads import gzip_json
 
 
 def fingerprint(entity_id: uuid.UUID, employee_id: str, rule_id: str, component: str | None) -> str:
@@ -65,6 +69,61 @@ def waived_fingerprints(db: Session, entity_id: uuid.UUID, period: date) -> set[
     return {s.fingerprint for s in states if s.is_waived_for(period)}
 
 
+def current_run(db: Session, entity_id: uuid.UUID, period_month: date) -> ValidationRun | None:
+    """The run that is the period's answer now. Superseded runs are history."""
+    return (
+        db.query(ValidationRun)
+        .filter(
+            ValidationRun.entity_id == entity_id,
+            ValidationRun.period_month == period_month.replace(day=1),
+            ValidationRun.status == "current",
+        )
+        .order_by(ValidationRun.run_number.desc())
+        .first()
+    )
+
+
+def _employee_row(
+    run: ValidationRun,
+    position: int,
+    result: dict[str, Any],
+    source: dict[str, Any] | None,
+) -> dict[str, Any]:
+    findings = result.get("findings") or []
+    failed = [f for f in findings if f.get("status") == "FAIL"]
+    source = source or {}
+
+    def _text(*keys: str) -> str | None:
+        for key in keys:
+            value = source.get(key)
+            if value not in (None, ""):
+                return str(value)[:255]
+        return None
+
+    net = source.get("net_pay", source.get("net", source.get("net_salary")))
+    return {
+        "id": uuid.uuid4(),
+        "run_id": run.id,
+        "entity_id": run.entity_id,
+        "position": position,
+        "employee_id": str(result.get("employee_id") or "")[:64],
+        "employee_name": _truncate(result.get("employee_name")),
+        "department": _text("department"),
+        "work_state": (_text("work_state", "state", "location_state") or "")[:64] or None,
+        "row_kind": _truncate(result.get("row_kind_label"), 64),
+        "risk_score": int(result.get("risk_score") or 0),
+        "risk_level": str(result.get("risk_level") or "LOW")[:16],
+        "failed_checks": len(failed),
+        "critical_count": sum(1 for f in failed if f.get("severity") == "CRITICAL"),
+        "warning_count": sum(1 for f in failed if f.get("severity") == "WARNING"),
+        "passed_checks": sum(1 for f in findings if f.get("status") == "PASS"),
+        "financial_impact": sum((_dec(f.get("financial_impact")) for f in failed), Decimal("0")),
+        "gross": _dec(result.get("gross_total")) if result.get("gross_total") is not None else None,
+        "net_pay": _dec(net) if net not in (None, "") else None,
+        "detail_gz": gzip_json(result),
+    }
+
+
 def record_run(
     db: Session,
     *,
@@ -75,44 +134,97 @@ def record_run(
     employee_count: int,
     register_id: uuid.UUID | None = None,
     summary: dict[str, Any] | None = None,
+    results: list[dict[str, Any]] | None = None,
+    source_rows: list[dict[str, Any]] | None = None,
+    upload_id: uuid.UUID | None = None,
+    source: str = "api",
+    job_id: uuid.UUID | None = None,
+    run_type: str | None = None,
+    params: dict[str, Any] | None = None,
+    input_digests: dict[str, Any] | None = None,
+    config_snapshot: dict[str, Any] | None = None,
+    started_at: datetime | None = None,
 ) -> ValidationRun:
     """
-    Persist one period's findings and reconcile lifecycle state.
+    Persist one period's findings as a new run, and reconcile lifecycle state.
 
-    Re-validating a period replaces that period's records rather than stacking
-    another copy, so a corrected register produces one history, not two.
+    Nothing is deleted. The period's previous current run becomes
+    ``superseded`` and points at this one, so every result ever reported stays
+    readable and two runs can be compared. The partial unique index on
+    (entity, period) WHERE status = 'current' is what holds if two validations
+    of one period finish at once: the second fails and is retried, rather than
+    leaving two runs that both claim to be the answer.
     """
     period_month = period_month.replace(day=1)
+    now = datetime.now(UTC)
 
     failures = [f for f in findings if f.get("status") == "FAIL"]
 
-    # A re-run supersedes the previous run for this period.
-    for stale in (
+    previous = (
         db.query(ValidationRun)
         .filter(ValidationRun.entity_id == entity_id, ValidationRun.period_month == period_month)
         .all()
-    ):
-        db.delete(stale)
-    db.flush()
+    )
+    run_number = max((r.run_number or 1 for r in previous), default=0) + 1
 
     waived_now = waived_fingerprints(db, entity_id, period_month)
 
     run = ValidationRun(
+        id=uuid.uuid4(),
         entity_id=entity_id,
         user_id=user_id,
         period_month=period_month,
         register_id=register_id,
         employee_count=employee_count,
         summary=summary or {},
+        status="current",
+        run_number=run_number,
+        source=source,
+        job_id=job_id,
+        upload_id=upload_id,
+        run_type=run_type,
+        params=params,
+        engine_version=ENGINE_VERSION,
+        input_digests=input_digests,
+        config_snapshot=config_snapshot,
+        started_at=started_at or now,
+        finished_at=now,
+        duration_ms=int(((now - _aware(started_at)).total_seconds()) * 1000) if started_at else None,
     )
+    for stale in previous:
+        if stale.status == "current":
+            stale.status = "superseded"
+            stale.superseded_at = now
+            stale.superseded_by_run_id = run.id
+            db.add(stale)
+    # The superseded flag must land before the new current row, or the partial
+    # unique index sees two current runs for a moment and refuses the insert.
+    db.flush()
     db.add(run)
     db.flush()
+
+    if results is not None:
+        by_eid: dict[str, dict[str, Any]] = {}
+        for row in source_rows or []:
+            key = str(row.get("employee_id") or row.get("emp_id") or row.get("employee_code") or "").strip()
+            by_eid.setdefault(key, row)
+        # Core bulk insert, in batches: 20,000 ORM objects held in the session
+        # until commit cost memory and time the result never needed.
+        batch: list[dict[str, Any]] = []
+        for position, result in enumerate(results):
+            batch.append(_employee_row(run, position, result, by_eid.get(str(result.get("employee_id") or ""))))
+            if len(batch) >= 1000:
+                db.execute(insert(ValidationRunEmployee), batch)
+                batch = []
+        if batch:
+            db.execute(insert(ValidationRunEmployee), batch)
 
     gross = Decimal("0")
     open_impact = Decimal("0")
     critical = 0
     warning = 0
     seen: dict[str, dict[str, Any]] = {}
+    finding_rows: list[dict[str, Any]] = []
 
     for finding in failures:
         fp = fingerprint(
@@ -132,32 +244,38 @@ def record_run(
             elif finding.get("severity") == "WARNING":
                 warning += 1
 
-        db.add(
-            FindingRecord(
-                run_id=run.id,
-                entity_id=entity_id,
-                period_month=period_month,
-                fingerprint=fp,
-                employee_id=str(finding.get("employee_id") or ""),
-                employee_name=_truncate(finding.get("employee_name")),
-                rule_id=str(finding.get("rule_id") or ""),
-                rule_name=_truncate(finding.get("rule_name"), 255) or "",
-                component=_truncate(finding.get("component")),
-                severity=str(finding.get("severity") or "INFO"),
-                status=str(finding.get("status") or "FAIL"),
-                expected_value=_truncate(finding.get("expected_value")),
-                actual_value=_truncate(finding.get("actual_value")),
-                difference=_truncate(finding.get("difference")),
-                financial_impact=impact,
-                reason=finding.get("reason"),
-                rule_version_id=uuid.UUID(finding["rule_version_id"]) if finding.get("rule_version_id") else None,
-                evidence=finding.get("evidence"),
-                suggested_fix=finding.get("suggested_fix"),
-                was_waived=is_waived,
-            )
+        finding_rows.append(
+            {
+                "id": uuid.uuid4(),
+                "run_id": run.id,
+                "entity_id": entity_id,
+                "period_month": period_month,
+                "fingerprint": fp,
+                "employee_id": str(finding.get("employee_id") or ""),
+                "employee_name": _truncate(finding.get("employee_name")),
+                "rule_id": str(finding.get("rule_id") or ""),
+                "rule_name": _truncate(finding.get("rule_name"), 255) or "",
+                "component": _truncate(finding.get("component")),
+                "severity": str(finding.get("severity") or "INFO"),
+                "status": str(finding.get("status") or "FAIL"),
+                "expected_value": _truncate(finding.get("expected_value")),
+                "actual_value": _truncate(finding.get("actual_value")),
+                "difference": _truncate(finding.get("difference")),
+                "financial_impact": impact,
+                "reason": finding.get("reason"),
+                "rule_version_id": uuid.UUID(finding["rule_version_id"]) if finding.get("rule_version_id") else None,
+                "evidence": finding.get("evidence"),
+                "suggested_fix": finding.get("suggested_fix"),
+                "was_waived": is_waived,
+            }
         )
+        if len(finding_rows) >= 2000:
+            db.execute(insert(FindingRecord), finding_rows)
+            finding_rows = []
         # One state row per fingerprint even if a rule fires twice in a period.
         seen[fp] = finding
+    if finding_rows:
+        db.execute(insert(FindingRecord), finding_rows)
 
     run.total_findings = len(failures)
     run.critical_count = critical
@@ -168,6 +286,10 @@ def record_run(
     _reconcile_states(db, entity_id, period_month, seen)
     db.flush()
     return run
+
+
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _reconcile_states(
@@ -222,8 +344,11 @@ def _reconcile_states(
     for fp, state in existing.items():
         if fp in seen or state.state in ("resolved", "waived"):
             continue
-        if state.last_seen_period >= period_month:
+        if state.last_seen_period > period_month:
             continue  # belongs to a later period; this is a back-fill run
+        # Last seen in this very period and absent from this run: a corrected
+        # register was re-validated and the issue is gone. That is a resolution,
+        # and the comparison between the two runs depends on it being recorded.
         state.state = "resolved"
         state.resolved_period = period_month
         db.add(state)
