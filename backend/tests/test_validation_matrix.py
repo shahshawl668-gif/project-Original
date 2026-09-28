@@ -238,3 +238,28 @@ def test_maharashtra_lwf_is_due_in_june_and_december(client):
             assert (due, employer_due) == (expected, expected * 3)
     finally:
         db.close()
+
+
+def test_effective_dated_statutory_slab_selection(client):
+    headers = owner(client, "slab-versions")
+    entity = data(client.get("/api/org/context", headers=headers))["active_entity"]
+    rows = [
+        {"min_salary": "0", "max_salary": "50000", "deduction_amount": amount,
+         "frequency": "monthly", "effective_from": start,
+         "source_reference": f"Official schedule {start}"}
+        for start, amount in (("2024-04-01", "100"), ("2026-04-01", "200"))
+    ]
+    result = data(client.post("/api/rule-engine/slabs", headers=headers, json={
+        "state": "Test State", "rule_type": "PT", "slabs": rows,
+    }))
+    assert len(result["slabs"]) == 2
+    assert result["slabs"][1]["source_reference"] == "Official schedule 2026-04-01"
+    db = SessionLocal()
+    try:
+        from app.services.validation import lookup_pt
+        entity_id = uuid.UUID(entity["id"])
+        for year, expected in ((2023, "0"), (2025, "100"), (2026, "200")):
+            amount, _ = lookup_pt(db, "Test State", Decimal("30000"), date(year, 7, 1), entity_id=entity_id)
+            assert amount == Decimal(expected)
+    finally:
+        db.close()

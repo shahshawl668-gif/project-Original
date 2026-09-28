@@ -62,6 +62,9 @@ def _build_slabs_response(state: str, rule_type: str, db: Session, entity: Entit
                 frequency=r.frequency,
                 gender=(r.gender or "ALL"),
                 applicable_months=r.applicable_months,
+                effective_from=r.effective_from,
+                effective_to=r.effective_to,
+                source_reference=r.source_reference,
             )
             for r in rows
         ],
@@ -223,9 +226,11 @@ def save_slabs(
 
     def _bucket(s) -> tuple:
         months = tuple(sorted(s.applicable_months)) if s.applicable_months else ()
-        return ((s.gender or "ALL"), months)
+        return ((s.gender or "ALL"), months, s.effective_from, s.effective_to)
 
     for idx, s in enumerate(body.slabs):
+        if s.effective_from and s.effective_to and s.effective_to < s.effective_from:
+            raise HTTPException(status_code=400, detail=f"Row {idx + 1}: effective_to precedes effective_from.")
         if s.min_salary > s.max_salary:
             raise HTTPException(
                 status_code=400,
@@ -240,8 +245,9 @@ def save_slabs(
         last_max = None
         for r in rows_sorted:
             if last_max is not None and r.min_salary <= last_max:
-                gender, months = bucket
+                gender, months, effective_from, _effective_to = bucket
                 tag = f"gender={gender}" + (f", months={list(months)}" if months else "")
+                tag += f", from={effective_from}" if effective_from else ""
                 raise HTTPException(
                     status_code=400,
                     detail=(
@@ -263,6 +269,7 @@ def save_slabs(
         return (
             gender_rank.get((s.gender or "ALL"), 9),
             1 if s.applicable_months else 0,
+            s.effective_from.isoformat() if s.effective_from else "",
             float(s.min_salary),
         )
 
@@ -280,6 +287,9 @@ def save_slabs(
                 frequency=s.frequency,
                 gender=(s.gender or "ALL"),
                 applicable_months=s.applicable_months,
+                effective_from=s.effective_from,
+                effective_to=s.effective_to,
+                source_reference=s.source_reference,
                 sort_order=idx,
             )
         )
@@ -301,6 +311,9 @@ def _slab_kwargs(rule_type: str, state: str, idx: int, user_id, entity_id, s: di
         "frequency": s["frequency"],
         "gender": s.get("gender", "ALL"),
         "applicable_months": s.get("applicable_months"),
+        "effective_from": s.get("effective_from"),
+        "effective_to": s.get("effective_to"),
+        "source_reference": s.get("source_reference"),
         "sort_order": idx,
     }
 

@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -71,6 +72,9 @@ class SlabRule(Base):
     # means "every month". Used for Feb-only top-up rows in Maharashtra,
     # Karnataka, etc. that round annual PT up to the legal cap.
     applicable_months: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
+    effective_from: Mapped[date | None] = mapped_column(Date)
+    effective_to: Mapped[date | None] = mapped_column(Date)
+    source_reference: Mapped[str | None] = mapped_column(String(1000))
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

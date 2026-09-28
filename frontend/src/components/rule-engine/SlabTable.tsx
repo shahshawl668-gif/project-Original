@@ -56,6 +56,9 @@ export const slabRowSchema = z
       .transform((v) => (v === undefined ? null : v)),
     frequency: z.enum(["monthly", "yearly", "half-yearly", "quarterly"]),
     gender: z.enum(["ALL", "MALE", "FEMALE"]),
+    effective_from: z.string().nullable().optional(),
+    effective_to: z.string().nullable().optional(),
+    source_reference: z.string().nullable().optional(),
     applicable_months: z
       .union([z.array(z.number().int().min(1).max(12)), z.null()])
       .optional()
@@ -73,7 +76,7 @@ export const slabsSchema = z.array(slabRowSchema).superRefine((rows, ctx) => {
   const buckets: Record<string, Bucketed[]> = {};
   rows.forEach((r, i) => {
     const months = r.applicable_months ? [...r.applicable_months].sort().join(",") : "";
-    const key = `${r.gender}|${months}`;
+    const key = `${r.gender}|${months}|${r.effective_from ?? ""}|${r.effective_to ?? ""}`;
     (buckets[key] ||= []).push({ ...r, _idx: i });
   });
   for (const arr of Object.values(buckets)) {
@@ -155,6 +158,9 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
         frequency: "monthly",
         gender: "ALL",
         applicable_months: null,
+        effective_from: null,
+        effective_to: null,
+        source_reference: null,
       },
     ];
     setLocal(next);
@@ -174,6 +180,9 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
             <TableHead>Frequency</TableHead>
             <TableHead>Gender</TableHead>
             <TableHead>Applicable months</TableHead>
+            <TableHead>Effective from</TableHead>
+            <TableHead>Effective to</TableHead>
+            <TableHead>Official source</TableHead>
             <TableHead className="w-12"></TableHead>
           </TableRow>
         </TableHeader>
@@ -181,7 +190,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
           {local.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={showEmployer ? 8 : 7}
+                colSpan={showEmployer ? 11 : 10}
                 className="py-8 text-center text-ink-500 dark:text-ink-400"
               >
                 No slabs yet. Add your first row.
@@ -295,6 +304,9 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                     </p>
                   )}
                 </TableCell>
+                <TableCell><Input type="date" aria-label={`Row ${idx + 1} effective from`} value={r.effective_from ?? ""} onChange={(ev) => update(idx, { effective_from: ev.target.value || null })} /></TableCell>
+                <TableCell><Input type="date" aria-label={`Row ${idx + 1} effective to`} value={r.effective_to ?? ""} onChange={(ev) => update(idx, { effective_to: ev.target.value || null })} /></TableCell>
+                <TableCell><Input aria-label={`Row ${idx + 1} official source`} placeholder="Gazette URL or notification" value={r.source_reference ?? ""} onChange={(ev) => update(idx, { source_reference: ev.target.value || null })} /></TableCell>
                 <TableCell>
                   <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)}>
                     <Trash2 className="h-4 w-4 text-danger-600 dark:text-danger-400" />

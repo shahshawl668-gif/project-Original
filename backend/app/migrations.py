@@ -482,6 +482,16 @@ def add_finding_evidence(conn: Connection) -> None:
         conn.execute(text("ALTER TABLE finding_records ADD COLUMN evidence JSON"))
 
 
+def add_slab_provenance(conn: Connection) -> None:
+    """Preserve legacy undated rows while allowing source-backed versions."""
+    if "slab_rules" not in _table_names(conn):
+        return
+    cols = _columns(conn, "slab_rules")
+    for column, kind in (("effective_from", "DATE"), ("effective_to", "DATE"), ("source_reference", "VARCHAR(1000)")):
+        if column not in cols:
+            conn.execute(text(f"ALTER TABLE slab_rules ADD COLUMN {column} {kind}"))  # nosec B608
+
+
 def run_migrations(engine: Engine) -> None:
     """Run every step in order, inside one transaction per step."""
     steps = (
@@ -494,6 +504,7 @@ def run_migrations(engine: Engine) -> None:
         set_membership_defaults,
         backfill_org_slugs,
         add_finding_evidence,
+        add_slab_provenance,
     )
     for step in steps:
         with engine.begin() as conn:
