@@ -76,6 +76,7 @@ export default function UploadPage() {
       setProfileName("");
       setUploaded(false);
       setError(null);
+      setBusy(false);
       setPeriodMonth("");
       setFrom("");
       setTo("");
@@ -130,6 +131,10 @@ export default function UploadPage() {
         return;
       }
     } catch (err) {
+      if (getActiveEntityId() !== requestEntityId) {
+        setBusy(false);
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Upload failed — check your file format.";
       setError(msg);
       toast.error("Parse failed", { description: msg });
@@ -197,8 +202,10 @@ export default function UploadPage() {
             method: "POST", body: JSON.stringify({ name: profileName.trim(), column_mapping: mapping }),
           });
           await parseEnvelopeResponse(saved);
+          if (getActiveEntityId() !== requestEntityId) return;
           const refreshed = await apiFetch("/api/payroll/import-profiles");
-          setProfiles(await parseEnvelopeResponse(refreshed));
+          const formats = await parseEnvelopeResponse<ImportProfile[]>(refreshed);
+          if (getActiveEntityId() === requestEntityId) setProfiles(formats);
         } catch (err) {
           toast.error("Register is ready, but the mapping format was not saved", {
             description: err instanceof Error ? err.message : "Try saving the format again later.",
@@ -207,7 +214,8 @@ export default function UploadPage() {
       }
       toast.success("Mapped register ready", { description: `${data.employees.length.toLocaleString("en-IN")} employees` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      if (getActiveEntityId() === requestEntityId)
+        setError(err instanceof Error ? err.message : "Upload failed.");
     } finally { setBusy(false); }
   };
 
@@ -270,6 +278,7 @@ export default function UploadPage() {
       });
       router.push("/payroll/results");
     } catch (err) {
+      if (getActiveEntityId() !== requestEntityId) return;
       const msg = err instanceof Error ? err.message : "Validation failed.";
       setError(msg);
       toast.error("Validation failed", { description: msg });
