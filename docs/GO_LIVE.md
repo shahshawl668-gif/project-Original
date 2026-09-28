@@ -130,7 +130,10 @@ docker compose -f docker/docker-compose.yml up --build
 # frontend http://localhost:3000   API http://localhost:8000   Postgres :5432
 ```
 
-Sign up, create an entity, and walk one month end to end (Phase 3.4). If it
+Sign up (development allows it), create an entity, and walk one month end to
+end (Phase 3.4). Then set `ENV=production`, confirm signup is refused, and
+create the first platform owner with `python -m app.bootstrap_owner` — the
+path a fresh production database will need. If it
 cannot be done locally it will not be done on a deployed host.
 
 ### Gate 1 — do not proceed unless
@@ -212,15 +215,30 @@ API=https://<staging-api>
 curl -s $API/api/health | jq .success                     # true
 curl -s -o /dev/null -w "%{http_code}\n" $API/api/reports  # 401 — auth required
 
-# signup → login → authenticated read
-TOKEN=$(curl -s -X POST $API/api/auth/signup \
+# signup is closed in production — expect 404 (a well-formed body, or the
+# request is rejected as 422 before the closed door is ever reached)
+curl -s -o /dev/null -w "%{http_code}\n" -X POST $API/api/auth/signup \
   -H 'Content-Type: application/json' \
-  -d '{"email":"qa@yourdomain.in","password":"Strong-Pwd-123","company_name":"QA Co"}' \
-  | jq -r .data.access_token)
+  -d '{"email":"nobody@example.com","password":"x-Unused-123","company_name":"X"}'  # 404
 
-curl -s $API/api/reports -H "Authorization: Bearer $TOKEN" | jq '.data.reports | length'
-# 11
+# platform staff login → authenticated read (password from your password
+# manager, typed at the prompt — never on the command line)
+read -rs -p "Platform password: " PW; echo
+TOKEN=$(jq -n --arg e you@yourdomain.in --arg p "$PW" '{email:$e,password:$p}' \
+  | curl -s -X POST $API/api/auth/platform-login \
+      -H 'Content-Type: application/json' -d @- | jq -r .data.access_token)
+unset PW
+
+curl -s $API/api/admin/organizations -H "Authorization: Bearer $TOKEN" | jq .success
+# true
+
+# and the separation holds: a platform token is not a client session
+curl -s $API/api/reports -H "Authorization: Bearer $TOKEN" | jq -r .error.detail
+# Client workspace session required
 ```
+
+The client-side read path — a workspace owner signing in at their address and
+reading reports — is covered end to end by `backend/e2e_deployed.py`; see the handbook's testing section.
 
 **Every no-argument GET must not return 500.** The suite asserts this over the
 whole OpenAPI surface; this layer confirms it survived the deploy. Three shipped

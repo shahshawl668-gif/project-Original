@@ -93,7 +93,7 @@ function directApiUrl(path: string): string {
 /** Human-readable hint for dashboards. */
 export function getApiTargetDescription(): string {
   if (usesServerSideProxy()) {
-    return "/api/proxy (Next.js → BACKEND_URL) — set BACKEND_URL on the server (e.g. Vercel)";
+    return "/api/proxy (Next.js → BACKEND_URL) — set BACKEND_URL on the web service";
   }
   const env = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (env) return env.replace(/\/$/, "");
@@ -291,7 +291,7 @@ export async function apiFetch(path: string, init: RequestInit = {}, isRetry = f
     if (typeof window !== "undefined" && e instanceof TypeError) {
       const hint = getApiTargetDescription();
       throw new Error(
-        `Failed to fetch (${e.message}). Target: ${hint}. If using peopleopslab.in, set BACKEND_URL on Vercel. Otherwise set NEXT_PUBLIC_API_URL.`,
+        `Could not reach the server (${e.message}). Target: ${hint}.`,
       );
     }
     throw e;

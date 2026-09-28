@@ -262,7 +262,7 @@
   <p class="standfirst">Everything in one place: how the product is put together, every route and who can reach it, how support access actually works, what to run to test it, and where it lives. Written against the code on <code>main</code>, not from memory.</p>
   <div class="meta">
     <span><b>Commit</b> 7eadc51 (branch) · 4cc2103 (main)</span>
-    <span><b>Tests</b> 844 passing, SQLite + PostgreSQL</span>
+    <span><b>Tests</b> 902 passing, SQLite + PostgreSQL</span>
     <span><b>Compiled</b> 25 Sep 2026</span>
   </div>
 </header>
@@ -499,9 +499,17 @@
     </div>
 
     <h3>Making yourself an admin</h3>
-    <p>The first user to sign up on a fresh installation becomes the platform admin. There is no
-    environment variable, no seed account with a default password, and no console command —
-    deliberately, because each of those is a credential that ends up in a repository.</p>
+    <p>Production has no public signup, so a fresh database — a new installation, a restore, or
+    the free-tier database being replaced when it expires on 22 Oct 2026 — has no way in until
+    someone with a shell on the API host runs:</p>
+    <pre><code>cd backend
+python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.in</code></pre>
+    <p>It prints a one-time <code>/platform/join</code> link, valid 24 hours; you open it and set
+    your own password. It refuses (exit 2) once any platform owner or admin exists, will not
+    promote an existing account, and never sees a password — so there is still no environment
+    variable and no seed account with a default password, each of which would be a credential
+    that ends up in a repository. An installation upgraded from before platform roles needs none
+    of this: a one-time migration names its legacy admin as owner.</p>
     <p>After that, staff are <strong>invited, not promoted from the client population</strong>:
     an existing admin issues an invitation, the recipient accepts it at <code>/platform/join</code>
     and sets their own password. Platform staff and client users are now separate populations with
@@ -557,7 +565,7 @@
     <h2>Testing points</h2>
     <p class="sub">Five things you can run. The first four take minutes; the fifth is the one with a deadline.</p>
 
-    <h3>1 · The unit suite — 844 tests</h3>
+    <h3>1 · The unit suite — 902 tests</h3>
     <pre><code>cd backend
 python -m pytest tests/ -q                 # SQLite, ~2m45s
 
@@ -566,11 +574,19 @@ DATABASE_URL=postgresql+psycopg2://user:pass@host/db \
     <p>Run it on <strong>both</strong>. They are not interchangeable: SQLite ignores foreign keys by default and has no <code>FOR UPDATE SKIP LOCKED</code>, and both differences have hidden real bugs in this codebase already.</p>
     <p class="mono" style="font-size:12.5px;color:var(--ink-3)">Note: run <code>pytest tests/</code>, not bare <code>pytest</code> — the backend root holds live-server scripts that pytest would try to collect and fail on.</p>
 
-    <h3>2 · End-to-end against a running deployment — 41 checks</h3>
+    <h3>2 · End-to-end against a running deployment — 45 checks</h3>
     <pre><code>cd backend
 PEOPLEOPSLAB_BASE_URL=https://payroll-saas-api-r6a8.onrender.com \
+PEOPLEOPSLAB_PLATFORM_EMAIL=you@yourdomain.in \
+PEOPLEOPSLAB_PLATFORM_PASSWORD='…' \
   python e2e_deployed.py</code></pre>
-    <p>Signs up a throwaway organisation, configures it, uploads three months of master, attendance and registers, validates, reconciles a bank file, builds a JV and exports it to Tally. Exits non-zero if anything fails, so it works as a release gate. Safe against production — entity scoping keeps everything it creates inside its own organisation — but it writes, so don't aim it at a tenant whose audit trail you care about.</p>
+    <p>Production has no signup, so the runner signs in as platform staff from those two
+    variables, creates a throwaway client workspace, accepts its invitation, signs in at
+    <code>/w/&lt;workspace&gt;/login</code>, and checks the same credentials are refused at another
+    workspace's address. Against a development stack with open signup it signs up instead (40
+    checks). The throwaway owner gets a fresh random password every run — it once had a fixed one
+    written in the script, which on production would have been a live login with a published
+    password. It then configures the workspace, uploads three months of master, attendance and registers, validates, reconciles a bank file, builds a JV and exports it to Tally. Exits non-zero if anything fails, so it works as a release gate. Safe against production — entity scoping keeps everything it creates inside its own organisation — but it writes, so don't aim it at a tenant whose audit trail you care about.</p>
     <p>It asserts the single most important production setting: that an unauthenticated request is <strong>refused</strong>. A deployment that answers <code>/api/org/entities</code> without a token is serving payroll to the internet.</p>
 
     <h3>3 · Frontend</h3>

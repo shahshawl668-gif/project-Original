@@ -14,37 +14,72 @@ Two different jobs are described here, and it matters which one you are doing:
 
 ## 1. The first account
 
-On a fresh database, **the first person to sign up becomes the platform
-administrator**. Everyone who signs up afterwards is an ordinary user.
+Production has **no public signup**. `/api/auth/signup` answers 404, whatever
+`ALLOW_PUBLIC_SIGNUP` says, and every account after the first arrives by
+invitation. That leaves one question: how the first platform owner gets in.
 
-```python
-human_count = db.query(User).filter(User.email != SYSTEM_USER_EMAIL).count()
-role = "admin" if human_count == 0 else "user"
+**An installation upgraded from before platform roles** already has one: a
+one-time migration names the legacy `role = "admin"` account as platform owner.
+Nothing to do.
+
+**A fresh database** — a new installation, a restore into an empty instance, or
+the free-tier database being replaced when it expires — has nobody. From a
+shell on a machine that can reach the database (on Render, the API service's
+**Shell** tab):
+
+```bash
+cd backend
+python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.in
 ```
 
-> **Claim this seat before the site is reachable by anyone else.** There is no
-> other way to become the first platform administrator — promotion requires an
-> existing one, so if a stranger signs up first you are fixing it directly in
-> the database.
+It prints a one-time link to `/platform/join`. Open it within **24 hours** and
+set your password. Deliberately narrow:
+
+- **It only ever creates the first.** It refuses (exit code 2) once any platform
+  owner or admin exists, so it cannot add a second owner or take over a
+  platform someone else runs. Further staff are invited from the console (§2).
+- **It never handles a password.** You set yours in the browser, so nothing
+  secret lands in shell history or a deploy log.
+- **It will not promote an existing account.** A client's login is never
+  quietly turned into platform access; the first owner is always a new account.
+- The link is the only copy of the token — only its hash is stored.
+
+> Run it before you tell anyone the site exists, and open the link yourself.
+> Until it is accepted, the link is the key to the whole platform.
 
 ---
 
 ## 2. The three kinds of login
 
-There is **one sign-in page**. What you see afterwards depends on your platform
-role and your organization role. There is no separate admin portal.
+Platform staff and client users are **separate populations with separate
+sign-in pages.** A client account cannot sign in to the platform, a platform
+account cannot sign in to a client workspace, and client credentials only work
+at their own workspace's address.
+
+| Who | Signs in at | Gets there by |
+|---|---|---|
+| Platform staff (owner, admin, support) | `/platform/login` | Invitation from a platform owner, accepted at `/platform/join` |
+| A client's people | `/w/<workspace>/login` — e.g. `/w/acme-industries/login` | Invitation from the platform (the first owner) or from their own organization |
+| Platform staff helping a client | Support session opened from the console | A time-boxed grant, §6 |
+
+The same email and password at another workspace's address is refused with the
+same message as a wrong password, so the sign-in page never confirms which
+workspaces exist.
 
 ![Sign in](images/00-login.png)
 
-### Platform administrator (`user.role = "admin"`)
+### Platform roles
 
-You. Adds two items to Settings — **Users & roles** and **Support access** —
-and nothing else. Crucially:
+| Role | Can do |
+|---|---|
+| **Owner** | Everything below, plus invite and remove platform staff |
+| **Admin** | Create client workspaces, see which organizations exist, open support sessions |
+| **Support** | Open support sessions only |
 
-**Being a platform administrator gives you no access to client payroll.** Entity
-access is decided by organization membership, which never consults the platform
-role. A standing developer login over every client's salary, PAN and bank data
-would be the most attractive single target in the system, so it does not exist.
+**No platform role gives access to client payroll.** Entity access is decided by
+organization membership, which never consults the platform role. A standing
+developer login over every client's salary, PAN and bank data would be the most
+attractive single target in the system, so it does not exist.
 
 To see a client's data you open a support session (§6).
 
@@ -80,11 +115,15 @@ Two shapes, and the right one depends on who owns the data.
 
 ### A. The client owns their account (recommended)
 
-1. The client signs up themselves at `/signup`, which creates their
-   organization, their first entity, and their owner seat.
-2. They add their remaining entities.
-3. They invite their own people.
-4. If they want your help, they set their support policy to allow it (§6).
+1. In the platform console (`/platform`), **Create client workspace** with the
+   company name and the owner's email. You get back the workspace's sign-in
+   address (`/w/<workspace>/login`) and a one-time invitation link
+   (`/invite?token=…`), shown once.
+2. Send the owner both. They open the invitation, set their password, and from
+   then on sign in at their workspace's address.
+3. They add their remaining entities.
+4. They invite their own people.
+5. If they want your help, they set their support policy to allow it (§6).
 
 Cleanest arrangement: the client's data belongs to the client's account, you
 hold no standing access, and your entry is time-boxed and visible to them.

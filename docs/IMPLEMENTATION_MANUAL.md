@@ -91,12 +91,15 @@ right — otherwise you are comparing a register against a broken timesheet.
 
 ### Step 1 — Create the account and the entities
 
-The first person to sign up on a fresh installation becomes the **platform
-administrator**. On a shared installation that person is you, not the client.
-See the [Admin Manual](ADMIN_MANUAL.md#1-the-first-account) before anyone signs
-up.
+Production has no public signup. On a fresh installation, create the first
+platform owner with `python -m app.bootstrap_owner` — see the
+[Admin Manual](ADMIN_MANUAL.md#1-the-first-account). That owner is you, not the
+client.
 
-Signing up creates an organization with one entity. Add the rest under
+Then, in the platform console, **Create client workspace** with the client's
+company name and owner email. The owner accepts the invitation link, sets a
+password, and signs in at `/w/<workspace>/login`. The workspace starts with one
+entity. Add the rest under
 **Settings → Team & invitations** (organization) and the entity controls.
 
 Set `org_type`:
@@ -259,12 +262,19 @@ Verification of a deployed stack, end to end:
 
 ```bash
 cd backend
-PEOPLEOPSLAB_BASE_URL=https://your-api-host python e2e_deployed.py
+PEOPLEOPSLAB_BASE_URL=https://your-api-host \
+PEOPLEOPSLAB_PLATFORM_EMAIL=you@yourdomain.in \
+PEOPLEOPSLAB_PLATFORM_PASSWORD='…' \
+  python e2e_deployed.py
 ```
 
-41 checks, non-zero exit on failure. It signs up a throwaway organization, so it
-is safe against a live deployment — but it writes, so do not aim it at a tenant
-whose audit trail matters.
+45 checks on a production deployment, non-zero exit on failure. Because signup
+is closed there, it signs in as platform staff (from those two variables —
+never written down anywhere else), creates a throwaway client workspace,
+accepts its invitation and signs in at its address. Against a development stack
+with open signup it signs up instead and runs 40. The throwaway owner gets a
+fresh random password each run. It is safe against a live deployment — but it
+writes, so do not aim it at a tenant whose audit trail matters.
 
 ---
 

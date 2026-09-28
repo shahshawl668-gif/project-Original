@@ -29,7 +29,14 @@ alters a payslip.
 ## 2. Signing in
 
 Your administrator sends an invitation link. It works once, expires after seven
-days, and only for the email address it was sent to.
+days, and only for the email address it was sent to. Open it and set your
+password.
+
+From then on, sign in at **your workspace's own address**, which your
+administrator gives you with the invitation — for example
+`https://www.peopleopslab.in/w/acme-industries/login`. Bookmark it. Your email
+and password work only there; at any other address they are refused, with the
+same message as a wrong password.
 
 ![Sign in](images/00-login.png)
 
