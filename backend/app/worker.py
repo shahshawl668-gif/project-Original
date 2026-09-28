@@ -19,7 +19,7 @@ import signal
 import sys
 import threading
 
-from app.database import Base, SessionLocal, apply_column_patches, engine
+from app.database import Base, apply_column_patches, engine
 from app.migrations import run_migrations
 from app.services import validation_worker
 

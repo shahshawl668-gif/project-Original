@@ -33,6 +33,19 @@ from app.services.tax_year_defaults import DEFAULT_TAX_YEAR, default_tax_years
 
 FONT = "Arial"
 
+#: What a row says when the code cites nothing for it. Spelled out rather than
+#: left blank: an empty cell reads as "nothing to see", and the whole point is
+#: that an uncited rate is the one most worth checking. The product already
+#: holds this line elsewhere — a missing minimum-wage rate is reported as a
+#: finding rather than a pass — and a sign-off sheet should not be the one
+#: place where silence looks like agreement.
+NO_SOURCE = "— no source cited —"
+
+
+def _stamp(value) -> str:
+    """An effective date as text, or a dash when the row does not carry one."""
+    return value.isoformat() if hasattr(value, "isoformat") else "—"
+
 # Reviewer-facing colours. Yellow marks what the reviewer fills in; nothing
 # else in the workbook is yellow, so "fill every yellow cell" is the whole
 # instruction.
@@ -231,7 +244,8 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
         "22 states, each amending on its own timetable. Source stated in code: Simpliance e-Library, "
         "verified late-2025 / early-2026. Check the states your clients actually operate in first.",
         [("State", 20), ("Wage from", 14), ("Wage to", 14), ("Amount", 12),
-         ("Frequency", 13), ("Gender", 10), ("Months", 14), ("Where in code", 34)],
+         ("Frequency", 13), ("Gender", 10), ("Months", 14),
+         ("Effective from", 14), ("Source stated in code", 44)],
     )
     first_row = row
     n = 0
@@ -243,7 +257,8 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
                 float(slab["deduction_amount"]), slab["frequency"],
                 slab.get("gender", "ALL"),
                 "all" if not months else ", ".join(str(m) for m in months),
-                "app/services/pt_defaults.py",
+                _stamp(slab.get("effective_from")),
+                slab.get("source_reference") or NO_SOURCE,
             ], rc)
             row += 1
             n += 1
@@ -255,7 +270,8 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
         "15 states. LWF amounts change quietly and with little notice, so treat an unchanged figure "
         "as unverified rather than confirmed.",
         [("State", 20), ("Wage from", 14), ("Wage to", 14), ("Employee", 12),
-         ("Employer", 12), ("Frequency", 13), ("Months", 14), ("Where in code", 34)],
+         ("Employer", 12), ("Frequency", 13), ("Months", 14),
+         ("Effective from", 14), ("Source stated in code", 44)],
     )
     first_row = row
     n = 0
@@ -267,7 +283,8 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
                 float(slab["deduction_amount"]), float(slab["employer_amount"]),
                 slab["frequency"],
                 "all" if not months else ", ".join(str(m) for m in months),
-                "app/services/lwf_defaults.py",
+                _stamp(slab.get("effective_from")),
+                slab.get("source_reference") or NO_SOURCE,
             ], rc)
             row += 1
             n += 1
@@ -312,6 +329,27 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
             value=f'=IF(E{r}>0,"NOT READY FOR CLIENT DATA","D6 SATISFIED")')
     ws.cell(row=r, column=6).font = Font(FONT, size=11, bold=True)
     ws.cell(row=r, column=6).fill = RISK_FILL
+
+    # How much of this the code can point at a source for. The reviewer should
+    # know before they start which rows they are checking from scratch.
+    from app.services import lwf_defaults as _lwf, pt_defaults as _pt
+
+    rows = [r2 for st in _pt.PT_DEFAULTS.values() for r2 in st]
+    rows += [r2 for st in _lwf.LWF_DEFAULTS.values() for r2 in st]
+    cited = sum(1 for r2 in rows if r2.get("source_reference"))
+
+    r += 2
+    ws.cell(row=r, column=1, value="State rates citing a source").font = Font(FONT, size=10, bold=True)
+    ws.cell(row=r, column=2, value=f"{cited} of {len(rows)}").font = Font(FONT, size=10, bold=True)
+    note = ws.cell(row=r + 1, column=1, value=(
+        f"{len(rows) - cited} of the {len(rows)} state PT and LWF rows carry no source in the code. "
+        "They are not wrong — most predate the provenance field — but they are the rows "
+        "to check first, because nothing records where they came from."))
+    note.font = Font(FONT, size=9, italic=True, color="475569")
+    note.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.merge_cells(start_row=r + 1, start_column=1, end_row=r + 1, end_column=6)
+    ws.row_dimensions[r + 1].height = 30
+    r += 2
 
     r += 3
     ws.cell(row=r, column=1, value="Reviewer declaration").font = Font(FONT, size=11, bold=True, color="0C4A6E")
