@@ -1278,6 +1278,13 @@ def validate_employees(
             "lop_days": lop_days,
             "gross": sum(regular.values(), Decimal("0")),
         }
+        if active_matrix_rules:
+            # Last month's row and the master record, for rules that compare
+            # against either. Built only when a company rule is in force.
+            matrix_row["_previous"] = (
+                validation_matrix.stored_row(prior_rows[eid]) if eid in prior_rows else None
+            )
+            matrix_row["_master"] = validation_matrix.master_dict(master_rows.get(eid))
         matrix_findings = [
             issue for rule in active_matrix_rules
             if (issue := validation_matrix.evaluate(rule, matrix_row)) is not None

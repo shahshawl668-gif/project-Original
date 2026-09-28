@@ -384,6 +384,23 @@ decision for the client, not a housekeeping task.
 - **Rollback:** redeploy the previous release. The new columns are nullable and
   the new tables are unread by it; waivers it sees keep their end dates.
 
+### Upgrading to the rule-engine release
+
+- **Automatic on first start.** `extend_validation_rules` adds `applies_to`,
+  `on_missing` (default `cannot_validate` — what every existing rule already
+  did), `editor_mode`, `cloned_from_id`, `retired_at`, `retired_by` and
+  `retire_reason` to `validation_rule_versions`. Existing rules behave exactly
+  as before.
+- **New status `retired`.** A retired version still governs the months before
+  its end date. Rolling back to the previous release makes retired versions
+  stop applying altogether (the old code only reads `published`).
+- **Publishing can now be refused** for a contradiction with a published rule
+  or a reference to a component that is no longer configured.
+- **Copying** rules between companies needs owner or manager on every target;
+  configuration copies need write access here and read access to the source,
+  within the same organisation. Both write to both companies' audit trails.
+- **Rollback:** redeploy the previous release; the columns are ignored by it.
+
 ---
 
 ## 9. What an administrator must not delegate

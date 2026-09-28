@@ -213,6 +213,50 @@ If the client genuinely does not want a pack — PF run by an exempted trust, sa
 Bank and ledger reconciliation are not a validation pack: they are checked on
 their own pages from the bank file and the voucher.
 
+### Step 7b — Company rules (optional)
+
+Built-in checks cover statute and payroll integrity. A client's own policy — a
+loss-of-pay limit, a basic-to-gross floor, a department that must agree with
+the master — goes in **Settings → Validation matrix → Draft a company rule**.
+
+- **Basic** compares a field, component or deduction with a value or another
+  field, optionally only when some conditions hold.
+- **Advanced** adds nested AND/OR groups (with NOT), **calculations**
+  (`basic / gross * 100`; `+ − × ÷`, brackets, `min max abs round floor ceil`),
+  **last month's value** (`prev_gross` in a calculation, or "Last month's value"
+  as an operand), the **employee master**, narrowing to named departments or
+  other dimensions, and what to do when an input is missing — report "cannot
+  validate" (the default), skip the employee, or treat it as a failure. A
+  missing input is never read as a pass, and a division by zero is "cannot
+  validate".
+- **Templates** start the common ones. They are starting points for the client's
+  policy, not statements of law.
+
+![Advanced rule editor](images/23-rule-editor-advanced.png)
+
+Choose a month under **Test against month** and press **Impact** on a draft: it
+is evaluated against every employee of that saved month and compared with the
+version in force — how many would newly fail, how many would stop failing. Then
+**Submit**; an owner or manager **Publishes** (an owner for statutory rules;
+someone other than the author when the client requires it). A version that
+contradicts a published rule — no value could satisfy both — or reads a
+component that is not configured cannot be published; the page lists conflicts.
+
+A published version is never edited: **Clone** drafts its next version; **Roll
+back to this** on an older one drafts its logic as the next version; **Retire**
+stops a version from a date, and months before it keep the rule when re-run.
+Tick two versions and **Compare two** to see what changed.
+
+![Rule versions](images/24-rule-versions.png)
+
+**Many rules at once.** **Export rules (CSV)** gives the format; an edited CSV
+or Excel file is previewed row by row — new, new version, unchanged, or the
+exact error — and only a file with no errors creates drafts. **Copying to other
+companies** (tick versions, choose companies you manage) creates drafts there,
+checked against each company's own components, recorded in both audit trails.
+The same applies to configuration: **Settings → Configuration upload → Copy
+from another company** previews each section before replacing it.
+
 ### Step 8 — Bank file profile
 
 **Settings → Bank file profiles.** Every bank and every client formats payment

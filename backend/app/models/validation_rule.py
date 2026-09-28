@@ -35,6 +35,19 @@ class ValidationRuleVersion(Base):
     suggested_fix: Mapped[str | None] = mapped_column(Text)
     source_reference: Mapped[str | None] = mapped_column(String(1000))
     change_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    # Narrow the rule to values of named dimensions: {"department": ["Sales"]}.
+    applies_to: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # What an employee whose inputs are missing gets: a "cannot validate"
+    # finding (default), no finding at all, or a failure.
+    on_missing: Mapped[str] = mapped_column(String(16), nullable=False, default="cannot_validate",
+                                            server_default="cannot_validate")
+    # How the rule was built in the editor — "basic" or "advanced". Display only.
+    editor_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="basic", server_default="basic")
+    # The version this one was cloned or rolled back from, if any.
+    cloned_from_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("validation_rule_versions.id", ondelete="SET NULL"))
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retired_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"))
+    retire_reason: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     approved_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

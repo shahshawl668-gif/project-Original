@@ -597,6 +597,7 @@ def run_migrations(engine: Engine) -> None:
         record_register_source_columns,
         preserve_run_history,
         track_finding_work,
+        extend_validation_rules,
     )
     for step in steps:
         with engine.begin() as conn:
@@ -645,3 +646,31 @@ def track_finding_work(conn: Connection) -> None:
     conn.execute(text(
         "CREATE INDEX IF NOT EXISTS ix_finding_states_owner ON finding_states (entity_id, owner_user_id)"
     ))
+
+
+def extend_validation_rules(conn: Connection) -> None:
+    """
+    Applicability, missing-data behaviour, and the lifecycle of a rule version.
+
+    Additive and idempotent; every existing version keeps its behaviour —
+    ``on_missing`` defaults to ``cannot_validate``, which is what the engine
+    always did. Rollback: the columns are unread by the previous release; a
+    version retired under this one would read as ``retired``, which the old
+    code does not treat as published, so it stops applying — the intent.
+    """
+    if "validation_rule_versions" not in _table_names(conn):
+        return
+    uuid_t = _uuid_type(conn)
+    ts_t = "TIMESTAMP" if conn.dialect.name == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+    have = _columns(conn, "validation_rule_versions")
+    for column, ddl in (
+        ("applies_to", "JSON"),
+        ("on_missing", "VARCHAR(16) NOT NULL DEFAULT 'cannot_validate'"),
+        ("editor_mode", "VARCHAR(16) NOT NULL DEFAULT 'basic'"),
+        ("cloned_from_id", uuid_t),
+        ("retired_at", ts_t),
+        ("retired_by", uuid_t),
+        ("retire_reason", "TEXT"),
+    ):
+        if column not in have:
+            conn.execute(text(f"ALTER TABLE validation_rule_versions ADD COLUMN {column} {ddl}"))  # nosec B608
