@@ -79,7 +79,7 @@ _RESERVED_COLS = {
     "employee_id", "emp_id", "employee_code", "employee_name", "name",
     "location", "location_state", "state", "state_pt", "state_lwf",
     "work_state", "employment_type", "department", "designation",
-    "gender", "sex", "paid_days", "lop_days", "lop", "total_days",
+    "gender", "sex", "payment_mode", "paid_days", "lop_days", "lop", "total_days",
     "month_days", "days_in_month", "gross", "gross_salary", "gross_pay",
     "total_gross", "total_deductions", "total_deduction", "net", "net_salary", "net_pay", "take_home",
     "pf_employee", "pf_employer", "pf_emp", "pf_employer_total",
@@ -255,6 +255,22 @@ def build_findings(
              "Non-empty ID", "(blank)", "CRITICAL",
              "Employee ID is blank — this row cannot be matched to CTC, prior-month, or deduplicated.",
              "Ensure every row has a unique non-blank employee_id / emp_id / employee_code.")
+
+    if (_dec(stated(row, "pt", "pt_amount")) > 0 or _dec(stated(row, "lwf_employee")) > 0) and not stated(row, "location_state", "work_state", "state", "state_pt", "state_lwf"):
+        info("DATA-010", "Work State Missing for State Deduction", "work_state",
+             "mapped work state", "(missing)",
+             "PT or LWF was deducted but no work state is stated on the register.",
+             "Map work state from the employee location and verify the state configuration.")
+
+    if str(row.get("payment_mode") or "").strip().casefold() in {"bank", "bank transfer", "neft"} and _dec(stated(row, "net", "net_salary", "net_pay")) > 0:
+        if not stated(row, "bank_account", "account_number"):
+            info("DATA-011", "Bank Account Missing for Bank Payment", "bank_account",
+                 "bank account", "(missing)", "A positive bank payment has no account number in the register.",
+                 "Map or supply the employee bank account before payment file generation.")
+        if not stated(row, "ifsc", "ifsc_code"):
+            info("DATA-012", "IFSC Missing for Bank Payment", "ifsc",
+                 "IFSC", "(missing)", "A positive bank payment has no IFSC in the register.",
+                 "Map or supply the employee IFSC before payment file generation.")
 
     for key, val in regular.items():
         comp = comp_by_key.get(key)

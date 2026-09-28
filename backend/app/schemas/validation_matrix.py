@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 Source = Literal["field", "component", "deduction", "literal"]
-Operator = Literal["eq", "ne", "gt", "gte", "lt", "lte"]
+Operator = Literal["eq", "ne", "gt", "gte", "lt", "lte", "present", "in", "not_in"]
 
 
 class Operand(BaseModel):

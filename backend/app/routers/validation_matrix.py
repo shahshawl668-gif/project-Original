@@ -28,6 +28,8 @@ TEMPLATES = [
     {"key": "amount_comparison", "label": "Compare two amounts", "description": "Compare a mapped component, deduction or field against a value or another field."},
     {"key": "required_value", "label": "Required value", "description": "Flag missing mapped inputs rather than silently passing."},
     {"key": "conditional_check", "label": "Conditional check", "description": "Run a comparison only when an optional condition matches."},
+    {"key": "required_input", "label": "Mandatory payroll input", "description": "Flag a missing mapped field such as bank account, IFSC, work state or PAN."},
+    {"key": "allowed_values", "label": "Allowed values", "description": "Check a field against a company-approved list separated by |."},
 ]
 
 

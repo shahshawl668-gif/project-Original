@@ -14,10 +14,12 @@ FIELDS = {
     "employee_id", "location_state", "work_state", "state", "department",
     "designation", "total_days", "paid_days", "lop_days", "net_pay",
     "gross", "pf_employee", "esic_employee", "pt", "lwf_employee", "tds",
+    "pan", "uan", "ifsc", "bank_account", "location", "skill_category",
+    "employment_type", "business_unit", "cost_center", "tax_regime", "doj", "dol",
 }
 DEDUCTIONS = {"pf_employee", "pf_employer", "esic_employee", "esic_employer", "pt", "lwf_employee", "lwf_employer", "tds"}
 NUMERIC_FIELDS = {"total_days", "paid_days", "lop_days", "net_pay", "gross", *DEDUCTIONS}
-OPS = {"eq", "ne", "gt", "gte", "lt", "lte"}
+OPS = {"eq", "ne", "gt", "gte", "lt", "lte", "present", "in", "not_in"}
 
 
 def validate_comparison(comparison: dict, configured_components: set[str]) -> None:
@@ -29,6 +31,10 @@ def validate_comparison(comparison: dict, configured_components: set[str]) -> No
             raise ValueError(f"Unknown deduction: {key}")
         if source == "component" and normalize_col(key or "") not in configured_components:
             raise ValueError(f"Salary component is not configured: {key}")
+    if comparison["operator"] in {"in", "not_in"}:
+        right = comparison["right"]
+        if right["source"] != "literal" or not any(part.strip() for part in (right.get("value") or "").split("|")):
+            raise ValueError("List checks need a fixed value separated by |")
     try:
         tolerance = Decimal(str(comparison.get("tolerance", "0")))
     except InvalidOperation as exc:
@@ -68,9 +74,15 @@ def _resolve(operand: dict, row: dict[str, Any]) -> Any:
 
 def _compare(comparison: dict, row: dict[str, Any]) -> tuple[bool | None, Any, Any]:
     left, right = _resolve(comparison["left"], row), _resolve(comparison["right"], row)
+    op = comparison["operator"]
+    if op == "present":
+        return (None if left in (None, "") else True), left, "a value"
     if left in (None, "") or right in (None, ""):
         return None, left, right
-    op = comparison["operator"]
+    if op in ("in", "not_in"):
+        allowed = {part.strip().casefold() for part in str(right).split("|") if part.strip()}
+        matched = str(left).strip().casefold() in allowed
+        return (matched if op == "in" else not matched), left, right
     try:
         a, b = Decimal(str(left)), Decimal(str(right))
         if not a.is_finite() or not b.is_finite():

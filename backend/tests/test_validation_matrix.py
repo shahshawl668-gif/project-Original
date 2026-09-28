@@ -184,3 +184,35 @@ def test_prefilled_catalog_and_company_rule_toggle(client):
     summary = apply_suppressed_rules(results, {"AGG-002"})
     assert [item["rule_id"] for item in results[0]["findings"]] == ["DATA-004"]
     assert summary["total_findings"] == 1
+
+
+def test_required_field_and_approved_list_operators(client):
+    headers = owner(client, "matrix-required")
+    body = rule_body("CUST-STATE-01")
+    body["assertion"] = {
+        "left": {"source": "field", "key": "location_state"}, "operator": "present",
+        "right": {"source": "literal", "value": "1"}, "tolerance": "0",
+    }
+    draft = data(client.post("/api/validation-matrix", headers=headers, json=body))
+    from app.models import ValidationRuleVersion
+    db = SessionLocal()
+    try:
+        rule = db.get(ValidationRuleVersion, uuid.UUID(draft["id"]))
+        missing = validation_matrix.evaluate(rule, {"employee_id": "E1", "location_state": ""})
+        assert missing["evidence"]["unverifiable"] is True
+        assert validation_matrix.evaluate(rule, {"employee_id": "E1", "location_state": "Maharashtra"}) is None
+    finally:
+        db.close()
+    body = rule_body("CUST-TYPE-01")
+    body["assertion"] = {
+        "left": {"source": "field", "key": "employment_type"}, "operator": "in",
+        "right": {"source": "literal", "value": "Permanent|Contract"}, "tolerance": "0",
+    }
+    draft = data(client.post("/api/validation-matrix", headers=headers, json=body))
+    db = SessionLocal()
+    try:
+        rule = db.get(ValidationRuleVersion, uuid.UUID(draft["id"]))
+        assert validation_matrix.evaluate(rule, {"employee_id": "E1", "employment_type": "contract"}) is None
+        assert validation_matrix.evaluate(rule, {"employee_id": "E1", "employment_type": "Intern"})["status"] == "FAIL"
+    finally:
+        db.close()
