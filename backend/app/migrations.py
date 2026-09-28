@@ -542,6 +542,10 @@ def preserve_run_history(conn: Connection) -> None:
             ("finished_at", ts_t),
             ("duration_ms", "INTEGER"),
         ),
+        "validation_run_employees": (
+            ("cannot_validate_checks", "INTEGER NOT NULL DEFAULT 0"),
+            ("not_applicable_checks", "INTEGER NOT NULL DEFAULT 0"),
+        ),
         "validation_jobs": (
             ("upload_id", uuid_t),
             ("stage", "VARCHAR(16) NOT NULL DEFAULT 'queued'"),

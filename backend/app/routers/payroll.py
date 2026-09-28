@@ -24,7 +24,7 @@ from app.models import (
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
-from app.services import audit, finding_store, register_uploads, run_inputs
+from app.services import audit, coverage, finding_store, register_uploads, run_inputs
 from app.services.cost_model import capture_net_pay, capture_reported
 from app.services.dimensions import snapshot as dimension_snapshot
 from app.services.pf_basis import from_row as pf_flag_from_row
@@ -424,6 +424,10 @@ def validate_payroll(
 
     lifecycle: dict = {}
     if period_month:
+        findings_summary["coverage"] = coverage.annotate_run(
+            db, entity, period_month, rows, body.employees,
+            findings_summary.get("unmatched_findings"), suppressed,
+        )
         # Persisting the run is what turns validation from a one-off report into
         # a record: waivers carry forward, recurrence becomes countable, and the
         # exposure history survives the browser tab.

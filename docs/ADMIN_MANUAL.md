@@ -89,9 +89,9 @@ Set per member, inside one organization:
 
 | Role | Can do | Cannot do |
 |---|---|---|
-| **Owner** | Everything, including inviting owners, removing members, setting the support policy | — |
-| **Manager** | Configuration, uploads, validation, sign-off, invite analyst/viewer | Change owners, set support policy |
-| **Analyst** | Upload, validate, work findings, reconcile | Change configuration, manage people |
+| **Owner** | Everything, including inviting owners, removing members, setting the support policy and the approval controls | — |
+| **Manager** | Configuration, uploads, validation, approving and reopening a month, invite analyst/viewer | Change owners, set support policy or approval controls |
+| **Analyst** | Upload, validate, work findings, reconcile, submit a month for approval | Approve a month, change configuration, manage people |
 | **Viewer** | Read and export | Change anything |
 
 Two rules hold regardless of role:
@@ -100,6 +100,31 @@ Two rules hold regardless of role:
   how an organization ends up with nobody who can administer it.
 - **You can only invite at your own level or below.** An analyst cannot mint an
   owner.
+
+### Approval controls (maker–checker)
+
+**Settings → Team & invitations → Approval controls.** Everyone can see them;
+only an **owner** can change them, and each change is written to the audit
+trail with the before and after.
+
+![Team and approval controls](images/11-team.png)
+
+| Control | When on |
+|---|---|
+| Month sign-off needs a second person | The person who submitted a month cannot approve it |
+| Validation rules need a second person to publish | The person who drafted a rule cannot publish it |
+
+Both are **off** by default, so a one-person practice can still close a month.
+Whatever the setting, every sign-off records the preparer, the approver and
+whether the approval was independent — so the record tells the truth either way.
+
+Independent of the setting, a month **cannot be submitted or approved** when:
+
+- it has no validation run;
+- something the run read has changed since (register, master, attendance, CTC,
+  configuration) — it must be revalidated;
+- statutory checks could not be performed — unless the approver states why the
+  gap is acceptable, which is kept in the sign-off record.
 
 ### Entity access
 
@@ -319,6 +344,25 @@ decision for the client, not a housekeeping task.
   per month, as before). The one thing the old code does that the new one
   undoes is *delete* superseded runs on the next re-validation — so roll back
   only if you must.
+
+### Upgrading to the coverage and approval release
+
+- **Automatic on first start.** `organizations.approval_policy` and two count
+  columns on `validation_run_employees` are added by the idempotent column
+  patches and `preserve_run_history`; nothing is rewritten.
+- **Months validated before the run-history release cannot be approved until
+  revalidated.** Their inputs were never fingerprinted, so they cannot be shown
+  to be current, and approval is refused with that reason. Re-upload the
+  month's register and validate it; that run carries full evidence and coverage.
+  The same applies to a month left *Submitted* across the upgrade: approving it
+  re-checks readiness.
+- **Runs made before this release** show "coverage was not recorded" rather
+  than a coverage figure. They are not treated as fully covered.
+- **Per-employee exposure** now counts overlapping findings once, as the run
+  total always did from the run-history release; older runs keep the figures
+  they recorded.
+- **Rollback:** redeploy the previous release. The new column is nullable and
+  unread by the old code. Sign-offs made under the new rules stay valid records.
 
 ---
 

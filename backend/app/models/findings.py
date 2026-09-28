@@ -164,6 +164,11 @@ class ValidationRunEmployee(Base):
     critical_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     warning_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     passed_checks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Checks that applied but could not reach a verdict for want of an input,
+    # and checks that did not apply. Kept apart from the failure counts: a row
+    # with no failures and ten unverifiable checks is not a clean row.
+    cannot_validate_checks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    not_applicable_checks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     financial_impact: Mapped[Decimal] = mapped_column(
         Numeric(16, 2), nullable=False, default=Decimal("0")
     )
@@ -319,3 +324,4 @@ class FindingStateEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     state = relationship("FindingState", back_populates="events")
+

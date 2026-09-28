@@ -38,6 +38,9 @@ from app.models import (
     ValidationRun,
     ValidationRunEmployee,
 )
+from app.services import approvals
+from app.services import coverage as coverage_svc
+from app.services import explain as explain_svc
 from app.services import register_uploads, run_inputs
 from app.services import validation_jobs as jobs
 from app.services.finding_store import current_run
@@ -123,24 +126,7 @@ def _describe_run(db: Session, run: ValidationRun, *, with_upload: bool = True) 
 
 
 def freshness(db: Session, entity: Entity, run: ValidationRun) -> dict[str, Any]:
-    """Is this run still the answer for its inputs? If not, which input moved?
-
-    Compared against the latest upload for the period — a re-upload is exactly
-    the change that makes a run stale — and against today's master,
-    attendance, CTC and configuration.
-    """
-    latest = register_uploads.latest_for_period(db, entity.id, run.period_month)
-    now = run_inputs.input_digests(
-        db, entity, run.period_month,
-        rows_sha256=latest.rows_sha256 if latest else (run.input_digests or {}).get("register"),
-    )
-    changes = run_inputs.changed_inputs(run.input_digests, now)
-    return {
-        "is_current_for_inputs": not changes,
-        "revalidation_required": bool(changes),
-        "changes": changes,
-        "latest_upload_id": str(latest.id) if latest else None,
-    }
+    return run_inputs.run_freshness(db, entity, run)
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +497,8 @@ def _employee_out(row: ValidationRunEmployee) -> dict[str, Any]:
         "critical_count": row.critical_count,
         "warning_count": row.warning_count,
         "passed_checks": row.passed_checks,
+        "cannot_validate_checks": row.cannot_validate_checks,
+        "not_applicable_checks": row.not_applicable_checks,
         "financial_impact": _money(row.financial_impact),
         "gross": _money(row.gross),
         "net_pay": _money(row.net_pay),
@@ -527,6 +515,7 @@ def list_run_employees(
     q: str | None = Query(default=None, max_length=100),
     risk_level: str | None = Query(default=None),
     only_with_findings: bool = Query(default=False),
+    only_unverifiable: bool = Query(default=False),
     department: str | None = Query(default=None),
     include_computed: bool = Query(default=False),
     db: Session = Depends(get_db),
@@ -545,6 +534,8 @@ def list_run_employees(
         query = query.filter(ValidationRunEmployee.risk_level == risk_level.upper())
     if only_with_findings:
         query = query.filter(ValidationRunEmployee.failed_checks > 0)
+    if only_unverifiable:
+        query = query.filter(ValidationRunEmployee.cannot_validate_checks > 0)
     if department:
         query = query.filter(ValidationRunEmployee.department == department)
     total = query.count()
@@ -607,6 +598,9 @@ def get_run_employee(
                 if key == employee_id:
                     source_row = candidate
                     break
+    if detail.get("coverage"):
+        # Stored compactly; readers get one verdict per check.
+        detail["coverage"] = coverage_svc.expand(detail["coverage"], detail.get("findings"))
     return ok({
         "run": _describe_run(db, run),
         "employee": _employee_out(row),
@@ -698,7 +692,9 @@ def list_run_findings(
             "expected_value": r.expected_value,
             "actual_value": r.actual_value,
             "difference": r.difference,
-            "financial_impact": _money(r.financial_impact),
+            "financial_impact": _money(r.financial_impact)
+            if explain_svc.impact_known(r.rule_id, r.financial_impact) else None,
+            "impact_calculated": explain_svc.impact_known(r.rule_id, r.financial_impact),
             "reason": r.reason,
             "suggested_fix": r.suggested_fix,
             "was_waived": r.was_waived,
@@ -814,6 +810,7 @@ PERIOD_STAGES = {
     "validation_failed": "Validation failed",
     "revalidation_required": "Revalidation required — inputs changed since the last run",
     "issues_found": "Issues found",
+    "checks_incomplete": "Incomplete — statutory checks could not be performed",
     "ready_for_approval": "Ready for approval",
     "pending_approval": "Submitted for approval",
     "signed_off": "Signed off",
@@ -859,6 +856,21 @@ def period_status(
             or 0
         )
 
+    # A signed month stays signed — the record is immutable — but if what it
+    # was signed on has since changed, that is said, not hidden.
+    changed_since_signoff: list[dict[str, str]] = []
+    if signoff is not None and signoff.state == "signed":
+        signed_run = ((signoff.snapshot or {}).get("validation_run") or {})
+        signed_digests = signed_run.get("input_digests")
+        if run is not None and signed_run.get("id") and str(run.id) != signed_run.get("id"):
+            changed_since_signoff.append({
+                "input": "run", "label": "Validation run",
+                "detail": "The month was re-validated after it was signed.",
+            })
+        elif run is not None and fresh and signed_digests:
+            changed_since_signoff.extend(fresh["changes"])
+
+    ready = approvals.readiness(db, entity, month)
     if signoff is not None and signoff.state == "signed":
         stage = "signed_off"
     elif upload is None:
@@ -871,10 +883,13 @@ def period_status(
         stage = "validation_failed" if (last_job and last_job.state == "failed") else "uploaded"
     elif fresh and fresh["revalidation_required"]:
         stage = "revalidation_required"
-    elif open_count:
-        stage = "issues_found"
     elif signoff is not None and signoff.state == "pending_approval":
         stage = "pending_approval"
+    elif open_count:
+        stage = "issues_found"
+    elif any(b["code"] == "incomplete_coverage" for b in ready["blockers"]):
+        # No failures is not a clean month when material checks never ran.
+        stage = "checks_incomplete"
     else:
         stage = "ready_for_approval"
 
@@ -889,4 +904,189 @@ def period_status(
         "open_findings": open_count,
         "freshness": fresh,
         "signoff_state": signoff.state if signoff else None,
+        "changed_since_signoff": changed_since_signoff,
+        "readiness": ready,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Why this result?
+# ---------------------------------------------------------------------------
+def _policy_reference(run: ValidationRun, record: FindingRecord, detail: dict[str, Any]) -> dict[str, Any]:
+    """Where the rule's figures came from, as the run recorded it.
+
+    Shipped statutory defaults are configuration, not certified law: they are
+    labelled as such unless the tenant's own dated schedule cites a source.
+    """
+
+    rule = record.rule_id
+    if record.rule_version_id:
+        return {"kind": "custom_rule", "note": "A rule your team published in the decision matrix."}
+    config = run.config_snapshot or {}
+    family = explain_svc.FAMILY_OF_RULE.get(rule)
+    if family in ("PT", "LWF"):
+        state = detail.get("pt_applicable_state" if family == "PT" else "lwf_applicable_state")
+        slabs = [
+            s for s in (config.get("slab_rules") or [])
+            if s.get("rule_type") == family and s.get("state") == state
+        ]
+        cited = sorted({s.get("source_reference") for s in slabs if s.get("source_reference")})
+        dated = sorted({s.get("effective_from") for s in slabs if s.get("effective_from")})
+        return {
+            "kind": "slab_schedule",
+            "state": state,
+            "effective_from": dated[-1] if dated else None,
+            "source_references": cited,
+            "note": None if cited else (
+                "No source is cited on this schedule. It is configuration, not verified law — "
+                "confirm it against the current notification (GO_LIVE §D6)."
+            ),
+        }
+    if rule.startswith("MW-"):
+        return {"kind": "minimum_wage_rate", "note": "The rate and its source are named in the explanation."}
+    if family in ("PF", "ESIC"):
+        return {
+            "kind": "statutory_configuration",
+            "note": ("Rates, ceilings and rounding come from this company's statutory configuration "
+                     "as recorded with the run. Shipped defaults are not a certification of current law."),
+        }
+    return {"kind": "built_in_check", "note": f"Built-in check, engine {run.engine_version or 'version not recorded'}."}
+
+
+def _matrix_rule(db: Session, record: FindingRecord) -> dict[str, Any] | None:
+    from app.models import ValidationRuleVersion
+
+    if not record.rule_version_id:
+        return None
+    version = db.get(ValidationRuleVersion, record.rule_version_id)
+    if version is None:
+        return None
+    return {
+        "rule_key": version.rule_key,
+        "version": version.version,
+        "name": version.name,
+        "effective_from": version.effective_from.isoformat(),
+        "effective_to": version.effective_to.isoformat() if version.effective_to else None,
+        "source_reference": version.source_reference,
+        "responsible_team": version.responsible_team,
+        "blocks_signoff": version.blocks_signoff,
+    }
+
+
+@router.get("/runs/{run_id}/findings/{finding_id}/explain")
+def explain_finding(
+    run_id: str,
+    finding_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Everything behind one finding, from what the run recorded."""
+    from app.models import PeriodSignOff, SignOffEvent
+
+    run = _run(db, entity, run_id)
+    record = db.get(FindingRecord, _uuid(finding_id, "Finding"))
+    if record is None or record.run_id != run.id:
+        raise HTTPException(status_code=404, detail="Finding not found in this run")
+
+    employee = (
+        db.query(ValidationRunEmployee)
+        .filter(ValidationRunEmployee.run_id == run.id, ValidationRunEmployee.employee_id == record.employee_id)
+        .first()
+    )
+    detail = register_uploads.gunzip_json(employee.detail_gz) if employee else {}
+    detail = detail or {}
+    upload = db.get(RegisterUpload, run.upload_id) if run.upload_id else None
+    source_row = None
+    if upload is not None:
+        for candidate in register_uploads.decode_rows(upload.rows_gz):
+            key = str(candidate.get("employee_id") or candidate.get("emp_id")
+                      or candidate.get("employee_code") or "").strip()
+            if key == record.employee_id:
+                source_row = candidate
+                break
+
+    state = (
+        db.query(FindingState)
+        .filter(FindingState.entity_id == entity.id, FindingState.fingerprint == record.fingerprint)
+        .first()
+    )
+    from app.models import FindingStateEvent
+
+    events = []
+    if state is not None:
+        events = [
+            {
+                "from": e.from_state, "to": e.to_state, "reason": e.reason,
+                "waived_until": e.waived_until.isoformat() if e.waived_until else None,
+                "by": e.actor_email, "at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in db.query(FindingStateEvent)
+            .filter(FindingStateEvent.state_id == state.id)
+            .order_by(FindingStateEvent.created_at)
+        ]
+    signoff = (
+        db.query(PeriodSignOff)
+        .filter(PeriodSignOff.entity_id == entity.id, PeriodSignOff.period_month == run.period_month)
+        .first()
+    )
+    approvals = []
+    if signoff is not None:
+        approvals = [
+            {"from": e.from_state, "to": e.to_state, "reason": e.reason,
+             "at": e.created_at.isoformat() if e.created_at else None}
+            for e in db.query(SignOffEvent).filter(SignOffEvent.signoff_id == signoff.id).order_by(SignOffEvent.created_at)
+        ]
+
+    calc = explain_svc.calculation(record.rule_id, detail, run.config_snapshot)
+    known = explain_svc.impact_known(record.rule_id, record.financial_impact)
+    return ok({
+        "context": {
+            "company": entity.name,
+            "employee_id": record.employee_id,
+            "employee_name": record.employee_name,
+            "period_month": run.period_month.isoformat(),
+            "run_id": str(run.id),
+            "run_number": run.run_number,
+            "run_status": run.status,
+            "engine_version": run.engine_version,
+            "validated_at": run.finished_at.isoformat() if run.finished_at else None,
+        },
+        "source": explain_svc.source_location(upload, source_row, record.component),
+        "rule": {
+            "rule_id": record.rule_id,
+            "rule_name": record.rule_name,
+            "severity": record.severity,
+            "component": record.component,
+            "custom_rule": _matrix_rule(db, record),
+            "policy": _policy_reference(run, record, detail),
+        },
+        "inputs": explain_svc.input_values(record.rule_id, source_row),
+        "calculation": calc,
+        "values": {
+            "expected": record.expected_value,
+            "actual": record.actual_value,
+            "difference": record.difference,
+            "financial_impact": float(record.financial_impact) if known else None,
+            "impact_calculated": known,
+            "impact_label": None if known else "Impact not calculated",
+        },
+        "explanation": record.reason,
+        "suggested_fix": record.suggested_fix,
+        "review": {
+            "state": state.state if state else None,
+            "note": state.note if state else None,
+            "waiver_reason": state.waiver_reason if state else None,
+            "waived_until": state.waived_until.isoformat() if state and state.waived_until else None,
+            "was_waived_in_this_run": record.was_waived,
+            "first_seen": state.first_seen_period.isoformat() if state else None,
+            "occurrences": state.occurrence_count if state else None,
+            "history": events,
+        },
+        "approval": {
+            "state": signoff.state if signoff else None,
+            "signed_by": signoff.signed_by_email if signoff else None,
+            "signed_at": signoff.signed_at.isoformat() if signoff and signoff.signed_at else None,
+            "history": approvals,
+        },
     })

@@ -8,6 +8,7 @@ accepted and by whom, and which rules and rates were in force at the time.
 from __future__ import annotations
 
 import io
+import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +20,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write, require_entity_admin
 from app.envelope import ok
 from app.models import Entity, PeriodSignOff, SignOffEvent, User
+from app.services import approvals
 from app.services import signoff as signoff_service
 
 router = APIRouter()
@@ -27,11 +29,14 @@ router = APIRouter()
 class SubmitRequest(BaseModel):
     period_month: date
     notes: str | None = Field(default=None, max_length=4000)
+    # Stating why material checks that could not run are acceptable this month.
+    accept_incomplete_reason: str | None = Field(default=None, max_length=2000)
 
 
 class SignRequest(BaseModel):
     period_month: date
     notes: str | None = Field(default=None, max_length=4000)
+    accept_incomplete_reason: str | None = Field(default=None, max_length=2000)
 
 
 class ReopenRequest(BaseModel):
@@ -117,6 +122,19 @@ def get_signoff(
     )
 
 
+@router.get("/{period}/readiness")
+def readiness(
+    period: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """What stands between this month and approval, and the approval policy."""
+    out = approvals.readiness(db, entity, _period(period))
+    out["policy"] = approvals.policy_for(db, entity.org_id)
+    return ok(out)
+
+
 @router.get("/{period}/preview")
 def preview(
     period: str,
@@ -135,7 +153,11 @@ def submit(
     user: User = Depends(get_current_user),
     entity: Entity = Depends(require_entity_write),
 ):
-    row = signoff_service.submit(db, entity, body.period_month, user, body.notes)
+    try:
+        row = signoff_service.submit(db, entity, body.period_month, user, body.notes,
+                                     body.accept_incomplete_reason)
+    except approvals.ApprovalRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     db.commit()
     db.refresh(row)
     return ok(_out(row))
@@ -159,8 +181,8 @@ def sign(
     if row.state == "signed":
         raise HTTPException(status_code=400, detail="This period is already signed")
     try:
-        signoff_service.sign(db, row, user, body.notes)
-    except signoff_service.MatrixSignoffBlocked as exc:
+        signoff_service.sign(db, row, user, body.notes, body.accept_incomplete_reason)
+    except (signoff_service.MatrixSignoffBlocked, approvals.ApprovalRefused) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     db.commit()
     db.refresh(row)
@@ -342,6 +364,96 @@ def evidence_pack(
                 r.get("effective_from"), r.get("source_reference"),
             ]
             for r in configuration.get("minimum_wage_rates", [])
+        ],
+    )
+
+    # --- The run, its inputs, and who approved it --------------------------
+    # What makes the pack reproducible: which file, which inputs, which
+    # configuration, which engine — and whether the approval was independent.
+    from app.models import FindingRecord, RegisterUpload
+    from app.services import register_uploads
+    from app.services.explain import impact_known
+    from app.services.run_inputs import INPUT_LABELS
+
+    run_sheet = wb.create_sheet("Run and inputs")
+    upload = None
+    if run.get("upload_id"):
+        upload = db.get(RegisterUpload, uuid.UUID(run["upload_id"]))
+    readiness = snapshot.get("readiness") or {}
+    approval = snapshot.get("approval") or {}
+    rows_out: list[list] = [
+        ["Validation run ID", run.get("id")],
+        ["Run number", run.get("run_number")],
+        ["Run status at signing", run.get("status")],
+        ["Engine version", run.get("engine_version")],
+        ["Validated at", run.get("validated_at")],
+        ["Source file", upload.filename if upload else "not recorded"],
+        ["Source file SHA-256", upload.file_sha256 if upload else "not recorded"],
+        ["Sheet", upload.sheet_name if upload else None],
+        ["Upload revision", upload.revision if upload else None],
+    ]
+    for key, label in INPUT_LABELS.items():
+        rows_out.append([f"Digest — {label}", (run.get("input_digests") or {}).get(key) or "not recorded"])
+    rows_out += [
+        ["Gaps accepted at approval", ((readiness.get("accepted_gaps") or {}).get("reason")) or "none"],
+        ["Independent approver required", (approval.get("policy") or {}).get("signoff_requires_independent_approver")],
+        ["Approval was independent of preparation", approval.get("independent")],
+    ]
+    _write_table(run_sheet, ["Item", "Value"], rows_out)
+
+    coverage = run.get("coverage") or {}
+    _write_table(
+        wb.create_sheet("Coverage"),
+        ["Rule", "Check", "Family", "Material", "Passed", "Failed", "Cannot validate", "Not applicable", "Disabled"],
+        [
+            [
+                r["rule_id"], r["name"], r["family"], "yes" if r["material"] else "",
+                r["counts"]["passed"], r["counts"]["failed"], r["counts"]["cannot_validate"],
+                r["counts"]["not_applicable"], r["counts"]["disabled"],
+            ]
+            for r in coverage.get("rules", [])
+        ] or [["Coverage was not recorded for this run", "", "", "", "", "", "", "", ""]],
+    )
+
+    source_rows: dict[str, int] = {}
+    if upload is not None:
+        for r in register_uploads.decode_rows(upload.rows_gz):
+            key = str(r.get("employee_id") or r.get("emp_id") or r.get("employee_code") or "").strip()
+            source_rows.setdefault(key, r.get(register_uploads.SOURCE_ROW_KEY))
+    finding_rows: list[list] = []
+    if run.get("id"):
+        for f in (
+            db.query(FindingRecord)
+            .filter(FindingRecord.run_id == uuid.UUID(run["id"]))
+            .order_by(FindingRecord.employee_id, FindingRecord.rule_id)
+            .yield_per(1000)
+        ):
+            known = impact_known(f.rule_id, f.financial_impact)
+            finding_rows.append([
+                f.employee_id, f.employee_name, source_rows.get(f.employee_id), f.component,
+                f.rule_id, f.rule_name, f.severity, f.expected_value, f.actual_value, f.difference,
+                float(f.financial_impact) if known else "Impact not calculated",
+                "yes" if f.was_waived else "", f.reason, f.suggested_fix,
+            ])
+    _write_table(
+        wb.create_sheet("Findings in the run"),
+        ["Employee ID", "Employee", "File row", "Field", "Rule", "Rule name", "Severity",
+         "Expected", "Actual", "Difference", "Financial impact", "Waived", "Why", "Suggested fix"],
+        finding_rows,
+    )
+
+    _write_table(
+        wb.create_sheet("PT and LWF schedules"),
+        ["State", "Type", "From ₹", "To ₹", "Employee", "Employer", "Frequency", "Effective from",
+         "Effective to", "Source cited"],
+        [
+            [
+                s.get("state"), s.get("rule_type"), s.get("min_salary"), s.get("max_salary"),
+                s.get("deduction_amount"), s.get("employer_amount"), s.get("frequency"),
+                s.get("effective_from"), s.get("effective_to"),
+                s.get("source_reference") or "— no source cited: configuration, not verified law —",
+            ]
+            for s in configuration.get("pt_lwf_slabs", [])
         ],
     )
 

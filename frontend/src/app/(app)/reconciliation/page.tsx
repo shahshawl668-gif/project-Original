@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { SignOffPanel } from "@/components/approvals/SignOffPanel";
 import { Menu, MenuItem } from "@/components/cost/Menu";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Figure, Verdict } from "@/components/reconciliation/pieces";
@@ -43,8 +44,8 @@ export default function ReconciliationOverviewPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Reconciliation"
-        description="The register against the bank file, and the journal voucher against payroll cost."
+        title="Month close"
+        description="The register against the bank file, the journal voucher against payroll cost, and the month's approval."
       />
 
       {isLoading && (
@@ -165,6 +166,8 @@ export default function ReconciliationOverviewPage() {
               )}
             </StepCard>
           </div>
+
+          <SignOffPanel period={data.period} />
 
           <Card>
             <CardContent className="py-5">

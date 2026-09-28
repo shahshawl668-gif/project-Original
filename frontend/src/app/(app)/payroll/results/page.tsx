@@ -7,8 +7,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  inr, monthLabel, validationApi,
-  type EmployeePage, type FindingPage, type RunEmployee, type ValidationRun,
+  inr, monthLabel, validationApi, OUTCOME_LABEL,
+  type CoverageSummary, type EmployeePage, type ExposureSummary, type FindingPage, type Outcome,
+  type RunEmployee, type ValidationRun,
 } from "@/lib/validation";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -20,12 +21,12 @@ import {
 import {
   AlertTriangle, CheckCircle2, Users, XCircle, Search, ArrowRight, Shield, Flame,
   Activity, UploadCloud, TrendingUp, Download, History, GitCompare, RefreshCw,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, HelpCircle, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "overview" | "risk" | "findings" | "pf" | "esic" | "ptlwf" | "lop";
-const TABS: Tab[] = ["overview", "risk", "findings", "pf", "esic", "ptlwf", "lop"];
+type Tab = "overview" | "coverage" | "risk" | "findings" | "pf" | "esic" | "ptlwf" | "lop";
+const TABS: Tab[] = ["overview", "coverage", "risk", "findings", "pf", "esic", "ptlwf", "lop"];
 const PAGE_SIZE = 50;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -153,7 +154,7 @@ const INPUT = "w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-9 pr-3
 
 function EmployeeTable({
   runId, mode,
-}: { runId: string; mode: "overview" | "risk" | "pf" | "esic" | "ptlwf" }) {
+}: { runId: string; mode: "overview" | "risk" | "pf" | "esic" | "ptlwf" | "unverifiable" }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [level, setLevel] = useState<"ALL" | "HIGH" | "MEDIUM" | "LOW">("ALL");
@@ -172,6 +173,7 @@ function EmployeeTable({
         sort: mode === "overview" || mode === "risk" ? "risk_score" : "employee_id",
         order: mode === "overview" || mode === "risk" ? "desc" : "asc",
         include_computed: computed,
+        only_unverifiable: mode === "unverifiable",
       })
       .then((d) => { if (!cancelled) setData(d); })
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load employees."); });
@@ -194,6 +196,7 @@ function EmployeeTable({
     pf: ["Emp ID", "Name", "PF wage", "Type", "PF (emp)", "PF (er)", "EPS", "EPF", "EDLI+admin"],
     esic: ["Emp ID", "Name", "ESIC wage", "Eligible?", "ESIC (emp)", "ESIC (er)"],
     ptlwf: ["Emp ID", "Name", "PT state", "PT due", "LWF state", "LWF (emp)", "LWF (er)"],
+    unverifiable: ["Emp ID", "Name", "Could not validate", "Failed checks", ""],
   };
 
   const cells = (r: RunEmployee): ReactNode[] => {
@@ -213,6 +216,10 @@ function EmployeeTable({
           r.failed_checks > 0 ? (
             <span key="f" className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.critical_count ? "bg-danger-100 text-danger-700" : "bg-warning-100 text-warning-700"}`}>
               {r.failed_checks} issue{r.failed_checks > 1 ? "s" : ""}
+            </span>
+          ) : r.cannot_validate_checks ? (
+            <span key="f" className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-semibold text-warning-800" title="Nothing failed, but some checks could not be performed for want of an input.">
+              No failures · {r.cannot_validate_checks} not checked
             </span>
           ) : (
             <span key="f" className="rounded-full bg-success-100 px-2 py-0.5 text-xs font-semibold text-success-700" title="No check failed. See the employee view for which checks ran.">
@@ -236,6 +243,12 @@ function EmployeeTable({
         return [
           r.employee_id, r.employee_name || "—", fmt(c?.esic_wage), c?.esic_eligible ? "Yes" : "Exempt",
           c?.esic_eligible ? fmt(c?.esic_employee) : "–", c?.esic_eligible ? fmt(c?.esic_employer) : "–",
+        ];
+      case "unverifiable":
+        return [
+          r.employee_id, r.employee_name || "—",
+          <span key="c" className="font-semibold text-warning-700">{r.cannot_validate_checks ?? 0} check(s)</span>,
+          r.failed_checks, link,
         ];
       case "ptlwf":
         return [
@@ -370,7 +383,15 @@ function FindingsList({ runId, rulePrefix }: { runId: string; rulePrefix?: strin
                 {f.expected_value ? <span>Expected: <strong className="text-ink-700 dark:text-ink-200">{f.expected_value}</strong></span> : null}
                 {f.actual_value ? <span>Actual: <strong className="text-ink-700 dark:text-ink-200">{f.actual_value}</strong></span> : null}
                 {f.difference && f.difference !== "0.00" ? <span>Diff: <strong className="text-ink-700 dark:text-ink-200">{f.difference}</strong></span> : null}
-                {f.financial_impact ? <span className="font-semibold text-danger-600">Impact: {inr(f.financial_impact, 2)}</span> : null}
+                {f.impact_calculated && f.financial_impact ? (
+                  <span className="font-semibold text-danger-600">Impact: {inr(f.financial_impact, 2)}</span>
+                ) : (
+                  <span className="italic text-ink-500" title="This check does not price its effect; it is not a ₹0 finding.">Impact not calculated</span>
+                )}
+                <Link href={`/payroll/results/why?run=${encodeURIComponent(runId)}&finding=${encodeURIComponent(f.id)}`}
+                  className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300">
+                  <HelpCircle size={12} /> Why this result?
+                </Link>
               </div>
               {f.suggested_fix ? (
                 <div className="mt-2 rounded-lg border border-brand-100 bg-brand-50/80 px-3 py-2 text-xs text-brand-950 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-100">
@@ -382,6 +403,130 @@ function FindingsList({ runId, rulePrefix }: { runId: string; rulePrefix?: strin
         </div>
       )}
       {data ? <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} /> : null}
+    </div>
+  );
+}
+
+// ─── Coverage ────────────────────────────────────────────────────────────────
+
+const OUTCOME_TONE: Record<Outcome, string> = {
+  passed: "text-success-700 dark:text-success-300",
+  failed: "text-danger-700 dark:text-danger-300",
+  cannot_validate: "text-warning-700 dark:text-warning-300",
+  not_applicable: "text-ink-500 dark:text-ink-400",
+  disabled: "text-ink-400 dark:text-ink-500",
+};
+const OUTCOMES: Outcome[] = ["passed", "failed", "cannot_validate", "not_applicable", "disabled"];
+
+/** Coverage beside the failures, never merged into them: "no failures" means nothing if nothing ran. */
+function CoverageHeadline({ coverage, onOpen }: { coverage: CoverageSummary | null; onOpen: () => void }) {
+  if (!coverage) {
+    return (
+      <AlertBanner variant="info" title="Coverage was not recorded for this run">
+        This run predates per-check outcomes. Revalidate the month to see which checks could and could not be performed.
+      </AlertBanner>
+    );
+  }
+  const material = coverage.material_cannot_validate;
+  return (
+    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${
+      material ? "border-warning-200/80 bg-warning-50/60 dark:border-warning-500/30 dark:bg-warning-500/10"
+        : "border-ink-200/70 bg-white dark:border-white/[0.07] dark:bg-ink-900/60"}`}>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+        <span className="flex items-center gap-2 font-semibold text-ink-800 dark:text-white">
+          <ListChecks size={16} className="text-brand-600" />
+          Coverage {coverage.coverage_pct != null ? `${coverage.coverage_pct}%` : "—"}
+        </span>
+        {OUTCOMES.map((o) => (
+          <span key={o} className={`text-xs ${OUTCOME_TONE[o]}`}>
+            {OUTCOME_LABEL[o]}: <strong className="tabular-nums">{coverage.totals[o].toLocaleString("en-IN")}</strong>
+          </span>
+        ))}
+      </div>
+      <button type="button" onClick={onOpen} className="text-xs font-semibold text-brand-700 hover:underline dark:text-brand-300">
+        {material ? `${material} statutory check(s) could not be performed — see why` : "See coverage by check"}
+      </button>
+    </div>
+  );
+}
+
+function CoverageTab({ runId, coverage, exposure }: {
+  runId: string; coverage: CoverageSummary | null; exposure: ExposureSummary | null;
+}) {
+  const [show, setShow] = useState<"gaps" | "all">("gaps");
+  if (!coverage) return <CoverageHeadline coverage={null} onOpen={() => undefined} />;
+  const rules = coverage.rules.filter((r) =>
+    show === "all" ? true : r.counts.cannot_validate > 0 || r.counts.failed > 0);
+  const missing = Object.entries(coverage.missing_inputs);
+  return (
+    <div className="space-y-6">
+      <p className="max-w-3xl text-sm text-ink-600 dark:text-ink-300">
+        Every check reaches one of five outcomes for every employee. <strong>Cannot validate</strong> means an input the
+        check needs was not supplied — it is never counted as a pass. Coverage is the share of applicable checks that
+        reached a verdict.
+      </p>
+      {missing.length ? (
+        <div className="rounded-2xl border border-warning-200/80 bg-warning-50/60 p-4 dark:border-warning-500/30 dark:bg-warning-500/10">
+          <h3 className="mb-2 text-sm font-semibold text-warning-900 dark:text-warning-100">Inputs that were missing</h3>
+          <ul className="grid gap-1 text-xs text-warning-900 dark:text-warning-100 sm:grid-cols-2">
+            {missing.map(([label, n]) => (
+              <li key={label}><strong>{label}</strong> — missing for {n.toLocaleString("en-IN")} check(s)</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {exposure ? (
+        <p className="text-xs text-ink-500 dark:text-ink-400">
+          Exposure {inr(exposure.gross)} counts each underlying error once
+          {exposure.overlap_excluded ? `; ${inr(exposure.overlap_excluded)} reported by overlapping checks was not added twice` : ""}
+          {exposure.impact_not_calculated ? `; ${exposure.impact_not_calculated} finding(s) have no calculated impact and are not in the total` : ""}.
+        </p>
+      ) : null}
+      <div className="flex gap-2">
+        {(["gaps", "all"] as const).map((v) => (
+          <button key={v} type="button" onClick={() => setShow(v)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${show === v ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "bg-ink-100 text-ink-600 hover:bg-ink-200"}`}>
+            {v === "gaps" ? "Checks with failures or gaps" : `All ${coverage.rules.length} checks`}
+          </button>
+        ))}
+      </div>
+      <div className={TABLE}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className={THEAD}>
+              <tr>
+                <th className="px-4 py-2.5 text-left font-semibold">Check</th>
+                {OUTCOMES.map((o) => <th key={o} className="px-3 py-2.5 text-right font-semibold">{OUTCOME_LABEL[o]}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+              {rules.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-ink-500">Every applicable check reached a verdict and none failed.</td></tr>
+              ) : rules.map((r) => (
+                <tr key={r.rule_id}>
+                  <td className="px-4 py-2.5">
+                    <span className="font-mono text-xs text-ink-500">{r.rule_id}</span>{" "}
+                    <span className="text-ink-800 dark:text-ink-100">{r.name}</span>
+                    {r.material ? <span className="ml-2 rounded bg-ink-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ink-600 dark:bg-white/10 dark:text-ink-300">statutory</span> : null}
+                    {!r.runs_in_validation ? <span className="ml-2 text-[11px] text-ink-400">runs outside validation</span> : null}
+                  </td>
+                  {OUTCOMES.map((o) => (
+                    <td key={o} className={`px-3 py-2.5 text-right tabular-nums ${r.counts[o] ? OUTCOME_TONE[o] : "text-ink-300 dark:text-ink-600"}`}>
+                      {r.counts[o].toLocaleString("en-IN")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {coverage.totals.cannot_validate > 0 ? (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-ink-800 dark:text-white">Employees with checks that could not be performed</h3>
+          <EmployeeTable runId={runId} mode="unverifiable" />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -531,8 +676,11 @@ function PayrollResultsContent() {
 
   const fresh = run.freshness;
   const superseded = run.status === "superseded";
+  const coverage = (run.summary?.coverage as CoverageSummary | undefined) ?? null;
+  const exposure = (run.summary?.exposure as ExposureSummary | undefined) ?? null;
   const tabs: { id: Tab; label: string; badge?: number; badgeColor?: string }[] = [
     { id: "overview", label: "Overview" },
+    { id: "coverage", label: "Coverage", badge: coverage?.material_cannot_validate || 0, badgeColor: "yellow" },
     { id: "risk", label: "Risk Scores", badge: levels.HIGH || 0, badgeColor: "red" },
     { id: "findings", label: "Findings", badge: run.total_findings, badgeColor: run.critical_count > 0 ? "red" : "yellow" },
     { id: "pf", label: "PF" },
@@ -616,9 +764,11 @@ function PayrollResultsContent() {
           value={inr(run.open_financial_impact)}
           icon={<Activity size={20} />}
           color="blue"
-          sub={`${inr(run.total_financial_impact)} before waivers`}
+          sub={`${inr(run.total_financial_impact)} before waivers${exposure?.impact_not_calculated ? ` · ${exposure.impact_not_calculated} not priced` : ""}`}
         />
       </div>
+
+      <CoverageHeadline coverage={coverage} onOpen={() => commitTab("coverage")} />
 
       <div className="flex flex-wrap gap-1 rounded-2xl border border-ink-200/70 bg-ink-50/80 p-1.5 dark:border-white/10 dark:bg-white/[0.04]" role="tablist">
         {tabs.map((t) => (
@@ -677,6 +827,7 @@ function PayrollResultsContent() {
           </div>
         </div>
       )}
+      {tab === "coverage" && <CoverageTab runId={run.id} coverage={coverage} exposure={exposure} />}
       {tab === "risk" && <EmployeeTable runId={run.id} mode="risk" />}
       {tab === "findings" && <FindingsList runId={run.id} />}
       {tab === "pf" && <EmployeeTable runId={run.id} mode="pf" />}

@@ -128,6 +128,8 @@ export type RunEmployee = {
   financial_impact: number | null;
   gross: number | null;
   net_pay: number | null;
+  cannot_validate_checks: number | null;
+  not_applicable_checks: number | null;
   computed?: Computed;
 };
 
@@ -146,6 +148,8 @@ export type RunFinding = {
   actual_value: string | null;
   difference: string | null;
   financial_impact: number | null;
+  /** False when the engine does not price this check: show "Impact not calculated", never ₹0. */
+  impact_calculated: boolean;
   reason: string | null;
   suggested_fix: string | null;
   was_waived: boolean;
@@ -181,6 +185,131 @@ export type PeriodStatus = {
   open_findings: number;
   freshness: Freshness | null;
   signoff_state: string | null;
+  changed_since_signoff: InputChange[];
+  readiness: Readiness;
+};
+
+// ─── Coverage: five outcomes per check ────────────────────────────────────────
+
+export type Outcome = "passed" | "failed" | "cannot_validate" | "not_applicable" | "disabled";
+
+export const OUTCOME_LABEL: Record<Outcome, string> = {
+  passed: "Passed",
+  failed: "Failed",
+  cannot_validate: "Cannot validate",
+  not_applicable: "Not applicable",
+  disabled: "Disabled",
+};
+
+export type RuleCoverage = {
+  rule_id: string;
+  name: string;
+  family: string;
+  material: boolean;
+  runs_in_validation: boolean;
+  counts: Record<Outcome, number>;
+};
+
+export type CoverageSummary = {
+  totals: Record<Outcome, number>;
+  coverage_pct: number | null;
+  material_cannot_validate: number;
+  missing_inputs: Record<string, number>;
+  rules: RuleCoverage[];
+};
+
+export type ExposureSummary = {
+  gross: number;
+  open: number;
+  overlap_excluded: number;
+  impact_not_calculated: number;
+  raw_sum_before_deduplication: number;
+};
+
+export type Verdict = { outcome: Outcome; reason: string };
+
+// ─── Why this result? ─────────────────────────────────────────────────────────
+
+export type FindingExplanation = {
+  context: {
+    company: string; employee_id: string; employee_name: string | null; period_month: string;
+    run_id: string; run_number: number; run_status: string; engine_version: string | null;
+    validated_at: string | null;
+  };
+  source: {
+    recorded: boolean; filename?: string | null; sheet?: string | null; file_sha256?: string;
+    revision?: number; row?: number | null; field?: string | null; source_column?: string | null;
+    value?: unknown;
+  };
+  rule: {
+    rule_id: string; rule_name: string; severity: string; component: string | null;
+    custom_rule: Record<string, unknown> | null;
+    policy: Record<string, unknown> | null;
+  };
+  inputs: Record<string, unknown>;
+  calculation: {
+    family: string | null; steps: string[]; basis: Record<string, unknown>;
+    tolerance: unknown; reconstructed_from: string;
+  };
+  values: {
+    expected: string | null; actual: string | null; difference: string | null;
+    financial_impact: number | null; impact_calculated: boolean; impact_label: string | null;
+  };
+  explanation: string | null;
+  suggested_fix: string | null;
+  review: {
+    state: string | null; note: string | null; waiver_reason: string | null; waived_until: string | null;
+    was_waived_in_this_run: boolean; first_seen: string | null; occurrences: number | null;
+    history: { from: string | null; to: string; reason: string | null; waived_until: string | null; by: string | null; at: string | null }[];
+  };
+  approval: {
+    state: string | null; signed_by: string | null; signed_at: string | null;
+    history: { from: string | null; to: string; reason: string | null; at: string | null }[];
+  };
+};
+
+// ─── Approval ─────────────────────────────────────────────────────────────────
+
+export type ApprovalPolicy = {
+  signoff_requires_independent_approver: boolean;
+  matrix_publish_requires_independent_approver: boolean;
+};
+
+export type ReadinessBlocker = { code: string; message: string; acceptable: boolean };
+
+export type Readiness = {
+  period_month: string;
+  ready: boolean;
+  blockers: ReadinessBlocker[];
+  run_id: string | null;
+  run_number: number | null;
+  freshness: Freshness | null;
+  coverage: { coverage_pct: number | null; material_cannot_validate: number | null; totals: Record<Outcome, number> | null } | null;
+  policy?: ApprovalPolicy;
+};
+
+export type SignOff = {
+  id: string;
+  period_month: string;
+  state: "draft" | "pending_approval" | "signed" | "reopened";
+  signed_by_email: string | null;
+  signed_at: string | null;
+  prepared_at: string | null;
+  employee_count: number | null;
+  open_findings: number | null;
+  accepted_exposure: number;
+  snapshot_digest: string | null;
+  notes: string | null;
+};
+
+export type SignOffDetail = {
+  signoff: SignOff;
+  snapshot: Record<string, unknown> & {
+    prepared_by?: string;
+    readiness?: { accepted_gaps?: { reason: string } | null };
+    approval?: { independent?: boolean; preparer?: string | null; approver?: string | null; policy?: ApprovalPolicy };
+  };
+  history: { from_state: string | null; to_state: string; reason: string | null; actor_email: string | null; snapshot_digest: string | null; created_at: string | null }[];
 };
 
 export type ComparedFinding = {
@@ -251,6 +380,7 @@ export const validationApi = {
     params: {
       page?: number; page_size?: number; sort?: string; order?: "asc" | "desc"; q?: string;
       risk_level?: string; only_with_findings?: boolean; include_computed?: boolean;
+      only_unverifiable?: boolean;
     } = {},
   ) => get<EmployeePage>(`/api/validation/runs/${encodeURIComponent(runId)}/employees${qs(params)}`),
   employee: (runId: string, employeeId: string) =>
@@ -266,9 +396,35 @@ export const validationApi = {
   ) => get<FindingPage>(`/api/validation/runs/${encodeURIComponent(runId)}/findings${qs(params)}`),
   compare: (base: string, target: string, show = "all") =>
     get<RunComparison>(`/api/validation/runs/compare${qs({ base, target, show })}`),
+  explain: (runId: string, findingId: string) =>
+    get<FindingExplanation>(
+      `/api/validation/runs/${encodeURIComponent(runId)}/findings/${encodeURIComponent(findingId)}/explain`,
+    ),
   periodStatus: (period: string) =>
     get<PeriodStatus>(`/api/validation/periods/${encodeURIComponent(period)}/status`),
   exportRun: (runId: string) => apiBlob(`/api/validation/runs/${encodeURIComponent(runId)}/export.xlsx`),
+};
+
+/** Month sign-off: preparation, independent approval, reopening and the evidence pack. */
+export const signoffApi = {
+  readiness: (period: string) => get<Readiness>(`/api/signoff/${encodeURIComponent(period)}/readiness`),
+  /** Null when the month has never been submitted. */
+  get: async (period: string): Promise<SignOffDetail | null> => {
+    const res = await apiFetch(`/api/signoff/${encodeURIComponent(period)}`);
+    if (res.status === 404) return null;
+    return parseEnvelopeResponse<SignOffDetail>(res);
+  },
+  submit: (body: { period_month: string; notes?: string | null; accept_incomplete_reason?: string | null }) =>
+    post<SignOff>("/api/signoff/submit", body),
+  sign: (body: { period_month: string; notes?: string | null; accept_incomplete_reason?: string | null }) =>
+    post<SignOff>("/api/signoff/sign", body),
+  reopen: (body: { period_month: string; reason: string }) => post<SignOff>("/api/signoff/reopen", body),
+  evidencePack: (period: string) => apiBlob(`/api/signoff/${encodeURIComponent(period)}/evidence-pack`),
+  policy: () => get<ApprovalPolicy>("/api/org/approval-policy"),
+  setPolicy: async (body: Partial<ApprovalPolicy>) =>
+    parseEnvelopeResponse<ApprovalPolicy>(
+      await apiFetch("/api/org/approval-policy", { method: "PUT", body: JSON.stringify(body) }),
+    ),
 };
 
 export const monthLabel = (iso: string | null | undefined) => {

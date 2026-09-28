@@ -27,6 +27,7 @@ from app.models import (
     ValidationRunEmployee,
 )
 from app.models.findings import ENGINE_VERSION
+from app.services.explain import deduplicated_exposure
 from app.services.register_uploads import gzip_json
 
 
@@ -116,8 +117,13 @@ def _employee_row(
         "failed_checks": len(failed),
         "critical_count": sum(1 for f in failed if f.get("severity") == "CRITICAL"),
         "warning_count": sum(1 for f in failed if f.get("severity") == "WARNING"),
-        "passed_checks": sum(1 for f in findings if f.get("status") == "PASS"),
-        "financial_impact": sum((_dec(f.get("financial_impact")) for f in failed), Decimal("0")),
+        "passed_checks": (result.get("coverage_counts") or {}).get(
+            "passed", sum(1 for f in findings if f.get("status") == "PASS")),
+        "cannot_validate_checks": (result.get("coverage_counts") or {}).get("cannot_validate", 0),
+        "not_applicable_checks": (result.get("coverage_counts") or {}).get("not_applicable", 0),
+        # The same rupees reported by overlapping checks are counted once, as
+        # in the run total, so the employee figures add up to it.
+        "financial_impact": deduplicated_exposure(failed)["exposure"],
         "gross": _dec(result.get("gross_total")) if result.get("gross_total") is not None else None,
         "net_pay": _dec(net) if net not in (None, "") else None,
         "detail_gz": gzip_json(result),
@@ -225,6 +231,7 @@ def record_run(
     warning = 0
     seen: dict[str, dict[str, Any]] = {}
     finding_rows: list[dict[str, Any]] = []
+    waived_flags: list[bool] = []
 
     for finding in failures:
         fp = fingerprint(
@@ -235,6 +242,7 @@ def record_run(
         )
         impact = _dec(finding.get("financial_impact"))
         is_waived = fp in waived_now
+        waived_flags.append(is_waived)
 
         gross += impact
         if not is_waived:
@@ -277,11 +285,25 @@ def record_run(
     if finding_rows:
         db.execute(insert(FindingRecord), finding_rows)
 
+    # Exposure without counting the same rupees twice, and without presenting
+    # an uncalculated impact as zero: see services/explain.py.
+    gross_exposure = deduplicated_exposure(failures)
+    open_exposure = deduplicated_exposure([f for f, w in zip(failures, waived_flags, strict=True) if not w])
     run.total_findings = len(failures)
     run.critical_count = critical
     run.warning_count = warning
-    run.total_financial_impact = gross
-    run.open_financial_impact = open_impact
+    run.total_financial_impact = gross_exposure["exposure"]
+    run.open_financial_impact = open_exposure["exposure"]
+    run.summary = {
+        **(run.summary or {}),
+        "exposure": {
+            "gross": float(gross_exposure["exposure"]),
+            "open": float(open_exposure["exposure"]),
+            "overlap_excluded": float(gross_exposure["overlap_excluded"]),
+            "impact_not_calculated": gross_exposure["impact_not_calculated"],
+            "raw_sum_before_deduplication": float(gross),
+        },
+    }
 
     _reconcile_states(db, entity_id, period_month, seen)
     db.flush()

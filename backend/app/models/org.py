@@ -60,6 +60,8 @@ class Organization(Base):
     support_access_policy: Mapped[str] = mapped_column(
         String(24), nullable=False, default="break_glass", server_default="break_glass"
     )
+    # Maker-checker settings, owner-controlled. See services/approvals.py.
+    approval_policy: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

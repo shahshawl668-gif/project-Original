@@ -227,10 +227,19 @@ Exports: generic CSV, Tally, SAP and Zoho.
 
 ### Step 10 — Month close
 
-**Bank & JV → Month close** brings the three together for a period: validation
-findings, bank reconciliation, JV balance.
+**Bank & JV → Month close** brings the period together: bank reconciliation, JV
+balance, and the month's approval.
 
 ![Month close](images/05-month-close.png)
+
+Before the first month end, agree with the client's owner whether approval must
+come from a second person (**Settings → Team & invitations → Approval
+controls**, owner only). Then check the approval panel's blockers on a
+validated month: each "could not be performed" statutory check names the input
+it needs. The usual ones at go-live are the employee master, a minimum-wage
+applicability decision (**Settings → Minimum wage**), and register columns the
+client's export leaves out. Close those before the parallel run, so approvals do
+not become a habit of stating reasons for gaps that could have been filled.
 
 ---
 
@@ -294,7 +303,9 @@ Sign-off for an implementation. Every line is verifiable in the product.
 - [ ] Named owner invited and signed in
 - [ ] Roles assigned; nobody has more access than their job needs
 - [ ] Support access policy set deliberately by the client
-- [ ] Period sign-off completed for one month end to end
+- [ ] Approval controls set deliberately by the client's owner
+- [ ] Coverage on a parallel month has no material "cannot validate" left unexplained
+- [ ] Period sign-off completed for one month end to end, and its evidence pack opened
 
 ---
 

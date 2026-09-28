@@ -286,3 +286,26 @@ def changed_inputs(then: dict[str, Any] | None, now: dict[str, Any]) -> list[dic
         if then.get(key) != now.get(key):
             changes.append({"input": key, "label": label, "detail": f"{label} changed since this run."})
     return changes
+
+
+def run_freshness(db: Session, entity: Entity, run: Any) -> dict[str, Any]:
+    """Is this run still the answer for its inputs? If not, which input moved?
+
+    Compared against the latest upload for the period — a re-upload is exactly
+    the change that makes a run stale — and against today's master,
+    attendance, CTC and configuration.
+    """
+    from app.services.register_uploads import latest_for_period
+
+    latest = latest_for_period(db, entity.id, run.period_month)
+    now = input_digests(
+        db, entity, run.period_month,
+        rows_sha256=latest.rows_sha256 if latest else (run.input_digests or {}).get("register"),
+    )
+    changes = changed_inputs(run.input_digests, now)
+    return {
+        "is_current_for_inputs": not changes,
+        "revalidation_required": bool(changes),
+        "changes": changes,
+        "latest_upload_id": str(latest.id) if latest else None,
+    }

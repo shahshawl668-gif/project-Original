@@ -926,6 +926,23 @@ def validate_employees(
         if len(bucket) < 2:
             bucket.append(record)
 
+    # Minimum wage is part of every validation, not a separate report: a month
+    # checked for PF but silent on minimum wage reads as compliant on both.
+    # Applicability is a per-entity decision; until someone makes it, every
+    # employee's minimum-wage check is "cannot validate", never passed.
+    from app.services import minimum_wage as mw
+    from app.services.finding_taxonomy import categorise
+
+    mw_as_of = as_of
+    mw_decision = mw.applicability_as_of(db, entity.id, mw_as_of) if period_month else None
+    if not period_month or mw_decision is None:
+        mw_status = "not_configured"
+    elif not mw_decision.applicable:
+        mw_status = "not_applicable"
+    else:
+        mw_status = "checked"
+    mw_rates: dict = {}
+
     results: list[dict[str, Any]] = []
 
     for row in employees:
@@ -1288,6 +1305,25 @@ def validate_employees(
                     suggested_fix="Load an official, effective-dated schedule for this period.",
                 ))
 
+        if mw_status == "checked":
+            mw_finding = mw.check_employee(
+                db,
+                entity.id,
+                employee_id=eid,
+                employee_name=ename if isinstance(ename, str) else None,
+                components={k: float(v) for k, v in regular.items()},
+                state=(master_record.work_state if master_record is not None else None)
+                or row_state or entity.primary_state,
+                skill_category=getattr(master_record, "skill_category", None),
+                paid_days=paid_days,
+                calendar_days=Decimal(row_days_in_month),
+                as_of=mw_as_of,
+                rate_cache=mw_rates,
+            )
+            if mw_finding:
+                mw_finding.setdefault("category", categorise(mw_finding["rule_id"], mw_finding.get("actual_value")))
+                matrix_findings.append(mw_finding)
+
         if on_progress is not None and len(results) % PROGRESS_EVERY == 0 and results:
             on_progress(len(results))
 
@@ -1346,6 +1382,7 @@ def validate_employees(
                 "arrear_total": float(arrear_total),
                 "increment_arrear_total": float(inc_arrear_total),
                 "tds_risk_flags": tds_risk,
+                "minimum_wage_status": mw_status,
                 "errors": errors,
                 "findings": [f.to_dict() for f in emp_findings] + matrix_findings,
                 # risk placeholders — filled after batch_findings merge below

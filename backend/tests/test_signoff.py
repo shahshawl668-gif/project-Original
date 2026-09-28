@@ -14,9 +14,10 @@ from datetime import date
 import openpyxl
 import pytest
 
+from tests.run_helpers import record_fresh_run
+
 from app.database import SessionLocal
 from app.models import Entity, OrgMembership, User
-from app.services import finding_store
 
 PASSWORD = "Passw0rd!x"
 
@@ -72,11 +73,11 @@ def _finding(employee_id: str, rule_id: str, impact: float) -> dict:
 def _record(entity, user, period: date, findings: list[dict]) -> None:
     db = SessionLocal()
     try:
-        finding_store.record_run(
+        record_fresh_run(
             db,
             entity_id=entity.id,
             user_id=user.id,
-            period_month=period,
+            period=period,
             findings=findings,
             employee_count=len(findings),
         )

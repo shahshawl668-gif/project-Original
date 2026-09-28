@@ -843,6 +843,53 @@ def support_active(
     })
 
 
+class ApprovalPolicyUpdate(BaseModel):
+    signoff_requires_independent_approver: bool | None = None
+    matrix_publish_requires_independent_approver: bool | None = None
+
+
+@router.get("/approval-policy")
+def get_approval_policy(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Maker-checker settings. Readable by every member: people should know
+    whether their approval has to come from someone else."""
+    from app.services import approvals
+
+    membership = tenancy.get_membership(db, user)
+    if membership is None:
+        raise HTTPException(status_code=400, detail="No organization for this user")
+    return ok(approvals.policy_for(db, membership.org_id))
+
+
+@router.put("/approval-policy")
+def set_approval_policy(
+    body: ApprovalPolicyUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_org_admin),
+):
+    """Owners only: deciding who may approve whose work is a governance decision."""
+    from app.services import approvals
+
+    membership = tenancy.get_membership(db, user)
+    if membership is None or membership.role != "owner":
+        raise HTTPException(status_code=403, detail="Only an owner can change approval controls")
+    org = db.get(Organization, membership.org_id)
+    before = approvals.policy_for(db, org.id)
+    after = approvals.set_policy(db, org, body.model_dump(exclude_none=True))
+    audit.record(
+        db, entity_id=None, org_id=org.id, user=user, action="approval_policy.changed",
+        object_type="organization", object_id=str(org.id),
+        summary="Approval controls changed: " + ", ".join(
+            f"{k.replace('_', ' ')} {'on' if after[k] else 'off'}" for k in after if after[k] != before[k]
+        ) or "no change",
+        detail={"before": before, "after": after},
+    )
+    db.commit()
+    return ok(after)
+
+
 @router.put("/support/policy")
 def set_support_policy(
     body: SupportPolicyUpdate,

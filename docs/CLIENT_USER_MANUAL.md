@@ -166,7 +166,41 @@ rule, and download the whole run to Excel — exactly as it was recorded, not
 re-computed.
 
 Each finding carries a rule ID, a severity, what was expected, what the register
-actually said, the difference in rupees, and a suggested fix.
+actually said, the difference in rupees, and a suggested fix. Where the product
+does not put a rupee figure on a finding — a missing PAN, a duplicate UAN — it
+says **"Impact not calculated"**. That is not ₹0; it means the cost was not
+worked out, and such findings are left out of the exposure total rather than
+added in as nothing. When two checks report the same rupees (PF short under two
+rules, say), the total counts them once.
+
+**Coverage — what was checked, not just what failed.** Every check reaches one
+of five outcomes for every employee:
+
+| Outcome | Means |
+|---|---|
+| **Passed** | The check ran and the register agreed |
+| **Failed** | The check ran and found a problem — a finding |
+| **Cannot validate** | The check needed something you did not supply — a column, the employee master, a minimum-wage decision |
+| **Not applicable** | The check does not apply to this person — ESIC above the wage ceiling, say |
+| **Disabled** | Your administrator switched the check off |
+
+The strip under the figures shows the counts and a **coverage** percentage: of
+the checks that applied, how many reached a verdict. A month with no failures
+and 60% coverage has not been shown to be clean — 40% of it was not checked.
+The **Coverage** tab lists the inputs that were missing, how many checks each
+would have unlocked, and the employees who could not be fully checked. The
+employee view lists every check for that person with its outcome and the reason.
+
+![Coverage](images/18-coverage.png)
+
+**Why this result?** Every finding has a **Why this result?** link. It opens
+the finding with everything behind it: the file, sheet, row and column the value
+came from; the calculation, restated from what the run recorded; the tolerance;
+the rule and the version of it in force; who has reviewed it since; and whether
+the month has been approved. Statutory figures there are your company's
+configuration at the time of the run — not a statement of the law.
+
+![Why this result](images/17-why-this-result.png)
 
 **Severities, and what they mean for you:**
 
@@ -227,14 +261,38 @@ Zoho.
 
 ### Step 6 — Month close
 
-**Bank & JV → Month close** shows all three together for the period: findings,
-bank reconciliation, JV balance.
+**Bank & JV → Month close** shows the period together: bank reconciliation, JV,
+and the month's **approval**.
 
 ![Month close](images/05-month-close.png)
 
-When everything is resolved or explained, **sign the period off**. That records
-who closed it and when. A signed period can be reopened, and the reopening is
-recorded too.
+The approval panel shows where the month stands — *Uploaded → Validated →
+Issues handled → Submitted → Signed off* — and, in plain words, anything that
+stands in the way of the next step:
+
+- **Not validated** — nothing to approve yet. Upload and validate.
+- **Revalidation required** — something the run read has changed since. It
+  names what; revalidate first.
+- **Statutory checks could not be performed** — the month can still be
+  approved, but only by stating why the gap is acceptable. That reason is kept
+  in the sign-off record.
+
+A month with no findings is **not** automatically ready: if material checks
+could not run, it says so.
+
+1. Someone with a write role **submits** the month, with optional notes.
+2. An owner or manager **approves** it. If your organisation requires an
+   independent approver, the person who submitted cannot approve — the panel
+   says so and asks for someone else. Either way, the record states whether
+   the approval was independent.
+3. A signed month can be **reopened** by an owner or manager, with a reason.
+   The signed record is kept, and the reopening is in the history. If anything
+   changes after a month is signed, the panel says what — the signature stands
+   as recorded, but no longer describes the month as it is.
+
+**Evidence pack** downloads the workbook an auditor wants: the run and its
+input fingerprints, coverage by check, every finding with its file row, the
+approval trail, and the rates and schedules in force.
 
 ---
 
@@ -304,6 +362,16 @@ run from the chips at the top, or use **Compare**.
 **The first page of the day is slow.**
 On smaller hosting plans the server sleeps when idle and takes up to a minute to
 wake. After that it is quick. The page tells you when this is what is happening.
+
+**Nothing failed. Why can we not approve?**
+Because some statutory checks could not run — most often, no decision on
+whether minimum wage applies, or no employee master. The approval panel links
+to exactly what is missing. Supply it and revalidate, or approve stating why
+the gap is acceptable.
+
+**Why does a finding say "Impact not calculated"?**
+Because the product did not work out a rupee figure for it — not because it
+costs nothing. Open **Why this result?** to see what was compared.
 
 **Who changed this setting?**
 **Settings → Audit trail.** Append-only, and it records who did what and when.

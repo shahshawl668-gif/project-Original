@@ -174,6 +174,15 @@ def publish(rule_id: uuid.UUID, db: Session = Depends(get_db),
     membership = tenancy.get_membership(db, user)
     if rule.category == "statutory" and (membership is None or membership.role != "owner"):
         raise HTTPException(status_code=403, detail="A group owner must approve statutory rules")
+    from app.services import approvals
+
+    try:
+        approvals.require_independent(
+            db, entity.org_id, "matrix_publish_requires_independent_approver",
+            preparer_id=rule.created_by, approver_id=user.id, what="a validation rule",
+        )
+    except approvals.ApprovalRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     clash = db.query(ValidationRuleVersion).filter(
         ValidationRuleVersion.entity_id == entity.id,
         ValidationRuleVersion.rule_key == rule.rule_key,

@@ -456,18 +456,27 @@ defects whose expected findings are computed independently of the engine
 (PF under-deducted, ESIC over-deducted, paid days that do not add up): all
 found exactly, no misses, no false positives, at every size.
 
-| Step | 8,000 before | 8,000 after | 20,000 after |
-|---|---|---|---|
-| Register upload (parse, store, freeze) | 4.0 s | 4.5 s | 10.5 s |
-| Worker: validate + record run | 87.4 s | 35.4 s | 106.3 s |
-| Worker: re-run of the same month | 86.3 s | 35.6 s | 101.4 s |
-| Process RSS during validation (start → peak) | 265 → 410 MB | 265 → 393 MB | 457 → 753 MB |
-| Run summary (incl. staleness check) | 2.40 s | 0.71 s | 1.73 s |
-| Page of 50 employees / findings | 0.07 s | 0.07 s | 0.08 s |
-| Employee detail | 0.08 s | 0.09 s | 0.13 s |
-| Excel export of the run | 3.7 s | 3.9 s | 8.3 s |
-| Compare two runs | 1.0 s | 0.9 s | 2.6 s |
-| Findings in the run | 11,384 | 11,384 | 28,444 |
+| Step | 8,000 before | 8,000 after | 20,000 after | 8,000 coverage release | 20,000 coverage release |
+|---|---|---|---|---|---|
+| Register upload (parse, store, freeze) | 4.0 s | 4.5 s | 10.5 s | 4.1 s | 9.8 s |
+| Worker: validate + record run | 87.4 s | 35.4 s | 106.3 s | 37.3 s | 110.6 s |
+| Worker: re-run of the same month | 86.3 s | 35.6 s | 101.4 s | 36.7 s | 109.2 s |
+| Process RSS during validation (start → peak) | 265 → 410 MB | 265 → 393 MB | 457 → 753 MB | 259 → 389 MB | 463 → 762 MB |
+| Run summary (incl. staleness check) | 2.40 s | 0.71 s | 1.73 s | 0.86 s | 1.70 s |
+| Page of 50 employees / findings | 0.07 s | 0.07 s | 0.08 s | 0.05 s | 0.06 s |
+| Employee detail | 0.08 s | 0.09 s | 0.13 s | 0.08 s | 0.13 s |
+| Excel export of the run | 3.7 s | 3.9 s | 8.3 s | 3.7 s | 8.5 s |
+| Compare two runs | 1.0 s | 0.9 s | 2.6 s | 1.1 s | 2.4 s |
+| Findings in the run | 11,384 | 11,384 | 28,444 | 11,384 | 28,444 |
+
+The **coverage release** adds, inside every validation, minimum wage and a
+verdict on all 97 registered checks for every employee (handbook blueprint,
+stage 5). Its first build held those verdicts as 97 small dicts
+per employee and measured **40.5 s and 265 → 512 MB at 8,000** — enough to put
+an 8,000-employee client at risk on a 512 MB instance. Verdicts are now stored
+compactly (passes as a list of ids, reasons shared) and expanded only when one
+employee is read; the columns above are that build. Validation costs about 5%
+more time than before and no more memory.
 
 **Memory is the constraint, not time.** Validating 20,000 employees adds about
 300 MB to the process (the whole register, its results and its findings are held
@@ -485,9 +494,10 @@ about 60% with identical answers — `tests/test_full_month_references.py`
 proves the batched loader equal to the per-employee one on every branch.
 
 Storage per run: frozen upload ≈ 0.4 MB at 8,000 and 1.0 MB at 20,000;
-per-employee results ≈ 8.1 MB and 20.2 MB (about 1 KB per employee,
-compressed), plus the finding rows above. Runs are never deleted, so budget roughly 1 MB per 1,000
-employees per validation. A free 1 GB database holds on the order of a hundred
+per-employee results ≈ 14.7 MB and 36.7 MB since the coverage release (about
+1.8 KB per employee, compressed — it was 1 KB before per-check verdicts were
+kept), plus the finding rows above. Runs are never deleted, so budget roughly 2 MB per 1,000
+employees per validation. A free 1 GB database holds on the order of fifty
 8,000-employee validations; a paid plan is needed before onboarding several
 large clients.
 

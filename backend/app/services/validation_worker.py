@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import SessionLocal
 from app.models import ComponentConfig, Entity, RegisterUpload, User
-from app.services import finding_store, register_uploads, run_inputs
+from app.services import coverage, finding_store, register_uploads, run_inputs
 from app.services import validation_jobs as jobs
 from app.services.register_rows import load_employees
 from app.services.validation import (
@@ -184,9 +184,14 @@ def execute(db: Session, job) -> uuid.UUID | None:
     )
     progress(len(rows))
 
+    suppressed = _suppressed_rule_ids(db, entity.id)
     findings_summary = apply_suppressed_rules(
-        rows, _suppressed_rule_ids(db, entity.id),
-        findings_summary.get("unmatched_findings"),
+        rows, suppressed, findings_summary.get("unmatched_findings"),
+    )
+    # What was checked, separately from what failed.
+    findings_summary["coverage"] = coverage.annotate_run(
+        db, entity, period, rows, employees,
+        findings_summary.get("unmatched_findings"), suppressed,
     )
 
     all_findings = [f for row in rows for f in row.get("findings", [])]

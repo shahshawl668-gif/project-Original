@@ -5,7 +5,8 @@ from decimal import Decimal
 
 from app.database import SessionLocal
 from app.models import FindingRecord, SalaryRegister, SalaryRegisterRow
-from app.services import finding_store, validation_matrix
+from app.services import validation_matrix
+from tests.run_helpers import record_fresh_run
 
 PASSWORD = "Passw0rd!x"
 
@@ -76,10 +77,10 @@ def test_draft_simulation_publish_and_version_date_selection(client):
         issue = validation_matrix.evaluate(
             selected[0], {"employee_id": "E01", "lop_days": Decimal("3")}
         )
-        run = finding_store.record_run(
+        run = record_fresh_run(
             db, entity_id=uuid.UUID(entity["id"]),
             user_id=uuid.UUID(draft["created_by"]),
-            period_month=date(2026, 8, 1), findings=[issue],
+            period=date(2026, 8, 1), findings=[issue],
             employee_count=1,
         )
         db.commit()
