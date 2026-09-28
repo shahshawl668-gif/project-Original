@@ -878,6 +878,13 @@ def validate_employees(
 
     prior_rows = _prior_register_rows(db, entity.id, period_month) if period_month else {}
     active_matrix_rules = validation_matrix.published_for(db, entity.id, period_month or as_of)
+    slab_versions: dict[tuple[str, str], list[SlabRule]] = {}
+    for version in db.query(SlabRule).filter(SlabRule.entity_id == entity.id).all():
+        slab_versions.setdefault((version.rule_type, version.state), []).append(version)
+    slab_version_gaps = {
+        key for key, versions in slab_versions.items()
+        if not _dated_slab_cohort(versions, period_month or as_of)
+    }
 
     # The master as it stood at period end — used for the PF basis and for the
     # cost dimensions snapshotted onto each result row.
@@ -1234,6 +1241,15 @@ def validate_employees(
                     severity="CRITICAL", status="FAIL",
                     reason=f"Cannot calculate {scheme}: the employee state is missing or not configured for this entity.",
                     suggested_fix="Correct the location/state mapping or configure this state before validating.",
+                ))
+            elif selected and (scheme, selected) in slab_version_gaps:
+                emp_findings.append(ValidationFinding(
+                    employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
+                    rule_id=f"DATA-{scheme}-RATE", rule_name=f"{scheme} Rate Version Missing",
+                    component="state", expected_value=f"Rate for {(period_month or as_of).isoformat()}",
+                    actual_value="(missing)", difference="", severity="CRITICAL", status="FAIL",
+                    reason=f"Cannot calculate {scheme}: no saved {selected} schedule covers this payroll period.",
+                    suggested_fix="Load an official, effective-dated schedule for this period.",
                 ))
 
         results.append(
