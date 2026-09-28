@@ -2,6 +2,7 @@
 
 import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
 import { clearPayrollResults, tagPayrollResultsForCurrentEntity } from "@/lib/payroll-session";
+import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   UploadCloud,
@@ -33,6 +34,8 @@ const STEP_LABELS = ["Upload file", "Configure run", "Validate"];
 
 export default function UploadPage() {
   const router = useRouter();
+  const { entity } = useEntity();
+  const previousEntityId = useRef<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [strict, setStrict] = useState(true);
@@ -57,9 +60,34 @@ export default function UploadPage() {
   const [uploaded, setUploaded] = useState(false);
 
   useEffect(() => {
+    if (!entity?.id) return;
+    if (previousEntityId.current && previousEntityId.current !== entity.id) {
+      setFile(null);
+      setStep(0);
+      setPreview([]);
+      setRawPreview([]);
+      setEmployees([]);
+      setColumns([]);
+      setSourceColumns([]);
+      setMissing([]);
+      setWarnings([]);
+      setMapping({});
+      setDestinations([]);
+      setProfileName("");
+      setUploaded(false);
+      setError(null);
+      setPeriodMonth("");
+      setFrom("");
+      setTo("");
+    }
+    previousEntityId.current = entity.id;
+    setProfiles([]);
+    let cancelled = false;
     void apiFetch("/api/payroll/import-profiles").then(parseEnvelopeResponse<ImportProfile[]>)
-      .then(setProfiles).catch(() => undefined);
-  }, []);
+      .then((data) => { if (!cancelled) setProfiles(data); })
+      .catch(() => { if (!cancelled) setProfiles([]); });
+    return () => { cancelled = true; };
+  }, [entity?.id]);
 
   const onFile = (f: File | null) => {
     setFile(f);
