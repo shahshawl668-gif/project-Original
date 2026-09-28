@@ -193,21 +193,35 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
             row += 1
             n += 1
         _data_row(ws, row, ["Standard deduction", regime_name,
-                            float(regime.standard_deduction), "INR", src], rc); row += 1; n += 1
+                            float(regime.standard_deduction), "INR", src], rc)
+        row += 1
+        n += 1
         _data_row(ws, row, ["87A rebate — income limit", regime_name,
-                            float(regime.rebate.taxable_income_limit), "INR", src], rc); row += 1; n += 1
+                            float(regime.rebate.taxable_income_limit), "INR", src], rc)
+        row += 1
+        n += 1
         _data_row(ws, row, ["87A rebate — maximum", regime_name,
-                            float(regime.rebate.max_rebate), "INR", src], rc); row += 1; n += 1
+                            float(regime.rebate.max_rebate), "INR", src], rc)
+        row += 1
+        n += 1
         _data_row(ws, row, ["87A marginal relief applies", regime_name,
-                            "Yes" if regime.rebate.marginal_relief else "No", "flag", src], rc); row += 1; n += 1
+                            "Yes" if regime.rebate.marginal_relief else "No", "flag", src], rc)
+        row += 1
+        n += 1
         for band in regime.surcharge_brackets:
             upper = "above top band" if band.up_to is None else f"{band.up_to:,.0f}"
             _data_row(ws, row, [f"Surcharge up to {upper}", regime_name,
-                                float(band.rate), "rate (fraction)", src], rc); row += 1; n += 1
+                                float(band.rate), "rate (fraction)", src], rc)
+            row += 1
+            n += 1
         _data_row(ws, row, ["Chapter VI-A deductions allowed", regime_name,
-                            "Yes" if regime.allow_chapter_via else "No", "flag", src], rc); row += 1; n += 1
+                            "Yes" if regime.allow_chapter_via else "No", "flag", src], rc)
+        row += 1
+        n += 1
     _data_row(ws, row, ["Health & education cess", "Both",
-                        float(cfg.cess_rate), "rate (fraction)", src], rc); row += 1; n += 1
+                        float(cfg.cess_rate), "rate (fraction)", src], rc)
+    row += 1
+    n += 1
     counts["Income tax"] = (n, rc, first_row, row - 1)
 
     # ----------------------------------------------------------- PF and ESIC
@@ -235,7 +249,8 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
     ]
     for label, value, unit in pf_rows:
         where = "app/services/cost_model.py" if label.startswith("Gratuity") else s
-        _data_row(ws, row, [label, value, unit, where], rc); row += 1
+        _data_row(ws, row, [label, value, unit, where], rc)
+        row += 1
     counts["PF and ESIC"] = (len(pf_rows), rc, first_row, row - 1)
 
     # -------------------------------------------------------------------- PT
