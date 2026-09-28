@@ -46,7 +46,7 @@ SECTIONS = {
     "statutory_settings": (StatutorySettings, "pf_wage_ceiling pf_employee_rate pf_employer_rate pf_eps_rate pf_edli_rate pf_admin_rate pf_restrict_to_ceiling esic_wage_ceiling esic_employee_rate esic_employer_rate esic_round_mode pt_states lwf_states"),
     "statutory_engine": (StatutoryConfig, "pf_config esic_config component_mapping_config income_tax_config rule_thresholds_config exposure_config"),
     "formulas": (Formula, "rule_type name expression conditions version is_active"),
-    "pt_lwf_slabs": (SlabRule, "state rule_type min_salary max_salary deduction_amount employer_amount frequency gender applicable_months sort_order"),
+    "pt_lwf_slabs": (SlabRule, "state rule_type min_salary max_salary deduction_amount employer_amount frequency gender applicable_months effective_from effective_to source_reference sort_order"),
     "minimum_wage_rates": (MinimumWageRate, "state zone scheduled_employment skill_category basic_per_month vda_per_month working_days_basis effective_from effective_to source_reference"),
     "minimum_wage_applicability": (MinimumWageApplicability, "effective_from applicable reason source_reference"),
     "rule_preferences": (TenantRulePreference, "rule_id suppressed"),
