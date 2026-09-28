@@ -26,6 +26,7 @@ except Tripura, and the smaller UTs) are intentionally absent.
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Literal, TypedDict
 
@@ -39,6 +40,8 @@ class DefaultLwfSlab(TypedDict, total=False):
     employer_amount: Decimal
     frequency: Frequency
     applicable_months: list[int] | None
+    effective_from: date | None
+    source_reference: str | None
 
 
 def _row(
@@ -48,6 +51,8 @@ def _row(
     employer: float,
     freq: Frequency = "half-yearly",
     months: list[int] | None = None,
+    effective_from: date | None = None,
+    source_reference: str | None = None,
 ) -> DefaultLwfSlab:
     return {
         "min_salary": Decimal(str(lo)),
@@ -56,6 +61,8 @@ def _row(
         "employer_amount": Decimal(str(employer)),
         "frequency": freq,
         "applicable_months": months,
+        "effective_from": effective_from,
+        "source_reference": source_reference,
     }
 
 
@@ -104,7 +111,9 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         # Maharashtra Act XXV of 2024, section 6BB(2), gazetted 18 Mar 2024.
         # ₹25 employee and 3× employer for each June/December period; no wage band.
         # https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf
-        _row(0, _TOP, 25, 75, freq="half-yearly", months=[6, 12]),
+        _row(0, _TOP, 25, 75, freq="half-yearly", months=[6, 12],
+             effective_from=date(2024, 3, 18),
+             source_reference="https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf"),
     ],
     "Odisha": [
         _row(0, _TOP, 20, 40, freq="half-yearly"),
