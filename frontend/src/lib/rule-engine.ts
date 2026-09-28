@@ -35,6 +35,9 @@ export type SlabRow = {
   frequency: Frequency;
   gender: Gender;
   applicable_months: number[] | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  source_reference?: string | null;
 };
 
 export type SlabsResponse = {
