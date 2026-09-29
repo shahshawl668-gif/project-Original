@@ -115,7 +115,7 @@ def _provenance_sheet(wb, meta: dict) -> None:
     ws["A1"].font = Font(bold=True, size=14)
     ws.append([])
     for label, value in meta.items():
-        ws.append([label, value])
+        ws.append([_excel_text(label), _excel_text(value)])
     for row in range(3, 3 + len(meta)):
         ws.cell(row=row, column=1).font = Font(bold=True, size=10)
     ws.append([])

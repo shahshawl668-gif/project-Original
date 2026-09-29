@@ -18,6 +18,7 @@ from app.routers import (
     reconciliation,
     reference,
     reports,
+    report_builder,
     rule_engine,
     rule_preferences,
     signoff,
@@ -49,6 +50,7 @@ api_router.include_router(budget.router, prefix="/budget", tags=["budget"])
 api_router.include_router(
     reconciliation.router, prefix="/reconciliation", tags=["reconciliation"]
 )
+api_router.include_router(report_builder.router, prefix="/reports/builder", tags=["reports"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(minimum_wage.router, prefix="/minimum-wage", tags=["minimum-wage"])

@@ -86,6 +86,7 @@ from app.models.reconciliation import (
 )
 from app.models.register_upload import RegisterUpload
 from app.models.dashboard import CustomKpi, Dashboard
+from app.models.report_definition import ReportDefinition, ReportDefinitionVersion
 from app.models.findings import (
     ENGINE_VERSION,
     RUN_STATUSES,
@@ -99,6 +100,8 @@ from app.models.findings import (
 )
 
 __all__ = [
+    "ReportDefinition",
+    "ReportDefinitionVersion",
     "CustomKpi",
     "Dashboard",
     "ENGINE_VERSION",

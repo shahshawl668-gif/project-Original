@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Download, EyeOff, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Download, EyeOff, FileSpreadsheet, Loader2, SlidersHorizontal } from "lucide-react";
 
 import { Menu, MenuItem } from "@/components/cost/Menu";
 import { ActiveFilters, FilterMenu } from "@/components/cost/FilterMenu";
@@ -87,6 +88,8 @@ export default function ReportsPage() {
         title="Report Centre"
         description="Choose a standard report, set its company scope and period, then download a workbook with its data basis and generation details."
       />
+
+      <Link href="/reports/builder" className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"><SlidersHorizontal size={16} /> Build a report</Link>
 
       <Card>
         <CardContent className="space-y-3 py-4">
