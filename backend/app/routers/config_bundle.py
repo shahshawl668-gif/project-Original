@@ -9,13 +9,14 @@ import csv
 import io
 import json
 import re
+import uuid
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import Response
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import JSON
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -28,7 +29,7 @@ from app.models import (
     JvTemplate, MinimumWageApplicability, MinimumWageRate, SlabRule,
     StatutoryConfig, StatutorySettings, TenantRulePreference, User,
 )
-from app.services import audit
+from app.services import audit, tenancy
 from app.schemas.component import ComponentCreate
 from app.schemas.exposure_config import ExposureConfig
 from app.schemas.income_tax_config import IncomeTaxConfig
@@ -300,41 +301,8 @@ async def import_bundle(
     counts = {key: len(rows) for key, rows in sections.items()}
     if dry_run:
         return ok({"preview": True, "replace_sections": counts})
-    if "jv_templates" in sections and db.query(JvTemplate).filter(
-        JvTemplate.entity_id == entity.id, JvTemplate.state == "approved"
-    ).first():
-        raise HTTPException(409, "Approved JV templates cannot be replaced by a file; retain the approved version and create new draft mappings in the JV editor.")
     try:
-        if "jv_rules" in sections:
-            db.query(JvRule).filter(JvRule.entity_id == entity.id).delete()
-        for key in sections:
-            if key == "jv_rules":
-                continue
-            model, _ = SECTIONS[key]
-            db.query(model).filter(model.entity_id == entity.id).delete()
-        db.flush()
-        templates = {}
-        for key, rows in sections.items():
-            if key == "jv_rules":
-                continue
-            model, _ = SECTIONS[key]
-            for row in rows:
-                extra = {"user_id": user.id} if "user_id" in model.__table__.columns else {}
-                if key == "jv_templates":
-                    # Imported JV mappings must be approved for this entity.
-                    extra.update(state="draft", is_current=False, created_by_user_id=user.id)
-                item = model(entity_id=entity.id, **extra, **row)
-                db.add(item)
-                if key == "jv_templates":
-                    templates[row["name"]] = item
-        db.flush()
-        for row in sections.get("jv_rules", []):
-            data = row.copy()
-            name = data.pop("template_name")
-            if name not in templates:
-                raise ValueError(f"JV rule refers to unknown template {name}")
-            db.add(JvRule(entity_id=entity.id, template_id=templates[name].id, **data))
-        db.flush()
+        _replace(db, entity, user, sections)
         audit.record(
             db, entity_id=entity.id, user=user, action="config.bundle_import",
             object_type="configuration", object_id=str(entity.id),
@@ -345,3 +313,104 @@ async def import_bundle(
         db.rollback()
         raise HTTPException(422, f"Configuration import rejected: {exc}") from exc
     return ok({"preview": False, "replaced_sections": counts})
+
+
+def _replace(db: Session, entity: Entity, user: User, sections: dict) -> None:
+    """Replace the named sections of ``entity``'s configuration with ``sections``."""
+    if "jv_templates" in sections and db.query(JvTemplate).filter(
+        JvTemplate.entity_id == entity.id, JvTemplate.state == "approved"
+    ).first():
+        raise HTTPException(409, "Approved JV templates cannot be replaced by a file; retain the approved version and create new draft mappings in the JV editor.")
+    if "jv_rules" in sections:
+        db.query(JvRule).filter(JvRule.entity_id == entity.id).delete()
+    for key in sections:
+        if key == "jv_rules":
+            continue
+        model, _ = SECTIONS[key]
+        db.query(model).filter(model.entity_id == entity.id).delete()
+    db.flush()
+    templates = {}
+    for key, rows in sections.items():
+        if key == "jv_rules":
+            continue
+        model, _ = SECTIONS[key]
+        for row in rows:
+            extra = {"user_id": user.id} if "user_id" in model.__table__.columns else {}
+            if key == "jv_templates":
+                # Imported JV mappings must be approved for this entity.
+                extra.update(state="draft", is_current=False, created_by_user_id=user.id)
+            item = model(entity_id=entity.id, **extra, **row)
+            db.add(item)
+            if key == "jv_templates":
+                templates[row["name"]] = item
+    db.flush()
+    for row in sections.get("jv_rules", []):
+        data = row.copy()
+        name = data.pop("template_name")
+        if name not in templates:
+            raise ValueError(f"JV rule refers to unknown template {name}")
+        db.add(JvRule(entity_id=entity.id, template_id=templates[name].id, **data))
+    db.flush()
+
+
+class CopyRequest(BaseModel):
+    source_entity_id: uuid.UUID
+    sections: list[str] | None = None
+    reason: str = Field(min_length=8, max_length=1000)
+    dry_run: bool = True
+
+
+@router.post("/copy")
+def copy_bundle(
+    body: CopyRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    """
+    Copy configuration from another company the caller can open into this one.
+
+    The same allowlisted sections a file carries, validated the same way, with
+    a preview of what each section holds here and there before anything is
+    replaced. A company the caller cannot open answers 404, as if it did not
+    exist. Both companies' audit trails record the copy; JV templates arrive
+    as drafts to be approved here.
+    """
+    source = db.get(Entity, body.source_entity_id)
+    if source is None or source.id == entity.id or source.org_id != entity.org_id \
+            or not tenancy.can_access_entity(db, user, source):
+        raise HTTPException(404, "Company not found")
+    bundle = _export(db, source.id)
+    wanted = body.sections or [k for k, rows in bundle["sections"].items() if rows]
+    unknown = set(wanted) - set(bundle["sections"])
+    if unknown:
+        raise HTTPException(400, f"Unknown configuration category: {', '.join(sorted(unknown))}")
+    if "jv_templates" in wanted and "jv_rules" not in wanted:
+        wanted.append("jv_rules")
+    if "jv_rules" in wanted and "jv_templates" not in wanted:
+        wanted.append("jv_templates")
+    try:
+        sections = _validate({"format": "peopleopslab-config", "version": 1,
+                              "sections": {k: bundle["sections"][k] for k in wanted}})
+    except ValueError as exc:
+        raise HTTPException(422, f"The source configuration cannot be copied: {exc}") from exc
+    here = _export(db, entity.id)["sections"]
+    plan = {k: {"from_source": len(sections[k]), "replacing_here": len(here.get(k) or [])} for k in sections}
+    if body.dry_run:
+        return ok({"preview": True, "source": {"id": str(source.id), "name": source.name}, "sections": plan})
+    try:
+        _replace(db, entity, user, sections)
+        detail = {"sections": plan, "reason": body.reason}
+        audit.record(db, entity_id=entity.id, user=user, action="config.copied_in",
+                     object_type="configuration", object_id=str(entity.id),
+                     summary=f"Configuration copied from {source.name}: {', '.join(sorted(sections))}",
+                     detail={**detail, "from_entity_id": str(source.id)})
+        audit.record(db, entity_id=source.id, user=user, action="config.copied_out",
+                     object_type="configuration", object_id=str(source.id),
+                     summary=f"Configuration copied to {entity.name}: {', '.join(sorted(sections))}",
+                     detail={**detail, "to_entity_id": str(entity.id)})
+        db.commit()
+    except (IntegrityError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(422, f"Configuration copy rejected: {exc}") from exc
+    return ok({"preview": False, "source": {"id": str(source.id), "name": source.name}, "sections": plan})

@@ -107,6 +107,9 @@ def check_against_inputs(
 
     out: dict[str, list[dict]] = {}
     paid_ids: set[str] = set()
+    references = (
+        attendance_rules.FullMonthReferences(db, entity_id, period_month) if have_attendance else None
+    )
     for row in rows:
         employee_id = str(row.get("employee_id") or "").strip()
         if not employee_id:
@@ -131,9 +134,8 @@ def check_against_inputs(
                 attendance_rules.check_pay_against_attendance(
                     employee_id, name, merged, attendance_row,
                     period_month=period_month,
-                    reference=attendance_rules.full_month_reference(
-                        db, entity_id, employee_id, period_month
-                    ) if attendance_row is not None else None,
+                    reference=references.get(employee_id)
+                    if attendance_row is not None and references is not None else None,
                     basis=basis,
                     day_tolerance=day_tolerance,
                     lop_pay_tolerance_pct=_dec(

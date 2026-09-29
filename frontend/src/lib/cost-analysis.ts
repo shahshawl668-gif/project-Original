@@ -23,8 +23,26 @@ export type CostGroup = {
 export type PeriodTotal = {
   period: string;
   label: string;
+  /** Distinct employees paid in the bucket. */
   headcount: number;
+  months_with_register: number;
+  person_months: number;
+  average_headcount: number | null;
+  /** Average monthly cost per head: CTC ÷ person-months. */
+  cost_per_head_monthly: number | null;
   measures: Measures;
+};
+
+export type DataBasis = {
+  periods_with_register: string[];
+  missing_months: string[];
+  last_uploaded_at: string | null;
+  months: { period: string; validation: "validated" | "not_validated" | "changed_since_validation"; label: string; signed_off: boolean; open_findings: number | null; uploaded_at: string | null }[];
+  validated_months: number;
+  unvalidated_months: number;
+  signed_off_months: number;
+  unassigned: { dimension: string; employees: number; pct: number } | null;
+  source: string;
 };
 
 export type CostAnalysis = {
@@ -37,8 +55,15 @@ export type CostAnalysis = {
   groups: string[];
   matrix: CostGroup[];
   period_totals: PeriodTotal[];
-  totals: Measures & { headcount: number; cost_per_head: number };
-  sources: { reported: number; computed: number };
+  data_status: "ok" | "no_register";
+  /** Null when the range holds no register: absent, not zero. */
+  totals: (Measures & {
+    headcount: number; months_with_register: number; person_months: number;
+    average_headcount: number | null; cost_per_head: number | null;
+  }) | null;
+  sources: { reported: number; computed: number } | null;
+  definitions: Record<string, string>;
+  basis: DataBasis;
 };
 
 export type MeasureMeta = {
@@ -413,7 +438,7 @@ export type BudgetVariance = {
   periods: {
     period: string;
     label: string;
-    actual: number;
+    actual: number | null;
     budget: number | null;
     has_actual: boolean;
     has_budget: boolean;

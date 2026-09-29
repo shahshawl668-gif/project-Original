@@ -349,6 +349,84 @@ def full_month_reference(
     return FullMonthPay(_q(gross), f"{previous.period_month:%b %Y}") if gross > 0 else None
 
 
+class FullMonthReferences:
+    """
+    ``full_month_reference`` for every employee of one period, loaded in three
+    queries instead of three per employee.
+
+    At 20,000 employees the per-employee version is 60,000 round trips — most
+    of a validation's time. This answers identically: the latest CTC in force
+    on the first of the month; failing that, the most recent earlier register
+    row, but only if that month's attendance shows no loss of pay.
+    """
+
+    def __init__(self, db: Session, entity_id: uuid.UUID, period_month: date):
+        from sqlalchemy import func
+
+        from app.models import AttendanceRow, CtcRecord, SalaryRegisterRow
+
+        period_month = period_month.replace(day=1)
+        self._ctc: dict[str, Any] = {}
+        for ctc in (
+            db.query(CtcRecord)
+            .filter(CtcRecord.entity_id == entity_id, CtcRecord.effective_from <= period_month)
+            .order_by(CtcRecord.employee_id, CtcRecord.effective_from.desc())
+        ):
+            self._ctc.setdefault(ctc.employee_id, ctc)
+
+        latest = (
+            db.query(
+                SalaryRegisterRow.employee_id.label("employee_id"),
+                func.max(SalaryRegisterRow.period_month).label("period_month"),
+            )
+            .filter(
+                SalaryRegisterRow.entity_id == entity_id,
+                SalaryRegisterRow.period_month < period_month,
+            )
+            .group_by(SalaryRegisterRow.employee_id)
+            .subquery()
+        )
+        self._previous: dict[str, Any] = {}
+        for row in (
+            db.query(SalaryRegisterRow)
+            .join(
+                latest,
+                (SalaryRegisterRow.employee_id == latest.c.employee_id)
+                & (SalaryRegisterRow.period_month == latest.c.period_month),
+            )
+            .filter(SalaryRegisterRow.entity_id == entity_id)
+        ):
+            self._previous.setdefault(row.employee_id, row)
+
+        periods = {row.period_month for row in self._previous.values()}
+        self._attendance: dict[tuple[str, date], Any] = {}
+        if periods:
+            for att in db.query(AttendanceRow).filter(
+                AttendanceRow.entity_id == entity_id, AttendanceRow.period_month.in_(periods)
+            ):
+                self._attendance.setdefault((att.employee_id, att.period_month), att)
+
+    def get(self, employee_id: str) -> FullMonthPay | None:
+        ctc = self._ctc.get(employee_id)
+        if ctc is not None and ctc.annual_components:
+            annual = sum(
+                (_dec(v) or Decimal("0") for v in ctc.annual_components.values()), Decimal("0")
+            )
+            if annual > 0:
+                return FullMonthPay(_q(annual / Decimal("12")), "agreed CTC")
+        previous = self._previous.get(employee_id)
+        if previous is None:
+            return None
+        prior_attendance = self._attendance.get((employee_id, previous.period_month))
+        prior_lop = _dec(getattr(prior_attendance, "lop_days", None))
+        if prior_lop is None or prior_lop > 0:
+            return None
+        gross = sum(
+            (_dec(v) or Decimal("0") for v in (previous.components or {}).values()), Decimal("0")
+        )
+        return FullMonthPay(_q(gross), f"{previous.period_month:%b %Y}") if gross > 0 else None
+
+
 def check_pay_against_attendance(
     employee_id: str,
     name: str | None,
@@ -480,7 +558,9 @@ def _overtime_paid(row: dict[str, Any]) -> Decimal:
 
     total = Decimal("0")
     for key, value in row.items():
-        if key is None:
+        # Underscore keys are the product's own bookkeeping (the source row
+        # number, for one), never pay columns.
+        if key is None or str(key).startswith("_"):
             continue
         name = normalize_col(str(key))
         padded = f"_{name}_"

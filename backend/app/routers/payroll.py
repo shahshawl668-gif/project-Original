@@ -3,7 +3,7 @@ import csv
 import calendar
 import json
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -24,7 +24,7 @@ from app.models import (
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
-from app.services import audit, finding_store
+from app.services import audit, coverage, finding_store, register_uploads, run_inputs
 from app.services.cost_model import capture_net_pay, capture_reported
 from app.services.dimensions import snapshot as dimension_snapshot
 from app.services.pf_basis import from_row as pf_flag_from_row
@@ -159,7 +159,7 @@ def _persist_salary_register(
     employees: list[dict],
     comps: list[ComponentConfig],
     source_columns: list[str] | None = None,
-) -> None:
+) -> uuid.UUID:
     comp_by_key = _component_key_map(comps)
 
     # The master as it stood at period end, so each row is stamped with the
@@ -252,6 +252,7 @@ def _persist_salary_register(
         )
 
     db.commit()
+    return register.id
 
 
 def _payload_after_validation(rows: list, findings_summary: dict) -> dict:
@@ -294,6 +295,10 @@ async def upload_payroll(
         period_month = payload.get("period_month")
         strict = payload.get("strict_header_check", True)
         column_mapping = payload.get("column_mapping")
+        # The product's own screens ask for a summary: a 20,000-row register
+        # echoed back to a phone is megabytes nobody reads. API callers that
+        # validate synchronously still get the rows by default.
+        return_employees = payload.get("return_employees", True) is not False
         eff_from_d = date.fromisoformat(eff_from) if eff_from else None
         eff_to_d = date.fromisoformat(eff_to) if eff_to else None
         period_month_d = date.fromisoformat(period_month) if period_month else None
@@ -320,6 +325,8 @@ async def upload_payroll(
     missing, warnings = validate_required_columns(columns, comp_names, strict=strict)
     if unmapped_sources:
         warnings.append("Unmapped source columns were ignored: " + ", ".join(unmapped_sources[:20]))
+    # Where each row sits in the file, so a finding can point at it.
+    register_uploads.stamp_source_rows(employees)
 
     preview = employees[:5]
 
@@ -336,9 +343,18 @@ async def upload_payroll(
     db.commit()
 
     persist_period = _to_first_of_month(period_month_d or eff_to_d)
-    if persist_period and comps and not missing:
-        _persist_salary_register(db, user, entity, persist_period, file.filename,
-                                 employees, comps, source_columns=columns)
+    register_id: uuid.UUID | None = None
+    # Only a regular run is the month's register. An arrears file paid in June
+    # used to replace June's register, so June's cost collapsed to the arrears
+    # alone in every report. It is kept as a frozen upload and validated.
+    if run_type not in (None, "", "regular") and persist_period:
+        warnings.append(
+            f"This {str(run_type).replace('_', ' ')} run is validated but not added to "
+            f"{persist_period:%b %Y}'s cost register; the regular register stays as it was."
+        )
+    if persist_period and comps and not missing and run_type in (None, "", "regular"):
+        register_id = _persist_salary_register(db, user, entity, persist_period, file.filename,
+                                               employees, comps, source_columns=columns)
         # Months later, when a figure is challenged, the only useful answer is
         # who uploaded which file, and when.
         audit.record(
@@ -352,14 +368,36 @@ async def upload_payroll(
         )
         db.commit()
 
+    # Every upload is frozen, stored-as-register or not: it is what a
+    # validation job reads, and what a run will later be shown to have read.
+    upload = register_uploads.record(
+        db,
+        entity_id=entity.id,
+        user_id=user.id,
+        period_month=persist_period,
+        run_type=run_type,
+        filename=file.filename,
+        content=raw,
+        rows=employees,
+        source_columns=columns,
+        column_mapping=column_mapping if isinstance(column_mapping, dict) else None,
+        missing_required=missing,
+        warnings=warnings,
+        register_id=register_id,
+    )
+    db.commit()
+
     out = UploadParseResponse(
         columns=columns,
         preview=preview,
-        employees=employees,
+        employees=employees if return_employees else [],
         missing_required=missing,
         warnings=warnings,
     )
-    return ok(out.model_dump())
+    data = out.model_dump()
+    data["employee_count"] = len(employees)
+    data["upload"] = register_uploads.describe(upload)
+    return ok(data)
 
 
 @router.post("/validate")
@@ -373,6 +411,9 @@ def validate_payroll(
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before validation.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
+    started = datetime.now(UTC)
+    # Fingerprinted before validation reads anything, like the worker does.
+    config = run_inputs.configuration_snapshot(db, entity, period_month) if period_month else None
     rows, findings_summary = validate_employees(
         db,
         entity,
@@ -391,11 +432,19 @@ def validate_payroll(
 
     lifecycle: dict = {}
     if period_month:
+        findings_summary["coverage"] = coverage.annotate_run(
+            db, entity, period_month, rows, body.employees,
+            findings_summary.get("unmatched_findings"), suppressed,
+        )
         # Persisting the run is what turns validation from a one-off report into
         # a record: waivers carry forward, recurrence becomes countable, and the
         # exposure history survives the browser tab.
         all_findings = [f for row in rows for f in row.get("findings", [])]
         all_findings.extend(findings_summary.get("unmatched_findings", []))
+        _, rows_digest = register_uploads.encode_rows(body.employees)
+        digests = run_inputs.input_digests(
+            db, entity, period_month, rows_sha256=rows_digest, config=config,
+        )
         run = finding_store.record_run(
             db,
             entity_id=entity.id,
@@ -404,10 +453,23 @@ def validate_payroll(
             findings=all_findings,
             employee_count=len(rows),
             summary=findings_summary,
+            results=rows,
+            source_rows=body.employees,
+            source="api",
+            run_type=body.run_type,
+            params={
+                "effective_month_from": body.effective_month_from.isoformat() if body.effective_month_from else None,
+                "effective_month_to": body.effective_month_to.isoformat() if body.effective_month_to else None,
+                "as_of_date": body.as_of_date.isoformat() if body.as_of_date else None,
+            },
+            input_digests=digests,
+            config_snapshot=config,
+            started_at=started,
         )
         db.commit()
         lifecycle = {
             "run_id": str(run.id),
+            "run_number": run.run_number,
             "period_month": period_month.isoformat(),
             "gross_financial_impact": float(run.total_financial_impact),
             "open_financial_impact": float(run.open_financial_impact),

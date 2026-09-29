@@ -74,6 +74,7 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("organizations", "slug", "VARCHAR(64)"),
     ("organizations", "deployment_cell", "VARCHAR(64) NOT NULL DEFAULT 'primary'"),
     ("organizations", "enabled_products", "JSON NOT NULL DEFAULT '[]'"),
+    ("organizations", "approval_policy", "JSON"),
     ("entities", "pay_equity_enabled", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("entities", "pay_equity_enabled_by", "VARCHAR(255)"),
     ("entities", "pay_equity_enabled_at", "TIMESTAMP"),

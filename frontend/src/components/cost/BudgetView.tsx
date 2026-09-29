@@ -211,13 +211,14 @@ export function BudgetView({
                           </span>
                         )}
                         {!period.has_actual && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-ink-400">
-                            unspent
+                          <span className="ml-2 text-[10px] uppercase tracking-wide text-warning-700 dark:text-warning-400"
+                            title="No register was uploaded for this month, so there is no actual to compare. It is left out of the totals.">
+                            no register
                           </span>
                         )}
                       </td>
                       <td className="py-2 text-right text-ink-900 dark:text-white">
-                        {formatINR(period.actual, true)}
+                        {period.actual === null ? "—" : formatINR(period.actual, true)}
                       </td>
                       <td className="py-2 text-right text-ink-600 dark:text-ink-300">
                         {period.budget === null ? "—" : formatINR(period.budget, true)}

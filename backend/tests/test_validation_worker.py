@@ -217,33 +217,51 @@ def test_a_job_whose_worker_died_is_reclaimed(ready):
         db.close()
 
 
-def test_a_job_with_no_register_fails_rather_than_hanging(ready):
-    _, (job_id, _e, _r) = ready
-    db = SessionLocal()
-    try:
-        db.get(ValidationJob, job_id).register_id = None
-        db.commit()
+def test_a_job_with_nothing_to_validate_fails_at_once_and_says_why(ready):
+    """A missing register cannot be fixed by trying again, so it is not retried.
 
-        assert worker.run_once(db, "w1") is True
-        job = db.get(ValidationJob, job_id)
-        assert job.state == "queued", "first failure should be retried, not terminal"
-        assert job.error and "register" in job.error.lower()
-    finally:
-        db.close()
-
-
-def test_a_job_that_keeps_failing_stops_rather_than_looping(ready):
-    """Terminal means terminal. An endless retry is a busy loop, not resilience."""
+    It used to be retried three times, which only made the person wait three
+    times as long for the same answer.
+    """
     _, (job_id, _e, _r) = ready
     db = SessionLocal()
     try:
         job = db.get(ValidationJob, job_id)
         job.register_id = None
+        job.upload_id = None
+        db.commit()
+
+        assert worker.run_once(db, "w1") is True
+        job = db.get(ValidationJob, job_id)
+        assert job.state == "failed"
+        assert job.attempts == 1
+        assert job.error_code == "no_register"
+        assert "upload" in job.error_message.lower()
+    finally:
+        db.close()
+
+
+def test_a_transient_failure_is_retried_then_stops_rather_than_looping(ready, monkeypatch):
+    """Terminal means terminal. An endless retry is a busy loop, not resilience."""
+    _, (job_id, _e, _r) = ready
+
+    def explode(*_a, **_k):
+        raise ConnectionError("database went away")
+
+    monkeypatch.setattr(worker, "validate_employees", explode)
+    db = SessionLocal()
+    try:
+        job = db.get(ValidationJob, job_id)
         job.max_attempts = 2
         db.commit()
 
         worker.run_once(db, "w1")
-        assert db.get(ValidationJob, job_id).state == "queued"
+        job = db.get(ValidationJob, job_id)
+        assert job.state == "queued"
+        assert "retried automatically" in job.error_message
+        # The person is never shown the exception; the operator still can be.
+        assert "database went away" not in job.error_message
+        assert "database went away" in job.error
 
         worker.run_once(db, "w1")
         job = db.get(ValidationJob, job_id)
@@ -265,8 +283,9 @@ def test_an_entity_with_no_components_fails_with_a_readable_reason(ready):
 
         worker.run_once(db, "w1")
         job = db.get(ValidationJob, job_id)
-        assert job.state == "queued"
-        assert "component" in (job.error or "").lower()
+        assert job.state == "failed", "configuration is not fixed by retrying"
+        assert job.error_code == "no_components"
+        assert "component" in job.error_message.lower()
     finally:
         db.close()
 

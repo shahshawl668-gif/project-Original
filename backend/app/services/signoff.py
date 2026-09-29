@@ -28,10 +28,10 @@ from app.models import (
     PeriodSignOff,
     SignOffEvent,
     User,
-    ValidationRun,
 )
-from app.services import analytics, validation_matrix
+from app.services import analytics, approvals, validation_matrix
 from app.services.config_service import ConfigService
+from app.services.finding_store import current_run
 
 
 def _json_default(value):
@@ -58,14 +58,14 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
     point of the record is that the accepted ones were accepted knowingly, which
     requires them to have been in front of the person who signed.
     """
+    from app.services.issues import expire_waivers
+
     period_month = period_month.replace(day=1)
     config_service = ConfigService(db)
+    # A waiver that has lapsed is not an accepted finding any more; it is open.
+    expire_waivers(db, entity.id)
 
-    run = (
-        db.query(ValidationRun)
-        .filter(ValidationRun.entity_id == entity.id, ValidationRun.period_month == period_month)
-        .first()
-    )
+    run = current_run(db, entity.id, period_month)
 
     states = (
         db.query(FindingState)
@@ -131,6 +131,13 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
         "validation_run": (
             {
                 "id": str(run.id),
+                "run_number": run.run_number,
+                "status": run.status,
+                "engine_version": run.engine_version,
+                "upload_id": str(run.upload_id) if run.upload_id else None,
+                "input_digests": run.input_digests,
+                "coverage": (run.summary or {}).get("coverage"),
+                "exposure": (run.summary or {}).get("exposure"),
                 "employee_count": run.employee_count,
                 "total_findings": run.total_findings,
                 "critical_count": run.critical_count,
@@ -238,12 +245,22 @@ def _record_event(
     )
 
 
-def submit(db: Session, entity: Entity, period_month: date, actor: User, notes: str | None) -> PeriodSignOff:
-    """Prepare a period for approval, capturing what it looks like now."""
+def submit(
+    db: Session, entity: Entity, period_month: date, actor: User, notes: str | None,
+    accept_incomplete_reason: str | None = None,
+) -> PeriodSignOff:
+    """Prepare a period for approval, capturing what it looks like now.
+
+    Refused while the month is not ready — no run, a stale run, or material
+    checks that could not run without a stated reason. Preparing a month that
+    was never examined would hand the approver a record of nothing.
+    """
+    ready = approvals.assert_ready(db, entity, period_month, accept_incomplete_reason)
     signoff = get_or_create(db, entity, period_month)
     previous = signoff.state
 
     snapshot = build_snapshot(db, entity, period_month)
+    snapshot["readiness"] = ready
     signoff.snapshot = snapshot
     signoff.snapshot_digest = digest(snapshot)
     signoff.state = "pending_approval"
@@ -265,24 +282,37 @@ class MatrixSignoffBlocked(Exception):
     pass
 
 
-def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) -> PeriodSignOff:
+def sign(
+    db: Session, signoff: PeriodSignOff, actor: User, notes: str | None,
+    accept_incomplete_reason: str | None = None,
+) -> PeriodSignOff:
     """
     Approve the period.
 
     The snapshot is re-taken at this moment rather than reusing the one from
     submission: the signer is accepting what is true now, and anything that
     changed between preparation and approval is precisely what they need to
-    have seen.
+    have seen. Readiness is re-checked for the same reason, and where the
+    organisation requires it, the preparer cannot approve their own month.
     """
     previous = signoff.state
     entity = db.get(Entity, signoff.entity_id)
 
+    ready = approvals.assert_ready(db, entity, signoff.period_month, accept_incomplete_reason)
+    approvals.require_independent(
+        db, entity.org_id, "signoff_requires_independent_approver",
+        preparer_id=signoff.prepared_by_user_id, approver_id=actor.id, what="a month's sign-off",
+    )
     snapshot = build_snapshot(db, entity, signoff.period_month)
-    current_run = db.query(ValidationRun).filter(
-        ValidationRun.entity_id == entity.id,
-        ValidationRun.period_month == signoff.period_month,
-    ).first()
-    if current_run:
+    snapshot["readiness"] = ready
+    snapshot["approval"] = {
+        "policy": approvals.policy_for(db, entity.org_id),
+        "prepared_by_user_id": str(signoff.prepared_by_user_id) if signoff.prepared_by_user_id else None,
+        "approved_by": actor.email,
+        "independent": signoff.prepared_by_user_id is not None and signoff.prepared_by_user_id != actor.id,
+    }
+    period_run = current_run(db, entity.id, signoff.period_month)
+    if period_run:
         suppressed = {
             rule_id for (rule_id,) in db.query(TenantRulePreference.rule_id).filter(
                 TenantRulePreference.entity_id == entity.id,
@@ -293,7 +323,7 @@ def sign(db: Session, signoff: PeriodSignOff, actor: User, notes: str | None) ->
             record.fingerprint for record, version in db.query(FindingRecord, ValidationRuleVersion).join(
                 ValidationRuleVersion, FindingRecord.rule_version_id == ValidationRuleVersion.id
             ).filter(
-                FindingRecord.run_id == current_run.id,
+                FindingRecord.run_id == period_run.id,
                 ValidationRuleVersion.blocks_signoff.is_(True),
                 ValidationRuleVersion.rule_key.notin_(suppressed),
             ).all()

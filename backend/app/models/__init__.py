@@ -60,14 +60,27 @@ from app.models.reconciliation import (
     ReconException,
     ReconRun,
 )
+from app.models.register_upload import RegisterUpload
+from app.models.dashboard import CustomKpi, Dashboard
 from app.models.findings import (
+    ENGINE_VERSION,
+    RUN_STATUSES,
+    FindingAttachment,
+    FindingComment,
     FindingRecord,
     FindingState,
     FindingStateEvent,
     ValidationRun,
+    ValidationRunEmployee,
 )
 
 __all__ = [
+    "CustomKpi",
+    "Dashboard",
+    "ENGINE_VERSION",
+    "RUN_STATUSES",
+    "RegisterUpload",
+    "ValidationRunEmployee",
     "User",
     "Organization",
     "Entity",
@@ -100,6 +113,8 @@ __all__ = [
     "ValidationRun",
     "ValidationRuleVersion",
     "FindingRecord",
+    "FindingAttachment",
+    "FindingComment",
     "FindingState",
     "FindingStateEvent",
     "PeriodSignOff",

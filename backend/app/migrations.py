@@ -508,6 +508,79 @@ def add_slab_provenance(conn: Connection) -> None:
             conn.execute(text(f"ALTER TABLE slab_rules ADD COLUMN {column} {kind}"))  # nosec B608
 
 
+def preserve_run_history(conn: Connection) -> None:
+    """
+    Add the columns that let validation runs be kept instead of replaced.
+
+    Additive only, and safe to run on every start. Every run that exists before
+    this step was the only run for its period — the old code deleted the
+    previous one — so ``current`` and run number 1 are *true* of all of them,
+    not a guess. Nothing else is backfilled: an old run's inputs were never
+    frozen, and leaving ``upload_id`` and ``input_digests`` NULL is how it says
+    so. A reader must treat NULL as "not recorded", never as "unchanged".
+
+    Rollback: the columns are nullable or defaulted and nothing older reads
+    them, so the previous release runs unchanged against this schema.
+    """
+    uuid_t = _uuid_type(conn)
+    ts_t = "TIMESTAMP" if conn.dialect.name == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+    wanted = {
+        "validation_runs": (
+            ("status", "VARCHAR(16) NOT NULL DEFAULT 'current'"),
+            ("run_number", "INTEGER NOT NULL DEFAULT 1"),
+            ("superseded_at", ts_t),
+            ("superseded_by_run_id", uuid_t),
+            ("source", "VARCHAR(16) NOT NULL DEFAULT 'api'"),
+            ("job_id", uuid_t),
+            ("upload_id", uuid_t),
+            ("run_type", "VARCHAR(32)"),
+            ("params", "JSON"),
+            ("engine_version", "VARCHAR(32)"),
+            ("input_digests", "JSON"),
+            ("config_snapshot", "JSON"),
+            ("started_at", ts_t),
+            ("finished_at", ts_t),
+            ("duration_ms", "INTEGER"),
+        ),
+        "validation_run_employees": (
+            ("cannot_validate_checks", "INTEGER NOT NULL DEFAULT 0"),
+            ("not_applicable_checks", "INTEGER NOT NULL DEFAULT 0"),
+        ),
+        "validation_jobs": (
+            ("upload_id", uuid_t),
+            ("stage", "VARCHAR(16) NOT NULL DEFAULT 'queued'"),
+            ("cancel_requested_at", ts_t),
+            ("cancelled_by_user_id", uuid_t),
+            ("retry_of_job_id", uuid_t),
+            ("error_code", "VARCHAR(48)"),
+            ("error_message", "TEXT"),
+        ),
+    }
+    tables = _table_names(conn)
+    for table, columns in wanted.items():
+        if table not in tables:
+            continue
+        have = _columns(conn, table)
+        for column, ddl in columns:
+            if column not in have:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))  # nosec B608
+    if "validation_runs" in tables:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_validation_runs_status ON validation_runs (status)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_validation_runs_entity_period_status "
+            "ON validation_runs (entity_id, period_month, status)"
+        ))
+        # One current run per period, held by the database. Safe to create on
+        # existing data: the old code deleted before inserting, so no period
+        # has more than one run.
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_validation_runs_current "
+            "ON validation_runs (entity_id, period_month) WHERE status = 'current'"
+        ))
+
+
 def run_migrations(engine: Engine) -> None:
     """Run every step in order, inside one transaction per step."""
     steps = (
@@ -522,6 +595,9 @@ def run_migrations(engine: Engine) -> None:
         add_finding_evidence,
         add_slab_provenance,
         record_register_source_columns,
+        preserve_run_history,
+        track_finding_work,
+        extend_validation_rules,
     )
     for step in steps:
         with engine.begin() as conn:
@@ -551,3 +627,50 @@ def backfill_org_slugs(conn: Connection) -> None:
         # One-time bootstrap for the existing product owner. New privileges are
         # managed explicitly; a legacy client role never creates platform access.
         conn.execute(text("UPDATE users SET platform_role = 'owner' WHERE role = 'admin' AND email != 'system@payrollcheck.local'"))
+
+
+def track_finding_work(conn: Connection) -> None:
+    """
+    Let a finding carry an owner and a due date.
+
+    Additive and idempotent. Comments and attachments are new tables and arrive
+    through ``create_all``. Rollback: both columns are nullable and unread by
+    the previous release.
+    """
+    if "finding_states" not in _table_names(conn):
+        return
+    have = _columns(conn, "finding_states")
+    for column, ddl in (("owner_user_id", _uuid_type(conn)), ("due_date", "DATE")):
+        if column not in have:
+            conn.execute(text(f"ALTER TABLE finding_states ADD COLUMN {column} {ddl}"))  # nosec B608
+    conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_finding_states_owner ON finding_states (entity_id, owner_user_id)"
+    ))
+
+
+def extend_validation_rules(conn: Connection) -> None:
+    """
+    Applicability, missing-data behaviour, and the lifecycle of a rule version.
+
+    Additive and idempotent; every existing version keeps its behaviour —
+    ``on_missing`` defaults to ``cannot_validate``, which is what the engine
+    always did. Rollback: the columns are unread by the previous release; a
+    version retired under this one would read as ``retired``, which the old
+    code does not treat as published, so it stops applying — the intent.
+    """
+    if "validation_rule_versions" not in _table_names(conn):
+        return
+    uuid_t = _uuid_type(conn)
+    ts_t = "TIMESTAMP" if conn.dialect.name == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+    have = _columns(conn, "validation_rule_versions")
+    for column, ddl in (
+        ("applies_to", "JSON"),
+        ("on_missing", "VARCHAR(16) NOT NULL DEFAULT 'cannot_validate'"),
+        ("editor_mode", "VARCHAR(16) NOT NULL DEFAULT 'basic'"),
+        ("cloned_from_id", uuid_t),
+        ("retired_at", ts_t),
+        ("retired_by", uuid_t),
+        ("retire_reason", "TEXT"),
+    ):
+        if column not in have:
+            conn.execute(text(f"ALTER TABLE validation_rule_versions ADD COLUMN {column} {ddl}"))  # nosec B608

@@ -1,7 +1,60 @@
 # Design — validation as a background job
 
-A design, not an implementation. It describes the change, the schema, the
-failure modes it has to survive, and the order to build it in.
+A design that has now been built. The sections below are the original design;
+this first section says what shipped and where it differs. Where the two
+disagree, this section is right.
+
+---
+
+## 0. What shipped (October 2026) — and what changed from the design
+
+The product's own journey now runs through the queue: the upload page enqueues,
+`/payroll/validation` shows progress, `/payroll/results?run=` reads the result
+from the server. Nothing is kept in browser storage any more.
+
+**Four deliberate departures from the design below:**
+
+1. **The worker validates the frozen upload, not `salary_register_rows`.** §2
+   says the worker reads the stored register. Building it showed the stored
+   register is *lossy by design*: it keeps what the cost model reads and drops
+   PAN, UAN, ESI number, dates of joining/leaving, payment mode and the other
+   identity fields validation checks. A worker reading it would have silently
+   skipped those checks. So every upload is also written, unchanged, to
+   `register_uploads` — file SHA-256, mapping, revision, and the parsed rows
+   gzip-compressed — and the job validates that. It is also what makes a run
+   reproducible after the month is re-uploaded.
+
+2. **Runs are kept, not replaced.** The design did not cover history; the code
+   it was built on deleted the previous run when a month was re-validated. Now
+   the previous run is marked `superseded` and points at its replacement, a
+   partial unique index allows one `current` run per period, and runs can be
+   compared (`/api/validation/runs/compare`). Each run records per-input digests
+   and the effective configuration, so staleness names the input that changed.
+
+3. **Endpoints live under `/api/validation/…`**, not `/api/payroll/validation-jobs`
+   (§8): `POST /jobs`, `GET /jobs[/{id}]`, `POST /jobs/{id}/cancel`,
+   `POST /jobs/{id}/retry`, `GET /runs[/{id}]`, `/runs/{id}/employees`,
+   `/runs/{id}/findings`, `/runs/{id}/export.xlsx`, `/runs/compare`,
+   `/periods/{period}/status`, `/uploads`. A duplicate enqueue returns the live
+   job with `already_queued: true` rather than an error, so a second tab joins it.
+
+4. **The synchronous `/api/payroll/validate` was kept for API callers**
+   (§12.3 said remove it). The release-gate runner and integrations post rows
+   directly. It records runs through the same `record_run`, so it preserves
+   history too; the product's pages no longer call it.
+
+**Also added:** stages (`queued → loading → validating → recording`), cancel of
+a running job (the worker checks at each progress point and rolls back — a
+cancelled attempt writes nothing), permanent failures that do not retry
+(no components, missing columns, no upload) with a message written for the
+person, and transient failures that retry up to `max_attempts` with the raw
+exception kept only for operators.
+
+**`VALIDATION_WORKER_ENABLED` now defaults to `true`** (§7 said off). With the
+journey on the queue, a server with no worker would leave every validation
+waiting, which is a silent failure. The progress page warns when it is off.
+
+**Measured** — see §15.
 
 ---
 
@@ -345,9 +398,10 @@ in 25s with progress visible throughout, the HTTP request never waiting. Then a
 job was abandoned mid-run the way a deploy abandons one — a live worker
 reclaimed it after the lease expired, `attempts` went to 2, and it finished.
 
-**3. Switch the endpoint.** `/validate` enqueues and returns 202; the frontend
-polls. The old synchronous path goes in the same PR — leaving both means the
-async path is the untested one.
+**3. Switch the endpoint.** ✅ **Shipped, differently** — see §0. The product
+enqueues through `POST /api/validation/jobs` and polls; the synchronous
+`/api/payroll/validate` stays for API callers and records history the same way.
+Both paths are under test.
 
 **4. Separate worker service**, when close-week load justifies it. Configuration
 only.
@@ -388,3 +442,66 @@ report generation and bank reconciliation over large files.
 **This is the change that decides whether a 20,000-employee client is a sale or
 an incident.** It is a few days of work, and it is much cheaper to do before
 there are clients than after.
+
+---
+
+## 15. Measured (October 2026)
+
+`backend/tools/benchmark_validation.py` drives synthetic registers
+(`backend/tools/synthetic_payroll.py`) through the real API and worker on
+PostgreSQL 16, in-process, on a 4-vCPU Xeon container with 16 GB RAM — **much
+larger than a Render free instance (0.1 CPU, 512 MB)**, so treat these as the
+application's cost, not production latency. Each run is checked against planted
+defects whose expected findings are computed independently of the engine
+(PF under-deducted, ESIC over-deducted, paid days that do not add up): all
+found exactly, no misses, no false positives, at every size.
+
+| Step | 8,000 before | 8,000 after | 20,000 after | 8,000 coverage release | 20,000 coverage release |
+|---|---|---|---|---|---|
+| Register upload (parse, store, freeze) | 4.0 s | 4.5 s | 10.5 s | 4.1 s | 9.8 s |
+| Worker: validate + record run | 87.4 s | 35.4 s | 106.3 s | 37.3 s | 110.6 s |
+| Worker: re-run of the same month | 86.3 s | 35.6 s | 101.4 s | 36.7 s | 109.2 s |
+| Process RSS during validation (start → peak) | 265 → 410 MB | 265 → 393 MB | 457 → 753 MB | 259 → 389 MB | 463 → 762 MB |
+| Run summary (incl. staleness check) | 2.40 s | 0.71 s | 1.73 s | 0.86 s | 1.70 s |
+| Page of 50 employees / findings | 0.07 s | 0.07 s | 0.08 s | 0.05 s | 0.06 s |
+| Employee detail | 0.08 s | 0.09 s | 0.13 s | 0.08 s | 0.13 s |
+| Excel export of the run | 3.7 s | 3.9 s | 8.3 s | 3.7 s | 8.5 s |
+| Compare two runs | 1.0 s | 0.9 s | 2.6 s | 1.1 s | 2.4 s |
+| Findings in the run | 11,384 | 11,384 | 28,444 | 11,384 | 28,444 |
+
+The **coverage release** adds, inside every validation, minimum wage and a
+verdict on all 97 registered checks for every employee (handbook blueprint,
+stage 5). Its first build held those verdicts as 97 small dicts
+per employee and measured **40.5 s and 265 → 512 MB at 8,000** — enough to put
+an 8,000-employee client at risk on a 512 MB instance. Verdicts are now stored
+compactly (passes as a list of ids, reasons shared) and expanded only when one
+employee is read; the columns above are that build. Validation costs about 5%
+more time than before and no more memory.
+
+**Memory is the constraint, not time.** Validating 20,000 employees adds about
+300 MB to the process (the whole register, its results and its findings are held
+until the run is written in one transaction — which is what keeps a failed run
+from ever being half-written). A Render free or Starter instance has 512 MB, so
+**a 20,000-employee register is at real risk of an out-of-memory kill there**;
+the job would be retried and fail the same way. 8,000 employees (+130 MB) fits.
+For clients above roughly 10,000 employees, run the API (or a separate
+`python -m app.worker`) on an instance with at least 2 GB.
+
+"Before" is the first working version, which made about four database round
+trips per employee (a CTC lookup, and three queries for the full-month pay
+baseline). Batching those into three queries per run cut validation time by
+about 60% with identical answers — `tests/test_full_month_references.py`
+proves the batched loader equal to the per-employee one on every branch.
+
+Storage per run: frozen upload ≈ 0.4 MB at 8,000 and 1.0 MB at 20,000;
+per-employee results ≈ 14.7 MB and 36.7 MB since the coverage release (about
+1.8 KB per employee, compressed — it was 1 KB before per-check verdicts were
+kept), plus the finding rows above. Runs are never deleted, so budget roughly 2 MB per 1,000
+employees per validation. A free 1 GB database holds on the order of fifty
+8,000-employee validations; a paid plan is needed before onboarding several
+large clients.
+
+The figures are regenerated by running the benchmark; do not edit them by
+hand. The 20,000 re-run shared the CPU with a frontend build for part of its
+duration.
+

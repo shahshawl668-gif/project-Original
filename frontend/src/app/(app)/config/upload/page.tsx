@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertBanner } from "@/components/ui/alert-banner";
+import { useEntity } from "@/context/EntityContext";
 
 type Result = { preview: boolean; replace_sections?: Record<string, number>; replaced_sections?: Record<string, number> };
 
@@ -79,6 +80,79 @@ export default function ConfigurationUploadPage() {
           <Button type="button" disabled={busy} onClick={() => void upload(false)}>Apply configuration</Button>
         </div>}
       </CardContent></Card>
+      <CopyFromCompany />
     </div>
+  );
+}
+
+const SECTION_NAMES = [
+  "components", "statutory_settings", "statutory_engine", "formulas", "pt_lwf_slabs", "minimum_wage_rates",
+  "minimum_wage_applicability", "rule_preferences", "salary_import_profiles", "bank_file_profiles", "jv_templates",
+];
+type CopyPlan = { preview: boolean; source: { id: string; name: string }; sections: Record<string, { from_source: number; replacing_here: number }> };
+
+/**
+ * Copy configuration from another company in the group, without a file in
+ * between: the same sections, checked the same way, previewed first, and
+ * recorded in both companies' audit trails.
+ */
+function CopyFromCompany() {
+  const { entity, entities } = useEntity();
+  const others = entities.filter((e) => e.id !== entity?.id);
+  const [source, setSource] = useState("");
+  const [sections, setSections] = useState<string[]>(["components"]);
+  const [reason, setReason] = useState("");
+  const [plan, setPlan] = useState<CopyPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  if (!others.length) return null;
+
+  const run = async (dryRun: boolean) => {
+    setBusy(true); setError(""); setDone("");
+    try {
+      const response = await apiFetch("/api/config/bundle/copy", {
+        method: "POST",
+        body: JSON.stringify({ source_entity_id: source, sections, reason, dry_run: dryRun }),
+      });
+      const result = await parseEnvelopeResponse<CopyPlan>(response);
+      if (dryRun) setPlan(result);
+      else { setPlan(null); setDone(`Copied from ${result.source.name}. Review each section before validating.`); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Copy failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card><CardContent className="space-y-4 py-6">
+      <h2 className="text-base font-semibold text-ink-900 dark:text-white">Copy from another company</h2>
+      <p className="text-sm text-ink-600">Bring {entity?.name ?? "this company"} the configuration of a company you already set up. Each section you choose replaces that section here; nothing changes until you have seen the preview. JV templates arrive as drafts.</p>
+      {error && <AlertBanner variant="error" title="Not copied">{error}</AlertBanner>}
+      {done && <AlertBanner variant="success" title="Copied">{done}</AlertBanner>}
+      <label className="block max-w-sm text-sm font-medium">From
+        <select className="mt-1 block w-full rounded-lg border p-2 text-sm" value={source} onChange={(e) => { setSource(e.target.value); setPlan(null); }}>
+          <option value="">Choose a company</option>
+          {others.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+        </select>
+      </label>
+      <fieldset className="flex flex-wrap gap-3 text-sm">
+        <legend className="mb-1 font-medium">Sections</legend>
+        {SECTION_NAMES.map((name) => (
+          <label key={name} className="flex items-center gap-1.5">
+            <input type="checkbox" checked={sections.includes(name)} onChange={(e) => { setPlan(null); setSections(e.target.checked ? [...sections, name] : sections.filter((x) => x !== name)); }} />
+            {name.replaceAll("_", " ")}
+          </label>
+        ))}
+      </fieldset>
+      <input aria-label="Reason for copying" className="block w-full rounded-lg border p-2 text-sm" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why (kept in both companies' audit trails)" />
+      <Button type="button" disabled={busy || !source || !sections.length || reason.trim().length < 8} onClick={() => void run(true)}>Preview copy</Button>
+      {plan && <div className="space-y-3 rounded-lg border p-4 text-sm">
+        <p className="font-semibold">From {plan.source.name}:</p>
+        <ul className="list-inside list-disc">{Object.entries(plan.sections).map(([name, c]) => <li key={name}>{name.replaceAll("_", " ")}: {c.from_source} row(s) replacing {c.replacing_here} here</li>)}</ul>
+        <Button type="button" disabled={busy} onClick={() => void run(false)}>Copy these sections</Button>
+      </div>}
+    </CardContent></Card>
   );
 }

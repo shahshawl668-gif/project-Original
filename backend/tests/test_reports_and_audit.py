@@ -189,7 +189,11 @@ def test_a_report_agrees_with_the_dashboard_it_was_downloaded_from(client, works
     assert sheet["Total CTC"] == screen["ctc"]
     assert sheet["Gross pay"] == screen["gross"]
     assert sheet["Employer contributions"] == screen["employer_cost"]
-    assert sheet["Headcount (distinct employees)"] == screen["headcount"]
+    assert sheet["Headcount (distinct employees paid)"] == screen["headcount"]
+    assert sheet["Average monthly cost per head (CTC ÷ person-months)"] == screen["cost_per_head"]
+    # Every report says which months it rests on and whether they were checked.
+    basis = _cells(payload, "Data basis")
+    assert basis[0][:2] == ("Month", "Validation") or list(basis[0][:2]) == ["Month", "Validation"]
 
 
 def test_the_employee_report_has_one_row_per_employee_per_month(client, workspace):

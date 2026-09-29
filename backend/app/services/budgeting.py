@@ -332,17 +332,22 @@ def budget_variance(
 
     periods = []
     for key in sorted(set(actual_by_period) | set(budget_by_period)):
-        actual = actual_by_period.get(key, Decimal("0"))
         budget = budget_by_period.get(key)
+        has_actual = key in actual_by_period
+        # A budgeted month with no register has no actual — not an actual of
+        # zero. Reporting ₹0 showed a full underspend for a month nobody had
+        # uploaded; the variance of an unknown is unknown.
+        actual = actual_by_period[key] if has_actual else None
         periods.append({
             "period": key,
             "label": labels[key],
-            "actual": float(_q(actual)),
+            "actual": float(_q(actual)) if actual is not None else None,
             "budget": float(_q(budget)) if budget is not None else None,
-            "has_actual": key in actual_by_period,
+            "has_actual": has_actual,
             "has_budget": key in budget_by_period,
-            **variance(actual, budget),
-            "utilisation_pct": float(_q(actual / budget * 100)) if budget else None,
+            **(variance(actual, budget) if actual is not None
+               else {"variance": None, "variance_pct": None, "basis": "no register"}),
+            "utilisation_pct": float(_q(actual / budget * 100)) if (budget and actual is not None) else None,
         })
 
     scopes = []
@@ -368,8 +373,11 @@ def budget_variance(
             })
         scopes.sort(key=lambda s: abs(s["variance"] or 0), reverse=True)
 
-    total_actual = sum((Decimal(str(p["actual"])) for p in periods), Decimal("0"))
-    budgeted_totals = [Decimal(str(p["budget"])) for p in periods if p["budget"] is not None]
+    total_actual = sum((Decimal(str(p["actual"])) for p in periods if p["actual"] is not None), Decimal("0"))
+    # Compare like with like: the budget total covers only months that also
+    # have a register, so a missing upload cannot pass for an underspend.
+    budgeted_totals = [Decimal(str(p["budget"])) for p in periods
+                       if p["budget"] is not None and p["actual"] is not None]
     total_budget = sum(budgeted_totals, Decimal("0")) if budgeted_totals else None
 
     return {
@@ -394,7 +402,9 @@ def budget_variance(
             ),
         },
         "unbudgeted_periods": [p["label"] for p in periods if not p["has_budget"]],
+        # Budgeted months with no register: excluded from the totals above.
         "unspent_periods": [p["label"] for p in periods if not p["has_actual"]],
+        "no_register_periods": [p["label"] for p in periods if not p["has_actual"]],
     }
 
 

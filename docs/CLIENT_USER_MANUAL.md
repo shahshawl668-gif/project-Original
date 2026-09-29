@@ -84,7 +84,7 @@ Once payroll is run and before it is paid:
 ```
   1  Upload attendance        →  do the days add up?
   2  Upload the register      →  does the pay match the statute and the days?
-  3  Work the findings        →  fix, or explain
+  3  Work the findings        →  fix, or explain (Payroll → Issues)
   4  Reconcile the bank file  →  did the right money reach the right accounts?
   5  Post the journal voucher →  does the ledger agree?
   6  Sign the period off      →  closed, with a record of who closed it
@@ -118,16 +118,89 @@ Fix the file and upload again. When it validates clean, commit it.
 ![Upload and validate](images/02-payroll-upload.png)
 
 1. **Upload file** — CSV or Excel, straight out of your payroll system.
-2. **Configure run** — the period, and the run type (regular, increment,
-   arrears, full & final).
-3. **Validate** — runs the full statutory pass.
+2. **Configure run** — the payroll month, and the run type (regular, increment,
+   arrears, full & final). Map the file's columns once and save the mapping as
+   a format for next month.
+3. **Validate** — queues the full statutory pass.
+
+**Validation runs on the server, not in your browser.** After you press
+**Run validation** you are taken to a progress page showing the stage (reading
+the register, checking employees, saving results) and how many employees have
+been checked. **You can close the page** — the validation keeps going, the
+upload page shows a link back to it, and **Payroll → Validations** lists every
+validation with its outcome. A large register (thousands of employees) takes a
+few minutes.
+
+![Validation progress](images/16-validation-progress.png)
+
+- **Cancel** stops it; nothing from a cancelled attempt is kept.
+- If it **fails**, the page says why and what to fix. **Retry** is always safe:
+  a failed attempt saves nothing, so retrying cannot produce duplicates.
+- Pressing Validate twice, or in two tabs, does not start two validations — the
+  second joins the first.
+
+**Every upload is kept.** Re-uploading a corrected file does not erase the first
+one: each upload records the file's fingerprint (SHA-256) and a revision number,
+so months later you can show exactly which file was checked.
 
 ### Step 3 — Read the results
 
 ![Results](images/03-payroll-results.png)
 
+Results are a **run**: a numbered, dated record of one validation of one month.
+Validating the month again creates the next run; the earlier one is kept,
+marked *superseded*, and still shows exactly what it reported. The chips at the
+top of the results page switch between a month's runs, and **Compare** shows
+what changed between two of them — which findings are **new**, which were
+**resolved**, which **changed** and which are **unchanged**, with the rupee
+totals of each.
+
+If anything the result depended on changes after the run — the register is
+re-uploaded, the employee master or attendance changes, or a component flag,
+rate or rule is edited — the page shows **"Revalidation required"**, names
+what changed, and offers to revalidate. A month is never shown as current when
+its inputs have moved.
+
+Large results are paged: search and filter by employee, risk level, severity or
+rule, and download the whole run to Excel — exactly as it was recorded, not
+re-computed.
+
 Each finding carries a rule ID, a severity, what was expected, what the register
-actually said, the difference in rupees, and a suggested fix.
+actually said, the difference in rupees, and a suggested fix. Where the product
+does not put a rupee figure on a finding — a missing PAN, a duplicate UAN — it
+says **"Impact not calculated"**. That is not ₹0; it means the cost was not
+worked out, and such findings are left out of the exposure total rather than
+added in as nothing. When two checks report the same rupees (PF short under two
+rules, say), the total counts them once.
+
+**Coverage — what was checked, not just what failed.** Every check reaches one
+of five outcomes for every employee:
+
+| Outcome | Means |
+|---|---|
+| **Passed** | The check ran and the register agreed |
+| **Failed** | The check ran and found a problem — a finding |
+| **Cannot validate** | The check needed something you did not supply — a column, the employee master, a minimum-wage decision |
+| **Not applicable** | The check does not apply to this person — ESIC above the wage ceiling, say |
+| **Disabled** | Your administrator switched the check off |
+
+The strip under the figures shows the counts and a **coverage** percentage: of
+the checks that applied, how many reached a verdict. A month with no failures
+and 60% coverage has not been shown to be clean — 40% of it was not checked.
+The **Coverage** tab lists the inputs that were missing, how many checks each
+would have unlocked, and the employees who could not be fully checked. The
+employee view lists every check for that person with its outcome and the reason.
+
+![Coverage](images/18-coverage.png)
+
+**Why this result?** Every finding has a **Why this result?** link. It opens
+the finding with everything behind it: the file, sheet, row and column the value
+came from; the calculation, restated from what the run recorded; the tolerance;
+the rule and the version of it in force; who has reviewed it since; and whether
+the month has been approved. Statutory figures there are your company's
+configuration at the time of the run — not a statement of the law.
+
+![Why this result](images/17-why-this-result.png)
 
 **Severities, and what they mean for you:**
 
@@ -142,18 +215,47 @@ actually said, the difference in rupees, and a suggested fix.
 it computed and what your register said. Sometimes the register is right and the
 configuration is wrong — say so, and it stops asking.
 
-For each finding you can:
+### Working the issues
 
-- **Fix it in payroll** and re-upload. The finding disappears when it stops
-  being true.
-- **Note it** — record why it is as it is, and leave it open.
-- **Waive it** — with a reason. Waivers **expire by default**, so "accepted
-  once" does not quietly become "invisible forever" across a change of staff or
-  of law.
+**Payroll → Issues** is where findings get worked. It lists every finding
+still open across months — not just this upload — worst first: critical before
+warning, the ones that keep coming back before the new ones, the expensive
+before the cheap. Filter by state, severity, rule, owner, overdue or recurring,
+or search by employee.
+
+![Issues](images/20-issues.png)
+
+Open a finding to:
+
+- **Give it an owner and a due date.** Overdue findings are counted at the top
+  of the page, and **Assigned to me** filters to your own.
+- **Comment** — what you asked, who answered. Comments cannot be edited or
+  deleted; they are the record.
+- **Attach evidence** — the vendor's letter, the revised offer, the signed
+  approval. PDF, PNG, JPEG, XLSX, XLS, CSV or text, up to 5 MB each. A file
+  whose contents do not match its extension is refused.
+- **Decide:**
+  - **Mark in progress** — someone is on it.
+  - **Resolve** — with a reason: what was corrected, or why it was never an
+    error. If the next run finds it again, it reopens by itself.
+  - **Waive** — with a reason, and **always with an end date**: 90 days if
+    you give none, at most 366. When the date passes, the finding reopens and
+    the history says the waiver expired. A waiver given before waivers had to
+    end shows **"no end date — review"**; waive it again with a date, or reopen it.
+
+![An issue](images/21-issue-detail.png)
+
+**Many findings at once.** Tick them (or tick the header to select the page)
+and choose **Resolve…**, **Waive…**, **Assign…** or **Mark in progress**. Each
+finding gets its own entry in its history with the shared reason, exactly as
+if you had done them one by one.
 
 A finding in its first month is a mistake. The same finding in its ninth month
-is a process problem — the product counts how many periods each one has survived
-so you can tell those apart.
+is a process problem — the product counts how many months each one has
+survived, and **Recurring (3+ months)** shows you those.
+
+Anyone can read the issues; changing them needs an analyst, manager or owner
+role, and only people who can work this company can be given one.
 
 ### Step 4 — Bank payments
 
@@ -188,14 +290,38 @@ Zoho.
 
 ### Step 6 — Month close
 
-**Bank & JV → Month close** shows all three together for the period: findings,
-bank reconciliation, JV balance.
+**Bank & JV → Month close** shows the period together: bank reconciliation, JV,
+and the month's **approval**.
 
 ![Month close](images/05-month-close.png)
 
-When everything is resolved or explained, **sign the period off**. That records
-who closed it and when. A signed period can be reopened, and the reopening is
-recorded too.
+The approval panel shows where the month stands — *Uploaded → Validated →
+Issues handled → Submitted → Signed off* — and, in plain words, anything that
+stands in the way of the next step:
+
+- **Not validated** — nothing to approve yet. Upload and validate.
+- **Revalidation required** — something the run read has changed since. It
+  names what; revalidate first.
+- **Statutory checks could not be performed** — the month can still be
+  approved, but only by stating why the gap is acceptable. That reason is kept
+  in the sign-off record.
+
+A month with no findings is **not** automatically ready: if material checks
+could not run, it says so.
+
+1. Someone with a write role **submits** the month, with optional notes.
+2. An owner or manager **approves** it. If your organisation requires an
+   independent approver, the person who submitted cannot approve — the panel
+   says so and asks for someone else. Either way, the record states whether
+   the approval was independent.
+3. A signed month can be **reopened** by an owner or manager, with a reason.
+   The signed record is kept, and the reopening is in the history. If anything
+   changes after a month is signed, the panel says what — the signature stands
+   as recorded, but no longer describes the month as it is.
+
+**Evidence pack** downloads the workbook an auditor wants: the run and its
+input fingerprints, coverage by check, every finding with its file row, the
+approval trail, and the rates and schedules in force.
 
 ---
 
@@ -212,6 +338,52 @@ moved month to month.
 The cost taxonomy is explicit: **CTC = earnings + employer contributions**.
 Deductions sit *inside* gross and are not an additional cost to the company —
 counting them again is the most common way payroll cost gets overstated.
+
+**How the headline figures are defined** (hover the ⓘ on any figure for the same text):
+
+| Figure | Meaning |
+|---|---|
+| **People paid** | Distinct employees on a regular register in the period — payroll headcount, not joining dates |
+| **Average monthly headcount** | Employees on each month's register, averaged over the months that have one |
+| **Cost per head / month** | Total CTC ÷ person-months. The same monthly definition for a month, a quarter or a year |
+
+The strip above the figures says what they rest on: how many months have a
+register, **which months are missing** (they are left out, not counted as ₹0),
+how many months were validated or have changed since, how many are signed off,
+how many people have no department recorded, and when data last arrived. An
+arrears or off-cycle file is validated but never replaces the month's register,
+so a month's cost is never overwritten by its arrears. In **Budget vs actual**, a
+budgeted month with no register reads **no register** — not a ₹0 actual and a
+false underspend — and is left out of the totals.
+
+### Dashboards
+
+**Insights → Dashboards.** Boards of your own and boards shared with the
+company. **Start from a template** — payroll cost, headcount and movement,
+statutory contributions, validation quality, issue resolution, budget vs actual,
+department cost, month-close readiness — to get a private copy you can use as it
+is or change.
+
+![A dashboard](images/26-dashboard.png)
+
+Each tile is a question answered when you open the board, from this company's
+data only: pick the **dataset**, the **metric** (or a custom KPI), the
+**breakdown**, the **chart**, any **filters**, and the tile takes the board's
+**period** unless you set its own. A tile shows what it rests on under the
+figure — months missing, months not validated — and **Open** (or clicking a bar
+or a row) goes to the page behind it, already filtered.
+
+![Building a tile](images/27-tile-builder.png)
+
+**Custom KPIs** are formulas over one dataset's metrics, such as
+`employer_cost / gross * 100`. They are computed safely on the server; a KPI
+whose input is missing, or that would divide by zero, shows "—", never 0.
+
+**Who sees what.** A private board or KPI is yours alone. Sharing one shows it
+to everyone who can open this company; that needs an analyst, manager or owner
+role. The owner edits a board; an owner or manager can also edit or delete a
+shared one. A shared board cannot use a private KPI. Other companies in the
+group never see this company's boards.
 
 ### Reports
 
@@ -254,9 +426,31 @@ can revoke instantly. Your owner controls this under
 **Settings → Team & invitations → Support access**, including switching it off
 entirely.
 
+**I closed the browser during validation. Is it lost?**
+No. It kept running on the server. Open **Payroll → Validations**, or the upload
+page, which links to any validation still in progress.
+
+**We re-uploaded the register. Where did the first results go?**
+Nowhere. Each validation is kept as a run. Open the results and pick the earlier
+run from the chips at the top, or use **Compare**.
+
 **The first page of the day is slow.**
 On smaller hosting plans the server sleeps when idle and takes up to a minute to
 wake. After that it is quick. The page tells you when this is what is happening.
+
+**Nothing failed. Why can we not approve?**
+Because some statutory checks could not run — most often, no decision on
+whether minimum wage applies, or no employee master. The approval panel links
+to exactly what is missing. Supply it and revalidate, or approve stating why
+the gap is acceptable.
+
+**Can a waiver last forever?**
+No. Every waiver has an end date — 90 days by default, a year at most. When it
+lapses the finding reopens, and the history says why.
+
+**Why does a finding say "Impact not calculated"?**
+Because the product did not work out a rupee figure for it — not because it
+costs nothing. Open **Why this result?** to see what was compared.
 
 **Who changed this setting?**
 **Settings → Audit trail.** Append-only, and it records who did what and when.

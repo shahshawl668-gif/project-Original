@@ -287,9 +287,13 @@ def check_employee(
     basis: str = "wages_excl_hra",
     zone: str | None = None,
     scheduled_employment: str | None = None,
+    rate_cache: dict | None = None,
 ) -> dict | None:
     """
     Compare one employee's pay against the applicable floor.
+
+    ``rate_cache`` memoises the rate lookup across employees of one run: a
+    register has thousands of employees and a handful of state/category pairs.
 
     Returns a finding dict, or None when the employee is compliant. A missing
     rate, or missing master data to select one, returns an INFO finding rather
@@ -318,11 +322,17 @@ def check_employee(
             "suggested_fix": f"Add the {missing} to the employee master and re-run.",
         }
 
-    rate = lookup_rate(
-        db, entity_id,
-        state=state, skill_category=skill_category, as_of=as_of,
-        zone=zone, scheduled_employment=scheduled_employment,
-    )
+    key = (state, skill_category, as_of, zone, scheduled_employment)
+    if rate_cache is not None and key in rate_cache:
+        rate = rate_cache[key]
+    else:
+        rate = lookup_rate(
+            db, entity_id,
+            state=state, skill_category=skill_category, as_of=as_of,
+            zone=zone, scheduled_employment=scheduled_employment,
+        )
+        if rate_cache is not None:
+            rate_cache[key] = rate
     if rate is None:
         return {
             **base,

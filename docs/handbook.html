@@ -262,7 +262,7 @@
   <p class="standfirst">Everything in one place: how the product is put together, every route and who can reach it, how support access actually works, what to run to test it, and where it lives. Written against the code on <code>main</code>, not from memory.</p>
   <div class="meta">
     <span><b>Commit</b> 7eadc51 (branch) · 4cc2103 (main)</span>
-    <span><b>Tests</b> 902 passing, SQLite + PostgreSQL</span>
+    <span><b>Tests</b> 1,021 passing, SQLite + PostgreSQL</span>
     <span><b>Compiled</b> 25 Sep 2026</span>
   </div>
 </header>
@@ -329,7 +329,7 @@
       <div class="arrow">↓</div>
       <div class="tier">
         <div class="tname">PostgreSQL 16</div>
-        <div class="tbody">43 tables. Also the job queue: <code>validation_jobs</code> claimed with <code>SELECT … FOR UPDATE SKIP LOCKED</code>. Schema managed by <code>create_all</code> plus hand-rolled idempotent dialect-aware migrations in <code>app/migrations.py</code>.</div>
+        <div class="tbody">55 tables. Also the job queue: <code>validation_jobs</code> claimed with <code>SELECT … FOR UPDATE SKIP LOCKED</code>. Schema managed by <code>create_all</code> plus hand-rolled idempotent dialect-aware migrations in <code>app/migrations.py</code>.</div>
       </div>
     </div>
 
@@ -360,13 +360,14 @@
       <table>
         <thead><tr><th>Stage</th><th>What happens</th><th>Where it lands</th></tr></thead>
         <tbody>
-          <tr><td>1 · Configure</td><td>Salary components with their PF/ESIC/PT/LWF/taxable flags. PT and LWF slabs seeded per state. Statutory rates default from config, editable per tenant.</td><td><span class="mono">component_configs</span>, <span class="mono">pt_slabs</span>, <span class="mono">lwf_rates</span></td></tr>
+          <tr><td>1 · Configure</td><td>Salary components with their PF/ESIC/PT/LWF/taxable flags. PT and LWF slabs seeded per state. Statutory rates default from config, editable per tenant. Company rules (<code>validation_rule_versions</code>) are data the engine evaluates, never code: nested AND/OR groups (three-valued — a missing input is unknown, not false), calculations through the whitelisted formula evaluator, last month's values, the employee master, narrowing by dimension, and a stated behaviour for missing inputs. Every change is a new version — drafted, tested on a whole month, published by someone entitled to, retired from a date or rolled back as a new draft. Contradictions and broken references block publication. Rules import from CSV/Excel as drafts after a preview, and copy to other companies as drafts; configuration copies between companies in the group with a preview; both are audited on both sides.</td><td><span class="mono">component_configs</span>, <span class="mono">pt_slabs</span>, <span class="mono">lwf_rates</span></td></tr>
           <tr><td>2 · Employee master</td><td>Uploaded once, then as it changes. Supplies reporting dimensions and the identity fields (PAN, UAN, ESIC IP) the checks need.</td><td><span class="mono">employee_master</span></td></tr>
           <tr><td>3 · Attendance</td><td>Days worked, days paid, loss of pay. Checked for internal consistency before it is accepted.</td><td><span class="mono">attendance_rows</span></td></tr>
-          <tr><td>4 · Register upload</td><td>The salary register. Each flat row is decomposed into components, arrears, stated deductions and a dimension snapshot taken <em>as at that month</em> — a reorganisation in November must not rewrite what April cost by department.</td><td><span class="mono">salary_registers</span>, <span class="mono">salary_register_rows</span></td></tr>
-          <tr><td>5 · Validate</td><td>~90 rules per employee across 14 families. Findings carry a rule code, severity, and a rupee figure where one can be computed.</td><td><span class="mono">validation_runs</span>, <span class="mono">findings</span></td></tr>
+          <tr><td>4 · Register upload</td><td>The salary register. Each flat row is decomposed into components, arrears, stated deductions and a dimension snapshot taken <em>as at that month</em> — a reorganisation in November must not rewrite what April cost by department. <strong>Every upload is also frozen, never overwritten</strong>: the file's SHA-256, the column mapping, a revision number, and the rows exactly as parsed (gzip). The decomposed register keeps only what the cost model reads; the frozen upload keeps everything validation reads (PAN, UAN, ESI number, dates, payment mode).</td><td><span class="mono">salary_registers</span>, <span class="mono">salary_register_rows</span>, <span class="mono">register_uploads</span></td></tr>
+          <tr><td>5 · Validate</td><td><strong>Queued, not run in the request.</strong> The upload page enqueues a job; a worker thread claims it (<code>FOR UPDATE SKIP LOCKED</code>), validates the frozen upload and moves it through visible stages — queued, reading, checking, saving. Cancel and retry are supported; a failed or cancelled attempt writes nothing. The result is a <em>run</em> with an id, read back paged and filtered from the server. Validating a month again creates run N+1 and marks the previous run <code>superseded</code> — it is never deleted — and any two runs can be compared finding by finding. Each run records digests of every input it read (register, master, attendance, CTC, prior month, configuration, engine version) and the effective configuration itself, so a later change to any of them is reported as "revalidation required", naming the input. <strong>Every check reaches one of five outcomes for every employee</strong> — passed, failed, cannot validate, not applicable, disabled — from a registry of 97 checks (<code>services/coverage.py</code>) that says what each needs and when it applies; a check whose input was not supplied is <em>cannot validate</em>, never a pass, and coverage is reported beside the failures, not merged into them. Minimum wage runs inside every validation. Exposure counts overlapping findings once, and a finding the engine does not price says "Impact not calculated" rather than ₹0.</td><td><span class="mono">validation_jobs</span>, <span class="mono">validation_runs</span>, <span class="mono">validation_run_employees</span>, <span class="mono">finding_records</span></td></tr>
+          <tr><td>6b · Report</td><td>Cost analysis, reports and dashboards all compute from the stored <em>regular</em> registers through one costing (<code>analytics.cost_analysis</code>); a dashboard tile calls the same services as the page it drills into, so the two cannot disagree. An arrears or off-cycle file is validated but never replaces the month's register. Every answer carries its data basis (<code>services/bi_basis.py</code>): which months are present and missing, when data arrived, whether each month was validated, changed since, or signed off. Headcount is payroll headcount (people on the register); cost per head is CTC ÷ person-months; a month with no register is absent from every figure, never zero; a budgeted month with no register has no actual. Filing readiness is readiness, never confirmation of a filing.</td><td><span class="mono">salary_registers</span>, <span class="mono">dashboards</span>, <span class="mono">custom_kpis</span></td></tr>
           <tr><td>6 · Reconcile</td><td>Bank file against the register, employee by employee. Then the journal voucher, which must balance before it exports.</td><td><span class="mono">bank_files</span>, <span class="mono">jv_templates</span></td></tr>
-          <tr><td>7 · Sign off</td><td>Findings are waived, accepted or actioned — with who and when. Waivers carry forward, so recurrence becomes countable.</td><td><span class="mono">signoffs</span>, <span class="mono">audit_events</span></td></tr>
+          <tr><td>7 · Sign off</td><td>Findings are waived, accepted or actioned — with who and when. Waivers carry forward, so recurrence becomes countable, and <strong>every waiver ends</strong> — 90 days unless a date is given, never more than 366; a lapsed waiver reopens its finding with a recorded event. Each finding can carry an owner, a due date, comments and evidence files (PDF, image, spreadsheet, CSV or text, 5 MB, content checked against the extension), and a decision can be applied to many findings at once — one event per finding, same reason. The month is then submitted and approved on Month close. <strong>Neither is possible</strong> for a month that was never validated or whose inputs changed since its run; statutory checks that could not be performed block approval unless the approver states why the gap is acceptable, and that reason is kept. Where the owner requires it (<code>organizations.approval_policy</code>), the preparer cannot approve their own month and a rule's author cannot publish it; every sign-off snapshot records the run, its input digests, its coverage and whether the approval was independent.</td><td><span class="mono">finding_states</span>, <span class="mono">finding_state_events</span>, <span class="mono">finding_comments</span>, <span class="mono">finding_attachments</span>, <span class="mono">period_signoffs</span>, <span class="mono">signoff_events</span>, <span class="mono">audit_events</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -403,17 +404,23 @@
           <tr><td class="mono">/invite</td><td>Accept an invitation</td><td><span class="pill p-info">Token</span></td></tr>
           <tr><td class="mono">/dashboard</td><td>Companies portfolio — every employer, ordered by what needs attention</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/upload</td><td>Upload and validate a register</td><td><span class="pill p-warn">Write roles</span></td></tr>
-          <tr><td class="mono">/payroll/results</td><td>Validation results for the current run</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/validation</td><td>Validation jobs: progress of a queued validation (<code>?job=</code>), cancel and retry, or the recent list. Safe to close and return to</td><td><span class="pill p-ok">Any role</span> (cancel/retry: write roles)</td></tr>
+          <tr><td class="mono">/payroll/results</td><td>A validation run, read from the server by <code>?run=</code> (defaults to the latest current run). Paged employee and finding tables, a Coverage tab (five outcomes per check, the inputs that were missing, the employees who could not be fully checked), run history for the month, staleness banner, Excel export of the run as recorded</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/results/why</td><td>Why this result? One finding (<code>?run=&amp;finding=</code>) with the file, sheet, row and column it came from, the calculation, the tolerance, the rule in force, its review history and the month's approval</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/issues</td><td>Issues — the findings worklist across months, paged on the server: filter by state, severity, rule, owner, overdue, recurring; bulk decisions and assignment; owner, due date, comments, evidence and history per finding</td><td><span class="pill p-ok">Any role</span> (changes: write roles)</td></tr>
+          <tr><td class="mono">/payroll/runs/compare</td><td>Two runs compared finding by finding: new, resolved, changed, unchanged, with rupee totals</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/history</td><td>Register history — re-open any stored run</td><td><span class="pill p-ok">Any role</span></td></tr>
-          <tr><td class="mono">/payroll/employee/[id]</td><td>One employee, one month, every finding</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/employee/[id]</td><td>One employee in one run (<code>?run=</code>): computed amounts, every finding, every check's outcome with its reason, the file row it came from</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/attendance</td><td>Days worked and days paid</td><td><span class="pill p-warn">Write roles</span></td></tr>
           <tr><td class="mono">/ctc/upload</td><td>CTC structures</td><td><span class="pill p-warn">Write roles</span></td></tr>
           <tr><td class="mono">/ctc/history</td><td>CTC history</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/budget/upload</td><td>Budget, for variance reporting</td><td><span class="pill p-warn">Write roles</span></td></tr>
-          <tr><td class="mono">/reconciliation</td><td>Month close overview</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/reconciliation</td><td>Month close — bank and JV status, and the month's approval: readiness blockers, submit, approve, reopen, history, evidence pack</td><td><span class="pill p-ok">Any role</span> (submit: write roles; approve/reopen: owner / manager)</td></tr>
           <tr><td class="mono">/reconciliation/bank</td><td>Bank payments against the register</td><td><span class="pill p-warn">Write roles</span></td></tr>
           <tr><td class="mono">/reconciliation/jv</td><td>Journal voucher</td><td><span class="pill p-warn">Write roles</span></td></tr>
-          <tr><td class="mono">/cost</td><td>Cost analysis and BI</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/cost</td><td>Cost analysis and BI. Opens pre-filtered from a link (<code>?view=&amp;group_by=&amp;f_&lt;dimension&gt;=a|b</code>). Shows what the figures rest on: months with a register, months missing (absent, not zero), validation and sign-off by month, data freshness. Cost per head is monthly: CTC ÷ person-months</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/dashboards</td><td>Saved dashboards — private and shared, eight templates, custom KPIs (formulas over a dataset's metrics, evaluated by the whitelisted formula evaluator)</td><td><span class="pill p-ok">Any role</span> (sharing: write roles)</td></tr>
+          <tr><td class="mono">/dashboards/[id]</td><td>One dashboard: period control, tiles computed on open, drill-through to the page behind each figure; edit with the tile builder (dataset → metric → breakdown → chart → filters)</td><td><span class="pill p-ok">Any role</span> (edit: owner; shared: also owner / manager)</td></tr>
           <tr><td class="mono">/reports</td><td>11 downloadable workbooks</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/audit</td><td>Audit trail</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/config/components</td><td>Salary components and their flags</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
@@ -422,11 +429,11 @@
           <tr><td class="mono">/config/rules</td><td>Rule thresholds and suppressions</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/bank-profiles</td><td>Bank file layouts</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/jv-templates</td><td>JV templates</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
-          <tr><td class="mono">/config/team</td><td>Users and roles within the organisation</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/team</td><td>Users and roles within the organisation; approval controls (maker–checker — changed by an owner only, audited); support access</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/companies</td><td>Group companies — the entities in this organisation</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/config/minimum-wage</td><td>Minimum wage rates by state and skill category</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
-          <tr><td class="mono">/config/validation-matrix</td><td>Validation decision matrix — which rules run and how</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
-          <tr><td class="mono">/config/upload</td><td>Bulk configuration upload</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/validation-matrix</td><td>Validation decision matrix — rule packs (built-in checks by what they protect, what each needs, last run's coverage; a pack switched off reports Disabled, with a reason in the audit trail), individual checks, and company rules: Basic and Advanced editors, templates, full-month impact preview, submit/return/publish, clone, compare, roll back, retire, conflicts, CSV/Excel import with preview, copy to other companies</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/config/upload</td><td>Configuration as a CSV (download, edit, preview, apply), or copied from another company in the group with a preview</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/rule-engine/formula</td><td>Formula editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/rule-engine/slabs</td><td>Slab editor</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
           <tr><td class="mono">/admin/users</td><td>Platform accounts and roles</td><td><span class="pill p-stop">Platform admin</span></td></tr>
@@ -565,7 +572,7 @@ python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.
     <h2>Testing points</h2>
     <p class="sub">Five things you can run. The first four take minutes; the fifth is the one with a deadline.</p>
 
-    <h3>1 · The unit suite — 902 tests</h3>
+    <h3>1 · The unit suite — 1,021 tests</h3>
     <pre><code>cd backend
 python -m pytest tests/ -q                 # SQLite, ~2m45s
 
@@ -588,6 +595,12 @@ PEOPLEOPSLAB_PLATFORM_PASSWORD='…' \
     written in the script, which on production would have been a live login with a published
     password. It then configures the workspace, uploads three months of master, attendance and registers, validates, reconciles a bank file, builds a JV and exports it to Tally. Exits non-zero if anything fails, so it works as a release gate. Safe against production — entity scoping keeps everything it creates inside its own organisation — but it writes, so don't aim it at a tenant whose audit trail you care about.</p>
     <p>It asserts the single most important production setting: that an unauthenticated request is <strong>refused</strong>. A deployment that answers <code>/api/org/entities</code> without a token is serving payroll to the internet.</p>
+
+    <h3>2b · Scale benchmark — 8,000 and 20,000 employees</h3>
+    <pre><code>cd backend
+DATABASE_URL=postgresql://…/throwaway_db \
+  python tools/benchmark_validation.py --sizes 8000 20000 --out bench.json</code></pre>
+    <p>Generates synthetic registers with planted defects whose expected findings are computed independently of the engine, drives them through upload → queue → worker → paged reads → re-run → comparison, and reports each step's time, CPU and peak memory, plus storage per run. Exits non-zero unless every planted defect is found exactly. Use a throwaway database. Latest figures are in <code>docs/BACKGROUND_JOBS.md</code> §15.</p>
 
     <h3>3 · Frontend</h3>
     <pre><code>cd frontend
@@ -677,7 +690,7 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
           <tr><td class="mono">ALLOW_PUBLIC_SIGNUP</td><td class="mono">true</td><td>Also forced <code>false</code> in production. Onboarding there is invitation-only, through the platform console</td></tr>
           <tr><td class="mono">CORS_ORIGINS</td><td class="mono">localhost:3000, peopleopslab.in</td><td>Comma-separated. A browser calling from anywhere else is refused</td></tr>
           <tr><td class="mono">BACKEND_URL</td><td>—</td><td>Where the Next.js relay forwards. Server-side only, never <code>NEXT_PUBLIC_</code></td></tr>
-          <tr><td class="mono">VALIDATION_WORKER_ENABLED</td><td class="mono">false</td><td>Starts background worker threads in the API container</td></tr>
+          <tr><td class="mono">VALIDATION_WORKER_ENABLED</td><td class="mono">true</td><td>Starts background worker threads in the API container. On by default since the upload page validates through the queue — with it off and no separate <code>python -m app.worker</code>, validations wait forever (the progress page says so)</td></tr>
           <tr><td class="mono">VALIDATION_WORKER_CONCURRENCY</td><td class="mono">1</td><td>How many</td></tr>
         </tbody>
       </table>

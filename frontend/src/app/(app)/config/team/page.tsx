@@ -27,6 +27,7 @@ import {
   setSupportPolicy,
   timeLeft,
 } from "@/lib/support";
+import { signoffApi, type ApprovalPolicy } from "@/lib/validation";
 import {
   ROLES,
   ROLE_LABEL,
@@ -204,6 +205,8 @@ export default function TeamPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ApprovalPanel isOwner={myRole === "owner"} />
 
       <SupportPanel />
 
@@ -742,6 +745,84 @@ function SupportPanel() {
             </div>
           </details>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const APPROVAL_SETTINGS: { key: keyof ApprovalPolicy; label: string; hint: string }[] = [
+  {
+    key: "signoff_requires_independent_approver",
+    label: "Month sign-off needs a second person",
+    hint: "The person who submitted a month cannot approve it. Every sign-off records whether it was independent either way.",
+  },
+  {
+    key: "matrix_publish_requires_independent_approver",
+    label: "Validation rules need a second person to publish",
+    hint: "The person who drafted a rule cannot publish it.",
+  },
+];
+
+/**
+ * Maker–checker controls. Everyone can see them — people should know whether
+ * their approval has to come from someone else — but only an owner changes
+ * them, and each change is written to the audit trail.
+ */
+function ApprovalPanel({ isOwner }: { isOwner: boolean }) {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({ queryKey: ["approval-policy-settings"], queryFn: () => signoffApi.policy() });
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: (body: Partial<ApprovalPolicy>) => signoffApi.setPolicy(body),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ["approval-policy-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["approval-policy"] });
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+  if (!data) return null;
+
+  return (
+    <Card>
+      <CardContent className="py-5">
+        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900 dark:text-white">
+          <ShieldCheck size={16} className="text-ink-400" /> Approval controls
+        </h3>
+        <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+          Whether approvals must come from someone other than the person who prepared the work.
+          {isOwner ? " Changes are recorded in the audit trail." : " Only an owner can change these."}
+        </p>
+        {error && (
+          <AlertBanner variant="error" title="Not saved">
+            {error}
+          </AlertBanner>
+        )}
+        <div className="space-y-2">
+          {APPROVAL_SETTINGS.map((setting) => (
+            <label
+              key={setting.key}
+              className={cn(
+                "flex items-start gap-3 rounded-xl border border-ink-200 px-3 py-2.5 dark:border-ink-700",
+                isOwner ? "cursor-pointer" : "opacity-80",
+              )}
+            >
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                checked={data[setting.key]}
+                disabled={!isOwner || save.isPending}
+                onChange={(e) => save.mutate({ [setting.key]: e.target.checked })}
+              />
+              <span>
+                <span className="block text-sm font-semibold text-ink-900 dark:text-white">{setting.label}</span>
+                <span className="block pt-0.5 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
+                  {setting.hint}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );

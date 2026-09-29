@@ -65,3 +65,7 @@ class ValidationRunOut(BaseModel):
     total_financial_impact: Decimal
     open_financial_impact: Decimal
     created_at: datetime | None
+    status: str = "current"
+    run_number: int = 1
+    source: str | None = None
+    superseded_by_run_id: uuid.UUID | None = None

@@ -17,6 +17,9 @@ os.environ.setdefault("DATABASE_URL", f"sqlite:///{_TEST_DB}")
 os.environ.setdefault("JWT_SECRET", "test-secret-not-used-outside-tests")
 os.environ["ALLOW_ANONYMOUS_API"] = "false"
 os.environ["ENV"] = "dev"
+# Tests drive the worker directly (drain/run_once). A background thread racing
+# them for jobs would make every queue test nondeterministic.
+os.environ["VALIDATION_WORKER_ENABLED"] = "false"
 
 import pytest  # noqa: E402
 

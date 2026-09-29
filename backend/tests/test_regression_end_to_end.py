@@ -702,29 +702,38 @@ def test_the_reconciliation_pack_carries_the_planted_exceptions(client, company,
 
 
 def test_the_month_can_be_signed_off_with_an_evidence_pack(client, company):
+    """June was validated; approving it records the run, its inputs and its coverage.
+
+    Any statutory check that could not run must be accepted with a stated
+    reason — and that reason is kept in the signed record.
+    """
+    readiness = data(client.get("/api/signoff/2026-06-01/readiness", headers=company))
+    assert readiness["run_id"], readiness
+    reason = "Regression fixture: the register omits columns the scenario does not need"
     submitted = client.post("/api/signoff/submit", headers=company,
-                            json={"period_month": "2026-04-01", "notes": "Regression run"})
+                            json={"period_month": "2026-06-01", "notes": "Regression run",
+                                  "accept_incomplete_reason": reason})
     assert submitted.status_code == 200, submitted.text
     signed = client.post("/api/signoff/sign", headers=company,
-                         json={"period_month": "2026-04-01", "notes": "Checked"})
+                         json={"period_month": "2026-06-01", "notes": "Checked",
+                               "accept_incomplete_reason": reason})
     assert signed.status_code == 200, signed.text
-    pack = client.get("/api/signoff/2026-04-01/evidence-pack", headers=company)
+    state = data(client.get("/api/signoff/2026-06-01", headers=company))["signoff"]
+    assert state["state"] == "signed"
+    pack = client.get("/api/signoff/2026-06-01/evidence-pack", headers=company)
     assert pack.status_code == 200, pack.text
     assert pack.content[:2] == b"PK"
 
 
-def test_signing_a_period_that_was_never_validated_says_nothing_was_checked(client, company):
+def test_a_month_that_was_never_validated_cannot_be_prepared_or_signed(client, company):
     """
-    The snapshot counts what a validation run checked, not what is on file.
-
-    April was uploaded but never put through validation, so the signed record
-    says zero employees were checked. That is honest — but it means a period
-    can carry a signature while the snapshot behind it is empty, which is worth
-    a caller's attention.
+    April was uploaded but never validated. It used to be signable, leaving a
+    signature on a snapshot that said zero employees were checked. A record of
+    nothing is not approvable: preparation is refused, and says what to do.
     """
-    state = data(client.get("/api/signoff/2026-04-01", headers=company))["signoff"]
-    assert state["state"] == "signed"
-    assert state["employee_count"] == 0
+    refused = client.post("/api/signoff/submit", headers=company, json={"period_month": "2026-04-01"})
+    assert refused.status_code == 409
+    assert "not been validated" in refused.json()["error"]["detail"]
 
 
 def test_the_audit_trail_carries_the_whole_chain(client, company, bank_files, jv_template):

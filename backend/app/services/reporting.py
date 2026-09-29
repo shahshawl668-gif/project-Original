@@ -94,6 +94,24 @@ def _provenance_sheet(wb, meta: dict) -> None:
     _autosize(ws, minimum=22, maximum=90)
 
 
+def _basis_sheet(db, entity_id, ctx, wb) -> None:
+    """Which months the figures cover, which are missing, and whether each was checked."""
+    from app.services.analytics import DEFINITIONS
+    from app.services.bi_basis import data_basis
+
+    basis = data_basis(db, entity_id, date_from=ctx["date_from"], date_to=ctx["date_to"])
+    rows = [[m["period"][:7], m["label"], "yes" if m["signed_off"] else "no", m["uploaded_at"] or "—"]
+            for m in basis["months"]]
+    rows += [[m[:7], "No register — absent from every figure, not zero", "—", "—"]
+             for m in basis["missing_months"]]
+    rows.sort(key=lambda r: r[0])
+    ws = _sheet(wb, "Data basis", ["Month", "Validation", "Signed off", "Register uploaded"], rows)
+    ws.append([])
+    ws.append(["Definitions"])
+    for key, text in DEFINITIONS.items():
+        ws.append([key.replace("_", " "), text])
+
+
 def _freshness(db: Session, entity_id: uuid.UUID) -> dict:
     registers = (
         db.query(SalaryRegister)
@@ -124,6 +142,10 @@ def _management_summary(db, entity_id, ctx, wb) -> None:
         filters=ctx["filters"],
     )
     totals = analysis["totals"]
+    if totals is None:
+        _sheet(wb, "Summary", ["Measure", "Amount (INR)"],
+               [["No salary register in this range", "—"]])
+        return
 
     _sheet(wb, "Summary", ["Measure", "Amount (INR)"], [
         ["Total CTC", totals["ctc"]],
@@ -131,15 +153,16 @@ def _management_summary(db, entity_id, ctx, wb) -> None:
         ["Employer contributions", totals["employer_cost"]],
         ["Employee deductions", totals["deductions"]],
         ["Net payout", totals["net"]],
-        ["Headcount (distinct employees)", totals["headcount"]],
-        ["Cost per head (CTC ÷ distinct employees)", totals["cost_per_head"]],
+        ["Headcount (distinct employees paid)", totals["headcount"]],
+        ["Average monthly headcount", totals["average_headcount"]],
+        ["Average monthly cost per head (CTC ÷ person-months)", totals["cost_per_head"]],
     ])
 
     _sheet(wb, "By month", ["Period", "Gross", "Employer cost", "Total CTC",
-                            "Deductions", "Net", "Headcount"],
+                            "Deductions", "Net", "Headcount", "Cost per head"],
            [[p["label"], p["measures"]["gross"], p["measures"]["employer_cost"],
              p["measures"]["ctc"], p["measures"]["deductions"], p["measures"]["net"],
-             p["headcount"]] for p in analysis["period_totals"]])
+             p["headcount"], p["cost_per_head_monthly"]] for p in analysis["period_totals"]])
 
     _sheet(wb, "Components", ["Layer", "Component", "Amount (INR)", "Share of CTC %"],
            [[m.layer, m.label, totals[m.key],
@@ -633,6 +656,7 @@ def build(
         "identity": identity,
     }
     builder(db, entity.id, ctx, wb)
+    _basis_sheet(db, entity.id, ctx, wb)
 
     buffer = io.BytesIO()
     wb.save(buffer)

@@ -89,9 +89,9 @@ Set per member, inside one organization:
 
 | Role | Can do | Cannot do |
 |---|---|---|
-| **Owner** | Everything, including inviting owners, removing members, setting the support policy | — |
-| **Manager** | Configuration, uploads, validation, sign-off, invite analyst/viewer | Change owners, set support policy |
-| **Analyst** | Upload, validate, work findings, reconcile | Change configuration, manage people |
+| **Owner** | Everything, including inviting owners, removing members, setting the support policy and the approval controls | — |
+| **Manager** | Configuration, uploads, validation, approving and reopening a month, invite analyst/viewer | Change owners, set support policy or approval controls |
+| **Analyst** | Upload, validate, work findings, reconcile, submit a month for approval | Approve a month, change configuration, manage people |
 | **Viewer** | Read and export | Change anything |
 
 Two rules hold regardless of role:
@@ -100,6 +100,31 @@ Two rules hold regardless of role:
   how an organization ends up with nobody who can administer it.
 - **You can only invite at your own level or below.** An analyst cannot mint an
   owner.
+
+### Approval controls (maker–checker)
+
+**Settings → Team & invitations → Approval controls.** Everyone can see them;
+only an **owner** can change them, and each change is written to the audit
+trail with the before and after.
+
+![Team and approval controls](images/11-team.png)
+
+| Control | When on |
+|---|---|
+| Month sign-off needs a second person | The person who submitted a month cannot approve it |
+| Validation rules need a second person to publish | The person who drafted a rule cannot publish it |
+
+Both are **off** by default, so a one-person practice can still close a month.
+Whatever the setting, every sign-off records the preparer, the approver and
+whether the approval was independent — so the record tells the truth either way.
+
+Independent of the setting, a month **cannot be submitted or approved** when:
+
+- it has no validation run;
+- something the run read has changed since (register, master, attendance, CTC,
+  configuration) — it must be revalidated;
+- statutory checks could not be performed — unless the approver states why the
+  gap is acceptable, which is kept in the sign-off record.
 
 ### Entity access
 
@@ -263,8 +288,10 @@ trail that can survive a rolled-back change records events that never happened.
 
 - Re-verify every statutory rate against current notifications (§9).
 - Review PT and LWF slabs per state.
-- Review rule suppressions — a suppression made once should not become
-  invisible forever. Waivers expire by default for the same reason.
+- Review rule suppressions and switched-off rule packs (Settings → Validation
+  matrix) — a suppression made once should not become invisible forever.
+  Waivers end by themselves for the same reason (90 days unless a date is
+  given, at most 366) and reopen their finding when they lapse.
 
 ### On a change of staff
 
@@ -272,6 +299,124 @@ trail that can survive a rolled-back change records events that never happened.
 - Reassign entity access rather than sharing a login. There is no scenario in
   which two people sharing an account is the right answer in a system whose
   output is evidence.
+
+### The validation queue
+
+Validations run as background jobs inside the API service, drained by worker
+threads that start with it.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `VALIDATION_WORKER_ENABLED` | `true` | Start worker threads in the API process. Turn off **only** if a separate `python -m app.worker` process runs instead — otherwise every validation waits forever. |
+| `VALIDATION_WORKER_CONCURRENCY` | `1` | Threads per process. Each holds one validation in memory; see the measured figures in `docs/BACKGROUND_JOBS.md` §15 before raising it on a small instance. |
+
+**A job whose worker died** (a deploy, the instance sleeping, out of memory) is
+reclaimed automatically once its lease is two minutes stale, and retried up to
+three attempts. Nothing to do.
+
+**A job that failed** shows its reason on the client's progress page, written
+for them (missing columns, no components configured). The raw error is kept in
+`validation_jobs.error` for you; the client never sees it. A retry is a new job
+and is always safe — a failed attempt writes nothing.
+
+**A job stuck in `queued`** means no worker is running. Check the API boot log
+line `validation_workers=N`; `0` means the setting is off.
+
+### Run history and storage
+
+Validation runs are **never deleted**: re-validating a month supersedes the
+previous run and keeps it. Uploads are kept too, with the rows as parsed,
+compressed. Budget the database for it — measured sizes per 1,000 employees are
+in `docs/BACKGROUND_JOBS.md` §15. There is no purge; removing evidence is a
+decision for the client, not a housekeeping task.
+
+### Upgrading to the run-history release (October 2026)
+
+- **Automatic on first start.** `preserve_run_history` in `app/migrations.py`
+  adds columns to `validation_runs` and `validation_jobs`, creates
+  `register_uploads` and `validation_run_employees`, and adds a unique index
+  allowing one `current` run per period. It is idempotent and additive.
+- **Existing runs** become run 1, `current` — true of every one, because the old
+  code deleted the previous run on each re-validation. They carry no input
+  digests, so they are reported as *"predates input tracking"* rather than as
+  current; revalidating the month gives them a successor with full evidence.
+- **Rollback:** redeploy the previous release. Every new column is nullable or
+  defaulted and the old code does not read them, so it runs unchanged. Runs made
+  by the new release stay in the table (the old code would show only the latest
+  per month, as before). The one thing the old code does that the new one
+  undoes is *delete* superseded runs on the next re-validation — so roll back
+  only if you must.
+
+### Upgrading to the coverage and approval release
+
+- **Automatic on first start.** `organizations.approval_policy` and two count
+  columns on `validation_run_employees` are added by the idempotent column
+  patches and `preserve_run_history`; nothing is rewritten.
+- **Months validated before the run-history release cannot be approved until
+  revalidated.** Their inputs were never fingerprinted, so they cannot be shown
+  to be current, and approval is refused with that reason. Re-upload the
+  month's register and validate it; that run carries full evidence and coverage.
+  The same applies to a month left *Submitted* across the upgrade: approving it
+  re-checks readiness.
+- **Runs made before this release** show "coverage was not recorded" rather
+  than a coverage figure. They are not treated as fully covered.
+- **Per-employee exposure** now counts overlapping findings once, as the run
+  total always did from the run-history release; older runs keep the figures
+  they recorded.
+- **Rollback:** redeploy the previous release. The new column is nullable and
+  unread by the old code. Sign-offs made under the new rules stay valid records.
+
+### Upgrading to the issues release
+
+- **Automatic on first start.** `track_finding_work` adds `owner_user_id` and
+  `due_date` to `finding_states`; `finding_comments` and `finding_attachments`
+  are new tables. Additive and idempotent.
+- **Waivers now always end.** New waivers get 90 days unless a date is given
+  (at most 366); a lapsed waiver reopens its finding with a recorded event, and
+  a sign-off lists it as outstanding, not accepted. **Existing waivers with no
+  end date are not rewritten** — nobody chose a date for them — and the Issues
+  page flags each one "no end date — review". Ask the client to re-waive them
+  with a date or reopen them.
+- **Resolving a finding by hand now needs a reason**, like waiving always did.
+- **Evidence files** are stored in the database (5 MB each, PDF, PNG, JPEG,
+  XLSX, XLS, CSV or text, content checked against the extension). Budget for
+  them alongside run history.
+- **Rollback:** redeploy the previous release. The new columns are nullable and
+  the new tables are unread by it; waivers it sees keep their end dates.
+
+### Upgrading to the rule-engine release
+
+- **Automatic on first start.** `extend_validation_rules` adds `applies_to`,
+  `on_missing` (default `cannot_validate` — what every existing rule already
+  did), `editor_mode`, `cloned_from_id`, `retired_at`, `retired_by` and
+  `retire_reason` to `validation_rule_versions`. Existing rules behave exactly
+  as before.
+- **New status `retired`.** A retired version still governs the months before
+  its end date. Rolling back to the previous release makes retired versions
+  stop applying altogether (the old code only reads `published`).
+- **Publishing can now be refused** for a contradiction with a published rule
+  or a reference to a component that is no longer configured.
+- **Copying** rules between companies needs owner or manager on every target;
+  configuration copies need write access here and read access to the source,
+  within the same organisation. Both write to both companies' audit trails.
+- **Rollback:** redeploy the previous release; the columns are ignored by it.
+
+### Upgrading to the BI and dashboards release
+
+- **Automatic on first start.** `dashboards` and `custom_kpis` are new tables
+  (`create_all`); nothing existing changes shape.
+- **Cost per head changes meaning.** It was the range's total CTC ÷ distinct
+  people — an annual figure over a year, inflated by every joiner and leaver,
+  under the same label as the monthly chart beside it. It is now average monthly
+  cost per head: CTC ÷ person-months, on the page, in the management summary and
+  in dashboards. Expect the headline to fall for multi-month ranges; tell clients
+  who compare it with earlier exports.
+- **Arrears runs no longer replace the month's register.** Registers already
+  overwritten by an arrears upload stay as they are; re-upload the regular
+  register for those months to restore their cost.
+- **Budget vs actual**: a budgeted month with no register now has no actual
+  and is excluded from the totals, instead of showing ₹0 and a full underspend.
+- **Rollback:** redeploy the previous release; the two tables are ignored by it.
 
 ---
 

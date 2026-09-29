@@ -912,6 +912,37 @@ def validate_employees(
     # cost dimensions snapshotted onto each result row.
     master_rows = master_as_of(db, entity.id, as_of)
 
+    # CTC records for everyone, once: the two latest in force at the cutoff,
+    # per employee — exactly what _latest_ctcs returns, without a query per
+    # employee (20,000 of them on a large register).
+    ctc_cutoff = period_month or as_of
+    ctcs_by_employee: dict[str, list[CtcRecord]] = {}
+    for record in (
+        db.query(CtcRecord)
+        .filter(CtcRecord.entity_id == entity.id, CtcRecord.effective_from <= ctc_cutoff)
+        .order_by(CtcRecord.employee_id, CtcRecord.effective_from.desc())
+    ):
+        bucket = ctcs_by_employee.setdefault(record.employee_id, [])
+        if len(bucket) < 2:
+            bucket.append(record)
+
+    # Minimum wage is part of every validation, not a separate report: a month
+    # checked for PF but silent on minimum wage reads as compliant on both.
+    # Applicability is a per-entity decision; until someone makes it, every
+    # employee's minimum-wage check is "cannot validate", never passed.
+    from app.services import minimum_wage as mw
+    from app.services.finding_taxonomy import categorise
+
+    mw_as_of = as_of
+    mw_decision = mw.applicability_as_of(db, entity.id, mw_as_of) if period_month else None
+    if not period_month or mw_decision is None:
+        mw_status = "not_configured"
+    elif not mw_decision.applicable:
+        mw_status = "not_applicable"
+    else:
+        mw_status = "checked"
+    mw_rates: dict = {}
+
     results: list[dict[str, Any]] = []
 
     for row in employees:
@@ -1085,7 +1116,7 @@ def validate_employees(
 
         # Loaded before the row is classified: a CTC revision's effective date
         # is one of the sources for this employee's arrear window.
-        ctcs = _latest_ctcs(db, entity.id, eid, period_month or as_of) if eid != "UNKNOWN" else []
+        ctcs = ctcs_by_employee.get(eid, []) if eid != "UNKNOWN" else []
 
         # Every register is validated in one pass. What a row contains is read
         # from the row, so an operator never has to split a file or declare a
@@ -1247,6 +1278,13 @@ def validate_employees(
             "lop_days": lop_days,
             "gross": sum(regular.values(), Decimal("0")),
         }
+        if active_matrix_rules:
+            # Last month's row and the master record, for rules that compare
+            # against either. Built only when a company rule is in force.
+            matrix_row["_previous"] = (
+                validation_matrix.stored_row(prior_rows[eid]) if eid in prior_rows else None
+            )
+            matrix_row["_master"] = validation_matrix.master_dict(master_rows.get(eid))
         matrix_findings = [
             issue for rule in active_matrix_rules
             if (issue := validation_matrix.evaluate(rule, matrix_row)) is not None
@@ -1273,6 +1311,25 @@ def validate_employees(
                     reason=f"Cannot calculate {scheme}: no saved {selected} schedule covers this payroll period.",
                     suggested_fix="Load an official, effective-dated schedule for this period.",
                 ))
+
+        if mw_status == "checked":
+            mw_finding = mw.check_employee(
+                db,
+                entity.id,
+                employee_id=eid,
+                employee_name=ename if isinstance(ename, str) else None,
+                components={k: float(v) for k, v in regular.items()},
+                state=(master_record.work_state if master_record is not None else None)
+                or row_state or entity.primary_state,
+                skill_category=getattr(master_record, "skill_category", None),
+                paid_days=paid_days,
+                calendar_days=Decimal(row_days_in_month),
+                as_of=mw_as_of,
+                rate_cache=mw_rates,
+            )
+            if mw_finding:
+                mw_finding.setdefault("category", categorise(mw_finding["rule_id"], mw_finding.get("actual_value")))
+                matrix_findings.append(mw_finding)
 
         if on_progress is not None and len(results) % PROGRESS_EVERY == 0 and results:
             on_progress(len(results))
@@ -1332,6 +1389,7 @@ def validate_employees(
                 "arrear_total": float(arrear_total),
                 "increment_arrear_total": float(inc_arrear_total),
                 "tds_risk_flags": tds_risk,
+                "minimum_wage_status": mw_status,
                 "errors": errors,
                 "findings": [f.to_dict() for f in emp_findings] + matrix_findings,
                 # risk placeholders — filled after batch_findings merge below

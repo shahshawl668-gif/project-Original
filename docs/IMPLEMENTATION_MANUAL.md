@@ -197,6 +197,66 @@ actual, financial impact and a suggested fix.
 > is the point. Work them in severity order. Most first-run CRITICALs trace back
 > to a component flag (Step 2), not to the payroll.
 
+**Then read the coverage, not just the failures.** **Settings → Validation
+matrix → Rule packs** groups the built-in checks by what they protect — import
+integrity, lifecycle and identity, salary structure, PF, ESIC, PT and LWF, TDS,
+minimum wage, bonus and gratuity, attendance, arrears, period comparison — and
+says, for the latest run, how much of each pack could actually be checked and
+which inputs it was missing (employee master, a register column, a minimum-wage
+decision). Close those gaps before the parallel run.
+
+![Rule packs](images/22-rule-packs.png)
+
+If the client genuinely does not want a pack — PF run by an exempted trust, say
+— an owner or manager can switch it off with a reason. Its checks then report
+**Disabled** in every run, never Passed, and the reason is in the audit trail.
+Bank and ledger reconciliation are not a validation pack: they are checked on
+their own pages from the bank file and the voucher.
+
+### Step 7b — Company rules (optional)
+
+Built-in checks cover statute and payroll integrity. A client's own policy — a
+loss-of-pay limit, a basic-to-gross floor, a department that must agree with
+the master — goes in **Settings → Validation matrix → Draft a company rule**.
+
+- **Basic** compares a field, component or deduction with a value or another
+  field, optionally only when some conditions hold.
+- **Advanced** adds nested AND/OR groups (with NOT), **calculations**
+  (`basic / gross * 100`; `+ − × ÷`, brackets, `min max abs round floor ceil`),
+  **last month's value** (`prev_gross` in a calculation, or "Last month's value"
+  as an operand), the **employee master**, narrowing to named departments or
+  other dimensions, and what to do when an input is missing — report "cannot
+  validate" (the default), skip the employee, or treat it as a failure. A
+  missing input is never read as a pass, and a division by zero is "cannot
+  validate".
+- **Templates** start the common ones. They are starting points for the client's
+  policy, not statements of law.
+
+![Advanced rule editor](images/23-rule-editor-advanced.png)
+
+Choose a month under **Test against month** and press **Impact** on a draft: it
+is evaluated against every employee of that saved month and compared with the
+version in force — how many would newly fail, how many would stop failing. Then
+**Submit**; an owner or manager **Publishes** (an owner for statutory rules;
+someone other than the author when the client requires it). A version that
+contradicts a published rule — no value could satisfy both — or reads a
+component that is not configured cannot be published; the page lists conflicts.
+
+A published version is never edited: **Clone** drafts its next version; **Roll
+back to this** on an older one drafts its logic as the next version; **Retire**
+stops a version from a date, and months before it keep the rule when re-run.
+Tick two versions and **Compare two** to see what changed.
+
+![Rule versions](images/24-rule-versions.png)
+
+**Many rules at once.** **Export rules (CSV)** gives the format; an edited CSV
+or Excel file is previewed row by row — new, new version, unchanged, or the
+exact error — and only a file with no errors creates drafts. **Copying to other
+companies** (tick versions, choose companies you manage) creates drafts there,
+checked against each company's own components, recorded in both audit trails.
+The same applies to configuration: **Settings → Configuration upload → Copy
+from another company** previews each section before replacing it.
+
 ### Step 8 — Bank file profile
 
 **Settings → Bank file profiles.** Every bank and every client formats payment
@@ -227,10 +287,19 @@ Exports: generic CSV, Tally, SAP and Zoho.
 
 ### Step 10 — Month close
 
-**Bank & JV → Month close** brings the three together for a period: validation
-findings, bank reconciliation, JV balance.
+**Bank & JV → Month close** brings the period together: bank reconciliation, JV
+balance, and the month's approval.
 
 ![Month close](images/05-month-close.png)
+
+Before the first month end, agree with the client's owner whether approval must
+come from a second person (**Settings → Team & invitations → Approval
+controls**, owner only). Then check the approval panel's blockers on a
+validated month: each "could not be performed" statutory check names the input
+it needs. The usual ones at go-live are the employee master, a minimum-wage
+applicability decision (**Settings → Minimum wage**), and register columns the
+client's export leaves out. Close those before the parallel run, so approvals do
+not become a habit of stating reasons for gaps that could have been filled.
 
 ---
 
@@ -294,7 +363,9 @@ Sign-off for an implementation. Every line is verifiable in the product.
 - [ ] Named owner invited and signed in
 - [ ] Roles assigned; nobody has more access than their job needs
 - [ ] Support access policy set deliberately by the client
-- [ ] Period sign-off completed for one month end to end
+- [ ] Approval controls set deliberately by the client's owner
+- [ ] Coverage on a parallel month has no material "cannot validate" left unexplained
+- [ ] Period sign-off completed for one month end to end, and its evidence pack opened
 
 ---
 

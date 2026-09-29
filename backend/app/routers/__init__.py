@@ -5,6 +5,7 @@ from app.routers import (
     audit,
     auth,
     bi,
+    dashboards,
     budget,
     components,
     config_bundle,
@@ -24,6 +25,7 @@ from app.routers import (
     statutory_config,
     users,
     validation_matrix,
+    validation_runs,
     workforce,
 )
 
@@ -40,6 +42,8 @@ api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 api_router.include_router(findings.router, prefix="/findings", tags=["findings"])
 api_router.include_router(bi.router, prefix="/bi", tags=["bi"])
+api_router.include_router(dashboards.router, prefix="/dashboards", tags=["dashboards"])
+api_router.include_router(dashboards.kpi_router, prefix="/kpis", tags=["dashboards"])
 api_router.include_router(budget.router, prefix="/budget", tags=["budget"])
 api_router.include_router(
     reconciliation.router, prefix="/reconciliation", tags=["reconciliation"]
@@ -51,6 +55,7 @@ api_router.include_router(signoff.router, prefix="/signoff", tags=["signoff"])
 api_router.include_router(workforce.router, prefix="/workforce", tags=["workforce"])
 api_router.include_router(rule_engine.router, prefix="/rule-engine", tags=["rule-engine"])
 api_router.include_router(validation_matrix.router, prefix="/validation-matrix", tags=["validation-matrix"])
+api_router.include_router(validation_runs.router, prefix="/validation", tags=["validation"])
 api_router.include_router(income_tax.router, prefix="/income-tax", tags=["income-tax"])
 # Config-Driven Statutory Engine (router has its own /api/config prefix)
 api_router.include_router(statutory_config.router)

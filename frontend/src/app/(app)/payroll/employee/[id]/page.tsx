@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useEntity } from "@/context/EntityContext";
-import { hasCurrentPayrollResults } from "@/lib/payroll-session";
-import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import {
+  inr, monthLabel, validationApi, OUTCOME_LABEL,
+  type Outcome, type RunEmployee, type ValidationRun, type Verdict,
+} from "@/lib/validation";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
   ResponsiveContainer, Tooltip,
@@ -57,6 +60,7 @@ type ResultRow = {
   errors: string[];
   tds_risk_flags: string[];
   findings: Finding[];
+  coverage?: Record<string, Verdict>;
   risk_score: number;
   risk_level: "LOW" | "MEDIUM" | "HIGH";
   score_breakdown: Record<string, number>;
@@ -192,26 +196,51 @@ function FindingCard({ f }: { f: Finding }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function EmployeeDrilldownPage() {
+function EmployeeDrilldown() {
   const { entity } = useEntity();
   const params = useParams();
   const rawId = params?.id as string | undefined;
   const employeeId = rawId ? decodeURIComponent(rawId) : "";
 
+  const searchParams = useSearchParams();
+  const runParam = searchParams.get("run");
   const [empData, setEmpData] = useState<ResultRow | null>(null);
+  const [run, setRun] = useState<ValidationRun | null>(null);
+  const [sourceRow, setSourceRow] = useState<Record<string, unknown> | null>(null);
+  const [employee, setEmployee] = useState<RunEmployee | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filterSev, setFilterSev] = useState<"ALL"|"CRITICAL"|"WARNING"|"INFO"|"PASS">("ALL");
 
   useEffect(() => {
+    let cancelled = false;
     setEmpData(null);
-    if (!hasCurrentPayrollResults() || !entity || entity.id !== sessionStorage.getItem("payroll_results_entity_id")) return;
-    try {
-      const raw = sessionStorage.getItem("payroll_results");
-      if (!raw) return;
-      const rows: ResultRow[] = JSON.parse(raw);
-      const found = rows.find(r => String(r.employee_id).trim() === String(employeeId).trim());
-      if (found) setEmpData(found);
-    } catch { /* ignore */ }
-  }, [employeeId, entity]);
+    setRun(null);
+    setSourceRow(null);
+    setEmployee(null);
+    setLoadError(null);
+    if (!employeeId || !entity) return;
+    (async () => {
+      try {
+        let id = runParam;
+        if (!id) {
+          const latest = await validationApi.runs({ include_superseded: false, limit: 1 });
+          if (!latest.length) throw new Error("No validation run exists for this company yet.");
+          id = latest[0].id;
+        }
+        const detail = await validationApi.employee(id, employeeId);
+        if (cancelled) return;
+        setRun(detail.run);
+        setSourceRow(detail.source_row);
+        setEmployee(detail.employee);
+        setEmpData(detail.result as unknown as ResultRow);
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Could not load this employee.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [employeeId, entity, runParam]);
+
+  const backHref = run ? `/payroll/results?run=${encodeURIComponent(run.id)}` : "/payroll/results";
 
   const allFindings = useMemo(() => empData?.findings ?? [], [empData]);
 
@@ -228,7 +257,9 @@ export default function EmployeeDrilldownPage() {
   const warn    = fails.filter(f => f.severity === "WARNING");
   const infos   = fails.filter(f => f.severity === "INFO");
   const passes  = allFindings.filter(f => f.status === "PASS");
-  const totalImpact = fails.reduce((s, f) => s + (f.financial_impact || 0), 0);
+  // The run's de-duplicated figure for this employee, not a raw sum that
+  // would count the same rupees once per overlapping check.
+  const totalImpact = employee?.financial_impact ?? null;
 
   const radarData = useMemo(() => {
     const layers: Record<string, number> = {};
@@ -245,7 +276,7 @@ export default function EmployeeDrilldownPage() {
     return (
       <div className="mx-auto max-w-3xl space-y-6 p-6">
         <Link
-          href="/payroll/results"
+          href={backHref}
           className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
         >
           <ArrowLeft size={14} /> Back to results
@@ -253,12 +284,14 @@ export default function EmployeeDrilldownPage() {
         <div className="rounded-2xl border border-ink-200 bg-white p-12 text-center shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
           <ShieldCheck size={48} className="mx-auto mb-4 text-ink-200 dark:text-ink-600" />
           <p className="text-lg font-semibold text-ink-700 dark:text-ink-200">
-            {employeeId
-              ? `Employee "${employeeId}" not found in session.`
-              : "No employee ID provided."}
+            {!employeeId
+              ? "No employee ID provided."
+              : loadError
+                ? loadError
+                : "Loading…"}
           </p>
           <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-            Run a validation first, then open this page.
+            Results are read from the validation run on the server.
           </p>
         </div>
       </div>
@@ -268,11 +301,19 @@ export default function EmployeeDrilldownPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <Link
-        href="/payroll/results"
+        href={backHref}
         className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
       >
         <ArrowLeft size={14} /> Back to results
       </Link>
+
+      {run ? (
+        <p className="text-xs text-ink-500">
+          {monthLabel(run.period_month)} · run #{run.run_number} ({run.status})
+          {run.upload ? ` · ${run.upload.filename ?? "register"}, upload ${run.upload.revision}` : ""}
+          {sourceRow && typeof sourceRow["_source_row"] === "number" ? ` · file row ${sourceRow["_source_row"] as number}` : ""}
+        </p>
+      ) : null}
 
       <div className={`rounded-2xl border p-5 ${risk.bg}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -339,7 +380,7 @@ export default function EmployeeDrilldownPage() {
           },
           {
             label: "Est. impact",
-            value: `₹${Math.round(totalImpact).toLocaleString("en-IN")}`,
+            value: totalImpact == null ? "—" : inr(totalImpact),
             color: "text-warn-700 dark:text-warn-300",
             bg: "bg-warn-50/60 border-warn-100 dark:bg-warn-500/[0.06] dark:border-warn-500/30",
           },
@@ -412,6 +453,8 @@ export default function EmployeeDrilldownPage() {
         </div>
       </div>
 
+      <CoverageList coverage={empData.coverage} />
+
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
@@ -472,5 +515,68 @@ export default function EmployeeDrilldownPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+const OUTCOME_ORDER: Outcome[] = ["failed", "cannot_validate", "passed", "not_applicable", "disabled"];
+const OUTCOME_CHIP: Record<Outcome, string> = {
+  passed: "bg-success-100 text-success-800 dark:bg-success-500/15 dark:text-success-200",
+  failed: "bg-danger-100 text-danger-800 dark:bg-danger-500/15 dark:text-danger-200",
+  cannot_validate: "bg-warn-100 text-warn-800 dark:bg-warn-500/15 dark:text-warn-200",
+  not_applicable: "bg-ink-100 text-ink-600 dark:bg-white/[0.06] dark:text-ink-300",
+  disabled: "bg-ink-100 text-ink-500 dark:bg-white/[0.06] dark:text-ink-400",
+};
+
+/** Every check's outcome for this employee — what ran, what could not, and why. */
+function CoverageList({ coverage }: { coverage?: Record<string, Verdict> }) {
+  const [show, setShow] = useState<Outcome>("cannot_validate");
+  if (!coverage) {
+    return (
+      <p className="rounded-xl border border-dashed border-ink-200 px-4 py-3 text-sm text-ink-500 dark:border-white/[0.07]">
+        This run predates per-check outcomes, so which checks could not run is not recorded. Revalidate to see it.
+      </p>
+    );
+  }
+  const entries = Object.entries(coverage);
+  const counts = Object.fromEntries(
+    OUTCOME_ORDER.map((o) => [o, entries.filter(([, v]) => v.outcome === o).length]),
+  ) as Record<Outcome, number>;
+  const rows = entries.filter(([, v]) => v.outcome === show);
+  return (
+    <div className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
+          Checks for this employee ({entries.length})
+        </h2>
+        <div className="flex flex-wrap gap-1">
+          {OUTCOME_ORDER.map((o) => (
+            <button key={o} type="button" onClick={() => setShow(o)} aria-pressed={show === o}
+              className={`rounded-lg px-3 py-1 text-xs font-semibold ${show === o ? OUTCOME_CHIP[o] + " ring-1 ring-current" : "bg-ink-50 text-ink-600 hover:bg-ink-100 dark:bg-white/[0.04] dark:text-ink-300"}`}>
+              {OUTCOME_LABEL[o]} {counts[o]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-ink-500">No checks with this outcome.</p>
+      ) : (
+        <ul className="divide-y divide-ink-100 text-sm dark:divide-white/[0.05]">
+          {rows.map(([rule, v]) => (
+            <li key={rule} className="flex flex-wrap gap-x-3 gap-y-0.5 py-2">
+              <span className="w-20 shrink-0 font-mono text-xs text-ink-500">{rule}</span>
+              <span className="min-w-0 flex-1 text-ink-700 dark:text-ink-200">{v.reason || OUTCOME_LABEL[v.outcome]}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default function EmployeeDrilldownPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-5xl p-6 text-sm text-ink-500">Loading…</div>}>
+      <EmployeeDrilldown />
+    </Suspense>
   );
 }
