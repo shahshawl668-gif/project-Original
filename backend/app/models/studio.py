@@ -576,3 +576,63 @@ class StudioNotification(Base):
     source_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StudioCompanyEnvironment(Base):
+    """
+    Which environment a company is: development, test or production (the
+    default). A test company holds synthetic data; releases carry
+    configuration upward from it — never data, never secrets.
+    """
+
+    __tablename__ = "studio_company_environments"
+
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), primary_key=True
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    environment: Mapped[str] = mapped_column(String(16), nullable=False, default="production")
+    set_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class StudioRelease(Base):
+    """
+    Configuration promoted from one company to another: mapping versions and
+    workflow definitions, by name. Drafted, previewed, approved by someone other
+    than its author, then promoted in one transaction. Promotion only adds
+    versions — nothing published is edited — and records what it replaced, so
+    a rollback is another release that restores it.
+    """
+
+    __tablename__ = "studio_releases"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    source_entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    #: draft | awaiting_approval | approved | promoted | rejected | cancelled
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    #: [{"kind": "mapping"|"workflow", "name": ..., "snapshot": {...}, "source_version": ...}]
+    items: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    #: What the target held before promotion, per item — what a rollback restores.
+    replaced: Mapped[list | None] = mapped_column(JSON)
+    #: What promotion created in the target, per item.
+    result: Mapped[list | None] = mapped_column(JSON)
+    rollback_of_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id"), nullable=False)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    promoted_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

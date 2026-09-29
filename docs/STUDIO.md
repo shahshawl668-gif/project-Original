@@ -37,8 +37,8 @@ Where the design changed during building, the change is stated here.
 | Outbound HTTP / SSRF protection | None | **Built** (phase 2): allow-list, HTTPS, public addresses only, pinned connect, no redirects |
 | Webhooks, event outbox | None | **Built** (phase 2) |
 | Workflows, in-product notifications | None | **Built** (phase 3) |
-| Sandboxed scripting | None; the formula evaluator is a whitelisted AST, in-process | Phase 4 — see §7 |
-| Environments / releases | None; every company is one environment | Phase 4 |
+| Sandboxed scripting | None; the formula evaluator is a whitelisted AST, in-process | **Not enabled**, by decision — see §7. A developer workspace tests the low-code evaluators instead |
+| Environments / releases | None; every company is one environment | **Built** (phase 4): companies marked development / test / production; releases of configuration only |
 | "Payroll Control Centre" | No page by that name. Month close (`/reconciliation`) and Validations (`/payroll/validation`) together do its job | **Linked** (phase 3): both show the month's integration picture |
 
 ---
@@ -537,9 +537,74 @@ access the panel is not shown.
   run enters it: nothing a workflow does needs a person's approval, because
   everything that would is outside its vocabulary.
 
-## 5. Phase 4 — developer workspace and releases
+## 5. Phase 4 — shipped: developer workspace, environments, releases
 
-Not yet built. See §7 on scripting.
+### Developer workspace (`services/studio/devtools.py`, `/studio/developer`)
+
+Low-code only, with the product's own evaluators — nothing new that could
+behave differently in production:
+
+* **Formula:** the whitelisted AST evaluator (`formula_eval`, the one rules,
+  KPIs and mappings use) against sample rows, read exactly as a mapping reads
+  them (`₹18,000` is 18000; nested fields joined with `_`). Each row gives its
+  value or its reason; a blank field is absent and the formula does not run —
+  never a zero. **Explain** states what it reads and calls, and says it in
+  words ("the smaller of (pf_wage, 15000) times 0.12"). Anything the evaluator
+  refuses is refused here with its reason: `__import__`, attribute access,
+  strings, lists, lambdas, keyword arguments.
+* **Conditions:** the workflow condition test against sample events, with
+  what each field actually held. Not comparable is false.
+* **Lookup:** the mapping's lookup against sample values, with the chosen
+  unmatched policy.
+* **Reference:** functions, operators, what is never allowed, the limits.
+
+### Scripting — disabled, and the page says why
+
+§7 is the position; the workspace shows it, with what would have to be true
+first. No `eval`, no `exec`, no restricted-Python pretending to be a sandbox.
+
+### Environments (`studio_company_environments`)
+
+**An environment is a company.** Each is marked development, test or
+production (the default — a company holding real payroll stays production).
+Payroll data, connections, credentials and webhook secrets all belong to a
+company, so separation needs no second product, only a rule about what may
+cross between companies: configuration, upward, by release.
+
+### Releases (`services/studio/releases.py`, `/studio/releases`)
+
+| Step | Rule |
+|---|---|
+| Draft | From a development or test company to a higher one in the same organisation, by an owner or manager of both. Items: mapping versions in force (by key) and published workflow definitions (by name). Anything else is refused: *never data, connections or secrets* |
+| Impact preview | Per item: create, update or unchanged in the target; the field-level diff (mappings) or trigger/step diff (workflows); whether *this exact version* was run in the source — the synthetic test run — with its status; blocking problems (a mapping the target's configuration rejects, a stream, webhook or person the workflow names that the target lacks) and warnings (never tried in the source; its last run failed; a new workflow arrives disabled) |
+| Submit | Only with no blocking problem |
+| Approve or reject | An owner or manager of the target **other than the author** — always, not only when a policy says so. Rejection needs a reason |
+| Promote | By an owner or manager of the target, re-checked against the target as it is now, in one transaction. A mapping gains a **new** published version; a workflow a **new** version, its stream, webhook and people re-resolved by name in the target; a new workflow arrives **disabled** for a person to enable. What each item replaced is recorded |
+| Roll back | A new release, inside the target, restoring what was replaced — again as new versions (or retiring a version / disabling a workflow the release created). Approved by someone other than its author, like any release |
+
+**History is not rewritten.** Promotion and rollback only add versions and
+change a workflow's status. Every earlier mapping version stays as it was, and
+every run keeps naming exactly the version it used. Every step is in both
+companies' audit trails.
+
+**Not carried, by design:** records, registers, runs, findings, sign-offs,
+connections, credentials, webhook secrets, inbound endpoints. Set connections
+and webhooks up in each environment, under the same names; that is where each
+environment's own secrets live.
+
+### What changed from the design
+
+* **Environments are companies, not a flag on each object.** Phase 1 put an
+  `environment` label on service accounts, keys, connections and runs; that
+  label stays, but separation is enforced by company, because that is where
+  data and secrets already live and are already isolated.
+* **Independent approval is unconditional for releases.** Mappings and
+  workflows follow the organisation's policy; a release — which changes
+  production for everyone — always needs a second person. A one-person
+  organisation cannot promote; it says so.
+* **Connections and webhooks are not promoted.** Promoting them would mean
+  either copying secrets between environments or creating half-configured
+  objects in production. Both are worse than setting them up twice.
 
 ---
 
@@ -608,6 +673,23 @@ Not yet built. See §7 on scripting.
    names its step; the step links to the sync or validation it started.
 6. On **Month close**, *Data from your systems* shows how each input arrived
    and anything that still needs fixing before you approve.
+
+### Administrator — test, then release (phase 4)
+
+1. Create a company for testing (Companies → add), and in **Studio → Versions
+   & releases** mark it **test**. Give it synthetic data only.
+2. Build there: the connection (to the provider's test system, with test
+   credentials), the mapping, the workflow. Sync and run them. Use the
+   **Developer workspace** to check formulas and lookups on sample rows.
+3. Set up the production company's own connection and webhooks under the
+   **same names**, with production credentials.
+4. From the test company, **New release**: tick the mapping and workflow,
+   choose the production company. Read the impact: every change, whether each
+   version was tried in test, and anything blocking.
+5. **Submit.** A second owner or manager approves it, then **Promote**. New
+   workflows arrive disabled — enable them in production when ready.
+6. If something is wrong, open the release and **Draft a rollback**; it goes
+   through the same approval and restores the previous versions as new ones.
 
 ### Developer
 
@@ -688,6 +770,13 @@ a subprocess on the same host could open sockets and read the environment.
 evaluator already used by rules and KPIs — are the supported way to transform
 and test values.
 
+**The blocker, precisely.** Enabling scripting needs a separate execution
+service — a sandbox host or a per-run isolated container platform — which is
+new, paid infrastructure. It was not created: that needs the owner's
+authorisation and a choice of provider. Until then the Developer workspace
+shows scripting as disabled, with this reason, rather than a switch that does
+nothing.
+
 ## 8. Rollback
 
 Every phase-1 schema change is additive: five new tables via `create_all` and
@@ -712,3 +801,8 @@ Phase 3 adds three tables (`studio_workflows`, `studio_workflow_fires`,
 `studio_notifications`) and changes no column. Rolling back stops workflows;
 the runs they left stay readable in run history, as rows of a kind the older
 code does not claim.
+
+Phase 4 adds two tables (`studio_company_environments`, `studio_releases`) and
+changes no column. Rolling back leaves every company production as before and
+releases unreadable; everything a release promoted stays as the ordinary
+mapping and workflow versions it created.

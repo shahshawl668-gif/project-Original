@@ -426,3 +426,64 @@ export const STEP_VARIANT: Record<string, "success" | "warning" | "destructive" 
   completed: "success", warning: "warning", failed: "destructive", cancelled: "secondary", skipped: "secondary",
   pending: "secondary", running: "primary", waiting: "primary",
 };
+
+// ---------------------------------------------------------------------------
+// Phase 4 — developer workspace, environments, releases
+// ---------------------------------------------------------------------------
+export type FormulaResult = {
+  expression: string; ok: boolean; error?: string; variables?: string[]; functions?: string[]; in_words?: string;
+  results: { row: number; value?: number; error?: string; inputs?: Record<string, number>; missing?: string[] }[];
+  truncated?: boolean;
+};
+
+export type DevReference = {
+  functions: Record<string, string>; operators: string[]; not_allowed: string[]; max_length: number; variables: string;
+  scripting: { enabled: boolean; reason: string; requires: string[]; instead: string };
+};
+
+export type EnvName = "development" | "test" | "production";
+
+export type ReleaseImpactItem = {
+  kind: string; name: string; source_version: number | null; target_version?: number | null;
+  change: "create" | "update" | "unchanged" | "retire" | "disable"; diff: Record<string, unknown>[];
+  blocking: string[]; warnings: string[]; tested?: { run_id: string; status: RunStatus } | null;
+};
+
+export type Release = {
+  id: string; title: string; notes: string | null;
+  status: "draft" | "awaiting_approval" | "approved" | "promoted" | "rejected" | "cancelled";
+  source: { id: string; name: string; environment: EnvName }; target: { id: string; name: string; environment: EnvName };
+  items: { kind: string; name: string; source_version: number | null }[];
+  result: { kind: string; name: string; outcome: string; version?: number }[] | null;
+  rollback_of_id: string | null; created_by: string | null; decided_by: string | null; decision_note: string | null;
+  promoted_by: string | null; created_at: string | null; decided_at: string | null; promoted_at: string | null;
+  can_roll_back: boolean;
+  impact?: { items: ReleaseImpactItem[]; blocking: number; warnings: number };
+};
+
+export const studioDevApi = {
+  reference: () => apiJson<DevReference>("/api/studio/developer/reference"),
+  formula: (expression: string, samples: unknown[]) => send<FormulaResult>("/api/studio/developer/formula", "POST", { expression, samples }),
+  conditions: (conditions: WorkflowCondition[], samples: unknown[]) =>
+    send<{ ok: boolean; error?: string; results: { row: number; holds: boolean; conditions: (WorkflowCondition & { actual: unknown; holds: boolean })[] }[] }>(
+      "/api/studio/developer/conditions", "POST", { conditions, samples }),
+  lookup: (table: Record<string, string>, values: unknown[], on_unmatched: string) =>
+    send<{ ok: boolean; error?: string; results: { row: number; value: unknown; result?: unknown; matched?: boolean; error?: string }[] }>(
+      "/api/studio/developer/lookup", "POST", { table, values, on_unmatched }),
+};
+
+export const studioReleaseApi = {
+  environment: () => apiJson<{ environment: EnvName; companies: { id: string; name: string; environment: EnvName; manage: boolean }[] }>("/api/studio/environment"),
+  setEnvironment: (environment: EnvName) => send<{ environment: EnvName }>("/api/studio/environment", "PUT", { environment }),
+  list: () => apiJson<Release[]>("/api/studio/releases"),
+  candidates: () => apiJson<{ environment: EnvName; mappings: { name: string; label: string; version: number; object_type: string }[]; workflows: { name: string; version: number; status: string }[] }>("/api/studio/releases/candidates"),
+  create: (body: { target_entity_id: string; title: string; notes?: string | null; items: { kind: string; name: string }[] }) =>
+    send<Release>("/api/studio/releases", "POST", body),
+  get: (id: string) => apiJson<Release>(`/api/studio/releases/${encodeURIComponent(id)}`),
+  act: (id: string, action: "submit" | "promote" | "rollback" | "cancel") => send<Release>(`/api/studio/releases/${encodeURIComponent(id)}/${action}`, "POST"),
+  decide: (id: string, approve: boolean, note?: string) => send<Release>(`/api/studio/releases/${encodeURIComponent(id)}/decide`, "POST", { approve, note: note || null }),
+};
+
+export const RELEASE_VARIANT: Record<Release["status"], "success" | "warning" | "destructive" | "secondary" | "primary"> = {
+  draft: "secondary", awaiting_approval: "warning", approved: "primary", promoted: "success", rejected: "destructive", cancelled: "secondary",
+};

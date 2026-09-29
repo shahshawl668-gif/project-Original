@@ -470,6 +470,14 @@ decision for the client, not a housekeeping task.
 - **Rollback:** redeploy the previous release; workflows stop, their runs stay
   in run history.
 
+### Upgrading to Studio releases
+
+- **Automatic on first start.** Two new tables (`studio_company_environments`,
+  `studio_releases`); every existing company is production until marked
+  otherwise. No settings, no new dependencies.
+- **Rollback:** redeploy the previous release; everything a release promoted
+  remains as ordinary mapping and workflow versions.
+
 ---
 
 ## 8b. PeopleOps Studio — keys for other systems
@@ -545,6 +553,22 @@ submits is in the audit trail.
   the limit.
 
 ![Workflow builder](images/33-studio-workflow.png)
+
+**Environments and releases**
+
+- Keep configuration work out of production: a company marked **test**, with
+  synthetic data and its own connections to the provider's test system.
+- A release carries mappings and workflows upward — never data, connections,
+  credentials or webhook secrets. Set connections and webhooks up in each
+  environment under the same names.
+- **A release always needs a second person** to approve, even where your
+  approval policy lets one person publish alone: it changes production.
+- Promotion only adds versions. To undo one, open it and **Draft a rollback**:
+  it restores the earlier versions as new ones, through the same approval.
+- The **Developer workspace** tests formulas, conditions and lookups on
+  sample rows. Scripting is disabled on purpose; the page says why.
+
+![A release and its impact](images/35-studio-release.png)
 
 ---
 

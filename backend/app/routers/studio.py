@@ -99,10 +99,12 @@ SECTIONS = [
     {"key": "webhooks", "label": "Webhooks", "href": "/studio/webhooks", "available": True,
      "summary": "Signed events to your systems, delivered at least once with retries and a failed queue; "
                 "signed inbound endpoints that push records in."},
-    {"key": "developer", "label": "Developer workspace", "href": None, "available": False,
-     "summary": "Formula and expression testing; scripted extensions. Not in this release."},
-    {"key": "releases", "label": "Versions & releases", "href": None, "available": False,
-     "summary": "Environments, promotion and rollback. Not in this release."},
+    {"key": "developer", "label": "Developer workspace", "href": "/studio/developer", "available": True,
+     "summary": "Test formulas, conditions and lookups on sample rows, with explanations. Scripting is disabled "
+                "until it can be genuinely isolated."},
+    {"key": "releases", "label": "Versions & releases", "href": "/studio/releases", "available": True,
+     "summary": "Development, test and production companies; releases that carry mappings and workflows "
+                "upward — never data or secrets — with impact preview, independent approval and rollback."},
 ]
 
 
@@ -1317,3 +1319,167 @@ def period_integration(period: str, db: Session = Depends(get_db), entity: Entit
                          "last_error": c.last_error if conns.describe(db, c)["health"] == "failing" else None}
                         for c in conns_],
     })
+
+
+# ===========================================================================
+# Phase 4 — developer workspace, environments, releases
+# ===========================================================================
+from app.services.studio import devtools  # noqa: E402
+from app.services.studio import releases as rel  # noqa: E402
+
+
+class FormulaBody(BaseModel):
+    expression: str = Field(max_length=4000)
+    samples: list[Any] = Field(default_factory=list)
+
+
+class ConditionsBody(BaseModel):
+    conditions: list[dict[str, Any]]
+    samples: list[Any] = Field(default_factory=list)
+
+
+class LookupBody(BaseModel):
+    table: dict[str, Any]
+    values: list[Any]
+    on_unmatched: str = "reject"
+
+
+@router.get("/developer/reference")
+def developer_reference(entity: Entity = Depends(require_studio_reader)):
+    return ok(devtools.reference())
+
+
+@router.post("/developer/formula")
+def developer_formula(body: FormulaBody, entity: Entity = Depends(require_studio_reader)):
+    """Explain a formula and evaluate it against sample rows. Nothing is stored."""
+    return ok(devtools.test_formula(body.expression, body.samples))
+
+
+@router.post("/developer/conditions")
+def developer_conditions(body: ConditionsBody, entity: Entity = Depends(require_studio_reader)):
+    return ok(devtools.test_conditions(body.conditions, body.samples))
+
+
+@router.post("/developer/lookup")
+def developer_lookup(body: LookupBody, entity: Entity = Depends(require_studio_reader)):
+    return ok(devtools.test_lookup(body.table, body.values, body.on_unmatched))
+
+
+# --- Environments --------------------------------------------------------------
+class EnvironmentBody(BaseModel):
+    environment: str
+
+
+@router.get("/environment")
+def get_environment(db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                    entity: Entity = Depends(require_studio_reader)):
+    """This company's environment, and the environments of the others you can reach in its organisation."""
+    others = [{"id": str(e.id), "name": e.name, "environment": rel.environment_of(db, e.id),
+               "manage": tenancy.effective_entity_role(db, user, e) in ("owner", "manager")}
+              for e in tenancy.accessible_entities(db, user) if e.org_id == entity.org_id]
+    return ok({"environment": rel.environment_of(db, entity.id), "companies": others})
+
+
+@router.put("/environment")
+def put_environment(body: EnvironmentBody, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                    entity: Entity = Depends(get_current_entity)):
+    try:
+        env = rel.set_environment(db, entity, user, body.environment)
+    except rel.ReleaseError as exc:
+        raise _http(exc)
+    db.commit()
+    return ok({"environment": env})
+
+
+# --- Releases ------------------------------------------------------------------
+class ReleaseBody(BaseModel):
+    target_entity_id: str
+    title: str = Field(min_length=3, max_length=200)
+    notes: str | None = Field(default=None, max_length=4000)
+    items: list[dict[str, Any]]
+
+
+class DecisionBody(BaseModel):
+    approve: bool
+    note: str | None = Field(default=None, max_length=2000)
+
+
+def _release(db: Session, user: User, release_id: str):
+    try:
+        return rel.get(db, user, release_id)
+    except rel.ReleaseError as exc:
+        raise _http(exc)
+
+
+@router.get("/releases")
+def list_releases(db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                  entity: Entity = Depends(require_studio_reader)):
+    from app.models import StudioRelease
+
+    rows = (db.query(StudioRelease)
+            .filter(or_(StudioRelease.source_entity_id == entity.id, StudioRelease.target_entity_id == entity.id))
+            .order_by(StudioRelease.created_at.desc()).limit(100).all())
+    reachable = {e.id for e in tenancy.accessible_entities(db, user)}
+    return ok([rel.describe(db, r) for r in rows
+               if r.source_entity_id in reachable and r.target_entity_id in reachable])
+
+
+@router.get("/releases/candidates")
+def release_candidates(db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    return ok({"environment": rel.environment_of(db, entity.id), **rel.candidates(db, entity)})
+
+
+@router.post("/releases")
+def create_release(body: ReleaseBody, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                   entity: Entity = Depends(get_current_entity)):
+    """Draft a release from this company to another."""
+    try:
+        target = rel._entity(db, body.target_entity_id)  # noqa: SLF001
+        if target.org_id != entity.org_id or target.id not in {e.id for e in tenancy.accessible_entities(db, user)}:
+            raise rel.ReleaseError("Company not found.", 404)
+        release = rel.create(db, user, entity, target, title=body.title, notes=body.notes, items=body.items)
+    except rel.ReleaseError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(rel.describe(db, release, with_impact=True))
+
+
+@router.get("/releases/{release_id}")
+def get_release(release_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                entity: Entity = Depends(require_studio_reader)):
+    return ok(rel.describe(db, _release(db, user, release_id), with_impact=True))
+
+
+@router.post("/releases/{release_id}/{action}")
+def act_on_release(release_id: str, action: str, body: DecisionBody | None = None, db: Session = Depends(get_db),
+                   user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    release = _release(db, user, release_id)
+    try:
+        if action == "submit":
+            rel.submit(db, release, user)
+        elif action == "decide":
+            if body is None:
+                raise rel.ReleaseError("Approve or reject, with a note when rejecting.")
+            rel.decide(db, release, user, body.approve, body.note)
+        elif action == "promote":
+            rel.promote(db, release, user)
+        elif action == "rollback":
+            release = rel.rollback(db, release, user)
+        elif action == "cancel":
+            if release.status not in ("draft", "awaiting_approval", "approved"):
+                raise rel.ReleaseError("Only an unpromoted release can be cancelled.", 409)
+            release.status = "cancelled"
+            audit.record(db, entity_id=release.target_entity_id, user=user, action="studio.release.cancelled",
+                         object_type="studio_release", object_id=str(release.id),
+                         summary=f"Release “{release.title}” cancelled")
+        else:
+            raise HTTPException(status_code=404, detail="Not found")
+    except rel.ReleaseError as exc:
+        db.rollback()
+        raise _http(exc)
+    except (flows.WorkflowError, profiles.ProfileError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"The release could not be applied: {exc}")
+    db.commit()
+    return ok(rel.describe(db, release, with_impact=True))

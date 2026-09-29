@@ -46,6 +46,8 @@ from app.models.studio import (
     StudioNotification,
     StudioWorkflow,
     StudioWorkflowFire,
+    StudioCompanyEnvironment,
+    StudioRelease,
 )
 from app.models.budget import BudgetLine, BudgetVersion, ENTITY_SCOPE
 from app.models.rule_engine import Formula, SlabRule
@@ -189,4 +191,6 @@ __all__ = [
     "StudioNotification",
     "StudioWorkflow",
     "StudioWorkflowFire",
+    "StudioCompanyEnvironment",
+    "StudioRelease",
 ]

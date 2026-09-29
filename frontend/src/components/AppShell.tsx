@@ -46,6 +46,7 @@ import {
   Cable,
   Shuffle,
   Webhook,
+  GitBranch,
   Workflow,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -126,6 +127,8 @@ const navGroups = [
       { href: "/studio/mapping", label: "Data mapping", icon: Shuffle },
       { href: "/studio/workflows", label: "Workflows", icon: Workflow },
       { href: "/studio/webhooks", label: "Webhooks", icon: Webhook },
+      { href: "/studio/developer", label: "Developer", icon: Code2 },
+      { href: "/studio/releases", label: "Releases", icon: GitBranch },
       { href: "/studio/runs", label: "Run history", icon: Activity },
     ],
   },

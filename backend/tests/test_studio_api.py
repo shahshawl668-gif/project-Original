@@ -525,7 +525,7 @@ def test_run_history_is_company_scoped_and_rejected_records_are_guarded(client, 
 def test_overview_says_which_sections_exist(client, company):
     data = _data(client.get("/api/studio/overview", headers=company))
     available = {s["key"] for s in data["sections"] if s["available"]}
-    assert available == {"api", "runs", "connections", "mapping", "webhooks", "workflows"}
+    assert available == {"api", "runs", "connections", "mapping", "webhooks", "workflows", "developer", "releases"}
     assert all(s["href"] is None for s in data["sections"] if not s["available"])
 
 

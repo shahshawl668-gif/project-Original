@@ -371,6 +371,12 @@ inputs are ready*. Dry-run it, have the client's owner publish it, and agree
 with them who is notified. It never approves anything; the month's sign-off
 stays with their people.
 
+For a client whose integration will change over time, set up a **test
+company** first (Studio → Versions & releases → mark it test), build and try
+connections, mappings and workflows there on synthetic data, and carry them to
+production by release. The client's second owner or manager approves each
+release; nothing reaches production on one person's say-so.
+
 The developer quick start and the rules a well-behaved client follows
 (idempotency keys, polling, error codes) are in [`STUDIO.md`](STUDIO.md) §6;
 the full contract is the OpenAPI document at `/api/integration/v1/openapi.json`,
