@@ -297,7 +297,7 @@ def run_freshness(db: Session, entity: Entity, run: Any) -> dict[str, Any]:
     """
     from app.services.register_uploads import latest_for_period
 
-    latest = latest_for_period(db, entity.id, run.period_month)
+    latest = latest_for_period(db, entity.id, run.period_month, getattr(run, "run_type", None) or "regular")
     now = input_digests(
         db, entity, run.period_month,
         rows_sha256=latest.rows_sha256 if latest else (run.input_digests or {}).get("register"),

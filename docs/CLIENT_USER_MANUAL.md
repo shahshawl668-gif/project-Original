@@ -339,6 +339,52 @@ The cost taxonomy is explicit: **CTC = earnings + employer contributions**.
 Deductions sit *inside* gross and are not an additional cost to the company —
 counting them again is the most common way payroll cost gets overstated.
 
+**How the headline figures are defined** (hover the ⓘ on any figure for the same text):
+
+| Figure | Meaning |
+|---|---|
+| **People paid** | Distinct employees on a regular register in the period — payroll headcount, not joining dates |
+| **Average monthly headcount** | Employees on each month's register, averaged over the months that have one |
+| **Cost per head / month** | Total CTC ÷ person-months. The same monthly definition for a month, a quarter or a year |
+
+The strip above the figures says what they rest on: how many months have a
+register, **which months are missing** (they are left out, not counted as ₹0),
+how many months were validated or have changed since, how many are signed off,
+how many people have no department recorded, and when data last arrived. An
+arrears or off-cycle file is validated but never replaces the month's register,
+so a month's cost is never overwritten by its arrears. In **Budget vs actual**, a
+budgeted month with no register reads **no register** — not a ₹0 actual and a
+false underspend — and is left out of the totals.
+
+### Dashboards
+
+**Insights → Dashboards.** Boards of your own and boards shared with the
+company. **Start from a template** — payroll cost, headcount and movement,
+statutory contributions, validation quality, issue resolution, budget vs actual,
+department cost, month-close readiness — to get a private copy you can use as it
+is or change.
+
+![A dashboard](images/26-dashboard.png)
+
+Each tile is a question answered when you open the board, from this company's
+data only: pick the **dataset**, the **metric** (or a custom KPI), the
+**breakdown**, the **chart**, any **filters**, and the tile takes the board's
+**period** unless you set its own. A tile shows what it rests on under the
+figure — months missing, months not validated — and **Open** (or clicking a bar
+or a row) goes to the page behind it, already filtered.
+
+![Building a tile](images/27-tile-builder.png)
+
+**Custom KPIs** are formulas over one dataset's metrics, such as
+`employer_cost / gross * 100`. They are computed safely on the server; a KPI
+whose input is missing, or that would divide by zero, shows "—", never 0.
+
+**Who sees what.** A private board or KPI is yours alone. Sharing one shows it
+to everyone who can open this company; that needs an analyst, manager or owner
+role. The owner edits a board; an owner or manager can also edit or delete a
+shared one. A shared board cannot use a private KPI. Other companies in the
+group never see this company's boards.
+
 ### Reports
 
 **Insights → Reports.** Excel exports for filing, evidence and review.

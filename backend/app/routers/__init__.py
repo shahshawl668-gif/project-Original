@@ -5,6 +5,7 @@ from app.routers import (
     audit,
     auth,
     bi,
+    dashboards,
     budget,
     components,
     config_bundle,
@@ -41,6 +42,8 @@ api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 api_router.include_router(findings.router, prefix="/findings", tags=["findings"])
 api_router.include_router(bi.router, prefix="/bi", tags=["bi"])
+api_router.include_router(dashboards.router, prefix="/dashboards", tags=["dashboards"])
+api_router.include_router(dashboards.kpi_router, prefix="/kpis", tags=["dashboards"])
 api_router.include_router(budget.router, prefix="/budget", tags=["budget"])
 api_router.include_router(
     reconciliation.router, prefix="/reconciliation", tags=["reconciliation"]

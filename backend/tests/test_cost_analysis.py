@@ -261,16 +261,23 @@ def test_headcount_counts_people_not_rows(workspace):
     assert result["totals"]["headcount"] == 3          # not 6
     assert result["totals"]["gross"] == 200000.0
     # Cost per head is CTC per head, not gross per head: what a person costs
-    # includes what the employer pays on top of what they are paid.
-    assert result["totals"]["cost_per_head"] == round(result["totals"]["ctc"] / 3, 2)
+    # includes what the employer pays on top of what they are paid — and it is
+    # a monthly figure: three people for two months are six person-months.
+    assert result["totals"]["person_months"] == 6
+    assert result["totals"]["average_headcount"] == 3.0
+    assert result["totals"]["cost_per_head"] == round(result["totals"]["ctc"] / 6, 2)
+    # Each month's figure is on the same basis as the headline.
+    april = result["period_totals"][0]
+    assert april["person_months"] == 3 and april["cost_per_head_monthly"] == round(april["measures"]["ctc"] / 3, 2)
 
 
 def test_an_entity_with_no_registers_returns_an_empty_shape(workspace):
     entity, _, _ = workspace
     result = _analyse(entity, group_by="department")
     assert result["matrix"] == []
-    assert result["totals"]["gross"] == 0.0
-    assert result["totals"]["ctc"] == 0.0
+    # No register is not ₹0 spent: the totals are absent, and the status says why.
+    assert result["data_status"] == "no_register"
+    assert result["totals"] is None
 
 
 # ── through the API ─────────────────────────────────────────────────────────
@@ -311,4 +318,31 @@ def test_cost_analysis_does_not_leak_between_entities(client, workspace):
 
     data = client.get("/api/bi/cost-analysis?group_by=department",
                       headers={**headers, "X-Entity-Id": other}).json()["data"]
-    assert data["totals"]["gross"] == 0.0
+    assert data["data_status"] == "no_register" and data["totals"] is None
+    assert data["basis"]["periods_with_register"] == []
+
+
+def test_the_basis_names_missing_months_and_validation_state(workspace):
+    """April and June uploaded, May not: May is missing, not zero; none validated."""
+    entity, user, _ = workspace
+    _register(entity, user, date(2026, 4, 1), APRIL)
+    _register(entity, user, date(2026, 6, 1), APRIL)
+    result = _analyse(entity, group_by="department", date_from=date(2026, 4, 1), date_to=date(2026, 6, 30))
+    basis = result["basis"]
+    assert basis["periods_with_register"] == ["2026-04-01", "2026-06-01"]
+    assert basis["missing_months"] == ["2026-05-01"]
+    assert basis["unvalidated_months"] == 2 and basis["validated_months"] == 0
+    assert {m["validation"] for m in basis["months"]} == {"not_validated"}
+    assert [p["period"] for p in result["period_totals"]] == ["2026-04-01", "2026-06-01"]
+    assert result["totals"]["months_with_register"] == 2
+
+
+def test_group_cost_per_head_is_monthly_like_the_total(workspace):
+    entity, user, _ = workspace
+    for month in (4, 5):
+        _register(entity, user, date(2026, month, 1), APRIL)
+    result = _analyse(entity, group_by="department", measure="ctc", granularity="quarter")
+    person_months = sum(g["person_months"] for g in result["matrix"])
+    assert person_months == result["totals"]["person_months"] == 6
+    for g in result["matrix"]:
+        assert g["cost_per_head_monthly"] == round(g["measures"]["ctc"] / g["person_months"], 2)

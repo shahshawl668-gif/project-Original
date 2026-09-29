@@ -148,16 +148,22 @@ def record(
     return upload
 
 
-def latest_for_period(db: Session, entity_id: uuid.UUID, period_month: date) -> RegisterUpload | None:
-    return (
-        db.query(RegisterUpload)
-        .filter(
-            RegisterUpload.entity_id == entity_id,
-            RegisterUpload.period_month == period_month,
-        )
-        .order_by(RegisterUpload.revision.desc())
-        .first()
+def latest_for_period(
+    db: Session, entity_id: uuid.UUID, period_month: date, run_type: str | None = "regular",
+) -> RegisterUpload | None:
+    """The newest upload of the month's register — by default the regular run.
+
+    An arrears file for June is not June's register: letting it count as the
+    latest upload made June's run look stale and made the arrears file the
+    default for June's next validation. Pass ``run_type=None`` for any kind.
+    """
+    query = db.query(RegisterUpload).filter(
+        RegisterUpload.entity_id == entity_id,
+        RegisterUpload.period_month == period_month,
     )
+    if run_type is not None:
+        query = query.filter(func.coalesce(RegisterUpload.run_type, "regular") == run_type)
+    return query.order_by(RegisterUpload.revision.desc()).first()
 
 
 def describe(upload: RegisterUpload) -> dict[str, Any]:

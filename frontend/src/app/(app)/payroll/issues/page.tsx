@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -63,7 +64,17 @@ function IssuesContent() {
   const { entity, activeRole } = useEntity();
   const qc = useQueryClient();
   const canWrite = WRITE_ROLES.has(activeRole ?? "");
-  const [params, setParams] = useState<WorklistParams>({ state: "active", sort: "priority", page: 1 });
+  const searchParams = useSearchParams();
+  // A dashboard or a results page can link here already filtered.
+  const [params, setParams] = useState<WorklistParams>(() => ({
+    state: (searchParams.get("state") as WorklistParams["state"]) ?? "active",
+    severity: searchParams.get("severity") || undefined,
+    rule_id: searchParams.get("rule_id") || undefined,
+    owner: searchParams.get("owner") || undefined,
+    overdue: searchParams.get("overdue") === "true" || undefined,
+    sort: "priority",
+    page: 1,
+  }));
   const [search, setSearch] = useState("");
   const q = useDebounced(search);
   const [selected, setSelected] = useState<Set<string>>(new Set());

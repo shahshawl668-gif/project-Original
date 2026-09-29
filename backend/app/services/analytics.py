@@ -500,6 +500,18 @@ def measure_catalogue() -> dict:
     }
 
 
+#: How the headline figures are defined — returned with every analysis so a
+#: page, an export and a dashboard tile all say the same thing.
+DEFINITIONS = {
+    "headcount": "Distinct employees with a row in a regular payroll register in the period (payroll headcount, not employment dates).",
+    "average_headcount": "Employees on the register per month, averaged over the months that have a register.",
+    "person_months": "Sum over months of the employees on that month's register.",
+    "cost_per_head": "Average monthly cost per head: total CTC ÷ person-months.",
+    "ctc": "Gross earnings plus employer statutory contributions, as costed from the register.",
+    "missing_months": "Months in the range with no register. They are absent from every figure, not counted as zero.",
+}
+
+
 def cost_analysis(
     db: Session,
     entity_id: uuid.UUID,
@@ -546,17 +558,23 @@ def cost_analysis(
         else DERIVED_LABELS.get(measure, "Net pay")
     )
 
+    from app.services.bi_basis import data_basis
+
     rows, by_register = _register_rows(db, entity_id, date_from, date_to)
     if not rows:
+        # Nothing uploaded is not ₹0 spent: the figures are absent, and say so.
         return {
             "group_by": group_by,
             "group_by_label": DIMENSION_LABELS[group_by],
             "granularity": granularity,
             "measure": measure,
             "measure_label": measure_label,
+            "data_status": "no_register",
             "periods": [], "groups": [], "matrix": [], "period_totals": [],
-            "totals": {**_as_floats(zero_measures()), "headcount": 0, "cost_per_head": 0.0},
-            "sources": {"reported": 0.0, "computed": 0.0},
+            "totals": None,
+            "sources": None,
+            "definitions": DEFINITIONS,
+            "basis": data_basis(db, entity_id, date_from=date_from, date_to=date_to),
         }
 
     active = {k: set(v) for k, v in (filters or {}).items() if v}
@@ -566,6 +584,13 @@ def cost_analysis(
     heads: dict[tuple[str, str], set[str]] = {}
     period_measures: dict[str, dict[str, Decimal]] = {}
     period_heads: dict[str, set[str]] = {}
+    # Heads per calendar month, so a quarter's or a year's cost per head is a
+    # monthly figure like any other: cost ÷ person-months.
+    month_heads: dict[date, set[str]] = {}
+    month_group_heads: dict[tuple[str, str], int] = {}
+    _seen_month_group: set[tuple[date, str, str]] = set()
+    bucket_months: dict[str, set[date]] = {}
+    kept_rows = []
     period_labels: dict[str, str] = {}
     totals = zero_measures()
     all_heads: set[str] = set()
@@ -592,6 +617,12 @@ def cost_analysis(
         heads.setdefault((key, group), set()).add(row.employee_id)
         period_heads.setdefault(key, set()).add(row.employee_id)
         all_heads.add(row.employee_id)
+        month_heads.setdefault(register.period_month, set()).add(row.employee_id)
+        bucket_months.setdefault(key, set()).add(register.period_month)
+        if (register.period_month, group, row.employee_id) not in _seen_month_group:
+            _seen_month_group.add((register.period_month, group, row.employee_id))
+            month_group_heads[(key, group)] = month_group_heads.get((key, group), 0) + 1
+        kept_rows.append(row)
 
         reported_amount += costed.reported_amount
         statutory_amount += sum(
@@ -619,8 +650,16 @@ def cost_analysis(
                 "measures": values,
             })
         group_values = _as_floats(group_measures)
+        group_people = set().union(*(heads.get((pk["key"], group), set()) for pk in periods))
+        group_person_months = sum(month_group_heads.get((pk["key"], group), 0) for pk in periods)
         matrix.append({
             "group": group,
+            "headcount": len(group_people),
+            "person_months": group_person_months,
+            "cost_per_head_monthly": (
+                float(_q(Decimal(str(group_values["ctc"])) / Decimal(group_person_months)))
+                if group_person_months else None
+            ),
             "total": group_values[measure],
             "share_pct": (
                 float(_q(Decimal(str(group_values[measure])) / Decimal(str(denominator)) * 100))
@@ -632,15 +671,26 @@ def cost_analysis(
 
     matrix.sort(key=lambda g: g["total"], reverse=True)
 
-    period_totals = [
-        {
+    def _per_head(ctc: float, person_months: int) -> float | None:
+        return float(_q(Decimal(str(ctc)) / Decimal(person_months))) if person_months else None
+
+    period_totals = []
+    for period in periods:
+        values = _as_floats(period_measures.get(period["key"], zero_measures()))
+        months_in = sorted(bucket_months.get(period["key"], set()))
+        person_months = sum(len(month_heads[m]) for m in months_in)
+        period_totals.append({
             "period": period["key"],
             "label": period["label"],
+            # Distinct people paid in the bucket; see DEFINITIONS.
             "headcount": len(period_heads.get(period["key"], set())),
-            "measures": _as_floats(period_measures.get(period["key"], zero_measures())),
-        }
-        for period in periods
-    ]
+            "months_with_register": len(months_in),
+            "person_months": person_months,
+            "average_headcount": round(person_months / len(months_in), 1) if months_in else None,
+            "cost_per_head_monthly": _per_head(values["ctc"], person_months),
+            "measures": values,
+        })
+    total_person_months = sum(len(v) for v in month_heads.values())
 
     return {
         "group_by": group_by,
@@ -652,14 +702,21 @@ def cost_analysis(
         "groups": [g["group"] for g in matrix],
         "matrix": matrix,
         "period_totals": period_totals,
+        "data_status": "ok",
         "totals": {
             **total_values,
             "headcount": len(all_heads),
-            "cost_per_head": (
-                float(_q(Decimal(str(total_values["ctc"])) / Decimal(len(all_heads))))
-                if all_heads else 0.0
-            ),
+            "months_with_register": len(month_heads),
+            "person_months": total_person_months,
+            "average_headcount": round(total_person_months / len(month_heads), 1) if month_heads else None,
+            # Average monthly cost per head. It used to be the range's total
+            # divided by distinct people — an annual figure for a year, and one
+            # inflated by every joiner and leaver — under the same label as the
+            # monthly figure on the chart beside it.
+            "cost_per_head": _per_head(total_values["ctc"], total_person_months),
         },
+        "definitions": DEFINITIONS,
+        "basis": data_basis(db, entity_id, date_from=date_from, date_to=date_to, rows=kept_rows, group_by=group_by),
         # How much of the statutory total was the payroll system's own figure
         # rather than this engine's. A reader deciding how far to trust a
         # contribution total should be able to see that without asking.

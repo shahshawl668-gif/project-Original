@@ -40,6 +40,7 @@ import {
   Loader2,
   Loader,
   ListTodo,
+  LayoutGrid,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -101,6 +102,7 @@ const navGroups = [
     icon: BarChart3,
     blurb: "Cost and reporting",
     items: [
+      { href: "/dashboards", label: "Dashboards", icon: LayoutGrid },
       { href: "/cost", label: "Cost analysis", icon: IndianRupee },
       { href: "/reports", label: "Reports", icon: FileDown },
     ],

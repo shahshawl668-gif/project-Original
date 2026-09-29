@@ -235,7 +235,15 @@ def test_a_budgeted_month_with_no_register_is_reported_as_unspent(client, worksp
 
     data = client.get("/api/budget/variance", headers=headers).json()["data"]
     assert "May 2026" in data["unspent_periods"]
+    assert "May 2026" in data["no_register_periods"]
     assert len(data["periods"]) == 2       # both months, not the intersection
+    # No register is no actual — not ₹0 actual and a full "underspend" — and
+    # the totals compare only months that have both.
+    may = next(p for p in data["periods"] if p["label"] == "May 2026")
+    assert may["actual"] is None and may["variance"] is None and may["utilisation_pct"] is None
+    april = next(p for p in data["periods"] if p["label"] == "Apr 2026")
+    assert data["totals"]["budget"] == april["budget"]
+    assert data["totals"]["actual"] == april["actual"]
 
 
 def test_a_month_with_a_register_and_no_budget_is_reported_as_unbudgeted(client, workspace):

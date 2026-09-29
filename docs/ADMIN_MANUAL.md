@@ -401,6 +401,23 @@ decision for the client, not a housekeeping task.
   within the same organisation. Both write to both companies' audit trails.
 - **Rollback:** redeploy the previous release; the columns are ignored by it.
 
+### Upgrading to the BI and dashboards release
+
+- **Automatic on first start.** `dashboards` and `custom_kpis` are new tables
+  (`create_all`); nothing existing changes shape.
+- **Cost per head changes meaning.** It was the range's total CTC ÷ distinct
+  people — an annual figure over a year, inflated by every joiner and leaver,
+  under the same label as the monthly chart beside it. It is now average monthly
+  cost per head: CTC ÷ person-months, on the page, in the management summary and
+  in dashboards. Expect the headline to fall for multi-month ranges; tell clients
+  who compare it with earlier exports.
+- **Arrears runs no longer replace the month's register.** Registers already
+  overwritten by an arrears upload stay as they are; re-upload the regular
+  register for those months to restore their cost.
+- **Budget vs actual**: a budgeted month with no register now has no actual
+  and is excluded from the totals, instead of showing ₹0 and a full underspend.
+- **Rollback:** redeploy the previous release; the two tables are ignored by it.
+
 ---
 
 ## 9. What an administrator must not delegate

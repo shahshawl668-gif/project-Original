@@ -344,7 +344,15 @@ async def upload_payroll(
 
     persist_period = _to_first_of_month(period_month_d or eff_to_d)
     register_id: uuid.UUID | None = None
-    if persist_period and comps and not missing:
+    # Only a regular run is the month's register. An arrears file paid in June
+    # used to replace June's register, so June's cost collapsed to the arrears
+    # alone in every report. It is kept as a frozen upload and validated.
+    if run_type not in (None, "", "regular") and persist_period:
+        warnings.append(
+            f"This {str(run_type).replace('_', ' ')} run is validated but not added to "
+            f"{persist_period:%b %Y}'s cost register; the regular register stays as it was."
+        )
+    if persist_period and comps and not missing and run_type in (None, "", "regular"):
         register_id = _persist_salary_register(db, user, entity, persist_period, file.filename,
                                                employees, comps, source_columns=columns)
         # Months later, when a figure is challenged, the only useful answer is

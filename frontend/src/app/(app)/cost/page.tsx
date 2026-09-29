@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area,
@@ -64,6 +65,7 @@ import {
   OTHER_COLOR,
   OTHER_LABEL,
   SERIES,
+  type DataBasis,
   type Granularity,
   type MeasureMeta,
 } from "@/lib/cost-analysis";
@@ -112,14 +114,32 @@ const LAYER_TOTAL: Record<string, string> = {
 };
 
 export default function CostAnalysisPage() {
+  return (
+    <Suspense fallback={null}>
+      <CostAnalysisContent />
+    </Suspense>
+  );
+}
+
+/** Filters arrive in the URL as f_<dimension>=a|b, so a dashboard can link here scoped. */
+function filtersFromUrl(params: URLSearchParams): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  params.forEach((value, key) => {
+    if (key.startsWith("f_") && value) out[key.slice(2)] = value.split("|").filter(Boolean);
+  });
+  return out;
+}
+
+function CostAnalysisContent() {
   const palette = SERIES;
   const otherColor = OTHER_COLOR;
+  const searchParams = useSearchParams();
 
-  const [view, setView] = useState<ViewKey>("overview");
-  const [groupBy, setGroupBy] = useState("department");
-  const [granularity, setGranularity] = useState<Granularity>("month");
-  const [measure, setMeasure] = useState("ctc");
-  const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [view, setView] = useState<ViewKey>(() => (searchParams.get("view") as ViewKey) || "overview");
+  const [groupBy, setGroupBy] = useState(() => searchParams.get("group_by") || "department");
+  const [granularity, setGranularity] = useState<Granularity>(() => (searchParams.get("granularity") as Granularity) || "month");
+  const [measure, setMeasure] = useState(() => searchParams.get("measure") || "ctc");
+  const [filters, setFilters] = useState<Record<string, string[]>>(() => filtersFromUrl(searchParams));
   const [comparing, setComparing] = useState(false);
   const [periodA, setPeriodA] = useState<string | null>(null);
   const [periodB, setPeriodB] = useState<string | null>(null);
@@ -491,8 +511,10 @@ export default function CostAnalysisPage() {
       ) : !hasData ? (
         <EmptyState
           icon={Layers}
-          title="No payroll cost to analyse yet"
-          description="Upload and validate a salary register. Cost is attributed using the employee master, so upload that too for a breakdown by department, location and grade."
+          title={analysis.data?.data_status === "no_register" && available.length ? "No register in the selected range" : "No payroll cost to analyse yet"}
+          description={analysis.data?.data_status === "no_register" && available.length
+            ? "Nothing was uploaded for these months, so there is no figure to show — not a figure of zero. Widen the range, or upload the registers."
+            : "Upload and validate a salary register. Cost is attributed using the employee master, so upload that too for a breakdown by department, location and grade."}
         />
       ) : view === "compliance" ? (
         <div className="space-y-4">
@@ -525,6 +547,7 @@ export default function CostAnalysisPage() {
         <BudgetView filters={filters} palette={palette} />
       ) : (
         <>
+          {analysis.data?.basis ? <DataBasisStrip basis={analysis.data.basis} /> : null}
           {/* ── the figures ───────────────────────────────────────── */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile
@@ -550,9 +573,9 @@ export default function CostAnalysisPage() {
             />
             <StatTile
               icon={Users}
-              label="Cost per head"
-              value={formatINR(totals?.cost_per_head ?? 0, true)}
-              hint={`${totals?.headcount ?? 0} employees`}
+              label="Cost per head / month"
+              value={totals?.cost_per_head == null ? "—" : formatINR(totals.cost_per_head, true)}
+              hint={`avg ${totals?.average_headcount ?? "—"} on payroll · ${totals?.headcount ?? 0} people paid`}
             />
           </div>
 
@@ -639,7 +662,7 @@ export default function CostAnalysisPage() {
                   title="Where the money goes"
                   description="Earnings, what the employer pays on top, and what comes back out of gross."
                 >
-                  <CtcBreakdown totals={totals} measures={measures} />
+                  <CtcBreakdown totals={(totals ?? undefined) as Record<string, number> | undefined} measures={measures} />
                 </Panel>
               </div>
             </>
@@ -696,7 +719,7 @@ export default function CostAnalysisPage() {
                     totalLabel={currentView.label}
                     shareOf={totals?.[LAYER_TOTAL[view]] ?? 0}
                   />
-                  {layer !== "earnings" && analysis.data && (
+                  {layer !== "earnings" && analysis.data?.sources && (
                     <p className="mt-3 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-400">
                       {formatINR(analysis.data.sources.reported, true)} of the statutory total is the
                       payroll system&rsquo;s own figure; {formatINR(analysis.data.sources.computed, true)}{" "}
@@ -778,15 +801,15 @@ export default function CostAnalysisPage() {
                 </Panel>
 
                 <Panel
-                  title="Cost per head"
-                  description="Total CTC divided by average headcount. It moves when pay moves without the establishment changing — which is the movement worth explaining."
+                  title="Cost per head, per month"
+                  description="Total CTC ÷ person-months (the employees on each month's register). The same definition for a month, a quarter or a year. It moves when pay moves without the establishment changing — which is the movement worth explaining."
                 >
                   <div className="h-[260px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
                         data={points.map((p) => ({
                           period: p.label,
-                          "Cost per head": p.headcount ? p.measures.ctc / p.headcount : 0,
+                          "Cost per head": p.cost_per_head_monthly,
                         }))}
                         margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
                       >
@@ -919,12 +942,12 @@ function CtcBreakdown({
 function VarianceTable({
   points,
 }: {
-  points: { period: string; label: string; headcount: number; measures: Record<string, number> }[];
+  points: { period: string; label: string; headcount: number; cost_per_head_monthly: number | null; measures: Record<string, number> }[];
 }) {
   const rows = points.map((point, index) => {
     const prior = points[index - 1];
-    const perHead = point.headcount ? point.measures.ctc / point.headcount : 0;
-    const priorPerHead = prior && prior.headcount ? prior.measures.ctc / prior.headcount : 0;
+    const perHead = point.cost_per_head_monthly ?? 0;
+    const priorPerHead = prior?.cost_per_head_monthly ?? 0;
     return {
       ...point,
       perHead,
@@ -991,6 +1014,37 @@ function VarianceTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * What the figures on this page rest on: the months with a register, the
+ * months missing from the range, when data last arrived, and whether each
+ * month was validated and signed off. A reader should not have to ask.
+ */
+function DataBasisStrip({ basis }: { basis: DataBasis }) {
+  const unvalidated = basis.months.filter((m) => m.validation !== "validated");
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-ink-200/70 bg-white px-4 py-2.5 text-xs text-ink-600 dark:border-white/10 dark:bg-ink-900/60 dark:text-ink-300">
+      <span><strong className="text-ink-800 dark:text-ink-100">{basis.periods_with_register.length}</strong> month(s) with a register</span>
+      {basis.missing_months.length ? (
+        <span className="font-semibold text-warning-800 dark:text-warning-300" title={basis.missing_months.map((m) => m.slice(0, 7)).join(", ")}>
+          {basis.missing_months.length} month(s) missing — absent, not zero
+        </span>
+      ) : null}
+      <span className={unvalidated.length ? "font-semibold text-warning-800 dark:text-warning-300" : ""}
+        title={basis.months.map((m) => `${m.period.slice(0, 7)}: ${m.label}`).join("\n")}>
+        {basis.validated_months} validated{unvalidated.length ? `, ${unvalidated.length} not validated or changed since` : ""}
+      </span>
+      <span>{basis.signed_off_months} signed off</span>
+      {basis.unassigned && basis.unassigned.employees ? (
+        <span title="People whose dimension is not recorded appear as Unassigned">
+          {basis.unassigned.pct}% with no {basis.unassigned.dimension.replaceAll("_", " ")} recorded
+        </span>
+      ) : null}
+      {basis.last_uploaded_at ? <span>Data as of {new Date(basis.last_uploaded_at).toLocaleString("en-IN")}</span> : null}
+      <span className="text-ink-400">{basis.source}</span>
     </div>
   );
 }

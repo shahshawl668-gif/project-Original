@@ -190,7 +190,7 @@ def enqueue_validation(
                 ) + f", not {month:%b %Y}. Choose the matching month or upload again.",
             )
     else:
-        upload = register_uploads.latest_for_period(db, entity.id, month)
+        upload = register_uploads.latest_for_period(db, entity.id, month, body.run_type or "regular")
         if upload is None:
             raise HTTPException(
                 status_code=400,
