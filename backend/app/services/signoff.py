@@ -275,6 +275,7 @@ def submit(
     db.add(signoff)
     _record_event(db, signoff, from_state=previous, to_state="pending_approval", actor=actor)
     db.flush()
+    _announce(db, signoff, "period.submitted")
     return signoff
 
 
@@ -351,6 +352,7 @@ def sign(
     db.add(signoff)
     _record_event(db, signoff, from_state=previous, to_state="signed", actor=actor)
     db.flush()
+    _announce(db, signoff, "period.signed_off")
     return signoff
 
 
@@ -372,4 +374,17 @@ def reopen(db: Session, signoff: PeriodSignOff, actor: User, reason: str) -> Per
     signoff.state = "reopened"
     db.add(signoff)
     db.flush()
+    _announce(db, signoff, "period.reopened")
     return signoff
+
+
+
+def _announce(db: Session, signoff: PeriodSignOff, type_: str) -> None:
+    """Outbox event, in the same transaction as the sign-off's new state."""
+    from app.services.studio import events
+
+    entity = db.get(Entity, signoff.entity_id)
+    if entity is not None:
+        events.emit(db, org_id=entity.org_id, entity_id=entity.id, type=type_,
+                    data={"period_month": signoff.period_month.isoformat(), "signoff_id": str(signoff.id),
+                          "state": signoff.state, "snapshot_digest": signoff.snapshot_digest})

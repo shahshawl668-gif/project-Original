@@ -341,6 +341,30 @@ the parallel run's results exactly.
 5. Keep the upload screens available as the fallback; they and the API write
    the same records.
 
+**When the client's system has an API Studio can call instead** (pull rather
+than push), use a connection:
+
+1. **Studio → Connections**: add the system's API host to allowed
+   destinations, then create the connection with the credentials the client's
+   IT issued for integration — or OAuth **Connect** where offered. **Test** it.
+2. Add one stream per object (employees, attendance …). Leave the schedule
+   off until step 5.
+3. **Studio → Data mapping**: create a profile per data type, sample from the
+   stream, map the fields, and preview until no record is rejected for a
+   mapping reason. Publish. Where the client wants maker–checker, turn on the
+   independent-publisher policy first.
+4. Put the mapping on the stream and **Sync now** against last month. Compare
+   the run's counts with the parallel run's files, as above.
+5. Only then set the schedule, in the client's timezone. Choose deletion
+   handling deliberately: *report* is the safe choice for a full sync —
+   nothing is removed, missing employees are listed.
+
+No provider-specific connector exists yet; the generic REST connector reads
+any JSON API with page, offset or cursor paging. A system that only exports
+files uses the mapping page's file import through the same published mapping.
+
+![Data mapping](images/32-studio-mapping.png)
+
 The developer quick start and the rules a well-behaved client follows
 (idempotency keys, polling, error codes) are in [`STUDIO.md`](STUDIO.md) §6;
 the full contract is the OpenAPI document at `/api/integration/v1/openapi.json`,

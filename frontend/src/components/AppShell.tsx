@@ -43,6 +43,9 @@ import {
   LayoutGrid,
   PlugZap,
   Activity,
+  Cable,
+  Shuffle,
+  Webhook,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -117,6 +120,9 @@ const navGroups = [
     items: [
       { href: "/studio", label: "Studio overview", icon: PlugZap },
       { href: "/studio/api", label: "API Centre", icon: KeyRound },
+      { href: "/studio/connections", label: "Connections", icon: Cable },
+      { href: "/studio/mapping", label: "Data mapping", icon: Shuffle },
+      { href: "/studio/webhooks", label: "Webhooks", icon: Webhook },
       { href: "/studio/runs", label: "Run history", icon: Activity },
     ],
   },

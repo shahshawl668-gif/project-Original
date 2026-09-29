@@ -28,14 +28,14 @@ Where the design changed during building, the change is stated here.
 | Correlation ids | `X-Request-Id` generated and logged, not returned in errors or stored | **Extended**: echoed, in every integration error, stored on runs |
 | Background jobs | `validation_jobs` queue, `SKIP LOCKED`, leases, retries (PR #37) | **Reused**: the same worker loop drains Studio runs |
 | Imports (master, CTC, attendance, register) | Upload screens only, with the commit logic inside each router. Duplicate rows silently kept-first; unreadable dates read as absent; unreadable CTC amounts read as **0** | **Refactored** into `services/ingest.py` and `services/register_ingest.py`, shared by screens and API. The API rejects what the screens used to absorb |
-| Header mapping | Alias tables per file type; register mapping profiles (`import_profiles`) | Reused by the API. A versioned mapping editor is phase 2 |
+| Header mapping | Alias tables per file type; register mapping profiles (`import_profiles`) | Reused by the API. **Built** a versioned mapping editor (phase 2) that runs before them |
 | Lineage | Register uploads frozen with SHA-256 and row numbers; nothing on master/attendance/CTC records | **Added** a `lineage` column (run, source system, record id, batch, time) |
 | Findings lifecycle, approvals, sign-off | Complete (PR #37) | Reused. Keys may acknowledge/comment/assign, never waive/resolve/publish/sign |
 | BI | Dashboard query service with data basis (PR #37) | Reused as `/bi/query` |
 | Audit | Append-only, per entity and org | Reused for every key, account and machine action |
-| Secret storage for outbound credentials | None | Phase 2 — needs an encryption key setting |
-| Outbound HTTP / SSRF protection | None | Phase 2 |
-| Webhooks, event outbox | None | Phase 2 |
+| Secret storage for outbound credentials | None | **Built** (phase 2): Fernet under `STUDIO_SECRET_KEY`, refused in production without it |
+| Outbound HTTP / SSRF protection | None | **Built** (phase 2): allow-list, HTTPS, public addresses only, pinned connect, no redirects |
+| Webhooks, event outbox | None | **Built** (phase 2) |
 | Workflows, in-product notifications | None | Phase 3 |
 | Sandboxed scripting | None; the formula evaluator is a whitelisted AST, in-process | Phase 4 — see §7 |
 | Environments / releases | None; every company is one environment | Phase 4 |
@@ -216,20 +216,225 @@ another channel must not make a run stale.
 
 ---
 
-## 3. Phase 2 — REST connections, mapping, sync, reconciliation, webhooks
+## 3. Phase 2 — shipped: connections, mapping, sync, reconciliation, webhooks
 
-Not yet built. Its dependencies, stated now so they are not discovered later:
+### Secrets (`services/studio/secrets.py`)
 
-* **Secret storage** needs an encryption key the API reads from the
-  environment (Fernet). Without it set in production, storing connection
-  credentials must be refused, not silently kept in clear.
-* **Outbound requests** need an allowlist per organisation and a resolver that
-  refuses private, loopback, link-local and metadata addresses — checked at
-  connect time, not only at save time, to defeat DNS rebinding — and never
-  follows redirects.
-* **Provider-specific connectors** (a named HRMS) need that provider's
-  documented API and test access. None is available to this project today, so
-  phase 2 builds a generic REST connector and the file path only.
+Connection credentials, OAuth tokens and webhook signing secrets are sealed
+with Fernet under `STUDIO_SECRET_KEY`. A comma-separated list rotates: the first
+key encrypts, every key decrypts, and `reencrypt` moves old ciphertext to the
+new key. **In production an unset key refuses to store any secret**
+(`SecretStoreUnavailable`, shown to the person as "set STUDIO_SECRET_KEY") —
+the design's condition, kept. Outside production a key is derived from
+`JWT_SECRET` so development works without setup. Nothing that leaves the
+service is plaintext: screens and API responses get `••••1234` masks, logs get
+redacted text, and decrypted values go only to the outbound client and the
+signer. Losing the key makes stored secrets unreadable; the connections are
+then re-entered — nothing else is lost.
+
+### Outbound requests (`services/studio/egress.py`)
+
+Every call Studio makes — a connection's test, sample or sync, an OAuth token
+exchange, a webhook delivery — goes through one function with three locks:
+
+1. the host is on the **organisation's allow-list** (`studio_allowed_hosts`,
+   exact or `*.example.com`), kept by an owner or manager on the Connections
+   page;
+2. **HTTPS**;
+3. every address the host resolves to is **globally routable**. Loopback,
+   private, carrier-grade NAT, multicast and reserved ranges are refused;
+   link-local — which includes the cloud metadata address `169.254.169.254` —
+   is refused *always*, even in development.
+
+The resolution happens inside the connection (`GuardedBackend`): the socket
+connects to the address that was checked, while TLS still verifies the
+certificate against the host name, so DNS rebinding between check and connect
+does not get through. Redirects are reported, never followed. Responses are
+capped at `STUDIO_HTTP_MAX_RESPONSE_MB` and `STUDIO_HTTP_TIMEOUT_SECONDS`.
+`STUDIO_ALLOW_PRIVATE_DESTINATIONS` relaxes locks 2 and 3 (not link-local) for
+local development against a mock system; production forces it off.
+
+### Connections (`services/studio/connections.py`)
+
+A connection records name, system kind (HRMS, attendance, finance, payroll,
+file transfer, other), provider (`rest` or `file`), environment, base URL,
+auth method and credentials, timezone, description, and its health: last test,
+last success, last failure and the reason.
+
+| Auth method | Holds | Notes |
+|---|---|---|
+| `none` | — | |
+| `api_key_header` | header name, key | |
+| `bearer` | token | |
+| `basic` | username, password | For an integration or API user the other system issued — the form says never to use a person's own password |
+| `oauth2_client_credentials` | client id and secret, token URL, scope | Token fetched and cached until it expires |
+| `oauth2_authorization_code` | client id and secret, authorise and token URLs, scope | **Connect** sends the person to the provider with `state` (single use, ten minutes, `studio_oauth_states`) and a PKCE S256 challenge; the code comes back to `/studio/connections/oauth`, is exchanged once, and the tokens are sealed and refreshed when they expire. Nobody types a password into Studio |
+
+Credentials are replaced, never shown: rotating one is entering the new value.
+
+**The generic REST connector** reads an authenticated GET returning a JSON
+list, or an object holding one at a stated path, paged by page number, offset
+or cursor, with an optional "modified since" parameter. **The file connector**
+is for systems that export files: the file is imported through a published
+mapping on the mapping page. **No provider-specific connector was built.** None
+of the providers' documented APIs or test tenants were available to this
+project; a connector written against guesses would fail in ways nobody could
+test. Adding one is a new `provider` value and a fetch function, with its
+tests run against that provider's sandbox.
+
+### Streams and sync (`services/studio/sync.py`)
+
+A **stream** is one source object on a connection: path, the record list's
+location, pagination, the data type it feeds, the mapping profile (or a pinned
+version), match key, full or incremental with the cursor parameter and field,
+deletion handling, import options, retry limit, and a schedule — every hour,
+day at a time, or week on a weekday at a time, in a named timezone (default
+Asia/Kolkata). The worker loop starts due streams (`schedule_due`); **Sync
+now** starts one by hand. One live run per stream: a second start returns the
+live run.
+
+The behaviour, per the brief's list:
+
+| Question | Answer |
+|---|---|
+| Source of truth, direction | The other system, for the fields it sends. Inbound only; Studio never writes back to a source |
+| Matching | Employee id (plus effective date for CTC), leading zeros kept |
+| Upsert | `upsert` (default: update matches, add new, leave the rest) or `replace` |
+| Duplicates | Identical repeats skipped; conflicting records for one employee all rejected, with each one's source row |
+| Conflicts and manual correction | Rejected records wait on the run: correct at source and resend, or fix configuration here — a new mapping version, say — and **Retry rejected records**. Only they are resent, read with the mapping in force now (a version pinned on the stream stays pinned), and the retry always **adds**: even after a `replace` run it never makes the retried few the whole version |
+| Full or incremental | Incremental sends the last committed watermark as the stream's "modified since" parameter; full fetches everything |
+| Deletion | Never inferred from absence. `ignore` (default); `report` — after a full sync, employees stored here but absent from the fetch are listed on the run as `missing_in_source`, nothing removed; `replace` — the fetch becomes the version, only for a stream declared complete. Deactivation is the exit date the source sends |
+| Checkpoint | Advanced **in the same transaction** that stores the records and finishes the run (`ingest_records(on_committed=…)`), and only if the run stored something. A crash before that commit leaves the old checkpoint; the replay then reads as `unchanged`, never as duplicates |
+| Retries | Connection errors, timeouts, 5xx and 429 retry with backoff (30 s × 2ⁿ) up to the stream's limit; a refusal (bad credentials, host not allowed, 4xx) fails at once with what to do |
+| Reconciliation | The run's counts: received → accepted / rejected / skipped → created / updated / unchanged, both identities checked on the run page |
+
+A sync run is a `studio_runs` row like an API import (`kind = "sync"`), in the
+same run history, with the connection, stream, mapping version and cursor
+recorded on it.
+
+### Mapping (`services/studio/mapping.py`, `profiles.py`)
+
+A mapping version is a **specification — data, never code**. Per product
+field: source (a dotted path into nested JSON), aliases tried in order, type
+(`text`, `id`, `number`, `currency`, `date`, `boolean`, `attendance_codes`),
+required, default, accepted date formats, lookup table with what to do when
+nothing matches (reject, keep, blank), a formula, conditional cases with an
+`else`, and zero-padding for ids. Fields not in the product's list go to
+`extra.<name>` — the client-specific fields — and `keep_unmapped` carries
+source fields across unchanged instead of dropping them.
+
+* **Normalisation**: dates in stated formats and ISO; numbers with Indian or
+  international grouping, `₹`/`Rs`/`INR` stripped, brackets as negatives;
+  yes/no flags; attendance codes mapped to the product's categories. Ids are
+  read as text, so `00123` stays `00123`.
+* **Absent is not zero.** An empty or missing source produces no field. A
+  default applies only where the mapping states one. `"0"` is zero.
+* **Nothing is silently discarded.** An unreadable value, an unmatched lookup
+  set to reject, or a missing required field is an error naming the target
+  and source field and the source row, and the record is rejected, not
+  trimmed.
+* **Formulas** use the same whitelisted AST evaluator as validation rules —
+  arithmetic and a few pure functions over the record's own numbers. No
+  `eval`, no `exec`, no attribute access.
+* **It transforms; it never judges.** No finding, rate or payroll rule lives
+  in a mapping. Whether a basic salary is right is the validation engine's
+  question.
+
+**Versions.** A profile (`key`) has numbered versions: draft (editable) →
+published (immutable) → retired. Publishing needs an owner or manager and,
+where the approval policy turns on *Studio mappings need an independent
+publisher*, someone other than the author. The version a run uses is the one
+pinned on the stream or the newest published version effective on the run
+date, and the run records which — so the runs that used version 3 always used
+exactly version 3. **Preview** applies a draft or published version to sample
+records (from a file, the connection, or pasted JSON) and returns every
+output and every error with its source row. **Compare** lists field-by-field
+differences between any two versions.
+
+**Lineage** on each stored record gains the mapping version, beside the
+system, object, source record id, batch, run and time recorded since phase 1.
+
+### Events and webhooks (`services/studio/events.py`, `webhooks.py`)
+
+**Outbox.** Business changes write a `studio_events` row in the same
+transaction as the change: `import.completed`, `validation.completed`,
+`validation.failed` (final failure only, not a retried attempt),
+`finding.state_changed`, `period.submitted`, `period.signed_off`,
+`period.reopened`, and `webhook.test`. A rolled-back change takes its event
+with it; a committed one is never lost to a crash, because the worker fans
+events out afterwards. Payloads carry ids, states and counts — never pay
+figures or identity data; a subscriber reads detail through the integration
+API with a key scoped for it. Payload version `2026-10-01`.
+
+**Outbound.** A subscription names a URL (through the same egress guard), the
+events it wants, and a retry limit (default 8). Each event gets a unique
+event id; each attempt at each subscription is a delivery with its own id.
+Signature: `X-PeopleOpsLab-Signature: t=<unix>,v1=<hex>`, the hex being
+HMAC-SHA256 over `"<t>.<raw body>"`. Rotating the secret signs with both old
+and new for an overlap of up to 168 hours. Retries back off 1 min, 5 min,
+30 min, 2 h, 6 h, 12 h, 24 h; after the last attempt the delivery joins the
+failed queue, where it can be replayed singly or all at once. The delivery log
+keeps status, attempts, response code and time, and a redacted error.
+
+**Delivery is at least once, and said so.** A delivery whose 2xx answer was
+lost is sent again, and a replay re-sends the same event id. Consumers
+de-duplicate on `X-PeopleOpsLab-Event-Id`. Exactly once is not offered,
+because it cannot honestly be promised over HTTP.
+
+**Inbound.** An endpoint (`POST /api/integration/v1/hooks/{token}`) imports
+records of one data type, optionally through a published mapping. It verifies
+the same signature scheme with its own secret, refuses timestamps more than
+five minutes off, and records each sender's event id once
+(`studio_inbound_receipts`, unique): a repeat answers `200 {"duplicate":
+true}` and starts nothing. Its runs are ordinary imports with trigger
+`webhook`, acting as the endpoint's own machine identity.
+
+### Performance — a sync at 8,000
+
+8,000 synthetic employees fetched from a mock HRMS over HTTP (17 pages of 500),
+read through a published five-field mapping (padding, date format, lookup),
+checked and stored, against a running API on PostgreSQL 16, same machine as
+the phase-1 benchmark:
+
+| Step | Time | Counts |
+|---|---|---|
+| First sync | 4.1 s | 8,000 received → 8,000 created |
+| Same sync again (replay) | 2.1 s | 8,000 received → 8,000 unchanged, none duplicated |
+
+The API process (worker thread included) went from 183 MB to 277 MB during the
+first sync and 277 MB during the replay. A sync holds the whole fetch in memory
+before storing it, so memory grows with the stream's size; streams far larger
+than a month's master should be split, or the worker moved to its own service.
+Validation of the month is the expensive step, measured under phase 1.
+
+### What changed from the design
+
+* **Retry backoff for runs.** Phase 1 retried a failed import at once; phase 2
+  retries after 30 s × 2ⁿ⁻¹ (claimed by `queued_at <= now`), because a sync
+  retried instantly against a provider that is down only fails again.
+* **Sampling reads one page**, not the whole source — the first build walked
+  every page, which on a large HRMS is a full sync to fill a preview.
+* **Extra fields are kept apart.** A mapping's `extra.cost_code` was at first
+  folded into the record, where the import's header aliases read it as
+  `cost_center`. Extras now travel as their own key and land in
+  `record.extra` untouched.
+* **Retries add, and use today's mapping.** Found in the browser walk: a retry
+  copied its run's options, so retrying the rejected rows of a `replace`
+  import would have made those few rows the whole master or attendance
+  register — removing everything the first run accepted. The phase-1 API
+  import had the same flaw; phase 1 had not reached `main`, so no deployment
+  ever ran it. A retry is now always `upsert`. It also pinned the
+  first run's mapping version, so "fix the mapping, then retry" did not work;
+  it now reads with the version in force and records which. Both are tested
+  (`test_retry_uses_the_corrected_mapping_and_never_replaces`).
+* **Sync runs show their rejections.** The run page listed rejected records
+  only for API imports; sync runs showed the count but not the records.
+* **Mapping rejections keep the source record id.** A record the mapping
+  rejected lost its `record_id` in `source_ref`; the source's own id now comes
+  from the mapping's record-id field.
+* **Approval policy** gained one setting,
+  `studio_publish_requires_independent_approver`, on the Team page beside the
+  others.
 
 ## 4. Phase 3 — workflows and the month-close links
 
@@ -262,6 +467,33 @@ Not yet built. See §7 on scripting.
    validation results; from there, Issues and Month close work as usual.
 7. **Rotate** keys before they expire (the overview warns 14 days ahead).
    **Revoke** at once if a key may have leaked.
+
+### Administrator — pulling from a system (phase 2)
+
+1. **Studio → Connections → Allowed destinations.** Add the other system's
+   API host (`api.your-hrms.example`). Nothing else is reachable.
+2. **New connection.** Name, kind, environment, base URL, auth method. Enter
+   credentials the other system issued for integration — or, for OAuth
+   authorisation code, save and press **Connect** to sign in at the provider.
+   Press **Test**: it authenticates, reads one page and records health.
+3. **Add a stream**: the object's path, where the list sits in the response,
+   pagination, the data type it feeds, and a schedule if it should run alone.
+4. **Studio → Data mapping → New profile** for that data type. **Sample from
+   the connection** (or a file, or pasted JSON), **Suggest from sample**, then
+   correct each field — source, type, format, lookup, default. **Preview**:
+   every error names the source row and field. Fix until it is clean, then
+   **Publish**. (If your policy needs an independent publisher, a second owner
+   or manager publishes.)
+5. Back on the connection, pick the mapping on the stream and **Sync now**.
+6. Open the run from **Recent runs**. Check both identities; read each
+   rejected record's row, field and reason. Fix at source, or fix the mapping
+   (new version, publish) and press **Retry rejected records**.
+7. When a register sync or import carries `validate`, the run links to the
+   validation; from there, Issues and Month close as usual. The run page shows
+   the system, object, batch and mapping version every stored record carries.
+8. **Studio → Webhooks** to tell other systems when things happen: add the
+   receiver's host to the allow-list, create the webhook, copy the secret once,
+   **Send test**, and watch the delivery log.
 
 ### Developer
 
@@ -298,6 +530,35 @@ Rules for a well-behaved client:
 * Send `_source_record_id` on each record so a rejection points back at your
   own record.
 
+Receiving PeopleOpsLab webhooks — verify, then de-duplicate:
+
+```python
+import hashlib, hmac, time
+
+def verify(secret: str, header: str, raw_body: bytes, tolerance: int = 300) -> bool:
+    parts = [p.split("=", 1) for p in header.split(",")]
+    t = next(v for k, v in parts if k == "t")
+    if abs(time.time() - int(t)) > tolerance:
+        return False
+    expected = hmac.new(secret.encode(), f"{t}.".encode() + raw_body, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(expected, v) for k, v in parts if k == "v1")
+
+# then: if the X-PeopleOpsLab-Event-Id was seen before, answer 200 and stop.
+```
+
+Sending to an inbound endpoint — the same scheme, your endpoint's secret:
+
+```bash
+BODY='{"batch_id":"ATT-2026-06","period_month":"2026-06-01","records":[{"employee_id":"00123","present_days":"22"}]}'
+T=$(date +%s)
+SIG=$(printf '%s.%s' "$T" "$BODY" | openssl dgst -sha256 -hmac "$INBOUND_SECRET" -hex | cut -d' ' -f2)
+curl -sS -X POST "$BASE/hooks/<endpoint token>" \
+  -H "Content-Type: application/json" \
+  -H "X-PeopleOpsLab-Signature: t=$T,v1=$SIG" \
+  -H "X-PeopleOpsLab-Event-Id: $(uuidgen)" -d "$BODY"
+# → 202 {"data": {"duplicate": false, "run_id": "…"}}; the same event id again → 200, duplicate: true
+```
+
 ---
 
 ## 7. Scripting and isolation — the position
@@ -320,3 +581,15 @@ one nullable `lineage` JSON column on three tables (`record_import_lineage`).
 Rolling back is redeploying the previous release; the old code ignores the new
 tables and the new column. Keys issued under phase 1 simply stop working when
 the integration API is absent.
+
+Phase 2 is additive too: ten new tables via `create_all` (`studio_allowed_hosts`,
+`studio_connections`, `studio_streams`, `studio_mappings`, `studio_oauth_states`,
+`studio_events`, `studio_webhooks`, `studio_deliveries`,
+`studio_inbound_endpoints`, `studio_inbound_receipts`), one new key in the
+approval policy JSON (unknown keys are ignored by older code), and no change to
+an existing column. Two new dependencies, `httpx` and `cryptography`. Rolling
+back leaves the tables unread: syncs stop, webhooks stop being sent, inbound
+endpoints answer 404. Events written while rolled back are not written at all,
+so on roll-forward nothing from that window is delivered — stated, not hidden.
+Before rolling forward in production, **set `STUDIO_SECRET_KEY`**; without it
+connections and webhooks cannot store their secrets and say so.

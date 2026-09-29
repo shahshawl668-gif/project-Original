@@ -27,6 +27,9 @@ CODES: dict[str, tuple[int, str]] = {
     "conflict": (409, "The object is not in a state that allows this."),
     "payload_too_large": (413, "The request body is over the size limit."),
     "rate_limited": (429, "Too many requests for this key; wait for Retry-After seconds."),
+    "signature_invalid": (401, "An inbound webhook's signature is missing or does not match."),
+    "signature_expired": (401, "An inbound webhook's signature timestamp is more than five minutes off."),
+    "event_id_required": (400, "An inbound webhook call must carry a unique X-PeopleOpsLab-Event-Id."),
     "internal_error": (500, "Something failed on our side; retry with the same Idempotency-Key."),
 }
 

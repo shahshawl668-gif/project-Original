@@ -39,7 +39,7 @@ export default function StudioRunPage() {
   const rejections = useQuery({
     queryKey: ["studio-rejections", entity?.id, id, page, disposition],
     queryFn: () => studioApi.rejections(id, page, disposition || undefined),
-    enabled: !!run.data && run.data.kind === "import",
+    enabled: !!run.data && ["import", "sync"].includes(run.data.kind),
   });
 
   if (run.error) {
@@ -68,8 +68,9 @@ export default function StudioRunPage() {
       setBusy(false);
     }
   };
-  const retryable = r.kind === "import" && r.object_type !== "salary_register" && (r.counts?.rejected ?? 0) > 0;
+  const retryable = ["import", "sync"].includes(r.kind) && r.object_type !== "salary_register" && (r.counts?.rejected ?? 0) > 0;
   const validationRun = r.links.validation_run_id as string | null | undefined;
+  const missing = r.links.missing_in_source as { count: number; employee_ids: string[] } | undefined;
   const validationJob = r.links.validation_job_id as string | null | undefined;
 
   return (
@@ -118,6 +119,7 @@ export default function StudioRunPage() {
           <Row k="Environment" v={r.environment} />
           <Row k="Period" v={r.period_month ?? r.effective_from} />
           <Row k="Mode" v={(r.options?.mode as string) ?? null} />
+          {r.links.connection_id ? <p className="text-xs"><span className="text-ink-500">Connection:</span> <Link className="font-semibold text-brand-700 underline" href={`/studio/connections/${r.links.connection_id}`}>open</Link></p> : null}
           <Row k="Mapping version" v={(r.versions?.mapping as string) ?? "none — fields were read by their names"} />
           <Row k="Request id" v={r.request_id} mono />
           <Row k="Run id" v={r.id} mono />
@@ -138,6 +140,13 @@ export default function StudioRunPage() {
           {r.links.ctc_upload_id ? <p>Stored in CTC history, each record at its own effective date.</p> : null}
           {r.links.ignored_columns?.length ? <p className="text-warning-800">Columns not recognised and ignored: {r.links.ignored_columns.join(", ")}</p> : null}
           {r.links.warnings?.length ? <ul className="list-disc pl-5 text-xs text-ink-600">{r.links.warnings.map((w) => <li key={w}>{w}</li>)}</ul> : null}
+          {missing ? (
+            <div className={missing.count ? "rounded-lg border border-warning-200 bg-warning-50 p-2 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100" : "text-xs text-ink-500"}>
+              {missing.count
+                ? <><strong>{missing.count} employee(s) stored here were not in this full fetch.</strong> Nothing was removed — the stream reports absences rather than acting on them. Check whether they left: {missing.employee_ids.join(", ")}{missing.count > missing.employee_ids.length ? " …" : ""}</>
+                : "Every employee stored here was in this full fetch."}
+            </div>
+          ) : null}
           {r.retries?.length ? (
             <div className="pt-2"><p className="text-xs font-semibold uppercase text-ink-500">Retries</p>
               <ul className="text-xs">{r.retries.map((x) => <li key={x.id}><Link className="text-brand-700 underline" href={`/studio/runs/${x.id}`}>{fmtTime(x.queued_at)}</Link> — {x.status}</li>)}</ul></div>
@@ -145,7 +154,7 @@ export default function StudioRunPage() {
         </CardContent></Card>
       </div>
 
-      {r.kind === "import" ? (
+      {["import", "sync"].includes(r.kind) ? (
         <Card><CardContent className="space-y-3 py-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-semibold text-ink-900 dark:text-white">Records not stored</h2>

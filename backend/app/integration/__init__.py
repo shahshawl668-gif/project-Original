@@ -128,6 +128,7 @@ def create_app() -> FastAPI:
             {"name": "configuration", "description": "Read configuration; propose rule changes for approval."},
             {"name": "bi", "description": "Aggregate metrics with their data basis."},
             {"name": "sign-off", "description": "Month status and evidence metadata."},
+            {"name": "webhooks", "description": "Signed inbound pushes. Outbound events are described in the contract."},
         ],
         servers=[{"url": BASE_PATH}],
     )

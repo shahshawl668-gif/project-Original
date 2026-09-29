@@ -73,7 +73,7 @@ Six boxes. Click one to open it; only the box you are working in stays open.
 | **Attendance** | The attendance register |
 | **Bank & JV** | Month close, Bank payments, Journal voucher |
 | **Insights** | Cost analysis, Reports |
-| **Studio** | Connections to your other systems: the API Centre and the run history of every batch they sent (analysts and above) |
+| **Studio** | Connections to your other systems: the API Centre, connections, data mapping, webhooks, and the run history of every batch they sent (analysts and above) |
 | **Settings** | Rules, people, history |
 
 ---
@@ -422,6 +422,13 @@ Open a run to see what happened to every record:
 - **Skipped** records were exact repeats of another row and were kept once.
 - **What it led to** links to the validation results, when the batch was a
   register sent for validation.
+
+A run started by a connection your administrator set up (**Studio →
+Connections**) reads the same way, and also names the connection, the stream
+and the **mapping version** that turned the other system's fields into ours.
+If the same kind of rejection appears on every record, the mapping is the
+likely cause — tell whoever looks after it; they can preview a fix against
+the rejected rows before publishing it.
 
 A service account can acknowledge and comment on findings, but only a person
 can waive or resolve one, publish a rule, or approve a month.

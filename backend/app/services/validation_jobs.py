@@ -269,7 +269,19 @@ def succeed(db: Session, job: ValidationJob, *, run_id: uuid.UUID | None) -> Val
     job.locked_by = None
     if job.employee_total:
         job.employee_done = job.employee_total
+    _announce(db, job, "validation.completed", {"job_id": str(job.id), "run_id": str(run_id) if run_id else None,
+                                                "period_month": job.period_month.isoformat()})
     return job
+
+
+def _announce(db: Session, job: ValidationJob, type_: str, data: dict) -> None:
+    """Outbox event, in the same transaction as the job's final state."""
+    from app.models import Entity
+    from app.services.studio import events
+
+    entity = db.get(Entity, job.entity_id)
+    if entity is not None:
+        events.emit(db, org_id=entity.org_id, entity_id=entity.id, type=type_, data=data)
 
 
 def fail(
@@ -306,6 +318,8 @@ def fail(
             f"Validation stopped unexpectedly and failed on all {attempts} attempts. "
             f"Retry it; if it fails again, contact support quoting job {str(job.id)[:8]}."
         )
+        _announce(db, job, "validation.failed", {"job_id": str(job.id), "period_month": job.period_month.isoformat(),
+                                                 "error_code": job.error_code})
     else:
         job.state = "queued"
         job.stage = "queued"

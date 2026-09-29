@@ -147,8 +147,16 @@ async def submit_import(
             options = imports.check_submission(kind, raw)
         except ValueError as exc:
             raise ApiError("invalid_request", str(exc))
+        versions: dict[str, Any] = {}
+        if raw.get("mapping_key"):
+            from app.services.studio import profiles
+
+            version = profiles.in_force(db, company.id, raw["mapping_key"])
+            if version is None or version.object_type != kind:
+                raise ApiError("invalid_request", f"No published {kind} mapping called {raw['mapping_key']} is in force.")
+            versions = {"mapping": f"{version.key} v{version.version}", "mapping_id": str(version.id)}
         run = runs.create(
-            db, org_id=company.org_id, entity_id=company.id, kind="import", object_type=kind,
+            db, org_id=company.org_id, entity_id=company.id, kind="import", object_type=kind, versions=versions,
             **_actor(principal), source_system=raw.get("source_system"),
             source_object=raw.get("source_object"), batch_id=raw.get("batch_id"),
             period_month=date.fromisoformat(options["period_month"]) if options.get("period_month") else None,
@@ -241,7 +249,10 @@ def get_rejections(
 @router.post("/imports/{run_id}/retry-rejected", tags=["imports"], status_code=202,
              summary="Queue the run's rejected records again, as a new run",
              description="Useful when the rejection was caused by configuration that has since been fixed. "
-                         "Records that were accepted are not resent. Idempotency-Key is required.")
+                         "Records that were accepted are not resent. The retry always adds (upsert), even when "
+                         "the first run replaced: the retried records never become the whole version. Records read "
+                         "through a mapping are read again with the version in force now, which the new run names. "
+                         "Idempotency-Key is required.")
 async def retry_rejected(
     request: Request,
     run_id: str,
@@ -691,3 +702,34 @@ def period_evidence(
         "evidence_pack": {"available": row.state == "signed",
                           "retrieve_in_product": f"/reconciliation?period={month.isoformat()}"},
     })
+
+
+# ---------------------------------------------------------------------------
+# Inbound webhooks
+# ---------------------------------------------------------------------------
+@router.post("/hooks/{token}", tags=["webhooks"], status_code=202,
+             summary="Push records to a Studio inbound endpoint (signed, no API key)",
+             description="Authenticated by signature, not by key: `X-PeopleOpsLab-Signature: t=<unix seconds>,"
+                         "v1=<hex HMAC-SHA256(secret, \"<t>.<raw body>\")>` with the endpoint's secret, and a unique "
+                         "`X-PeopleOpsLab-Event-Id`. A timestamp more than five minutes off is refused "
+                         "(`signature_expired`). The same event id again answers 200 with `duplicate: true` and "
+                         "starts nothing. Body: `{\"records\": [...], \"batch_id\": ..., \"period_month\": ...}`; the "
+                         "endpoint's configured import type, mapping and options apply.")
+async def inbound_hook(token: str, request: Request, db: Session = Depends(get_db)):
+    from fastapi.concurrency import run_in_threadpool
+
+    from app.config import settings
+    from app.services.studio import ratelimit, webhooks
+
+    rid = request_id(request)
+    decision = ratelimit.check(f"hook:{token[:16]}", settings.integration_rate_limit_per_minute)
+    request.state.rate_limit = decision
+    if not decision.allowed:
+        raise ApiError("rate_limited", headers={"Retry-After": str(decision.reset_seconds)})
+    body = await request.body()
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    try:
+        out = await run_in_threadpool(webhooks.receive, db, token, headers, body, rid)
+    except webhooks.WebhookError as exc:
+        raise ApiError(exc.code, str(exc), status=exc.status) from exc
+    return JSONResponse(status_code=200 if out["duplicate"] else 202, content=envelope(out))

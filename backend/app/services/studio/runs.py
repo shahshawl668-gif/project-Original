@@ -121,9 +121,9 @@ def create(
 # ---------------------------------------------------------------------------
 _CLAIMABLE = """
     SELECT id FROM studio_runs
-    WHERE (status = 'queued'
+    WHERE ((status = 'queued' AND queued_at <= :now)
        OR (status = 'running' AND (heartbeat_at IS NULL OR heartbeat_at < :stale)))
-      AND kind IN ('import')
+      AND kind IN ('import', 'sync')
     ORDER BY queued_at
     {locking}
     LIMIT 1
@@ -133,7 +133,8 @@ _CLAIMABLE = """
 def claim(db: Session, worker: str, kinds: tuple[str, ...] | None = None) -> StudioRun | None:
     locking = "FOR UPDATE SKIP LOCKED" if db.bind.dialect.name == "postgresql" else ""
     stale = _now() - timedelta(seconds=LEASE_SECONDS)
-    row = db.execute(text(_CLAIMABLE.format(locking=locking)), {"stale": stale}).first()  # nosec B608
+    row = db.execute(text(_CLAIMABLE.format(locking=locking)),  # nosec B608
+                     {"stale": stale, "now": _now()}).first()
     if row is None:
         db.rollback()
         return None
@@ -189,6 +190,14 @@ def finish(
     # copies, and the accepted ones are stored where they belong.
     if status in ("completed", "partially_completed", "failed", "cancelled"):
         run.payload_gz = None
+        if run.kind in ("import", "sync"):
+            # In the same transaction as the run's final state and its records.
+            from app.services.studio import events
+
+            events.emit(db, org_id=run.org_id, entity_id=run.entity_id, type="import.completed",
+                        data={"run_id": str(run.id), "kind": run.kind, "object_type": run.object_type,
+                              "status": status, "counts": run.counts or {}, "batch_id": run.batch_id},
+                        causation=(run.options or {}).get("causation") or {})
     return run
 
 
@@ -216,11 +225,12 @@ def reject(
     field: str | None = None,
     disposition: str = "rejected",
     retain_days: int = 30,
+    source_record_id: str | None = None,
 ) -> StudioRunRejection:
     ref = {
         "system": run.source_system,
         "object": run.source_object,
-        "record_id": (record or {}).get("_source_record_id") if isinstance(record, dict) else None,
+        "record_id": source_record_id or ((record or {}).get("_source_record_id") if isinstance(record, dict) else None),
         "batch_id": run.batch_id,
     }
     row = StudioRunRejection(

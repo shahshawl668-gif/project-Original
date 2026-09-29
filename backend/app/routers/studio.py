@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -87,14 +87,17 @@ SECTIONS = [
      "summary": "Service accounts, keys, scopes, and the documented integration API."},
     {"key": "runs", "label": "Run history", "href": "/studio/runs", "available": True,
      "summary": "Every import and API-started validation, with counts, rejections and lineage."},
-    {"key": "connections", "label": "Connections", "href": None, "available": False,
-     "summary": "REST and file connections to HRMS, attendance and finance systems. Not in this release."},
-    {"key": "mapping", "label": "Data mapping", "href": None, "available": False,
-     "summary": "Versioned mapping from external fields to product fields. Not in this release."},
+    {"key": "connections", "label": "Connections", "href": "/studio/connections", "available": True,
+     "summary": "REST and file connections to HRMS, attendance and finance systems: credentials, tests, "
+                "streams, schedules, checkpoints and health."},
+    {"key": "mapping", "label": "Data mapping", "href": "/studio/mapping", "available": True,
+     "summary": "Versioned mapping from external fields to product fields, previewed on sample data before "
+                "it is published. Import a file with it."},
     {"key": "workflows", "label": "Workflows", "href": None, "available": False,
      "summary": "Trigger → conditions → actions automation. Not in this release."},
-    {"key": "webhooks", "label": "Webhooks", "href": None, "available": False,
-     "summary": "Signed inbound and outbound events. Not in this release."},
+    {"key": "webhooks", "label": "Webhooks", "href": "/studio/webhooks", "available": True,
+     "summary": "Signed events to your systems, delivered at least once with retries and a failed queue; "
+                "signed inbound endpoints that push records in."},
     {"key": "developer", "label": "Developer workspace", "href": None, "available": False,
      "summary": "Formula and expression testing; scripted extensions. Not in this release."},
     {"key": "releases", "label": "Versions & releases", "href": None, "available": False,
@@ -424,3 +427,675 @@ def cancel_run(
     runs.request_cancel(db, run)
     db.commit()
     return ok(runs.describe(db, run))
+
+
+# ===========================================================================
+# Phase 2 — destinations, connections, streams, mappings, file imports
+# ===========================================================================
+from fastapi import File, Form, UploadFile  # noqa: E402
+
+from app.models import StudioAllowedHost, StudioStream  # noqa: E402
+from app.services.studio import connections as conns  # noqa: E402
+from app.services.studio import egress, profiles, sync  # noqa: E402
+from app.services.studio import mapping as mapping_engine  # noqa: E402
+from app.services.studio import secrets as vault  # noqa: E402
+
+
+def _http(exc: Exception) -> HTTPException:
+    status = getattr(exc, "status", 400)
+    if isinstance(exc, egress.EgressRefused):
+        return HTTPException(status_code=400, detail=exc.message)
+    if isinstance(exc, vault.SecretStoreUnavailable):
+        return HTTPException(status_code=503, detail=str(exc))
+    return HTTPException(status_code=status, detail=str(exc))
+
+
+def _stream(db: Session, entity: Entity, stream_id: str) -> StudioStream:
+    try:
+        row = db.get(StudioStream, uuid.UUID(stream_id))
+    except ValueError:
+        row = None
+    if row is None or row.entity_id != entity.id:
+        raise HTTPException(status_code=404, detail="Stream not found")
+    return row
+
+
+# ---- Allowed destinations --------------------------------------------------
+class DestinationCreate(BaseModel):
+    host: str = Field(min_length=3, max_length=255)
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.get("/destinations")
+def list_destinations(db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    rows = (db.query(StudioAllowedHost).filter(StudioAllowedHost.org_id == entity.org_id)
+            .order_by(StudioAllowedHost.host).all())
+    ok_store, store_note = vault.available()
+    return ok({"hosts": [{"id": str(r.id), "host": r.host, "note": r.note,
+                          "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows],
+               "private_destinations_allowed": bool(settings.studio_allow_private_destinations),
+               "secret_store": {"available": ok_store, "note": store_note}})
+
+
+@router.post("/destinations")
+def add_destination(body: DestinationCreate, db: Session = Depends(get_db),
+                    user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        row = conns.add_allowed_host(db, entity.org_id, user, body.host, body.note)
+    except ValueError as exc:
+        raise _http(exc)
+    db.commit()
+    return ok({"id": str(row.id), "host": row.host, "note": row.note})
+
+
+@router.delete("/destinations/{host_id}")
+def remove_destination(host_id: str, db: Session = Depends(get_db),
+                       user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        conns.remove_allowed_host(db, entity.org_id, user, host_id)
+    except ValueError as exc:
+        raise _http(exc)
+    db.commit()
+    return ok({"removed": True})
+
+
+# ---- Connections -------------------------------------------------------------
+class ConnectionBody(BaseModel):
+    name: str | None = Field(default=None, max_length=100)
+    system_kind: str | None = None
+    provider: str | None = None
+    environment: str | None = None
+    base_url: str | None = Field(default=None, max_length=1000)
+    auth_method: str | None = None
+    auth_config: dict[str, Any] | None = None
+    secrets: dict[str, str] | None = None
+    status: str | None = None
+
+
+@router.get("/connections")
+def list_connections(db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    from app.models import StudioConnection
+
+    rows = (db.query(StudioConnection).filter(StudioConnection.entity_id == entity.id)
+            .order_by(StudioConnection.name).all())
+    try:
+        return ok([conns.describe(db, c) for c in rows])
+    except vault.SecretStoreUnavailable as exc:
+        raise _http(exc)
+
+
+@router.get("/connections/meta")
+def connection_meta(entity: Entity = Depends(require_studio_reader)):
+    return ok({"auth_methods": conns.AUTH_METHODS, "system_kinds": conns.SYSTEM_KINDS, "providers": conns.PROVIDERS})
+
+
+@router.post("/connections")
+def create_connection(body: ConnectionBody, db: Session = Depends(get_db),
+                      user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        conn = conns.create(db, entity, user, body.model_dump(exclude_none=True))
+    except (ValueError, egress.EgressRefused, vault.SecretStoreUnavailable) as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(conns.describe(db, conn))
+
+
+@router.get("/connections/{connection_id}")
+def get_connection(connection_id: str, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    try:
+        conn = conns.get(db, entity, connection_id)
+        out = conns.describe(db, conn)
+    except (ValueError, vault.SecretStoreUnavailable) as exc:
+        raise _http(exc)
+    recent, _ = runs.search(db, entity.id, kind="sync", page=1, page_size=100)
+    out["recent_runs"] = [runs.describe(db, r) for r in recent if r.connection_id == conn.id][:20]
+    return ok(out)
+
+
+@router.patch("/connections/{connection_id}")
+def update_connection(connection_id: str, body: ConnectionBody, db: Session = Depends(get_db),
+                      user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        conn = conns.get(db, entity, connection_id)
+        conns.update(db, entity, conn, user, body.model_dump(exclude_none=True))
+    except (ValueError, egress.EgressRefused, vault.SecretStoreUnavailable) as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(conns.describe(db, conn))
+
+
+@router.post("/connections/{connection_id}/test")
+def test_connection(connection_id: str, stream_id: str | None = Query(default=None), db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user), entity: Entity = Depends(require_entity_write)):
+    try:
+        conn = conns.get(db, entity, connection_id)
+    except ValueError as exc:
+        raise _http(exc)
+    stream = _stream(db, entity, stream_id) if stream_id else None
+    result = conns.test(db, conn, stream)
+    from app.services import audit
+
+    audit.record(db, entity_id=entity.id, user=user, action="studio.connection.tested",
+                 object_type="studio_connection", object_id=str(conn.id),
+                 summary=f"Tested “{conn.name}”: {'passed' if result['ok'] else 'failed — ' + result['message']}")
+    db.commit()
+    return ok(result)
+
+
+@router.post("/connections/{connection_id}/sample")
+def sample_records(connection_id: str, stream_id: str = Query(...), db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user), entity: Entity = Depends(require_entity_write)):
+    """Up to 20 records from a stream, to build a mapping against. Nothing is stored."""
+    conn = conns.get(db, entity, connection_id)
+    stream = _stream(db, entity, stream_id)
+    try:
+        records, _ = conns.fetch(db, conn, stream, sample=20)
+    except (egress.EgressRefused, egress.EgressFailed) as exc:
+        db.commit()
+        raise HTTPException(status_code=502 if isinstance(exc, egress.EgressFailed) else 400, detail=exc.message)
+    db.commit()
+    return ok({"records": records, "fields": sorted({k for r in records if isinstance(r, dict) for k in r})})
+
+
+class OAuthStart(BaseModel):
+    redirect_uri: str = Field(min_length=10, max_length=1000)
+
+
+class OAuthFinish(BaseModel):
+    state: str = Field(min_length=10, max_length=500)
+    code: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/connections/{connection_id}/oauth/start")
+def oauth_start(connection_id: str, body: OAuthStart, db: Session = Depends(get_db),
+                user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        conn = conns.get(db, entity, connection_id)
+        url = conns.oauth_start(db, conn, user, body.redirect_uri)
+    except (ValueError, vault.SecretStoreUnavailable) as exc:
+        raise _http(exc)
+    db.commit()
+    return ok({"authorize_url": url})
+
+
+@router.post("/oauth/callback")
+def oauth_callback(body: OAuthFinish, db: Session = Depends(get_db),
+                   user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        conn = conns.oauth_finish(db, entity, user, body.state, body.code)
+    except (ValueError, vault.SecretStoreUnavailable) as exc:
+        db.commit()
+        raise _http(exc)
+    except (egress.EgressRefused, egress.EgressFailed) as exc:
+        db.commit()
+        raise HTTPException(status_code=502, detail=exc.message)
+    db.commit()
+    return ok(conns.describe(db, conn))
+
+
+# ---- Streams ---------------------------------------------------------------
+@router.post("/connections/{connection_id}/streams")
+def create_stream(connection_id: str, body: dict[str, Any], db: Session = Depends(get_db),
+                  user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        conn = conns.get(db, entity, connection_id)
+        stream = sync.save_stream(db, entity, conn, user, body)
+    except ValueError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(conns.describe_stream(stream))
+
+
+@router.patch("/streams/{stream_id}")
+def update_stream(stream_id: str, body: dict[str, Any], db: Session = Depends(get_db),
+                  user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    from app.models import StudioConnection
+
+    stream = _stream(db, entity, stream_id)
+    try:
+        merged = {**conns.describe_stream(stream), **body}
+        sync.save_stream(db, entity, db.get(StudioConnection, stream.connection_id), user, merged, stream)
+    except ValueError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(conns.describe_stream(stream))
+
+
+@router.post("/streams/{stream_id}/sync")
+def sync_now(stream_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user),
+             entity: Entity = Depends(require_entity_write)):
+    stream = _stream(db, entity, stream_id)
+    try:
+        run = sync.start(db, entity, stream, actor=user, actor_label=user.email, trigger="manual")
+    except ValueError as exc:
+        raise _http(exc)
+    db.commit()
+    return ok(runs.describe(db, run))
+
+
+@router.post("/streams/{stream_id}/reset-checkpoint")
+def reset_checkpoint(stream_id: str, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                     entity: Entity = Depends(get_current_entity)):
+    stream = _stream(db, entity, stream_id)
+    sync.reset_checkpoint(db, entity, stream, user)
+    db.commit()
+    return ok(conns.describe_stream(stream))
+
+
+# ---- Mappings ----------------------------------------------------------------
+class MappingBody(BaseModel):
+    key: str | None = Field(default=None, max_length=100)
+    name: str | None = Field(default=None, max_length=255)
+    object_type: str | None = None
+    spec: dict[str, Any] | None = None
+    change_reason: str | None = Field(default=None, max_length=2000)
+    effective_from: date | None = None
+
+
+class PreviewBody(BaseModel):
+    spec: dict[str, Any] | None = None
+    object_type: str | None = None
+    records: list[Any] = Field(default_factory=list, max_length=2000)
+
+
+class ReasonBody(BaseModel):
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+@router.get("/mappings")
+def list_mappings(db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    from app.models import StudioMapping
+
+    rows = (db.query(StudioMapping).filter(StudioMapping.entity_id == entity.id)
+            .order_by(StudioMapping.key, StudioMapping.version.desc()).all())
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        grouped.setdefault(r.key, []).append(profiles.describe(r))
+    return ok([{"key": k, "name": v[0]["name"], "object_type": v[0]["object_type"], "versions": v,
+                "in_force": next((x for x in v if x["status"] == "published"), None)} for k, v in grouped.items()])
+
+
+@router.get("/mappings/targets")
+def mapping_targets(object_type: str, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    try:
+        return ok({"targets": mapping_engine.targets_for(object_type, profiles.components(db, entity.id)),
+                   "types": mapping_engine.TYPES, "operators": mapping_engine.OPS,
+                   "attendance_categories": mapping_engine.ATTENDANCE_CATEGORIES})
+    except ValueError as exc:
+        raise _http(exc)
+
+
+@router.post("/mappings")
+def create_mapping(body: MappingBody, db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                   entity: Entity = Depends(require_entity_write)):
+    try:
+        row = profiles.create(db, entity, user, key=body.key or "", name=body.name or body.key or "",
+                              object_type=body.object_type or "", spec=body.spec or {},
+                              change_reason=body.change_reason, effective_from=body.effective_from)
+    except ValueError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(profiles.describe(row))
+
+
+@router.get("/mappings/{mapping_id}")
+def get_mapping(mapping_id: str, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    try:
+        return ok(profiles.describe(profiles.get(db, entity, mapping_id)))
+    except ValueError as exc:
+        raise _http(exc)
+
+
+@router.patch("/mappings/{mapping_id}")
+def update_mapping(mapping_id: str, body: MappingBody, db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user), entity: Entity = Depends(require_entity_write)):
+    try:
+        row = profiles.get(db, entity, mapping_id)
+        profiles.update_draft(db, entity, row, user, spec=body.spec, name=body.name,
+                              change_reason=body.change_reason, effective_from=body.effective_from)
+    except ValueError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(profiles.describe(row))
+
+
+@router.post("/mappings/{mapping_id}/new-version")
+def new_mapping_version(mapping_id: str, body: MappingBody, db: Session = Depends(get_db),
+                        user: User = Depends(get_current_user), entity: Entity = Depends(require_entity_write)):
+    try:
+        row = profiles.new_version_from(db, entity, profiles.get(db, entity, mapping_id), user, body.change_reason)
+    except ValueError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(profiles.describe(row))
+
+
+@router.post("/mappings/{mapping_id}/publish")
+def publish_mapping(mapping_id: str, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                    entity: Entity = Depends(get_current_entity)):
+    try:
+        row = profiles.publish(db, entity, profiles.get(db, entity, mapping_id), user)
+    except ValueError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(profiles.describe(row))
+
+
+@router.post("/mappings/{mapping_id}/retire")
+def retire_mapping(mapping_id: str, body: ReasonBody, db: Session = Depends(get_db),
+                   user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        row = profiles.retire(db, entity, profiles.get(db, entity, mapping_id), user, body.reason)
+    except ValueError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(profiles.describe(row))
+
+
+@router.get("/mappings/{mapping_id}/compare")
+def compare_mappings(mapping_id: str, other: str = Query(...), db: Session = Depends(get_db),
+                     entity: Entity = Depends(require_studio_reader)):
+    try:
+        a, b = profiles.get(db, entity, other), profiles.get(db, entity, mapping_id)
+    except ValueError as exc:
+        raise _http(exc)
+    return ok({"from": profiles.describe(a), "to": profiles.describe(b),
+               "changes": mapping_engine.compare(a.spec, b.spec)})
+
+
+@router.post("/mappings/preview")
+def preview_spec(body: PreviewBody, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    """Preview an unsaved specification against sample records."""
+    try:
+        spec = mapping_engine.check_spec(body.spec or {}, body.object_type or "", profiles.components(db, entity.id))
+    except ValueError as exc:
+        raise _http(exc)
+    return ok(profiles.preview(spec, body.records))
+
+
+@router.post("/mappings/{mapping_id}/preview")
+async def preview_mapping(mapping_id: str, file: UploadFile | None = File(default=None),
+                          records: str | None = Form(default=None), db: Session = Depends(get_db),
+                          entity: Entity = Depends(require_studio_reader)):
+    """Preview a saved version against a sample file or pasted JSON records."""
+    try:
+        row = profiles.get(db, entity, mapping_id)
+        if file is not None:
+            sample = imports.records_from_file(await file.read(), file.filename or "sample.csv", max_rows=2000)
+        else:
+            import json as _json
+
+            sample = _json.loads(records or "[]")
+            if not isinstance(sample, list):
+                raise ValueError("Records must be a JSON list.")
+    except ValueError as exc:
+        raise _http(exc)
+    return ok(profiles.preview(row.spec, sample))
+
+
+# ---- File import with a mapping ------------------------------------------------
+@router.post("/imports")
+async def import_file(
+    file: UploadFile = File(...),
+    meta: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    """
+    Import a file through a published mapping — the administrator's path to
+    everything the API does: the same checks, counts, rejections and lineage.
+    """
+    import json as _json
+
+    try:
+        options_in = _json.loads(meta)
+        mapping = profiles.get(db, entity, options_in.get("mapping_id", ""))
+        if mapping.status != "published":
+            raise profiles.ProfileError("Publish the mapping before importing with it — or preview the draft.", 409)
+        content = await file.read()
+        records = imports.records_from_file(content, file.filename or "upload.csv")
+        body = {**{k: v for k, v in options_in.items() if k != "mapping_id"}, "records": records}
+        options = imports.check_submission(mapping.object_type, body)
+    except (ValueError, _json.JSONDecodeError) as exc:
+        raise _http(exc)
+    connection_id = None
+    if options_in.get("connection_id"):
+        connection_id = conns.get(db, entity, options_in["connection_id"]).id
+    run = runs.create(
+        db, org_id=entity.org_id, entity_id=entity.id, kind="import", object_type=mapping.object_type,
+        actor_type="user", actor_user_id=user.id, actor_label=user.email, trigger="ui",
+        source_system=options_in.get("source_system") or "File upload", source_object=file.filename,
+        batch_id=options_in.get("batch_id"),
+        period_month=date.fromisoformat(options["period_month"]) if options.get("period_month") else None,
+        effective_from=date.fromisoformat(options["effective_from"]) if options.get("effective_from") else None,
+        options=options, payload=records, connection_id=connection_id,
+        versions={"mapping": f"{mapping.key} v{mapping.version}", "mapping_id": str(mapping.id)},
+    )
+    from app.services import audit
+
+    audit.record(db, entity_id=entity.id, user=user, action="studio.import.submitted", object_type="studio_run",
+                 object_id=str(run.id), summary=f"Imported {file.filename} ({len(records):,} rows) with mapping "
+                 f"{mapping.key} v{mapping.version}")
+    db.commit()
+    return ok(runs.describe(db, run))
+
+
+# ===========================================================================
+# Phase 2b — webhooks
+# ===========================================================================
+from app.models import (  # noqa: E402
+    StudioDelivery,
+    StudioEvent,
+    StudioInboundEndpoint,
+    StudioInboundReceipt,
+    StudioWebhook,
+)
+from app.services.studio import events as studio_events  # noqa: E402
+from app.services.studio import webhooks as hooks  # noqa: E402
+
+
+class WebhookBody(BaseModel):
+    name: str | None = Field(default=None, max_length=100)
+    url: str | None = Field(default=None, max_length=1000)
+    events: list[str] | None = None
+    environment: str | None = Field(default=None, pattern="^(development|test|production)$")
+    status: str | None = Field(default=None, pattern="^(active|disabled)$")
+
+
+class RotateBody(BaseModel):
+    overlap_hours: int = Field(default=24, ge=0, le=hooks.MAX_ROTATION_OVERLAP_HOURS)
+
+
+class InboundBody(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    object_type: str
+    mapping_key: str | None = None
+    options: dict[str, Any] = Field(default_factory=dict)
+    environment: str = Field(default="production", pattern="^(development|test|production)$")
+
+
+def _webhook(db: Session, entity: Entity, webhook_id: str) -> StudioWebhook:
+    try:
+        row = db.get(StudioWebhook, uuid.UUID(webhook_id))
+    except ValueError:
+        row = None
+    if row is None or row.entity_id != entity.id:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    return row
+
+
+def _inbound(db: Session, entity: Entity, endpoint_id: str) -> StudioInboundEndpoint:
+    try:
+        row = db.get(StudioInboundEndpoint, uuid.UUID(endpoint_id))
+    except ValueError:
+        row = None
+    if row is None or row.entity_id != entity.id:
+        raise HTTPException(status_code=404, detail="Inbound endpoint not found")
+    return row
+
+
+def _hook_stats(db: Session, hook_id: uuid.UUID) -> dict[str, int]:
+    return dict(db.query(StudioDelivery.status, func.count()).filter(StudioDelivery.webhook_id == hook_id)
+                .group_by(StudioDelivery.status).all())
+
+
+@router.get("/webhooks/events")
+def webhook_catalogue(entity: Entity = Depends(require_studio_reader)):
+    return ok({"events": [{"type": k, "description": v} for k, v in studio_events.CATALOGUE.items() if k != "webhook.test"],
+               "payload_version": studio_events.PAYLOAD_VERSION,
+               "delivery": "at least once — de-duplicate on the event id",
+               "retry_schedule_seconds": hooks.BACKOFF})
+
+
+@router.get("/webhooks")
+def list_webhooks(db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    rows = db.query(StudioWebhook).filter(StudioWebhook.entity_id == entity.id).order_by(StudioWebhook.name).all()
+    return ok([hooks.describe(h, _hook_stats(db, h.id)) for h in rows])
+
+
+@router.post("/webhooks")
+def create_webhook(body: WebhookBody, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                   entity: Entity = Depends(get_current_entity)):
+    try:
+        hook, secret = hooks.create(db, entity, user, name=body.name or "Webhook", url=body.url or "",
+                                    event_names=body.events or [], environment=body.environment or "production")
+    except (ValueError, egress.EgressRefused, vault.SecretStoreUnavailable) as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok({**hooks.describe(hook), "secret": secret, "shown_once": True})
+
+
+@router.patch("/webhooks/{webhook_id}")
+def update_webhook(webhook_id: str, body: WebhookBody, db: Session = Depends(get_db),
+                   user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    hook = _webhook(db, entity, webhook_id)
+    try:
+        hooks.update(db, entity, hook, user, body.model_dump(exclude_none=True))
+    except (ValueError, egress.EgressRefused) as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(hooks.describe(hook, _hook_stats(db, hook.id)))
+
+
+@router.post("/webhooks/{webhook_id}/rotate-secret")
+def rotate_webhook_secret(webhook_id: str, body: RotateBody, db: Session = Depends(get_db),
+                          user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    hook = _webhook(db, entity, webhook_id)
+    try:
+        secret = hooks.rotate_secret(db, entity, hook, user, body.overlap_hours)
+    except (ValueError, vault.SecretStoreUnavailable) as exc:
+        raise _http(exc)
+    db.commit()
+    return ok({"secret": secret, "shown_once": True, "overlap_hours": body.overlap_hours})
+
+
+@router.post("/webhooks/{webhook_id}/test")
+def test_webhook(webhook_id: str, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                 entity: Entity = Depends(get_current_entity)):
+    hook = _webhook(db, entity, webhook_id)
+    event = hooks.send_test(db, entity, hook, user)
+    db.commit()
+    return ok({"event_id": str(event.id), "note": "Queued; the worker delivers it within seconds."})
+
+
+@router.get("/webhooks/deliveries")
+def list_deliveries(webhook_id: str | None = Query(default=None), status: str | None = Query(default=None),
+                    page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
+                    db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    q = db.query(StudioDelivery).filter(StudioDelivery.entity_id == entity.id)
+    if webhook_id:
+        q = q.filter(StudioDelivery.webhook_id == _webhook(db, entity, webhook_id).id)
+    if status:
+        q = q.filter(StudioDelivery.status == status)
+    total = q.count()
+    rows = q.order_by(StudioDelivery.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    events_by_id = {e.id: e for e in db.query(StudioEvent).filter(StudioEvent.id.in_([r.event_id for r in rows] or [uuid.uuid4()]))}
+    return ok({"items": [hooks.describe_delivery(r, events_by_id.get(r.event_id)) for r in rows],
+               "page": page, "page_size": page_size, "total": total, "pages": (total + page_size - 1) // page_size})
+
+
+@router.post("/deliveries/{delivery_id}/replay")
+def replay_delivery(delivery_id: str, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                    entity: Entity = Depends(get_current_entity)):
+    try:
+        row = db.get(StudioDelivery, uuid.UUID(delivery_id))
+    except ValueError:
+        row = None
+    if row is None or row.entity_id != entity.id:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    again = hooks.replay(db, entity, row, user)
+    db.commit()
+    return ok(hooks.describe_delivery(again, db.get(StudioEvent, again.event_id)))
+
+
+@router.post("/webhooks/{webhook_id}/replay-failed")
+def replay_failed(webhook_id: str, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                  entity: Entity = Depends(get_current_entity)):
+    hook = _webhook(db, entity, webhook_id)
+    failed = (db.query(StudioDelivery).filter(StudioDelivery.webhook_id == hook.id, StudioDelivery.status == "failed")
+              .all())
+    replayed = [hooks.replay(db, entity, d, user) for d in failed]
+    for d in failed:
+        d.status = "replayed"
+    db.commit()
+    return ok({"replayed": len(replayed)})
+
+
+@router.get("/inbound")
+def list_inbound(request: Request, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    base = str(request.base_url).rstrip("/") + "/api/integration/v1"
+    rows = (db.query(StudioInboundEndpoint).filter(StudioInboundEndpoint.entity_id == entity.id)
+            .order_by(StudioInboundEndpoint.name).all())
+    return ok([hooks.describe_inbound(r, base) for r in rows])
+
+
+@router.post("/inbound")
+def create_inbound(body: InboundBody, request: Request, db: Session = Depends(get_db),
+                   user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    try:
+        endpoint, secret = hooks.create_inbound(
+            db, entity, user, name=body.name, environment=body.environment,
+            action={"type": "import", "object_type": body.object_type, "mapping_key": body.mapping_key,
+                    "options": body.options})
+    except (ValueError, vault.SecretStoreUnavailable) as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    base = str(request.base_url).rstrip("/") + "/api/integration/v1"
+    return ok({**hooks.describe_inbound(endpoint, base), "secret": secret, "shown_once": True})
+
+
+@router.patch("/inbound/{endpoint_id}")
+def update_inbound(endpoint_id: str, body: WebhookBody, request: Request, db: Session = Depends(get_db),
+                   user: User = Depends(require_entity_admin), entity: Entity = Depends(get_current_entity)):
+    endpoint = _inbound(db, entity, endpoint_id)
+    if body.status:
+        endpoint.status = body.status
+        from app.services import audit
+
+        audit.record(db, entity_id=entity.id, user=user, action="studio.inbound.updated",
+                     object_type="studio_inbound_endpoint", object_id=str(endpoint.id),
+                     summary=f"Set inbound endpoint “{endpoint.name}” to {endpoint.status}")
+    db.commit()
+    return ok(hooks.describe_inbound(endpoint, str(request.base_url).rstrip("/") + "/api/integration/v1"))
+
+
+@router.get("/inbound/{endpoint_id}/receipts")
+def inbound_receipts(endpoint_id: str, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    endpoint = _inbound(db, entity, endpoint_id)
+    rows = (db.query(StudioInboundReceipt).filter(StudioInboundReceipt.endpoint_id == endpoint.id)
+            .order_by(StudioInboundReceipt.received_at.desc()).limit(200).all())
+    return ok([{"id": str(r.id), "event_id": r.event_id, "run_id": str(r.run_id) if r.run_id else None,
+                "received_at": r.received_at.isoformat() if r.received_at else None} for r in rows])

@@ -273,6 +273,7 @@ export type FindingExplanation = {
 export type ApprovalPolicy = {
   signoff_requires_independent_approver: boolean;
   matrix_publish_requires_independent_approver: boolean;
+  studio_publish_requires_independent_approver: boolean;
 };
 
 export type ReadinessBlocker = { code: string; message: string; acceptable: boolean };

@@ -31,8 +31,18 @@ from app.models.studio import (
     IdempotencyRecord,
     IntegrationCredential,
     ServiceAccount,
+    StudioAllowedHost,
+    StudioConnection,
+    StudioMapping,
+    StudioOAuthState,
     StudioRun,
     StudioRunRejection,
+    StudioDelivery,
+    StudioEvent,
+    StudioInboundEndpoint,
+    StudioInboundReceipt,
+    StudioStream,
+    StudioWebhook,
 )
 from app.models.budget import BudgetLine, BudgetVersion, ENTITY_SCOPE
 from app.models.rule_engine import Formula, SlabRule
@@ -163,4 +173,14 @@ __all__ = [
     "ServiceAccount",
     "StudioRun",
     "StudioRunRejection",
+    "StudioAllowedHost",
+    "StudioConnection",
+    "StudioMapping",
+    "StudioOAuthState",
+    "StudioStream",
+    "StudioDelivery",
+    "StudioEvent",
+    "StudioInboundEndpoint",
+    "StudioInboundReceipt",
+    "StudioWebhook",
 ]

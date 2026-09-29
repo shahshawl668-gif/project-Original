@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { STATUS_LABEL, STATUS_VARIANT, runTitle, type Counts, type Run, type RunStatus } from "@/lib/studio";
+import { STATUS_LABEL, STATUS_VARIANT, runTitle, type Connection, type Counts, type Run, type RunStatus } from "@/lib/studio";
 
 export function StatusBadge({ status }: { status: RunStatus }) {
   return <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status] ?? status}</Badge>;
@@ -95,4 +95,8 @@ function Box({ label, value, tone }: { label: string; value: string; tone?: "ok"
 
 function Arrow() {
   return <ArrowRight size={16} className="self-center text-ink-300" aria-hidden />;
+}
+
+export function HealthBadge({ health }: { health: Connection["health"] }) {
+  return <Badge variant={health === "healthy" ? "success" : health === "failing" ? "destructive" : "secondary"}>{health}</Badge>;
 }

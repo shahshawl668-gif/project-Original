@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
@@ -69,7 +70,7 @@ LABELS = {
 }
 
 #: Keys a record may carry that are about the record, not the employee.
-META_KEYS = ("_source_record_id",)
+META_KEYS = ("_source_record_id", "__source_row__", "_extra")
 ROW_KEY = "__pol_row__"
 
 #: Register fields that hold amounts or day counts. A value in one of these
@@ -183,7 +184,8 @@ def check_submission(kind: str, body: dict[str, Any]) -> dict[str, Any]:
 # Processing — in the worker
 # ---------------------------------------------------------------------------
 def _number_rows(records: list[Any]) -> list[tuple[int, Any]]:
-    return list(enumerate(records, start=1))
+    """Row numbers as the source had them — kept through mapping."""
+    return [(r.get("__source_row__", i) if isinstance(r, dict) else i, r) for i, r in enumerate(records, start=1)]
 
 
 def _meta_of(record: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -297,6 +299,7 @@ def _workforce(db: Session, run: StudioRun, entity: Entity, user: User, records:
         for record in parsed:
             extra = dict(record.get("extra") or {})
             row = int(extra.pop(normalize_col(ROW_KEY)))
+            extra.update(raw_by_row[row].get("_extra") or {})
             record["extra"] = extra
             record["_row"] = row
             record["_raw"] = raw_by_row[row]
@@ -562,22 +565,74 @@ class _AllOrNothing(Exception):
 
 def process(db: Session, run: StudioRun) -> StudioRun:
     """Run one claimed import to completion. Commits."""
+    records = runs.ungz(run.payload_gz)
+    if records is None:
+        runs.finish(db, run, "failed", error_category="internal",
+                    error_message="The staged records no longer exist.")
+        db.commit()
+        return run
+    return ingest_records(db, run, records)
+
+
+def _apply_mapping(db: Session, run: StudioRun, records: list[Any]) -> tuple[list[Any], int]:
+    """Map records with the run's mapping version. Returns (survivors, rejected)."""
+    mapping_id = (run.versions or {}).get("mapping_id")
+    if not mapping_id:
+        return records, 0
+    import uuid as _uuid
+
+    from app.models import StudioMapping
+    from app.services.studio import mapping as engine
+
+    version = db.get(StudioMapping, _uuid.UUID(str(mapping_id)))
+    if version is None:
+        raise ImportRefused("configuration", "The mapping version this run was started with no longer exists.")
+    retain = settings.studio_rejection_retention_days
+    survivors: list[Any] = []
+    rejected = 0
+    for m in engine.apply(version.spec, records):
+        if m.output is None:
+            first = m.errors[0] if m.errors else {"code": "invalid_record", "field": "", "message": "Not mapped."}
+            runs.reject(db, run, row_number=m.row, code=first["code"], field=first.get("field") or None,
+                        message="; ".join(e["message"] for e in m.errors) or first["message"],
+                        record=m.raw if isinstance(m.raw, dict) else None,
+                        record_key=None, retain_days=retain, source_record_id=m.source_record_id)
+            rejected += 1
+        else:
+            survivors.append({**m.output, "__source_row__": m.row})
+    return survivors, rejected
+
+
+def ingest_records(db: Session, run: StudioRun, records: list[Any], on_committed=None) -> StudioRun:
+    """
+    Map, check and store records for a run, and finish it. Commits once.
+
+    ``on_committed(db, run, counts)`` runs inside the same transaction as the
+    stored records and the finished run — so a sync checkpoint it advances can
+    never get ahead of the data it describes.
+    """
     entity = db.get(Entity, run.entity_id)
     user = db.get(User, run.actor_user_id)
-    records = runs.ungz(run.payload_gz)
-    if entity is None or user is None or records is None:
+    if entity is None or user is None:
         runs.finish(db, run, "failed", error_category="internal",
-                    error_message="The company, the actor or the staged records no longer exist.")
+                    error_message="The company or the actor no longer exists.")
         db.commit()
         return run
     runs.heartbeat(db, run, "checking")
+    received = len(records)
     try:
+        mapped, mapping_rejected = _apply_mapping(db, run, records)
+        if mapping_rejected and run.object_type == "salary_register":
+            raise _AllOrNothing(
+                {"received": received, "accepted": 0, "rejected": mapping_rejected, "skipped": 0},
+                f"{mapping_rejected} of {received} rows could not be mapped, so no rows were stored. "
+                "A register is validated as a whole.")
         if run.object_type in ("employee_master", "attendance"):
-            outcome = _workforce(db, run, entity, user, records, run.object_type)
+            outcome = _workforce(db, run, entity, user, mapped, run.object_type)
         elif run.object_type == "ctc":
-            outcome = _ctc(db, run, entity, user, records)
+            outcome = _ctc(db, run, entity, user, mapped)
         elif run.object_type == "salary_register":
-            outcome = _register(db, run, entity, user, records)
+            outcome = _register(db, run, entity, user, mapped)
         else:
             raise ImportRefused("input", f"Unknown import type {run.object_type}.")
     except _AllOrNothing as exc:
@@ -593,12 +648,14 @@ def process(db: Session, run: StudioRun) -> StudioRun:
         from app.models import StudioRunRejection
 
         db.query(StudioRunRejection).filter(StudioRunRejection.run_id == run.id).delete()
-        runs.finish(db, run, "failed", counts={"received": len(records), "rejected": 0, "accepted": 0},
+        runs.finish(db, run, "failed", counts={"received": received, "rejected": 0, "accepted": 0},
                     error_category=exc.category, error_message=exc.message)
         db.commit()
         return run
 
     counts = outcome["counts"]
+    counts["received"] = received
+    counts["rejected"] = counts.get("rejected", 0) + mapping_rejected
     for key in ("created", "updated", "unchanged", "removed"):
         counts.setdefault(key, 0)
     if counts["received"] and counts.get("accepted", 0) == 0:
@@ -610,10 +667,12 @@ def process(db: Session, run: StudioRun) -> StudioRun:
         message = f"{counts['rejected']} record(s) were rejected; the rest were stored."
     else:
         status, category, message = "completed", None, None
+    if on_committed is not None:
+        on_committed(db, run, counts)
     runs.finish(db, run, status, counts=counts, error_category=category, error_message=message,
                 result_ref=outcome.get("result") or {})
     db.commit()
-    logger.info("studio import %s %s: %s", run.id, status, counts)
+    logger.info("studio %s %s %s: %s", run.kind, run.id, status, counts)
     return run
 
 
@@ -634,14 +693,37 @@ def retry_rejected(db: Session, run: StudioRun, *, actor: User, actor_label: str
     if run.object_type == "salary_register":
         raise ValueError("A salary register is imported whole. Send the corrected register as a new import.")
     payload = [runs.ungz(r.payload_gz) for r in rows]
+    # A retry adds the corrected records to what the first run stored. It never
+    # replaces: in "replace" mode the retried few would become the whole
+    # version and silently remove every record the first run accepted.
+    options = {k: v for k, v in (run.options or {}).items() if k not in ("deletions", "sync_mode", "stream_id")}
+    options["mode"] = "upsert"
+    versions = dict(run.versions or {})
+    if versions.get("mapping_id"):
+        # Retry with the mapping in force now, so a corrected mapping is what
+        # reads the records again (a version pinned on the run's stream stays
+        # pinned). The new run records which version it used.
+        from app.models import StudioMapping
+        from app.services.studio import profiles
+
+        before = db.get(StudioMapping, uuid.UUID(str(versions["mapping_id"])))
+        from app.models import StudioStream
+
+        stream_id = (run.options or {}).get("stream_id")
+        stream = db.get(StudioStream, uuid.UUID(stream_id)) if stream_id else None
+        pinned = stream.mapping_version if stream is not None else None
+        current = profiles.in_force(db, run.entity_id, before.key, pinned=pinned) if before is not None else None
+        if current is None:
+            raise ValueError("The mapping these records were read with has no published version in force. Publish one, then retry.")
+        versions = {**versions, "mapping": f"{current.key} v{current.version}", "mapping_id": str(current.id)}
     new = runs.create(
         db, org_id=run.org_id, entity_id=run.entity_id, kind="import", object_type=run.object_type,
         actor_type=actor_type, actor_user_id=actor.id, actor_label=actor_label, trigger="retry",
         environment=run.environment, service_account_id=service_account_id,
         credential_prefix=credential_prefix, source_system=run.source_system,
         source_object=run.source_object, batch_id=(run.batch_id or str(run.id)[:8]) + "-retry",
-        period_month=run.period_month, effective_from=run.effective_from, options=run.options,
-        payload=payload, versions=run.versions, retry_of_run_id=run.id,
+        period_month=run.period_month, effective_from=run.effective_from, options=options,
+        payload=payload, versions=versions, retry_of_run_id=run.id, connection_id=run.connection_id,
     )
     for r in rows:
         r.retried_in_run_id = new.id
@@ -695,16 +777,31 @@ def dry_run(
         source_system=body.get("source_system"), source_object=body.get("source_object"),
         batch_id=body.get("batch_id"),
     )
+    if body.get("mapping_key"):
+        from app.services.studio import profiles
+
+        version = profiles.in_force(db, entity.id, body["mapping_key"])
+        if version is None or version.object_type != kind:
+            db.rollback()
+            raise ValueError(f"No published {kind} mapping called {body['mapping_key']} is in force.")
+        run.versions = {"mapping": f"{version.key} v{version.version}", "mapping_id": str(version.id)}
     error = None
     try:
         try:
+            mapped, mapping_rejected = _apply_mapping(db, run, records)
+            if mapping_rejected and kind == "salary_register":
+                raise _AllOrNothing({"received": len(records), "accepted": 0, "rejected": mapping_rejected,
+                                     "skipped": 0}, f"{mapping_rejected} rows could not be mapped, so no rows "
+                                                    "would be stored.")
             if kind in ("employee_master", "attendance"):
-                outcome = _workforce(db, run, entity, user, records, kind)
+                outcome = _workforce(db, run, entity, user, mapped, kind)
             elif kind == "ctc":
-                outcome = _ctc(db, run, entity, user, records)
+                outcome = _ctc(db, run, entity, user, mapped)
             else:
-                outcome = _register(db, run, entity, user, records, check_only=True)
+                outcome = _register(db, run, entity, user, mapped, check_only=True)
             counts = outcome["counts"]
+            counts["received"] = len(records)
+            counts["rejected"] = counts.get("rejected", 0) + mapping_rejected
         except _AllOrNothing as exc:
             counts, error = exc.counts, {"category": "input", "message": exc.message}
         except ImportRefused as exc:
@@ -737,3 +834,26 @@ def dry_run(
         "rejections": rejected,
         "rejections_truncated": len(rejected) >= max_rejections,
     }
+
+
+def records_from_file(content: bytes, filename: str, max_rows: int | None = None) -> list[dict[str, Any]]:
+    """
+    A CSV or Excel file as records of text, exactly as written.
+
+    Everything is read as text — identifiers keep their leading zeros, and no
+    number is reinterpreted — because the mapping decides how each field is
+    read. Empty cells are absent, not empty strings.
+    """
+    import io
+
+    lower = (filename or "").lower()
+    if lower.endswith(".csv"):
+        frame = pd.read_csv(io.BytesIO(content), dtype=str, keep_default_na=False)
+    elif lower.endswith(".xlsx"):
+        frame = pd.read_excel(io.BytesIO(content), dtype=str, keep_default_na=False, engine="openpyxl")
+    else:
+        raise ValueError("Upload a .csv or .xlsx file.")
+    limit = max_rows or settings.integration_max_records
+    if len(frame) > limit:
+        raise ValueError(f"The file has {len(frame):,} rows; at most {limit:,} can be imported at once.")
+    return [{str(k): (v if v != "" else None) for k, v in row.items()} for row in frame.to_dict(orient="records")]

@@ -438,6 +438,26 @@ decision for the client, not a housekeeping task.
 - **Rollback:** redeploy the previous release. It ignores the new tables and
   column; issued keys stop working with the integration API gone.
 
+### Upgrading to Studio connections, mapping and webhooks
+
+- **Set `STUDIO_SECRET_KEY` first.** Generate one with
+  `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+  and set it on the API service before anyone creates a connection or webhook.
+  Without it, production refuses to store their secrets (and says so) rather
+  than keeping them in clear. Keep it in the host's secret store, and keep a
+  copy: losing it means re-entering every connection's credentials. To rotate,
+  set `new-key,old-key`; both decrypt, the new one encrypts.
+- **Two new dependencies**, `httpx` and `cryptography`, in `requirements.txt`;
+  the build installs them.
+- **Ten new tables** arrive through `create_all`. No existing column changes.
+- **Three more settings**, safe by default: `STUDIO_ALLOW_PRIVATE_DESTINATIONS`
+  (forced off in production), `STUDIO_HTTP_TIMEOUT_SECONDS`,
+  `STUDIO_HTTP_MAX_RESPONSE_MB`.
+- **The worker now also** starts scheduled syncs and sends webhooks. With no
+  worker running, neither happens.
+- **Rollback:** redeploy the previous release; the new tables are ignored,
+  syncs and webhooks stop, and events are not recorded meanwhile.
+
 ---
 
 ## 8b. PeopleOps Studio — keys for other systems
@@ -475,6 +495,27 @@ proposes — the key is the preparer, so any owner or manager may approve.
 
 Every account change, key issue, rotation, revocation and every import a key
 submits is in the audit trail.
+
+**Connections, mapping and webhooks**
+
+- **Allowed destinations** (Studio → Connections) is the organisation's list of
+  hosts Studio may call. Add a host only when a connection or webhook needs it,
+  and remove it when that ends. Whatever a connection is configured with,
+  Studio refuses any host not on the list, any plain-HTTP address, and any
+  address inside a private network or the cloud's metadata service.
+- **Credentials** are encrypted, shown only masked, and replaced rather than
+  edited. Use an integration user the other system issues, never a person's
+  own password; prefer OAuth where the system offers it (**Connect**).
+- **Health.** Each connection shows its last test, last success and last
+  failure with the reason. A red one on the overview needs a look.
+- **Mappings** are published by an owner or manager; turn on *Studio mappings
+  need an independent publisher* (Configuration → Team → approval policy) so
+  the author cannot publish their own. A published version never changes.
+- **Webhooks.** A failed delivery is retried for about two days, then waits in
+  the failed queue until someone replays it. The receiving system must accept
+  the same event twice — delivery is at least once.
+
+![Connections](images/31-studio-connections.png)
 
 ---
 

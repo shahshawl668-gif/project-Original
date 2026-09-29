@@ -53,7 +53,7 @@ function Runs() {
         </label>
         <label className="text-xs font-semibold text-ink-700">Kind
           <select aria-label="Kind" className={cn(FIELD, "mt-1 block")} value={filters.kind} onChange={set("kind")}>
-            <option value="">Any</option><option value="import">Import</option><option value="validation">Validation</option>
+            <option value="">Any</option><option value="import">Import</option><option value="sync">Sync</option><option value="validation">Validation</option>
           </select>
         </label>
         <label className="text-xs font-semibold text-ink-700">Data

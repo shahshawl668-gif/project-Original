@@ -67,6 +67,17 @@ class Settings(BaseSettings):
     # How long a rejected record's own copy is kept for inspection and retry.
     # The rejection itself (row, code, reason) is kept with the run.
     studio_rejection_retention_days: int = 30
+    # Encrypts stored connection and webhook secrets (Fernet). One or more
+    # urlsafe-base64 32-byte keys, comma separated: the first encrypts, all
+    # decrypt, so a key can be rotated in. Unset in production means secrets
+    # cannot be stored at all — never stored in clear.
+    studio_secret_key: str = ""
+    # Local development and tests only: lets connections and webhooks reach
+    # private and loopback addresses. Forced off in production.
+    studio_allow_private_destinations: bool = False
+    # Outbound requests to connected systems.
+    studio_http_timeout_seconds: int = 30
+    studio_http_max_response_mb: int = 50
 
     # ------------------------------------------------------------------ utils
     @property
@@ -118,6 +129,10 @@ if settings.is_production:
             "ALLOW_ANONYMOUS_API=true in production — refusing. Forcing False."
         )
         object.__setattr__(settings, "allow_anonymous_api", False)
+
+    if settings.studio_allow_private_destinations:
+        logger.warning("STUDIO_ALLOW_PRIVATE_DESTINATIONS=true in production — refusing. Forcing False.")
+        object.__setattr__(settings, "studio_allow_private_destinations", False)
 
     if settings.database_url.startswith("sqlite"):
         # The most expensive mistake this product can make, because it does not

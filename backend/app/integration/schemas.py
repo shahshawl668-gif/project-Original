@@ -94,6 +94,10 @@ class ImportRequest(BaseModel):
         default=None, description="Salary register: source column → field. Suggested automatically when omitted.")
     validate_register: bool | None = Field(default=None, alias="validate",
                                            description="Salary register: start validation once stored.")
+    mapping_key: str | None = Field(
+        default=None, max_length=100,
+        description="Apply this Studio mapping's version in force to each record before import, so records "
+                    "can use the sending system's own field names. Mapping errors are rejections with the row.")
     allow_missing_components: bool | None = Field(
         default=None, description="Salary register: treat a configured component with no column as zero. "
                                   "Off by default — absent is not zero.")
