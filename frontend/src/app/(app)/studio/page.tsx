@@ -24,7 +24,7 @@ const MANAGE = new Set(["owner", "manager"]);
  * The setup checklist is computed from what exists, not ticked by hand.
  */
 export default function StudioOverviewPage() {
-  const { entity, activeRole } = useEntity();
+  const { entity, organization, activeRole } = useEntity();
   const q = useQuery({ queryKey: ["studio-overview", entity?.id], queryFn: studioApi.overview, enabled: !!entity, retry: false });
   const canManage = MANAGE.has(activeRole ?? "");
 
@@ -59,6 +59,20 @@ export default function StudioOverviewPage() {
         description={<>Send employee master, CTC, attendance and salary registers from your HRMS or payroll system, start validation, and read results — through a documented, versioned API. Studio never runs payroll: it moves data in and lets the validation engine judge it.</>}
       />
       <StudioNav />
+      {entity && (
+        <Card><CardContent className="space-y-3 py-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Selected company</p>
+          <h2 className="text-lg font-semibold text-ink-900 dark:text-white">{entity.name} <span className="text-sm font-normal text-ink-500">({entity.code})</span></h2>
+          <p className="text-sm text-ink-600">Workspace: {organization?.name ?? "—"}. Studio connections, mappings, workflows and runs on this page belong to the selected company. Switch company in the application header before setting up another client.</p>
+          <p className="text-xs text-ink-500">The integration API uses a shared address. A service account key is limited to its named companies; requests with more than one company on the key must supply X-Company-Id. Give each client and source system a separate key.</p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/studio/connections" className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white">Connect a source system</Link>
+            <Link href="/studio/mapping" className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold">Map a client file</Link>
+            <Link href="/studio/api" className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold">Create an API key</Link>
+            <Link href="/studio/developer" className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold">Test custom logic</Link>
+          </div>
+        </CardContent></Card>
+      )}
 
       {!data ? <Skeleton className="h-64 w-full rounded-2xl" /> : (
         <>

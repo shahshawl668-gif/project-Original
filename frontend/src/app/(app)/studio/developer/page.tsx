@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Calculator, Filter, ListTree, Lock } from "lucide-react";
@@ -34,6 +35,16 @@ export default function DeveloperPage() {
       <PageHeader eyebrow="PeopleOps Studio" title="Developer workspace"
         description="Test formulas, conditions and lookups on sample rows before they go into a mapping, a rule or a workflow. The same evaluators the product runs; nothing is stored." />
       <StudioNav />
+      <Card><CardContent className="space-y-3 py-5">
+        <h2 className="text-base font-semibold">Build a client-specific integration</h2>
+        <p className="text-sm text-ink-600">Start with a connection, map the client&apos;s source fields, test a formula or condition here, then publish the mapping and automate it in a workflow. These configurations belong to the selected company.</p>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/studio/connections" className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white">1. Connect system</Link>
+          <Link href="/studio/mapping" className="rounded-lg border px-3 py-2 text-sm font-semibold">2. Map fields</Link>
+          <Link href="/studio/workflows" className="rounded-lg border px-3 py-2 text-sm font-semibold">3. Automate workflow</Link>
+          <Link href="/studio/runs" className="rounded-lg border px-3 py-2 text-sm font-semibold">4. Review runs</Link>
+        </div>
+      </CardContent></Card>
       <FormulaTester />
       <div className="grid gap-4 lg:grid-cols-2">
         <ConditionTester />
@@ -49,7 +60,7 @@ export default function DeveloperPage() {
             <p className="mt-2 text-xs text-ink-500">{ref.data.variables} Up to {ref.data.max_length} characters.</p>
           </div>
           <div className="rounded-xl border border-ink-200 bg-ink-50/60 p-4 text-sm dark:border-white/10 dark:bg-white/[0.03]" data-testid="scripting">
-            <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><Lock size={16} /> Scripting — disabled</h2>
+            <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><Lock size={16} /> Custom Python — awaiting isolated runner</h2>
             <p className="text-xs">{ref.data.scripting.reason}</p>
             <p className="mt-2 text-xs font-semibold">It would need, first:</p>
             <ul className="list-disc pl-5 text-xs">{ref.data.scripting.requires.map((r) => <li key={r}>{r}</li>)}</ul>
