@@ -3,12 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, Loader2, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, Loader2, Save } from "lucide-react";
 
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { apiJson } from "@/lib/api";
+import { apiBlob, apiJson } from "@/lib/api";
 import { fetchDimensions, fetchPeriods } from "@/lib/cost-analysis";
 
 type Field = { key: string; label: string; numeric: boolean };
@@ -71,6 +71,20 @@ export default function ReportBuilderPage() {
       const copy = await apiJson<Saved>(`/api/reports/builder/saved/${report.id}/clone`, { method: "POST" });
       load(copy); await saved.refetch();
       setSavedMessage(`Created personal draft ${copy.name}.`);
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function download() {
+    if (!activeId) return;
+    setBusy(true); setError(null);
+    try {
+      const blob = await apiBlob(`/api/reports/builder/saved/${activeId}.xlsx`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `peopleops-report-${activeId.slice(0, 12)}.xlsx`;
+      document.body.appendChild(link); link.click(); link.remove();
+      URL.revokeObjectURL(url);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -160,6 +174,8 @@ export default function ReportBuilderPage() {
           <label className="block text-sm">Visibility<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={visibility} onChange={(e) => setVisibility(e.target.value as "private" | "shared")}><option value="private">Personal draft</option><option value="shared">Company shared (manager access)</option></select></label>
           <p className="text-xs text-ink-500">A saved definition contains choices, not a frozen result. Access is checked again when previewed.</p>
           <button type="button" disabled={busy || !name.trim()} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {activeId ? "Save new version" : "Save draft"}</button>
+          {activeId && <button type="button" disabled={busy || !spec.date_from || !spec.date_to} onClick={download} className="ml-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={15} /> Download Excel</button>}
+          {activeId && (!spec.date_from || !spec.date_to) && <p className="text-xs text-ink-500">Choose both period bounds before export.</p>}
           {activeId && <div className="space-y-1 text-xs text-ink-500"><strong className="block text-ink-700 dark:text-ink-200">Definition history</strong>{(versions.data?.versions ?? []).map((item) => <p key={item.version}>Version {item.version} · {item.name} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded"}</p>)}</div>}
         </div>}
         <div className="flex justify-between border-t pt-4">
