@@ -115,6 +115,9 @@ class EmployeeRecord(Base):
 
     # Anything the client's own master carries that this schema doesn't name.
     extra: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    #: Where this record came from (run, source system, record id). Provenance,
+    #: not data: excluded from the input digests a validation run is keyed on.
+    lineage: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     upload = relationship("EmployeeMasterUpload", back_populates="records")
@@ -169,6 +172,9 @@ class AttendanceRow(Base):
     overtime_hours: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
 
     extra: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    #: Where this record came from (run, source system, record id). Provenance,
+    #: not data: excluded from the input digests a validation run is keyed on.
+    lineage: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     register = relationship("AttendanceRegister", back_populates="rows")

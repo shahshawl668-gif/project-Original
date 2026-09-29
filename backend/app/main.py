@@ -146,6 +146,7 @@ app.add_middleware(
 @app.middleware("http")
 async def request_id_and_log(request: Request, call_next):
     request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:12]
+    request.state.request_id = request_id
     started = time.perf_counter()
     try:
         response = await call_next(request)
@@ -232,3 +233,9 @@ def health_plain():
 # using either path keep working through future revisions.
 app.include_router(api_router, prefix="/api")
 app.include_router(api_router, prefix="/api/v1")
+
+# The integration API is a separate, versioned contract with other systems:
+# its own OpenAPI document, its own error catalogue, integration keys only.
+from app.integration import BASE_PATH as INTEGRATION_BASE, integration_app  # noqa: E402
+
+app.mount(INTEGRATION_BASE, integration_app)

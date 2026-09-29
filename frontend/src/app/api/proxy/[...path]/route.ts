@@ -15,6 +15,11 @@ const SAFE_FORWARD_HEADERS = new Set([
   // every proxied request to the caller's default entity, which on a practice
   // account means quietly writing one client's data against another.
   "x-entity-id",
+  // The integration API (/api/integration/v1) names its company and makes
+  // retries safe with these two. Dropping either would send a key's request to
+  // the wrong company — or import a retried batch twice.
+  "x-company-id",
+  "idempotency-key",
 ]);
 
 function backendOrigin(): string {

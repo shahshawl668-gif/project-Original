@@ -9,6 +9,7 @@ from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import ComponentConfig, CtcRecord, CtcUpload, Entity, User
 from app.schemas.ctc import CtcCommitRequest, CtcParseResponse, CtcRecordOut, CtcUploadOut
+from app.services import ingest
 from app.services.ctc_parse import parse_ctc_file
 from app.services.payroll_parse import normalize_col
 
@@ -83,51 +84,22 @@ def commit_ctc(
     if not body.records:
         raise HTTPException(status_code=400, detail="No records to commit.")
 
-    eff = body.default_effective_from or min(r.effective_from for r in body.records)
-
-    upload = CtcUpload(
-        user_id=user.id,
-        entity_id=entity.id,
-        effective_from=eff,
+    result = ingest.commit_ctc(
+        db, entity=entity, user=user,
+        records=[r.model_dump() for r in body.records],
         filename=body.filename,
-        employee_count=len(body.records),
+        default_effective_from=body.default_effective_from,
+        lineage=ingest.file_lineage(body.filename, actor=user.email),
     )
-    db.add(upload)
-    db.flush()
-
-    for rec in body.records:
-        existing = (
-            db.query(CtcRecord)
-            .filter(
-                CtcRecord.entity_id == entity.id,
-                CtcRecord.employee_id == rec.employee_id,
-                CtcRecord.effective_from == rec.effective_from,
-            )
-            .first()
-        )
-        if existing:
-            existing.upload_id = upload.id
-            existing.employee_name = rec.employee_name
-            existing.annual_components = rec.annual_components
-            existing.annual_ctc = rec.annual_ctc
-            db.add(existing)
-        else:
-            db.add(
-                CtcRecord(
-                    upload_id=upload.id,
-                    user_id=user.id,
-        entity_id=entity.id,
-                    employee_id=rec.employee_id,
-                    employee_name=rec.employee_name,
-                    effective_from=rec.effective_from,
-                    annual_components=rec.annual_components,
-                    annual_ctc=rec.annual_ctc,
-                )
-            )
-
     db.commit()
+    upload = result["upload"]
     db.refresh(upload)
-    return ok(CtcUploadOut.model_validate(upload).model_dump())
+    payload = CtcUploadOut.model_validate(upload).model_dump()
+    payload["counts"] = result["counts"]
+    payload["duplicates_skipped"] = [
+        f"{d['employee_id']} @ {d['effective_from']}" for d in result["duplicates"]
+    ]
+    return ok(payload)
 
 
 @router.get("/uploads")

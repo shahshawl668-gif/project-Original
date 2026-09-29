@@ -95,7 +95,7 @@ def _comp_map(db, headers) -> dict:
     """The entity's components, keyed the way the rule engine keys them."""
     import uuid as _uuid
 
-    from app.routers.payroll import _component_key_map
+    from app.services.validation import _component_key_map
 
     comps = (
         db.query(ComponentConfig)

@@ -418,6 +418,64 @@ decision for the client, not a housekeeping task.
   and is excluded from the totals, instead of showing ₹0 and a full underspend.
 - **Rollback:** redeploy the previous release; the two tables are ignored by it.
 
+### Upgrading to the Studio release (integration API)
+
+- **Automatic on first start.** Five new tables (`studio_service_accounts`,
+  `studio_credentials`, `studio_runs`, `studio_run_rejections`,
+  `studio_idempotency`) arrive through `create_all`; the `record_import_lineage`
+  migration adds a nullable `lineage` column to `employee_records`,
+  `attendance_rows` and `ctc_records`. Lineage is excluded from validation input
+  digests, so no existing run turns stale.
+- **Upload screens now name duplicates.** Committing a master or attendance file
+  with an employee twice still keeps the first row, and now says which ids were
+  skipped (`duplicates_skipped`) instead of dropping them unseen.
+- **The worker also processes Studio imports.** A deployment with
+  `VALIDATION_WORKER_ENABLED=false` and no `python -m app.worker` leaves API
+  imports queued; the Studio overview says so.
+- **Four new settings**, all with safe defaults: `INTEGRATION_RATE_LIMIT_PER_MINUTE`,
+  `INTEGRATION_MAX_REQUEST_MB`, `INTEGRATION_MAX_RECORDS`,
+  `STUDIO_REJECTION_RETENTION_DAYS`.
+- **Rollback:** redeploy the previous release. It ignores the new tables and
+  column; issued keys stop working with the integration API gone.
+
+---
+
+## 8b. PeopleOps Studio — keys for other systems
+
+A client's HRMS, attendance or payroll system can send data and read results
+through the integration API (`/api/integration/v1`). It does so as a **service
+account**, never as a person.
+
+![Studio overview](images/30-studio-overview.png)
+
+**Who may do what.** Owners and managers create service accounts and keys,
+only for companies they manage. Analysts see Studio's run history. Viewers do
+not see Studio. Platform staff have no access to a client's Studio beyond a
+break-glass grant, which is read-only as everywhere else.
+
+**What a key can never do**, whatever scopes it holds: publish a validation
+rule, waive or resolve a finding, submit or approve a month, change who has
+access. Those stay with people, and maker–checker still applies to rules a key
+proposes — the key is the preparer, so any owner or manager may approve.
+
+**Routine care**
+
+- One service account per sending system, so one can be revoked without
+  stopping the others.
+- Keys expire (90 days by default, at most a year). The Studio overview lists
+  keys expiring within 14 days. **Rotate** with an overlap long enough for the
+  other system to switch (24 hours by default).
+- **Revoke** at once when a key may have leaked — a ticket, a chat, a log. It
+  stops on the next request. Disabling the account stops all its keys.
+- A key found somewhere it should not be can be identified by its prefix
+  (`pol_live_1a2b3c4d`) in Studio → API Centre without anyone knowing the
+  secret. The product stores only a fingerprint and cannot show a key again.
+- Rejected records are kept for 30 days for inspection and retry; viewing one
+  is written to the audit trail.
+
+Every account change, key issue, rotation, revocation and every import a key
+submits is in the audit trail.
+
 ---
 
 ## 9. What an administrator must not delegate

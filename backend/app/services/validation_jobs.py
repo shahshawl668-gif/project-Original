@@ -423,3 +423,67 @@ def describe(job: ValidationJob, db: Session | None = None) -> dict:
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     }
+
+
+class SubmitError(Exception):
+    """A validation that cannot be queued, with the status and words to say so."""
+
+    def __init__(self, status: int, detail: str):
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
+
+
+def submit_for_period(
+    db: Session,
+    *,
+    entity_id: uuid.UUID,
+    user_id: uuid.UUID,
+    period_month: date,
+    upload_id: uuid.UUID | None = None,
+    run_type: str | None = None,
+    params: dict | None = None,
+) -> tuple[ValidationJob, bool]:
+    """
+    Queue validation of a month's named or latest upload.
+
+    Shared by the screen and the integration API. Returns ``(job, already_queued)``;
+    a live job for the month is returned rather than a second one started.
+    Does not commit.
+    """
+    from app.models import RegisterUpload
+    from app.services import register_uploads
+
+    month = period_month.replace(day=1)
+    if upload_id is not None:
+        upload = db.get(RegisterUpload, upload_id)
+        if upload is None or upload.entity_id != entity_id:
+            raise SubmitError(404, "Upload not found")
+        if upload.period_month != month:
+            raise SubmitError(
+                400,
+                (f"That upload is for {upload.period_month:%b %Y}" if upload.period_month
+                 else "That upload has no payroll month")
+                + f", not {month:%b %Y}. Choose the matching month or upload again.",
+            )
+    else:
+        upload = register_uploads.latest_for_period(db, entity_id, month, run_type or "regular")
+        if upload is None:
+            raise SubmitError(400, f"No register has been uploaded for {month:%b %Y}. Upload it first.")
+    if upload.missing_required:
+        raise SubmitError(
+            400,
+            "This register is missing required columns: "
+            + ", ".join(upload.missing_required[:10])
+            + ". Map or add them and upload again.",
+        )
+    try:
+        job = enqueue(
+            db, entity_id=entity_id, user_id=user_id, period_month=month,
+            register_id=upload.register_id, upload_id=upload.id,
+            run_type=run_type or upload.run_type or "regular", params=params or {},
+        )
+    except AlreadyQueued as exc:
+        return exc.job, True
+    job.employee_total = upload.row_count
+    return job, False

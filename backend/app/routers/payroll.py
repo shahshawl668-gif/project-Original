@@ -1,10 +1,8 @@
 import io
 import csv
-import calendar
 import json
 import uuid
 from datetime import UTC, date, datetime
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
@@ -24,25 +22,16 @@ from app.models import (
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
-from app.services import audit, coverage, finding_store, register_uploads, run_inputs
-from app.services.cost_model import capture_net_pay, capture_reported
-from app.services.dimensions import snapshot as dimension_snapshot
-from app.services.pf_basis import from_row as pf_flag_from_row
-from app.services.workforce import master_as_of
+from app.services import coverage, finding_store, register_ingest, register_uploads, run_inputs
 from app.services.payroll_parse import (
     allowed_destinations,
-    apply_mapping,
     check_mapping,
-    dataframe_to_employees,
     parse_payroll_file,
     suggested_mapping,
-    validate_required_columns,
     normalize_col,
 )
 from app.services.validation import (
-    _component_key_map,
     apply_suppressed_rules,
-    split_row_amounts,
     validate_employees,
 )
 
@@ -150,109 +139,7 @@ def _suppressed_rule_ids(db: Session, entity_id: uuid.UUID) -> set[str]:
     return {r[0] for r in rows}
 
 
-def _persist_salary_register(
-    db: Session,
-    user: User,
-    entity: Entity,
-    period_month: date,
-    filename: str | None,
-    employees: list[dict],
-    comps: list[ComponentConfig],
-    source_columns: list[str] | None = None,
-) -> uuid.UUID:
-    comp_by_key = _component_key_map(comps)
-
-    # The master as it stood at period end, so each row is stamped with the
-    # attributes that applied then rather than whatever they are today.
-    period_end = period_month.replace(day=calendar.monthrange(period_month.year, period_month.month)[1])
-    master_rows = master_as_of(db, entity.id, period_end)
-
-    existing = (
-        db.query(SalaryRegister)
-        .filter(SalaryRegister.entity_id == entity.id, SalaryRegister.period_month == period_month)
-        .first()
-    )
-    if existing:
-        db.query(SalaryRegisterRow).filter(SalaryRegisterRow.register_id == existing.id).delete()
-        existing.filename = filename
-        existing.employee_count = len(employees)
-        existing.source_columns = list(source_columns or [])
-        register = existing
-    else:
-        register = SalaryRegister(
-            user_id=user.id,
-            entity_id=entity.id,
-            period_month=period_month,
-            filename=filename,
-            employee_count=len(employees),
-            source_columns=list(source_columns or []),
-        )
-        db.add(register)
-        db.flush()
-
-    for row in employees:
-        eid = (
-            row.get("employee_id")
-            or row.get("emp_id")
-            or row.get("employee_code")
-        )
-        if eid is None:
-            continue
-        if isinstance(eid, float) and eid == int(eid):
-            eid = str(int(eid))
-        eid = str(eid).strip()
-        if not eid:
-            continue
-
-        ename = row.get("employee_name") or row.get("name")
-        if isinstance(ename, float):
-            ename = None
-
-        regular, arrear_by_base, inc_arrear_total = split_row_amounts(row, comp_by_key)
-        components_json = {k: float(v) for k, v in regular.items()}
-        arrears_json = {k: float(v) for k, v in arrear_by_base.items()}
-        dimensions_json = dimension_snapshot(master_rows.get(eid), row)
-        # What the payroll system said it deducted and contributed, and its view
-        # of this employee's PF basis. Both are captured here rather than
-        # recomputed later: they are the register's own testimony about the
-        # month, and a cost report built on them is one the client recognises.
-        deductions_json = capture_reported(row)
-        stated_net = capture_net_pay(row)
-        pf_restricted_flag = pf_flag_from_row(row)
-
-        paid_days_raw = row.get("paid_days")
-        lop_days_raw = row.get("lop_days") or row.get("lop")
-        try:
-            paid_days = Decimal(str(paid_days_raw)) if paid_days_raw not in (None, "") else None
-        except Exception:
-            paid_days = None
-        try:
-            lop_days = Decimal(str(lop_days_raw)) if lop_days_raw not in (None, "") else None
-        except Exception:
-            lop_days = None
-
-        db.add(
-            SalaryRegisterRow(
-                register_id=register.id,
-                user_id=user.id,
-        entity_id=entity.id,
-                period_month=period_month,
-                employee_id=eid,
-                employee_name=ename if isinstance(ename, str) else None,
-                paid_days=paid_days,
-                lop_days=lop_days,
-                components=components_json,
-                dimensions=dimensions_json,
-                arrears=arrears_json,
-                deductions=deductions_json,
-                pf_restricted=pf_restricted_flag,
-                increment_arrear_total=inc_arrear_total,
-                net_pay=stated_net,
-            )
-        )
-
-    db.commit()
-    return register.id
+_persist_salary_register = register_ingest.persist_salary_register
 
 
 def _payload_after_validation(rows: list, findings_summary: dict) -> dict:
@@ -311,81 +198,17 @@ async def upload_payroll(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
-    comp_names = {c.component_name for c in comps}
-    if column_mapping is None:
-        column_mapping = suggested_mapping(list(df.columns), comp_names)
-    unmapped_sources = sorted(set(df.columns) - set(column_mapping)) if isinstance(column_mapping, dict) else []
     try:
-        check_mapping(list(df.columns), column_mapping, comp_names)
-        df = apply_mapping(df, column_mapping)
-        columns, employees = dataframe_to_employees(df)
+        result = register_ingest.ingest_register(
+            db, entity=entity, user=user, df=df, filename=file.filename, content=raw,
+            run_type=run_type, period_month=period_month_d, effective_month_from=eff_from_d,
+            effective_month_to=eff_to_d, strict=strict, column_mapping=column_mapping,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    missing, warnings = validate_required_columns(columns, comp_names, strict=strict)
-    if unmapped_sources:
-        warnings.append("Unmapped source columns were ignored: " + ", ".join(unmapped_sources[:20]))
-    # Where each row sits in the file, so a finding can point at it.
-    register_uploads.stamp_source_rows(employees)
-
+    columns, employees = result["columns"], result["employees"]
+    missing, warnings, upload = result["missing"], result["warnings"], result["upload"]
     preview = employees[:5]
-
-    run = PayrollRun(
-        user_id=user.id,
-        entity_id=entity.id,
-        run_type=run_type,
-        effective_month_from=eff_from_d,
-        effective_month_to=eff_to_d,
-        filename=file.filename,
-        employee_count=len(employees),
-    )
-    db.add(run)
-    db.commit()
-
-    persist_period = _to_first_of_month(period_month_d or eff_to_d)
-    register_id: uuid.UUID | None = None
-    # Only a regular run is the month's register. An arrears file paid in June
-    # used to replace June's register, so June's cost collapsed to the arrears
-    # alone in every report. It is kept as a frozen upload and validated.
-    if run_type not in (None, "", "regular") and persist_period:
-        warnings.append(
-            f"This {str(run_type).replace('_', ' ')} run is validated but not added to "
-            f"{persist_period:%b %Y}'s cost register; the regular register stays as it was."
-        )
-    if persist_period and comps and not missing and run_type in (None, "", "regular"):
-        register_id = _persist_salary_register(db, user, entity, persist_period, file.filename,
-                                               employees, comps, source_columns=columns)
-        # Months later, when a figure is challenged, the only useful answer is
-        # who uploaded which file, and when.
-        audit.record(
-            db, entity_id=entity.id, user=user, action="register.uploaded",
-            object_type="salary_register", object_id=persist_period.isoformat(),
-            summary=(
-                f"Uploaded the salary register for {persist_period:%b %Y} — "
-                f"{len(employees)} employees from {file.filename}"
-            ),
-            detail={"warnings": warnings[:20], "run_type": run_type},
-        )
-        db.commit()
-
-    # Every upload is frozen, stored-as-register or not: it is what a
-    # validation job reads, and what a run will later be shown to have read.
-    upload = register_uploads.record(
-        db,
-        entity_id=entity.id,
-        user_id=user.id,
-        period_month=persist_period,
-        run_type=run_type,
-        filename=file.filename,
-        content=raw,
-        rows=employees,
-        source_columns=columns,
-        column_mapping=column_mapping if isinstance(column_mapping, dict) else None,
-        missing_required=missing,
-        warnings=warnings,
-        register_id=register_id,
-    )
-    db.commit()
 
     out = UploadParseResponse(
         columns=columns,

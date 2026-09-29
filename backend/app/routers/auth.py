@@ -63,7 +63,10 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    human_count = db.query(User).filter(User.email != SYSTEM_USER_EMAIL).count()
+    # Service accounts carry a users row for authorship only; they are not people.
+    human_count = db.query(User).filter(
+        User.email != SYSTEM_USER_EMAIL, User.role != "machine"
+    ).count()
     role = "admin" if human_count == 0 else "user"
 
     user = User(
@@ -93,7 +96,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     if (
         not user
         or user.email == SYSTEM_USER_EMAIL
-        or user.role == "system"
+        or user.role in ("system", "machine")
         or not verify_password(body.password, user.password_hash)
     ):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -216,7 +219,7 @@ def password_reset_request(body: PasswordResetRequest, db: Session = Depends(get
     user = db.query(User).filter(User.email == body.email.lower()).first()
     if not user:
         return ok({"sent": False})
-    if user.role == "system":
+    if user.role in ("system", "machine"):
         return ok({"sent": False})
 
     raw = secrets.token_urlsafe(32)

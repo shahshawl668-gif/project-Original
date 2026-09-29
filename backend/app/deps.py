@@ -60,6 +60,10 @@ def get_current_user(
     user = db.get(User, uid)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    # A service account's users row exists for authorship only. It can hold no
+    # session, whatever token names it; machines use the integration API.
+    if user.role == "machine":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
     if settings.is_production and payload.get("portal") not in {"client", "platform", "support"}:
         raise HTTPException(status_code=401, detail="Please sign in again")
     if settings.is_production and payload.get("portal") == "client":

@@ -51,6 +51,7 @@ code does not do.
 | `docs/ADMIN_MANUAL.md` | For the team running the platform |
 | `docs/GO_LIVE.md` | Internal. Six phases, three gates, and the D6 statutory sign-off |
 | `docs/BACKGROUND_JOBS.md` | Design and current state of the validation queue |
+| `docs/STUDIO.md` | PeopleOps Studio: assessment, design, current state per phase, quick starts |
 | `docs/DATABASE_MIGRATION.md` | Tested procedure for moving to another Postgres host |
 
 Build outputs, all gitignored, all regenerated rather than edited:

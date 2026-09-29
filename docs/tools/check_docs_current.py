@@ -63,6 +63,15 @@ def admin_endpoints() -> set[str]:
     return out
 
 
+def integration_endpoints() -> set[str]:
+    """Method and path for everything in the integration API."""
+    src = (REPO / "backend" / "app" / "integration" / "routes.py").read_text()
+    out = set()
+    for method, path in re.findall(r'@router\.(get|post|put|patch|delete)\(\s*"([^"]*)"', src):
+        out.add(f"{method.upper()} /api/integration/v1{path}")
+    return out
+
+
 def settings_fields() -> set[str]:
     """Every environment variable app/config.py reads."""
     src = (REPO / "backend" / "app" / "config.py").read_text()
@@ -102,6 +111,21 @@ def check() -> list[str]:
         if path not in html:
             problems.append(f"admin endpoint {endpoint} is not in the handbook")
 
+    # --- integration API --------------------------------------------------
+    # A contract with other people's systems: an endpoint nobody documented is
+    # one nobody can integrate against, and one documented but gone breaks them.
+    section = re.search(r'<section id="integration">(.*?)</section>', html, flags=re.S)
+    if section is None:
+        problems.append('the handbook has no <section id="integration"> for the integration API')
+    else:
+        documented_api = set(re.findall(r'<td class="mono">((?:GET|POST|PUT|PATCH|DELETE) /api/integration/v1[^<]*)</td>',
+                                        section.group(1)))
+        actual_api = integration_endpoints()
+        for missing in sorted(actual_api - documented_api):
+            problems.append(f"integration endpoint {missing} is not in the handbook's Integration API table")
+        for stale in sorted(documented_api - actual_api):
+            problems.append(f"the handbook lists integration endpoint {stale}, which no longer exists")
+
     # --- environment variables -------------------------------------------
     for field in sorted(settings_fields()):
         if field.upper() not in html:
@@ -130,5 +154,5 @@ if __name__ == "__main__":
             print(f"  - {p}")
         print(f"\n{len(found)} problem(s). Update docs/handbook.html, then re-run this.")
         sys.exit(1)
-    print("docs/handbook.html matches the code: routes, admin endpoints, "
-          "settings, health endpoints and roles all agree.")
+    print("docs/handbook.html matches the code: routes, admin endpoints, integration "
+          "endpoints, settings, health endpoints and roles all agree.")

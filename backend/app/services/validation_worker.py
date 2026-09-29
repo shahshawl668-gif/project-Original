@@ -303,6 +303,12 @@ def loop(worker: str | None = None, stop_event: threading.Event | None = None) -
         db = SessionLocal()
         try:
             worked = run_once(db, worker)
+            if not worked:
+                # Studio imports, syncs and workflows share this loop, so a
+                # deployment that validates also integrates.
+                from app.services.studio import worker as studio_worker
+
+                worked = studio_worker.run_once(db, worker)
         except Exception:  # noqa: BLE001
             # run_once records job failures itself, so reaching here means the
             # queue machinery failed — most likely the database went away.

@@ -321,6 +321,33 @@ Not zero findings — zero *unexplained* findings.
 
 ---
 
+## 4b. Connecting the client's systems (optional)
+
+When the client would rather send data from their systems than upload files
+each month, set up PeopleOps Studio after the parallel run has passed — the
+integration uses the same parsers and the same checks, so it should reproduce
+the parallel run's results exactly.
+
+1. In the client's workspace, **Studio → API Centre → New service account**
+   for each sending system. Tick only the companies it feeds and the least
+   scope it needs (*Send data* for a feed; add *validate* only for the system
+   that sends the register).
+2. Hand the key to the client's integration owner through their secret store.
+3. Have them rehearse every feed with the `/check` endpoints on last month's
+   data and compare the counts with the files you uploaded in the parallel run.
+4. Switch one feed at a time. After each first live batch, open it in
+   **Studio → Run history**: both reconciliation identities green, rejections
+   understood, lineage showing their system and batch ids.
+5. Keep the upload screens available as the fallback; they and the API write
+   the same records.
+
+The developer quick start and the rules a well-behaved client follows
+(idempotency keys, polling, error codes) are in [`STUDIO.md`](STUDIO.md) §6;
+the full contract is the OpenAPI document at `/api/integration/v1/openapi.json`,
+readable in Studio → API Centre.
+
+---
+
 ## 5. Deployment
 
 For the environment itself — hosting, database, domain, TLS — see

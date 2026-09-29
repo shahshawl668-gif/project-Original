@@ -56,6 +56,18 @@ class Settings(BaseSettings):
     validation_worker_enabled: bool = True
     validation_worker_concurrency: int = 1
 
+    # --- PeopleOps Studio: integration API -----------------------------------
+    # Requests per minute per API key. Enforced in the API process: with more
+    # than one API instance the effective ceiling multiplies (see ratelimit.py).
+    integration_rate_limit_per_minute: int = 120
+    # Largest request body the integration API accepts, in megabytes.
+    integration_max_request_mb: int = 25
+    # Most records one import batch may carry.
+    integration_max_records: int = 50000
+    # How long a rejected record's own copy is kept for inspection and retry.
+    # The rejection itself (row, code, reason) is kept with the run.
+    studio_rejection_retention_days: int = 30
+
     # ------------------------------------------------------------------ utils
     @property
     def cors_origins_list(self) -> list[str]:

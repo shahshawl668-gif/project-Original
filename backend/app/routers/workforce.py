@@ -8,7 +8,6 @@ silently disable every exit-related check.
 """
 from __future__ import annotations
 
-import calendar
 import json
 import uuid
 from datetime import date
@@ -24,7 +23,6 @@ from app.models import (
     AttendanceRegister,
     AttendanceRow,
     EmployeeMasterUpload,
-    EmployeeRecord,
     Entity,
     User,
 )
@@ -35,29 +33,18 @@ from app.schemas.workforce import (
     EmployeeRecordOut,
     ParsePreview,
 )
-from app.services import attendance_rules
+from app.services import attendance_rules, ingest
 from app.services.config_service import ConfigService
 from app.services.payroll_parse import parse_payroll_file
 from app.services.workforce_parse import (
-    derive_attendance_gaps,
     parse_attendance,
     parse_employee_master,
 )
 
 router = APIRouter()
 
-# Fields copied straight from a parsed record onto an EmployeeRecord.
-MASTER_FIELDS = (
-    "employee_name", "date_of_joining", "date_of_exit", "date_of_birth",
-    "gender", "work_state", "work_location", "department", "designation",
-    "grade", "business_unit", "cost_center", "employment_type", "skill_category", "pf_restricted",
-    "pan", "aadhaar", "uan", "pf_number", "esic_ip_number", "bank_account", "ifsc",
-)
-
-ATTENDANCE_FIELDS = (
-    "employee_name", "calendar_days", "present_days", "paid_days", "lop_days",
-    "paid_leave_days", "weekly_off_days", "holiday_days", "overtime_hours",
-)
+MASTER_FIELDS = ingest.MASTER_FIELDS
+ATTENDANCE_FIELDS = ingest.ATTENDANCE_FIELDS
 
 
 def _month_start(value: str | None, field: str) -> date:
@@ -147,49 +134,19 @@ async def commit_master(
 
     # Re-uploading the same effective date replaces that version rather than
     # colliding with it, so a corrected file can simply be sent again.
-    existing = (
-        db.query(EmployeeMasterUpload)
-        .filter(
-            EmployeeMasterUpload.entity_id == entity.id,
-            EmployeeMasterUpload.effective_from == effective_from,
-        )
-        .all()
+    result = ingest.commit_master(
+        db, entity=entity, user=user, effective_from=effective_from, records=records,
+        filename=file.filename, mode="replace",
+        lineage=ingest.file_lineage(file.filename, actor=user.email),
     )
-    for stale in existing:
-        db.delete(stale)
-    db.flush()
-
-    upload = EmployeeMasterUpload(
-        user_id=user.id,
-        entity_id=entity.id,
-        effective_from=effective_from,
-        filename=file.filename,
-        employee_count=len(records),
-    )
-    db.add(upload)
-    db.flush()
-
-    seen: set[str] = set()
-    for record in records:
-        employee_id = record["employee_id"]
-        if employee_id in seen:
-            continue  # first row wins; duplicates are reported by validation
-        seen.add(employee_id)
-        db.add(
-            EmployeeRecord(
-                upload_id=upload.id,
-                user_id=user.id,
-                entity_id=entity.id,
-                employee_id=employee_id,
-                effective_from=effective_from,
-                extra=record.get("extra", {}),
-                **{f: record.get(f) for f in MASTER_FIELDS},
-            )
-        )
-
     db.commit()
+    upload = result["upload"]
     db.refresh(upload)
-    return ok(EmployeeMasterUploadOut.model_validate(upload).model_dump(mode="json"))
+    payload = EmployeeMasterUploadOut.model_validate(upload).model_dump(mode="json")
+    # The first row per employee is kept; the others are named, not dropped unseen.
+    payload["duplicates_skipped"] = [d["employee_id"] for d in result["duplicates"]]
+    payload["counts"] = result["counts"]
+    return ok(payload)
 
 
 @router.get("/master/uploads")
@@ -335,7 +292,6 @@ async def commit_attendance(
     entity: Entity = Depends(require_entity_write),
 ):
     period_month = _month_start(_meta(meta).get("period_month"), "period_month")
-    calendar_days = Decimal(calendar.monthrange(period_month.year, period_month.month)[1])
 
     raw = await file.read()
     try:
@@ -346,28 +302,6 @@ async def commit_attendance(
     records, _, _ = parse_attendance(df)
     if not records:
         raise HTTPException(status_code=400, detail="No rows with an employee id were found.")
-
-    register = (
-        db.query(AttendanceRegister)
-        .filter(
-            AttendanceRegister.entity_id == entity.id,
-            AttendanceRegister.period_month == period_month,
-        )
-        .first()
-    )
-    if register is not None:
-        db.delete(register)
-        db.flush()
-
-    register = AttendanceRegister(
-        user_id=user.id,
-        entity_id=entity.id,
-        period_month=period_month,
-        filename=file.filename,
-        employee_count=len(records),
-    )
-    db.add(register)
-    db.flush()
 
     thresholds = ConfigService(db).get_rule_thresholds(entity.id)
     cfg = getattr(thresholds, "attendance", None)
@@ -380,31 +314,19 @@ async def commit_attendance(
         require_days_reconcile=bool(getattr(cfg, "require_days_reconcile", True)),
     )
 
-    seen: set[str] = set()
-    for record in records:
-        employee_id = record["employee_id"]
-        if employee_id in seen:
-            continue
-        seen.add(employee_id)
-        filled = derive_attendance_gaps(record, calendar_days)
-        db.add(
-            AttendanceRow(
-                register_id=register.id,
-                user_id=user.id,
-                entity_id=entity.id,
-                period_month=period_month,
-                employee_id=employee_id,
-                extra=record.get("extra", {}),
-                **{f: filled.get(f) for f in ATTENDANCE_FIELDS},
-            )
-        )
-
+    result = ingest.commit_attendance(
+        db, entity=entity, user=user, period_month=period_month, records=records,
+        filename=file.filename, mode="replace",
+        lineage=ingest.file_lineage(file.filename, actor=user.email),
+    )
     db.commit()
+    register = result["register"]
     db.refresh(register)
     payload = AttendanceRegisterOut.model_validate(register).model_dump(mode="json")
     payload["problems"] = problems
     payload["rows_read"] = len(records)
-    payload["rows_stored"] = len(seen)
+    payload["rows_stored"] = len(records) - len(result["duplicates"])
+    payload["duplicates_skipped"] = [d["employee_id"] for d in result["duplicates"]]
     return ok(payload)
 
 

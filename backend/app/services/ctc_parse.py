@@ -61,7 +61,15 @@ def parse_ctc_file(
       - annual_components (dict[str, float])  # only configured component keys
       - annual_ctc (float)
     """
-    df = parse_payroll_file(content, filename)
+    return parse_ctc_frame(parse_payroll_file(content, filename), component_keys, default_effective_from)
+
+
+def parse_ctc_frame(
+    df: pd.DataFrame,
+    component_keys: set[str],
+    default_effective_from: date | None = None,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """The same parse over a frame already read — a file, or records sent to the API."""
     df = df.copy()
     df.columns = [normalize_col(c) for c in df.columns]
     columns = list(df.columns)

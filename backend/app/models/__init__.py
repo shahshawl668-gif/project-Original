@@ -25,6 +25,15 @@ from app.models.workforce import (
     EmployeeRecord,
 )
 from app.models.audit import AuditEvent
+from app.models.studio import (
+    ACTIVE_RUN_STATUSES,
+    ENVIRONMENTS,
+    IdempotencyRecord,
+    IntegrationCredential,
+    ServiceAccount,
+    StudioRun,
+    StudioRunRejection,
+)
 from app.models.budget import BudgetLine, BudgetVersion, ENTITY_SCOPE
 from app.models.rule_engine import Formula, SlabRule
 from app.models.rule_preferences import TenantRulePreference
@@ -147,4 +156,11 @@ __all__ = [
     "LEASE_SECONDS",
     "CHUNK_SIZE",
     "DEFAULT_MAX_ATTEMPTS",
+    "ACTIVE_RUN_STATUSES",
+    "ENVIRONMENTS",
+    "IdempotencyRecord",
+    "IntegrationCredential",
+    "ServiceAccount",
+    "StudioRun",
+    "StudioRunRejection",
 ]

@@ -176,55 +176,22 @@ def enqueue_validation(
     already running, flagged ``already_queued``, so a double-click or a second
     tab joins the same job instead of racing it.
     """
-    month = body.period_month.replace(day=1)
-    if body.upload_id:
-        upload = db.get(RegisterUpload, _uuid(body.upload_id, "Upload"))
-        if upload is None or upload.entity_id != entity.id:
-            raise HTTPException(status_code=404, detail="Upload not found")
-        if upload.period_month != month:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"That upload is for {upload.period_month:%b %Y}"
-                    if upload.period_month else "That upload has no payroll month"
-                ) + f", not {month:%b %Y}. Choose the matching month or upload again.",
-            )
-    else:
-        upload = register_uploads.latest_for_period(db, entity.id, month, body.run_type or "regular")
-        if upload is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"No register has been uploaded for {month:%b %Y}. Upload it first.",
-            )
-    if upload.missing_required:
-        raise HTTPException(
-            status_code=400,
-            detail="This register is missing required columns: "
-            + ", ".join(upload.missing_required[:10])
-            + ". Map or add them and upload again.",
-        )
-
     params = {
         "effective_month_from": body.effective_month_from.isoformat() if body.effective_month_from else None,
         "effective_month_to": body.effective_month_to.isoformat() if body.effective_month_to else None,
         "as_of_date": body.as_of_date.isoformat() if body.as_of_date else None,
     }
     try:
-        job = jobs.enqueue(
-            db,
-            entity_id=entity.id,
-            user_id=user.id,
-            period_month=month,
-            register_id=upload.register_id,
-            upload_id=upload.id,
-            run_type=body.run_type or upload.run_type or "regular",
-            params=params,
+        job, already = jobs.submit_for_period(
+            db, entity_id=entity.id, user_id=user.id, period_month=body.period_month,
+            upload_id=_uuid(body.upload_id, "Upload") if body.upload_id else None,
+            run_type=body.run_type, params=params,
         )
-        job.employee_total = upload.row_count
+    except jobs.SubmitError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
+    if not already:
         db.commit()
-    except jobs.AlreadyQueued as exc:
-        return ok({"job": _describe_job(db, exc.job), "already_queued": True})
-    return ok({"job": _describe_job(db, job), "already_queued": False})
+    return ok({"job": _describe_job(db, job), "already_queued": already})
 
 
 @router.get("/jobs")

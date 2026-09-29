@@ -57,6 +57,8 @@ class CtcRecord(Base):
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     annual_components: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     annual_ctc: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    #: Provenance, not data — see EmployeeRecord.lineage.
+    lineage: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     upload = relationship("CtcUpload", back_populates="records")

@@ -73,6 +73,7 @@ Six boxes. Click one to open it; only the box you are working in stays open.
 | **Attendance** | The attendance register |
 | **Bank & JV** | Month close, Bank payments, Journal voucher |
 | **Insights** | Cost analysis, Reports |
+| **Studio** | Connections to your other systems: the API Centre and the run history of every batch they sent (analysts and above) |
 | **Settings** | Rules, people, history |
 
 ---
@@ -396,6 +397,34 @@ group never see this company's boards.
 **Payroll → Register history.** Every register uploaded, by period.
 
 ![Register history](images/13-register-history.png)
+
+---
+
+## 6b. Data sent by your other systems (Studio)
+
+If your HRMS, attendance or payroll system sends data to PeopleOpsLab directly,
+each batch appears in **Studio → Run history**.
+
+![Run history](images/28-studio-runs.png)
+
+Open a run to see what happened to every record:
+
+![One run: counts, lineage, rejections](images/29-studio-run.png)
+
+- **Received → accepted / rejected / skipped → created / updated / unchanged.**
+  The two lines under the counts must both be green: every record received is
+  accounted for, and every record accepted was stored.
+- **Rejected** records were not stored. Each says which row, which field and
+  why — a date that could not be read, a number that was not a number, the same
+  employee twice with different values. Fix them in the sending system and send
+  just those again. Nothing is ever stored as blank or zero because it could
+  not be read.
+- **Skipped** records were exact repeats of another row and were kept once.
+- **What it led to** links to the validation results, when the batch was a
+  register sent for validation.
+
+A service account can acknowledge and comment on findings, but only a person
+can waive or resolve one, publish a rule, or approve a month.
 
 ---
 
