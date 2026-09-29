@@ -408,8 +408,8 @@ breakdown and sort. Preview the result and its CTC control total before saving a
 personal draft. A manager can share a definition with the company. A saved
 definition is evaluated against current data when opened again. Preview shows
 at most 200 rows and states the full matched count. Save the definition with both
-period bounds, then use **Download Excel** for all matched aggregate rows; check
-the summary and data-basis sheets before sharing.
+period bounds, then use **Generate Excel**. The job appears in **Generated history** with its\nstatus; download the completed file and check
+the summary and data-basis sheets before sharing. A generated file is fixed,\nexpires after the configured retention period, and remains subject to your\ncurrent company access.
 
 ![Reports](images/09-reports.png)
 

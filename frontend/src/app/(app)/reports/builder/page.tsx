@@ -15,6 +15,7 @@ type Field = { key: string; label: string; numeric: boolean };
 type Dataset = { key: string; label: string; grain: string; fields: Field[]; dimensions: { key: string; label: string }[]; note: string };
 type Spec = { dataset: "payroll_cost"; dimension: string; fields: string[]; filters: Record<string, string[]>; date_from: string | null; date_to: string | null; sort: string; order: "asc" | "desc"; calculations: { key: string; label: string; expression: string }[] };
 type Preview = { status: "ok" | "missing_data" | "no_matching_records"; rows: Record<string, string | number | null>[]; record_count: number; truncated_preview?: boolean; control_totals: Record<string, number> | null; grain: string };
+type ReportJob = { id: string; definition_name: string; definition_version: number; state: string; stage: string; record_count: number | null; artifact_bytes: number | null; error_message: string | null; expires_at: string | null };
 type Saved = { id: string; name: string; version: number; visibility: string; status: string; specification: Spec };
 const steps = ["Dataset", "Fields", "Filters", "Calculations", "Grouping", "Layout", "Preview", "Save"];
 const initial: Spec = { dataset: "payroll_cost", dimension: "department", fields: ["period", "dimension", "headcount", "gross", "ctc"], filters: {}, date_from: null, date_to: null, sort: "period", order: "asc", calculations: [] };
@@ -28,17 +29,21 @@ export default function ReportBuilderPage() {
   const [visibility, setVisibility] = useState<"private" | "shared">("private");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const datasets = useQuery({ queryKey: ["reports", "datasets"], queryFn: () => apiJson<{ datasets: Dataset[] }>("/api/reports/builder/datasets") });
   const saved = useQuery({ queryKey: ["reports", "saved"], queryFn: () => apiJson<{ reports: Saved[] }>("/api/reports/builder/saved") });
   const versions = useQuery({ queryKey: ["reports", "versions", activeId], enabled: !!activeId, queryFn: () => apiJson<{ versions: { version: number; name: string; created_at: string }[] }>(`/api/reports/builder/saved/${activeId}/versions`) });
+  const history = useQuery({ queryKey: ["reports", "jobs"], queryFn: () => apiJson<{ jobs: ReportJob[] }>("/api/reports/builder/jobs"), refetchInterval: activeJobId ? 3000 : false });
+  const job = useQuery({ queryKey: ["reports", "job", activeJobId], enabled: !!activeJobId, queryFn: () => apiJson<ReportJob>(`/api/reports/builder/jobs/${activeJobId}`), refetchInterval: activeJobId ? 3000 : false });
   const dimensions = useQuery({ queryKey: ["bi", "dimensions"], queryFn: fetchDimensions });
   const periods = useQuery({ queryKey: ["bi", "periods"], queryFn: fetchPeriods });
   const dataset = datasets.data?.datasets[0];
   const fields = [...(dataset?.fields ?? []), ...spec.calculations.map((c) => ({ key: c.key, label: c.label, numeric: true }))];
 
-  function update(next: Partial<Spec>) { setSpec((s) => ({ ...s, ...next })); setPreview(null); setSavedMessage(null); }
+  function update(next: Partial<Spec>) { setSpec((s) => ({ ...s, ...next })); setPreview(null); setSavedMessage(null); setDirty(true); }
   async function runPreview() {
     setBusy(true); setError(null);
     try {
@@ -53,7 +58,7 @@ export default function ReportBuilderPage() {
       const result = await apiJson<Saved>(activeId ? `/api/reports/builder/saved/${activeId}` : "/api/reports/builder/saved", {
         method: activeId ? "PUT" : "POST", body: JSON.stringify({ name: name.trim(), specification: spec, visibility, status: "draft" }),
       });
-      setActiveId(result.id);
+      setActiveId(result.id); setDirty(false);
       setSavedMessage(`Saved draft version ${result.version}. It will use current data when previewed again.`);
       await saved.refetch(); await queryClient.invalidateQueries({ queryKey: ["reports", "versions", result.id] });
     } catch (e) { setError((e as Error).message); }
@@ -61,7 +66,7 @@ export default function ReportBuilderPage() {
   }
   function load(report: Saved) {
     setSpec(report.specification); setName(report.name); setVisibility(report.visibility as "private" | "shared"); setPreview(null);
-    setActiveId(report.id);
+    setActiveId(report.id); setDirty(false);
     setSavedMessage(`Editing ${report.name}, version ${report.version}. Preview uses current data.`); setStep(1);
   }
 
@@ -75,16 +80,36 @@ export default function ReportBuilderPage() {
     finally { setBusy(false); }
   }
 
-  async function download() {
-    if (!activeId) return;
+  async function generate() {
+    if (!activeId || dirty) return;
     setBusy(true); setError(null);
     try {
-      const blob = await apiBlob(`/api/reports/builder/saved/${activeId}.xlsx`);
+      const queued = await apiJson<ReportJob>(`/api/reports/builder/saved/${activeId}/jobs`, { method: "POST" });
+      setActiveJobId(queued.id);
+      await history.refetch();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function downloadJob(jobId: string) {
+    setBusy(true); setError(null);
+    try {
+      const blob = await apiBlob(`/api/reports/builder/jobs/${jobId}/download`);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url; link.download = `peopleops-report-${activeId.slice(0, 12)}.xlsx`;
+      link.href = url; link.download = `peopleops-report-${jobId.slice(0, 12)}.xlsx`;
       document.body.appendChild(link); link.click(); link.remove();
       URL.revokeObjectURL(url);
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function jobAction(jobId: string, action: "cancel" | "retry") {
+    setBusy(true); setError(null);
+    try {
+      const result = await apiJson<ReportJob>(`/api/reports/builder/jobs/${jobId}/${action}`, { method: "POST" });
+      setActiveJobId(result.id);
+      await history.refetch();
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -174,7 +199,10 @@ export default function ReportBuilderPage() {
           <label className="block text-sm">Visibility<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={visibility} onChange={(e) => setVisibility(e.target.value as "private" | "shared")}><option value="private">Personal draft</option><option value="shared">Company shared (manager access)</option></select></label>
           <p className="text-xs text-ink-500">A saved definition contains choices, not a frozen result. Access is checked again when previewed.</p>
           <button type="button" disabled={busy || !name.trim()} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {activeId ? "Save new version" : "Save draft"}</button>
-          {activeId && <button type="button" disabled={busy || !spec.date_from || !spec.date_to} onClick={download} className="ml-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={15} /> Download Excel</button>}
+          {activeId && <button type="button" disabled={busy || dirty || !spec.date_from || !spec.date_to} onClick={generate} className="ml-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={15} /> Generate Excel</button>}
+          {dirty && <p className="text-xs text-ink-500">Save your changes before generation.</p>}
+          {job.data && <p className="text-sm">Job {job.data.id.slice(0, 8)}: {job.data.stage}{job.data.record_count !== null ? ` · ${job.data.record_count} rows` : ""}{job.data.error_message ? ` · ${job.data.error_message}` : ""}</p>}
+          {job.data?.state === "succeeded" && <button type="button" onClick={() => job.data && downloadJob(job.data.id)} className="text-brand-600 hover:underline">Download generated file</button>}
           {activeId && (!spec.date_from || !spec.date_to) && <p className="text-xs text-ink-500">Choose both period bounds before export.</p>}
           {activeId && <div className="space-y-1 text-xs text-ink-500"><strong className="block text-ink-700 dark:text-ink-200">Definition history</strong>{(versions.data?.versions ?? []).map((item) => <p key={item.version}>Version {item.version} · {item.name} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded"}</p>)}</div>}
         </div>}
@@ -191,6 +219,17 @@ export default function ReportBuilderPage() {
           <div className="mt-2 flex gap-3"><button type="button" onClick={() => load(report)} className="text-brand-600 hover:underline">Open</button><button type="button" onClick={() => clone(report)} className="text-brand-600 hover:underline">Clone</button></div>
         </div>)}
         {saved.data?.reports.length === 0 && <p className="text-sm text-ink-500">No saved reports yet.</p>}
+        <h2 className="border-t pt-4 font-semibold">Generated history</h2>
+        {(history.data?.jobs ?? []).map((item) => <div key={item.id} className="rounded-lg border p-3 text-xs dark:border-white/10">
+          <span className="block font-medium">{item.definition_name} · v{item.definition_version}</span>
+          <span className="block text-ink-500">{item.stage} · {item.id.slice(0, 8)}{item.record_count !== null ? ` · ${item.record_count} rows` : ""}</span>
+          {item.error_message && <span className="block text-red-600">{item.error_message}</span>}
+          <div className="mt-2 flex gap-3">
+            {item.state === "succeeded" && <button type="button" onClick={() => downloadJob(item.id)} className="text-brand-600">Download</button>}
+            {(item.state === "queued" || item.state === "running") && <button type="button" onClick={() => jobAction(item.id, "cancel")} className="text-brand-600">Cancel</button>}
+            {item.state === "failed" && <button type="button" onClick={() => jobAction(item.id, "retry")} className="text-brand-600">Retry</button>}
+          </div>
+        </div>)}
       </CardContent></Card>
     </div>
   </div>;
