@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 import socket
 import threading
-import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
