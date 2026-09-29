@@ -96,7 +96,8 @@ def validate(spec: dict) -> dict:
     if dimension not in DIMENSION_KEYS:
         raise ValueError("Unknown breakdown dimension")
     fields = spec.get("fields", ["period", "dimension", "headcount", "gross", "ctc"])
-    if not isinstance(fields, list) or not 1 <= len(fields) <= 14 or len(fields) != len(set(fields)):
+    if (not isinstance(fields, list) or not 1 <= len(fields) <= 14
+            or any(not isinstance(field, str) for field in fields) or len(fields) != len(set(fields))):
         raise ValueError("Choose 1–14 distinct columns")
     calculations = spec.get("calculations", [])
     if not isinstance(calculations, list) or len(calculations) > 3:
