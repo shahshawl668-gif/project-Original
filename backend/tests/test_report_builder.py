@@ -1,6 +1,7 @@
 """PeopleOps Reports builder: scope, arithmetic safety and shared BI totals."""
 from __future__ import annotations
 
+import io
 from datetime import date
 
 import pytest
@@ -71,3 +72,28 @@ def test_saved_definition_version_and_company_isolation(client, workspace):
     other_headers = {**headers, "X-Entity-Id": other}
     assert client.get(f"/api/reports/builder/saved/{report_id}", headers=other_headers).status_code == 404
     assert client.get("/api/reports/builder/saved", headers=other_headers).json()["data"]["reports"] == []
+
+
+def test_saved_excel_exports_every_row_and_typed_period(client, workspace, monkeypatch):
+    from openpyxl import load_workbook
+
+    entity, user, headers = workspace
+    _register(entity, user, date(2026, 4, 1), [
+        {"employee_id": "E1", "dimensions": _dims(department="A"), "components": {"basic": 10000}},
+        {"employee_id": "E2", "dimensions": _dims(department="B"), "components": {"basic": 12000}},
+    ])
+    created = client.post("/api/reports/builder/saved", json={
+        "name": "All departments", "specification": _spec(), "visibility": "private"
+    }, headers=headers)
+    assert created.status_code == 200, created.text
+    report_id = created.json()["data"]["id"]
+    monkeypatch.setattr(report_builder, "MAX_PREVIEW_ROWS", 1)
+    payload = client.get(f"/api/reports/builder/saved/{report_id}.xlsx", headers=headers)
+    assert payload.status_code == 200, payload.text[:200] if payload.status_code != 200 else ""
+    wb = load_workbook(io.BytesIO(payload.content))
+    assert wb.sheetnames[:3] == ["About this report", "Summary", "Details"]
+    assert wb["Details"].max_row == 3
+    assert wb["Details"]["A2"].value.date() == date(2026, 4, 1)
+    info = {row[0]: row[1] for row in wb["About this report"].values if row[0]}
+    assert info["Record count"] == 2
+    assert info["Definition version"] == 1
