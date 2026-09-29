@@ -142,7 +142,7 @@ def validate(spec: dict) -> dict:
     }
 
 
-def preview(db, entity_id, specification: dict) -> dict:
+def preview(db, entity_id, specification: dict, *, row_limit: int | None = MAX_PREVIEW_ROWS) -> dict:
     spec = validate(specification)
     analysis = cost_analysis(
         db, entity_id, group_by=spec["dimension"], granularity="month",
@@ -176,8 +176,8 @@ def preview(db, entity_id, specification: dict) -> dict:
     rows.sort(key=lambda row: (row[sort_key] is None, row[sort_key]), reverse=spec["order"] == "desc")
     return {
         "status": "ok" if rows else "no_matching_records",
-        "rows": rows[:MAX_PREVIEW_ROWS], "record_count": len(rows),
-        "truncated_preview": len(rows) > MAX_PREVIEW_ROWS,
+        "rows": rows[:row_limit] if row_limit is not None else rows, "record_count": len(rows),
+        "truncated_preview": row_limit is not None and len(rows) > row_limit,
         "control_totals": {key: analysis["totals"][key] for key in (*MEASURE_FIELDS, "headcount", "person_months")},
         "grain": "period_dimension", "basis": analysis["basis"],
     }
