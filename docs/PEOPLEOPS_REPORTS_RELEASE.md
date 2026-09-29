@@ -19,4 +19,4 @@ Deploy the preceding application commit to hide the new route. The two additive 
 
 ## Known limits
 
-The first approved builder dataset is aggregate payroll cost at period × dimension grain. Its preview returns up to 200 rows and the full matched count. Definitions evaluate current data and are not immutable report outputs. No CSV, PDF, schedule, artifact retention, external delivery or 8,000/20,000 employee benchmark is included in this increment.
+The first approved builder dataset is aggregate payroll cost at period × dimension grain. Its preview returns up to 200 rows and the full matched count. Definitions evaluate current data and are not immutable report outputs. The saved aggregate workbook exports all matched rows with provenance, a summary and the data basis. Generation is synchronous and uses current data. No CSV, PDF, scheduled job, immutable artifact retention, external delivery or 8,000/20,000 employee benchmark is included in this increment.
