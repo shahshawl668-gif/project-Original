@@ -128,7 +128,7 @@ def validate(spec: dict) -> dict:
         raise ValueError("Periods must be ISO dates") from exc
     if start and end and (end < start or (end.year - start.year) * 12 + end.month - start.month > 23):
         raise ValueError("Preview range must be ordered and at most 24 months")
-    if spec.get("sort", "period") not in fields:
+    if spec.get("sort", fields[0]) not in fields:
         raise ValueError("Sort must be a visible column")
     if spec.get("order", "asc") not in ("asc", "desc"):
         raise ValueError("Invalid sort order")
@@ -136,7 +136,7 @@ def validate(spec: dict) -> dict:
         "dataset": "payroll_cost", "dimension": dimension, "fields": fields,
         "filters": {key: values for key, values in filters.items() if values},
         "date_from": date_from, "date_to": date_to,
-        "sort": spec.get("sort", "period"), "order": spec.get("order", "asc"),
+        "sort": spec.get("sort", fields[0]), "order": spec.get("order", "asc"),
         "calculations": [{"key": calc["key"], "expression": calc["expression"], "label": str(calc.get("label") or calc["key"])[:80]} for calc in calculations],
     }
 
