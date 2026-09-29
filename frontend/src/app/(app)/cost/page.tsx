@@ -549,11 +549,16 @@ function CostAnalysisContent() {
         <>
           {analysis.data?.basis ? <DataBasisStrip basis={analysis.data.basis} /> : null}
           {/* ── the figures ───────────────────────────────────────── */}
+          <p className="text-xs text-ink-500">
+            <span className="font-medium text-ink-700">Actual</span> — what the stored salary registers paid
+            {points.length ? `, ${points[0]?.label}${points.length > 1 ? ` to ${points[points.length - 1]?.label}` : ""}` : ""}.
+            {" "}Contractual CTC is under <b>Compensation &amp; benefits</b>; approved budget and forecasts under <b>Budget &amp; forecast</b>. Nothing here is annualised or forecast.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile
               icon={IndianRupee}
               label="Total CTC"
-              value={formatINR(totals?.ctc ?? 0, true)}
+              value={totals ? formatINR(totals.ctc, true) : "—"}
               tone="cost"
               delta={deltaOf("ctc")}
               deltaPct={deltaPctOf("ctc")}
@@ -562,14 +567,14 @@ function CostAnalysisContent() {
             <StatTile
               icon={Wallet}
               label="Gross pay"
-              value={formatINR(totals?.gross ?? 0, true)}
-              hint={`${(((totals?.gross ?? 0) / (totals?.ctc || 1)) * 100).toFixed(1)}% of CTC`}
+              value={totals ? formatINR(totals.gross, true) : "—"}
+              hint={totals?.ctc ? `${((totals.gross / totals.ctc) * 100).toFixed(1)}% of CTC` : "no register in range"}
             />
             <StatTile
               icon={Landmark}
               label="Employer contributions"
-              value={formatINR(totals?.employer_cost ?? 0, true)}
-              hint={`${(((totals?.employer_cost ?? 0) / (totals?.ctc || 1)) * 100).toFixed(1)}% on top of gross`}
+              value={totals ? formatINR(totals.employer_cost, true) : "—"}
+              hint={totals?.ctc ? `${((totals.employer_cost / totals.ctc) * 100).toFixed(1)}% of CTC, on top of gross` : "no register in range"}
             />
             <StatTile
               icon={Users}

@@ -433,7 +433,22 @@ data only: pick the **dataset**, the **metric** (or a custom KPI), the
 **breakdown**, the **chart**, any **filters**, and the tile takes the board's
 **period** unless you set its own. A tile shows what it rests on under the
 figure — months missing, months not validated — and **Open** (or clicking a bar
-or a row) goes to the page behind it, already filtered.
+or a row) goes to the page behind it, already filtered. Every tile names its
+metric, breakdown, period and units (₹, count or %), and any filters it uses; a
+month or category with no data is left as a gap and labelled, never drawn as
+zero. Severity and state breakdowns always wear the same colours — Critical
+red, Warning amber, Info blue — with their names beside them.
+
+**Viewing and editing are separate.** A board opens in view mode, where nothing
+changes what is saved. **Edit** opens it for changes: rename it, choose who can
+see it, add, edit or remove tiles, and reorder them with the arrow buttons on
+each tile (they work from the keyboard). Nothing is saved until **Save**; leaving
+with unsaved changes asks first, and **Discard changes** puts the board back.
+
+**Adding a tile:** type what you want in **Find a metric** — it searches every
+dataset's metrics and your custom KPIs at once — or choose the dataset and
+metric step by step. The preview below the builder shows the tile with live
+data for the board's period.
 
 ![Building a tile](images/27-tile-builder.png)
 
