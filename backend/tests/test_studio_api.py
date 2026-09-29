@@ -24,6 +24,7 @@ from app.database import SessionLocal
 from app.models import (
     AuditEvent,
     EmployeeRecord,
+    EntityRoleOverride,
     IntegrationCredential,
     RegisterUpload,
     ServiceAccount,
@@ -174,6 +175,25 @@ def test_only_owners_and_managers_manage_keys(client, company):
     assert client.get("/api/studio/service-accounts", headers=analyst).status_code == 403
     # An analyst may read the run history.
     assert client.get("/api/studio/runs", headers=analyst).status_code == 200
+
+
+def test_shared_key_cannot_be_revoked_by_manager_of_only_one_company(client, company):
+    sister = _data(client.post("/api/org/entities", headers=company,
+                               json={"name": "Scoped sister"}))["id"]
+    shared = _key(client, company, entity_ids=[company["X-Entity-Id"], sister])
+    db = SessionLocal()
+    try:
+        account = db.get(ServiceAccount, uuid.UUID(shared["account"]["id"]))
+        db.add(EntityRoleOverride(org_id=account.org_id,
+                                  user_id=account.created_by,
+                                  entity_id=uuid.UUID(sister), role="viewer"))
+        db.commit()
+    finally:
+        db.close()
+    denied = client.post(f"/api/studio/keys/{shared['credential']['id']}/revoke",
+                         headers=company, json={"reason": "Should not disrupt sister"})
+    assert denied.status_code == 403
+    assert call(client, shared["key"], "GET", "/me", company=sister).status_code == 200
 
 
 def test_revoked_expired_and_rotated_keys(client, company):
