@@ -158,7 +158,7 @@ def export_saved(report_id: uuid.UUID, db: Session = Depends(get_db),
         *[[key.replace("_", " ").title(), value] for key, value in (result["control_totals"] or {}).items()],
     ])
     headers = spec["fields"]
-    rows = [[date.fromisoformat(item[key] + "-01") if key == "period" and item[key]
+    rows = [[date.fromisoformat(item[key]) if key == "period" and item[key]
              else item[key] for key in headers] for item in result["rows"]]
     reporting._sheet(wb, "Details", headers, rows)
     if "period" in headers:
