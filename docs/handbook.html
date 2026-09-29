@@ -758,6 +758,9 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
           <tr><td class="mono">STUDIO_SECRET_KEY</td><td>—</td><td><b>Required in production before any connection credential or webhook secret is stored.</b> A Fernet key (<code>Fernet.generate_key()</code>); a comma-separated list rotates — the first encrypts, all decrypt. Unset in production, storing a secret fails with a clear error rather than falling back. Outside production a key is derived from <code>JWT_SECRET</code>. Losing it makes stored secrets unreadable: connections must be re-entered</td></tr>
           <tr><td class="mono">STUDIO_ALLOW_PRIVATE_DESTINATIONS</td><td class="mono">false</td><td>Lets connections and webhooks reach private addresses, for local development against a mock system. <b>Forced <code>false</code> in production.</b> Link-local and cloud-metadata addresses stay blocked even when on</td></tr>
           <tr><td class="mono">STUDIO_HTTP_TIMEOUT_SECONDS</td><td class="mono">30</td><td>Per-request timeout for every outbound call (connections, OAuth, webhooks)</td></tr>
+          <tr><td class="mono">REPORT_WORKER_ENABLED</td><td class="mono">true</td><td>Starts the report job worker in the API process; disable when using the standalone report worker.</td></tr>
+          <tr><td class="mono">REPORT_ARTIFACT_MAX_MB</td><td class="mono">10</td><td>Maximum generated workbook size; jobs exceeding it fail with an explicit message.</td></tr>
+          <tr><td class="mono">REPORT_ARTIFACT_RETENTION_DAYS</td><td class="mono">30</td><td>Download retention for generated report files before expiry cleanup.</td></tr>
           <tr><td class="mono">STUDIO_HTTP_MAX_RESPONSE_MB</td><td class="mono">50</td><td>Largest response body Studio reads from another system; a larger one is refused, not truncated</td></tr>
         </tbody>
       </table>
