@@ -52,6 +52,11 @@ def _dispatch(db: Session, run: StudioRun) -> None:
 
         sync.process(db, run)
         return
+    if run.kind == "workflow":
+        from app.services.studio import workflows
+
+        workflows.process(db, run)
+        return
     runs.finish(db, run, "failed", error_category="internal",
                 error_message=f"No processor for runs of kind '{run.kind}'.")
     db.commit()
@@ -67,6 +72,13 @@ def run_once(db: Session, worker: str) -> bool:
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.exception("studio scheduler failed")
+    try:
+        from app.services.studio import workflows
+
+        workflows.schedule_due(db)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("studio workflow scheduler failed")
     delivered = 0
     try:
         from app.services.studio import webhooks

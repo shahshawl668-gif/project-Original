@@ -365,6 +365,12 @@ files uses the mapping page's file import through the same published mapping.
 
 ![Data mapping](images/32-studio-mapping.png)
 
+Once feeds are stable, a workflow can take the month from *inputs arrived* to
+*validated and assigned*: **Studio → Workflows**, template *Validate when
+inputs are ready*. Dry-run it, have the client's owner publish it, and agree
+with them who is notified. It never approves anything; the month's sign-off
+stays with their people.
+
 The developer quick start and the rules a well-behaved client follows
 (idempotency keys, polling, error codes) are in [`STUDIO.md`](STUDIO.md) §6;
 the full contract is the OpenAPI document at `/api/integration/v1/openapi.json`,

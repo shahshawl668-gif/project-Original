@@ -14,7 +14,7 @@ export function RunLine({ run }: { run: Run }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
       <Link href={`/studio/runs/${run.id}`} className="min-w-0 font-medium text-brand-700 hover:underline dark:text-brand-300">
-        {runTitle(run)}{run.source.batch_id ? ` · ${run.source.batch_id}` : ""}
+        {runTitle(run)}{run.source.batch_id && run.kind !== "workflow" ? ` · ${run.source.batch_id}` : ""}
       </Link>
       <span className="flex items-center gap-2 text-xs text-ink-500">
         {run.counts ? `${run.counts.rejected ?? 0} rejected of ${run.counts.received ?? 0}` : null}

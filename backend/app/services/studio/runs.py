@@ -123,7 +123,7 @@ _CLAIMABLE = """
     SELECT id FROM studio_runs
     WHERE ((status = 'queued' AND queued_at <= :now)
        OR (status = 'running' AND (heartbeat_at IS NULL OR heartbeat_at < :stale)))
-      AND kind IN ('import', 'sync')
+      AND kind IN ('import', 'sync', 'workflow')
     ORDER BY queued_at
     {locking}
     LIMIT 1
@@ -196,7 +196,9 @@ def finish(
 
             events.emit(db, org_id=run.org_id, entity_id=run.entity_id, type="import.completed",
                         data={"run_id": str(run.id), "kind": run.kind, "object_type": run.object_type,
-                              "status": status, "counts": run.counts or {}, "batch_id": run.batch_id},
+                              "status": status, "counts": run.counts or {}, "batch_id": run.batch_id,
+                              "period_month": (run.period_month or run.effective_from).isoformat()
+                              if (run.period_month or run.effective_from) else None},
                         causation=(run.options or {}).get("causation") or {})
     return run
 
@@ -289,6 +291,10 @@ def purge_expired_payloads(db: Session, today: date | None = None) -> int:
 # ---------------------------------------------------------------------------
 # Reading
 # ---------------------------------------------------------------------------
+#: A workflow run's working state, shown as ``workflow`` rather than as links.
+_WORKFLOW_STATE = ("steps", "cursor", "context", "failure_branch")
+
+
 def live_status(db: Session, run: StudioRun) -> str:
     """A validation run's status follows the job it started."""
     if run.kind == "validation" and run.validation_job_id is not None:
@@ -334,8 +340,15 @@ def describe(db: Session, run: StudioRun, *, detail: bool = False) -> dict[str, 
             "validation_run_id": str(run.validation_run_id) if run.validation_run_id else None,
             "connection_id": str(run.connection_id) if run.connection_id else None,
             "workflow_id": str(run.workflow_id) if run.workflow_id else None,
-            **dict(run.result_ref or {}),
+            **{k: v for k, v in (run.result_ref or {}).items() if k not in _WORKFLOW_STATE},
         },
+        "workflow": {
+            "steps": (run.result_ref or {}).get("steps") or [],
+            "failure_branch": (run.result_ref or {}).get("failure_branch") or [],
+            "trigger": {k: v for k, v in ((run.options or {}).get("trigger") or {}).items() if k != "data"},
+            "period": ((run.result_ref or {}).get("context") or {}).get("period"),
+            "validation_run_id": ((run.result_ref or {}).get("context") or {}).get("validation_run_id"),
+        } if run.kind == "workflow" else None,
         "request_id": run.request_id,
         "queued_at": _aware(run.queued_at).isoformat() if run.queued_at else None,
         "started_at": _aware(run.started_at).isoformat() if run.started_at else None,

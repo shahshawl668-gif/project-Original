@@ -31,6 +31,9 @@ CATALOGUE: dict[str, str] = {
     "period.submitted": "A month was submitted for approval: period, sign-off id.",
     "period.signed_off": "A month was signed off: period, sign-off id, snapshot digest.",
     "period.reopened": "A signed month was reopened: period, sign-off id.",
+    "inbound.received": "A signed inbound webhook call was accepted: endpoint id, receipt id, run id.",
+    "workflow.finished": "A workflow run finished: workflow id, run id, status.",
+    "workflow.message": "Sent by a workflow's webhook action to one webhook: workflow id, run id, period.",
     "webhook.test": "A test event sent from Studio to one webhook.",
 }
 

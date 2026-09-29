@@ -458,6 +458,18 @@ decision for the client, not a housekeeping task.
 - **Rollback:** redeploy the previous release; the new tables are ignored,
   syncs and webhooks stop, and events are not recorded meanwhile.
 
+### Upgrading to Studio workflows
+
+- **Automatic on first start.** Three new tables (`studio_workflows`,
+  `studio_workflow_fires`, `studio_notifications`) arrive through `create_all`.
+  No settings, no new dependencies.
+- **The worker also runs workflows and their schedules.** With no worker,
+  none run.
+- **A bell appears in the header** for everyone: in-product notifications that
+  workflows send. Nothing is emailed.
+- **Rollback:** redeploy the previous release; workflows stop, their runs stay
+  in run history.
+
 ---
 
 ## 8b. PeopleOps Studio — keys for other systems
@@ -516,6 +528,23 @@ submits is in the audit trail.
   the same event twice — delivery is at least once.
 
 ![Connections](images/31-studio-connections.png)
+
+**Workflows**
+
+- Owners and managers publish, enable, disable and run workflows; analysts may
+  draft and edit them. Turn on the independent-publisher policy if one person
+  should not both write and put in force an automation.
+- A workflow acts as the person who published it. If that person leaves or
+  loses the manager role, its automatic starts stop and say why ("last
+  skipped") — publish it again as someone who can manage the company.
+- **No workflow can sign, submit or approve a month, waive or resolve a
+  finding, or publish a rule.** It can fetch, check, validate, assign, notify
+  and send webhooks. Approval controls are untouched.
+- If a workflow shows *last skipped* repeatedly with "its limit", something is
+  triggering it far more than expected — look at the trigger before raising
+  the limit.
+
+![Workflow builder](images/33-studio-workflow.png)
 
 ---
 

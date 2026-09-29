@@ -492,3 +492,87 @@ class StudioInboundReceipt(Base):
     event_id: Mapped[str] = mapped_column(String(200), nullable=False)
     run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StudioWorkflow(Base):
+    """
+    Trigger → conditions → actions, as data. ``definition`` is the working copy
+    people edit; ``active_definition`` is the version in force, copied there by
+    publishing. A run keeps a copy of the definition it started with, so an edit
+    never changes a run already under way.
+    """
+
+    __tablename__ = "studio_workflows"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    environment: Mapped[str] = mapped_column(String(16), nullable=False, default="production")
+    #: draft (never published) | active | disabled
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    definition: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    active_definition: Mapped[dict | None] = mapped_column(JSON)
+    active_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: True when the working copy differs from the version in force.
+    has_changes: Mapped[bool] = mapped_column(default=True, nullable=False)
+    #: Loop and runaway guard: at most this many runs start in any hour.
+    max_runs_per_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    timeout_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: The last time a trigger matched but no run started, and why.
+    last_skip: Mapped[dict | None] = mapped_column(JSON)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    published_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class StudioWorkflowFire(Base):
+    """
+    One row per thing that started a workflow — an event id, a schedule slot, a
+    set of inputs. Unique per workflow, so an event fanned out twice, or a
+    schedule seen by two workers, starts one run, not two.
+    """
+
+    __tablename__ = "studio_workflow_fires"
+    __table_args__ = (UniqueConstraint("workflow_id", "trigger_key", name="uq_studio_workflow_fire"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("studio_workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StudioNotification(Base):
+    """An in-product message to one person. Never email, never outside the product."""
+
+    __tablename__ = "studio_notifications"
+    __table_args__ = (Index("ix_studio_notifications_user", "user_id", "read_at", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    #: info | warning | error
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="info")
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    body: Mapped[str | None] = mapped_column(Text)
+    #: An in-product path; the page it opens enforces its own access.
+    link: Mapped[str | None] = mapped_column(String(500))
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

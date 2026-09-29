@@ -221,7 +221,13 @@ def fan_out(db: Session, limit: int = 200) -> int:
         db.rollback()
         return 0
     now = _now()
-    for event in db.query(StudioEvent).filter(StudioEvent.id.in_(ids)).all():
+    from app.services.studio import workflows
+
+    for event in db.query(StudioEvent).filter(StudioEvent.id.in_(ids)).order_by(StudioEvent.created_at).all():
+        # Workflows first, in the same transaction that marks the event
+        # dispatched: an event starts its workflows once, or — if this
+        # rolls back — is picked up again, and the fire keys stop a double start.
+        workflows.on_event(db, event)
         hooks = db.query(StudioWebhook).filter(StudioWebhook.entity_id == event.entity_id,
                                                StudioWebhook.status == "active").all()
         for hook in hooks:
@@ -389,6 +395,10 @@ def receive(db: Session, token: str, headers: dict[str, str], body: bytes, reque
     )
     receipt.run_id = run.id
     endpoint.last_received_at = _now()
+    from app.services.studio import events
+
+    events.emit(db, org_id=endpoint.org_id, entity_id=endpoint.entity_id, type="inbound.received",
+                data={"endpoint_id": str(endpoint.id), "receipt_id": str(receipt.id), "run_id": str(run.id)})
     db.commit()
     return {"duplicate": False, "receipt_id": str(receipt.id), "run_id": str(run.id)}
 

@@ -42,6 +42,10 @@ export type Run = {
   queued_at: string | null;
   started_at: string | null;
   finished_at: string | null;
+  workflow?: {
+    steps: WorkflowStep[]; failure_branch: WorkflowStep[]; trigger: Record<string, unknown>;
+    period: string | null; validation_run_id: string | null;
+  } | null;
   // detail only
   options?: Record<string, unknown>;
   retries?: { id: string; status: RunStatus; queued_at: string }[];
@@ -167,7 +171,8 @@ export const OBJECT_LABEL: Record<string, string> = {
   validation: "Validation",
 };
 
-export function runTitle(run: Pick<Run, "kind" | "object_type">): string {
+export function runTitle(run: Pick<Run, "kind" | "object_type"> & { source?: Run["source"] }): string {
+  if (run.kind === "workflow") return `Workflow “${run.source?.object ?? ""}”`;
   if (run.kind === "import") return `${OBJECT_LABEL[run.object_type ?? ""] ?? run.object_type} import`;
   if (run.kind === "sync") return `${OBJECT_LABEL[run.object_type ?? ""] ?? run.object_type} sync`;
   if (run.kind === "validation") return "Validation";
@@ -339,4 +344,85 @@ export const studioHookApi = {
     send<InboundEndpoint & { secret: string }>("/api/studio/inbound", "POST", body),
   updateInbound: (id: string, status: string) => send<InboundEndpoint>(`/api/studio/inbound/${encodeURIComponent(id)}`, "PATCH", { status }),
   receipts: (id: string) => apiJson<{ id: string; event_id: string; run_id: string | null; received_at: string | null }[]>(`/api/studio/inbound/${encodeURIComponent(id)}/receipts`),
+};
+
+// ---------------------------------------------------------------------------
+// Phase 3 — workflows, notifications, the month's integration picture
+// ---------------------------------------------------------------------------
+export type WorkflowStep = {
+  index: number; type: string; label: string; status: string; attempt?: number; branch?: string;
+  started_at?: string; finished_at?: string; message?: string; ref?: { run_id?: string; job_id?: string; event_id?: string };
+};
+
+export type WorkflowAction = {
+  type: string; label?: string; retries?: number; timeout_minutes?: number; params?: Record<string, unknown>;
+};
+
+export type WorkflowCondition = { field: string; op: string; value?: unknown };
+
+export type WorkflowDefinition = {
+  trigger: { type: string; schedule?: Record<string, unknown>; required?: string[] };
+  conditions: WorkflowCondition[];
+  actions: WorkflowAction[];
+  on_failure: WorkflowAction[];
+};
+
+export type Workflow = {
+  id: string; name: string; description: string | null; environment: string;
+  status: "draft" | "active" | "disabled"; definition: WorkflowDefinition; active_definition: WorkflowDefinition | null;
+  active_version: number; has_changes: boolean; max_runs_per_hour: number; timeout_minutes: number;
+  next_run_at: string | null; last_fired_at: string | null; last_skip: { at: string; reason: string } | null;
+  last_run: { id: string; status: RunStatus; at: string | null } | null;
+  published_at: string | null; updated_at: string | null;
+  recent_runs?: Run[];
+};
+
+export type WorkflowCatalogue = {
+  triggers: Record<string, string>;
+  actions: Record<string, { label: string; help: string; failure_branch: boolean }>;
+  not_available: Record<string, string>;
+  ops: string[]; severities: string[]; inputs: string[]; reports: Record<string, string>; roles: string[];
+};
+
+export type DryRun = {
+  would_run: boolean;
+  conditions: (WorkflowCondition & { actual: unknown; holds: boolean })[];
+  steps: { step: number; type: string; label: string; period?: string | null; warning?: string;
+           recipients?: string[]; title?: string; stream?: string | null; owner?: string | null; now?: Record<string, number> }[];
+  failure_branch: string[];
+};
+
+export type Notification = {
+  id: string; severity: "info" | "warning" | "error"; title: string; body: string | null; link: string | null;
+  source_run_id: string | null; read: boolean; created_at: string | null;
+};
+
+export type PeriodIntegration = {
+  period: string;
+  runs: Run[];
+  latest_by_input: Record<string, Run>;
+  attention: { run_id: string; object_type: string; status: RunStatus; rejected: number }[];
+  connections: { id: string; name: string; health: string; last_error: string | null }[];
+};
+
+export const studioFlowApi = {
+  catalogue: () => apiJson<WorkflowCatalogue>("/api/studio/workflows/catalogue"),
+  list: () => apiJson<Workflow[]>("/api/studio/workflows"),
+  get: (id: string) => apiJson<Workflow>(`/api/studio/workflows/${encodeURIComponent(id)}`),
+  create: (body: { name: string; description?: string | null; definition: WorkflowDefinition }) =>
+    send<Workflow>("/api/studio/workflows", "POST", body),
+  update: (id: string, body: Record<string, unknown>) => send<Workflow>(`/api/studio/workflows/${encodeURIComponent(id)}`, "PATCH", body),
+  publish: (id: string) => send<Workflow>(`/api/studio/workflows/${encodeURIComponent(id)}/publish`, "POST"),
+  enable: (id: string, on: boolean) => send<Workflow>(`/api/studio/workflows/${encodeURIComponent(id)}/${on ? "enable" : "disable"}`, "POST"),
+  run: (id: string, period?: string) => send<Run>(`/api/studio/workflows/${encodeURIComponent(id)}/run`, "POST", { period: period || null }),
+  dryRun: (definition: WorkflowDefinition, sample: Record<string, unknown> | null, period?: string) =>
+    send<DryRun>("/api/studio/workflows/dry-run", "POST", { definition, sample, period: period || null }),
+  notifications: () => apiJson<{ unread: number; items: Notification[] }>("/api/studio/notifications"),
+  markRead: (ids?: string[]) => send<{ marked: number }>("/api/studio/notifications/read", "POST", { ids: ids ?? null }),
+  period: (month: string) => apiJson<PeriodIntegration>(`/api/studio/period/${encodeURIComponent(month)}`),
+};
+
+export const STEP_VARIANT: Record<string, "success" | "warning" | "destructive" | "secondary" | "primary"> = {
+  completed: "success", warning: "warning", failed: "destructive", cancelled: "secondary", skipped: "secondary",
+  pending: "secondary", running: "primary", waiting: "primary",
 };

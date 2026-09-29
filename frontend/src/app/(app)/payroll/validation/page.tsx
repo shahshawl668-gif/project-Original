@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, Loader2, RotateCcw, ShieldCheck, UploadCloud, XCircle } from "lucide-react";
+import { IntegrationPanel } from "@/components/studio/IntegrationPanel";
 
 const STAGES = ["queued", "loading", "validating", "recording", "succeeded"] as const;
 const STAGE_TEXT: Record<string, string> = {
@@ -235,6 +236,7 @@ function JobProgress({ jobId }: { jobId: string }) {
           <Clock size={14} /> You can leave this page. The validation keeps running, and the upload page links back here.
         </p>
       ) : null}
+      <IntegrationPanel period={job.period_month} />
     </div>
   );
 }

@@ -219,7 +219,8 @@ def _period(options: dict[str, Any], today: date) -> date:
 
 
 def start(db: Session, entity: Entity, stream: StudioStream, *, actor: User, actor_label: str,
-          actor_type: str = "user", trigger: str = "manual") -> StudioRun:
+          actor_type: str = "user", trigger: str = "manual",
+          causation: dict[str, Any] | None = None) -> StudioRun:
     conn = db.get(StudioConnection, stream.connection_id)
     if conn is None or conn.status != "active":
         raise SyncError("The connection is disabled.", 409)
@@ -235,6 +236,8 @@ def start(db: Session, entity: Entity, stream: StudioStream, *, actor: User, act
     period = _period(stream.import_options or {}, today)
     options = {**(stream.import_options or {}), "stream_id": str(stream.id), "sync_mode": stream.sync_mode,
                "validate": bool((stream.import_options or {}).get("validate"))}
+    if causation:
+        options["causation"] = causation
     effective_from = None
     period_month = None
     if stream.object_type == "employee_master":

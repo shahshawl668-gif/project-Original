@@ -433,6 +433,19 @@ the rejected rows before publishing it.
 A service account can acknowledge and comment on findings, but only a person
 can waive or resolve one, publish a rule, or approve a month.
 
+**Notifications.** If your administrator has set up workflows, the bell at the
+top of every page shows what they tell you — "June validated", "3 records
+rejected" — with a link to the page concerned. They are yours alone. Workflows
+can assign findings to you with a due date; they never waive, resolve or
+approve anything.
+
+**On Month close,** *Data from your systems* shows, for the month, how each
+input arrived and whether anything was rejected or failed. Rejected records
+are not in the month until they are fixed and sent again — check this before
+approving.
+
+![Data from your systems, on Month close](images/34-month-integration.png)
+
 ---
 
 ## 7. Questions people ask

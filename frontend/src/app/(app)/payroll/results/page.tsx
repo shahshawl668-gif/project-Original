@@ -24,6 +24,7 @@ import {
   ChevronLeft, ChevronRight, HelpCircle, ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
+import { IntegrationPanel } from "@/components/studio/IntegrationPanel";
 
 type Tab = "overview" | "coverage" | "risk" | "findings" | "pf" | "esic" | "ptlwf" | "lop";
 const TABS: Tab[] = ["overview", "coverage", "risk", "findings", "pf", "esic", "ptlwf", "lop"];
@@ -772,6 +773,8 @@ function PayrollResultsContent() {
       </div>
 
       <CoverageHeadline coverage={coverage} onOpen={() => commitTab("coverage")} />
+
+      <IntegrationPanel period={run.period_month} />
 
       <div className="flex flex-wrap gap-1 rounded-2xl border border-ink-200/70 bg-ink-50/80 p-1.5 dark:border-white/10 dark:bg-white/[0.04]" role="tablist">
         {tabs.map((t) => (

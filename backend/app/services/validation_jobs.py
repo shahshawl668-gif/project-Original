@@ -281,7 +281,8 @@ def _announce(db: Session, job: ValidationJob, type_: str, data: dict) -> None:
 
     entity = db.get(Entity, job.entity_id)
     if entity is not None:
-        events.emit(db, org_id=entity.org_id, entity_id=entity.id, type=type_, data=data)
+        events.emit(db, org_id=entity.org_id, entity_id=entity.id, type=type_, data=data,
+                    causation=(job.params or {}).get("causation") or {})
 
 
 def fail(

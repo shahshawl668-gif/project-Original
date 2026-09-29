@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
 import { CountsFunnel, StatusBadge, fmtTime } from "@/components/studio/RunBits";
 import { runTitle, studioApi, type Rejection } from "@/lib/studio";
+import { WorkflowSteps } from "@/components/studio/WorkflowSteps";
 
 const MANAGE = new Set(["owner", "manager"]);
 const WRITE = new Set(["owner", "manager", "analyst"]);
@@ -98,6 +99,8 @@ export default function StudioRunPage() {
           <span className="block pt-1 text-xs opacity-80">Error category: {r.error.category}{r.attempts > 1 ? ` · ${r.attempts} attempts` : ""}</span>
         </AlertBanner>
       ) : null}
+
+      {r.workflow ? <WorkflowSteps run={r} /> : null}
 
       {r.counts ? (
         <Card><CardContent className="space-y-3 py-5">

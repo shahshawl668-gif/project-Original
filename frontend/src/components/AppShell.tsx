@@ -46,6 +46,7 @@ import {
   Cable,
   Shuffle,
   Webhook,
+  Workflow,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -54,6 +55,7 @@ import { useEntity } from "@/context/EntityContext";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 import { EntitySwitcher } from "@/components/EntitySwitcher";
+import { NotificationBell } from "@/components/NotificationBell";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { SupportBanner } from "@/components/SupportBanner";
 
@@ -122,6 +124,7 @@ const navGroups = [
       { href: "/studio/api", label: "API Centre", icon: KeyRound },
       { href: "/studio/connections", label: "Connections", icon: Cable },
       { href: "/studio/mapping", label: "Data mapping", icon: Shuffle },
+      { href: "/studio/workflows", label: "Workflows", icon: Workflow },
       { href: "/studio/webhooks", label: "Webhooks", icon: Webhook },
       { href: "/studio/runs", label: "Run history", icon: Activity },
     ],
@@ -578,6 +581,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="hidden min-w-0 flex-1 lg:flex" />
 
             <div className="ml-auto flex items-center gap-2">
+              <NotificationBell />
               <EntitySwitcher />
               <ProfileMenu />
             </div>

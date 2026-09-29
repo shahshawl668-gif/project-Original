@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -22,7 +22,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_admin, require_entity_write
 from app.envelope import ok
 from app.models import Entity, IntegrationCredential, ServiceAccount, StudioRun, StudioRunRejection, User
-from app.services import tenancy
+from app.services import audit, tenancy
 from app.services.studio import credentials, imports, runs
 
 router = APIRouter()
@@ -93,8 +93,9 @@ SECTIONS = [
     {"key": "mapping", "label": "Data mapping", "href": "/studio/mapping", "available": True,
      "summary": "Versioned mapping from external fields to product fields, previewed on sample data before "
                 "it is published. Import a file with it."},
-    {"key": "workflows", "label": "Workflows", "href": None, "available": False,
-     "summary": "Trigger → conditions → actions automation. Not in this release."},
+    {"key": "workflows", "label": "Workflows", "href": "/studio/workflows", "available": True,
+     "summary": "Trigger → conditions → actions: fetch, check readiness, validate, assign, notify, send a "
+                "webhook. Dry runs, retries, timeouts, a failure branch. Never signs, waives or approves."},
     {"key": "webhooks", "label": "Webhooks", "href": "/studio/webhooks", "available": True,
      "summary": "Signed events to your systems, delivered at least once with retries and a failed queue; "
                 "signed inbound endpoints that push records in."},
@@ -424,7 +425,14 @@ def cancel_run(
     run = _run(db, entity, run_id)
     if run.status not in ("queued", "running"):
         raise HTTPException(status_code=409, detail="Only a queued or running run can be cancelled")
-    runs.request_cancel(db, run)
+    if run.kind == "workflow":
+        from app.services.studio import workflows
+
+        workflows.cancel(db, run)
+    else:
+        runs.request_cancel(db, run)
+    audit.record(db, entity_id=entity.id, user=user, action="studio.run.cancelled", object_type="studio_run",
+                 object_id=str(run.id), summary=f"Cancelled {run.kind} run {str(run.id)[:8]}")
     db.commit()
     return ok(runs.describe(db, run))
 
@@ -1099,3 +1107,213 @@ def inbound_receipts(endpoint_id: str, db: Session = Depends(get_db), entity: En
             .order_by(StudioInboundReceipt.received_at.desc()).limit(200).all())
     return ok([{"id": str(r.id), "event_id": r.event_id, "run_id": str(r.run_id) if r.run_id else None,
                 "received_at": r.received_at.isoformat() if r.received_at else None} for r in rows])
+
+
+# ===========================================================================
+# Phase 3 — workflows, notifications, and the month's integration picture
+# ===========================================================================
+from app.models import StudioNotification, StudioWorkflow  # noqa: E402
+from app.models.studio import ENVIRONMENTS  # noqa: E402
+from app.services.studio import workflows as flows  # noqa: E402
+
+
+class WorkflowBody(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+    environment: str = "production"
+    definition: dict[str, Any] | None = None
+    max_runs_per_hour: int | None = None
+    timeout_minutes: int | None = None
+
+
+class DryRunBody(BaseModel):
+    definition: dict[str, Any]
+    sample: dict[str, Any] | None = None
+    period: str | None = None
+
+
+class RunWorkflowBody(BaseModel):
+    period: str | None = None
+
+
+def _flow(db: Session, entity: Entity, workflow_id: str) -> StudioWorkflow:
+    try:
+        return flows.get(db, entity, workflow_id)
+    except flows.WorkflowError as exc:
+        raise _http(exc)
+
+
+@router.get("/workflows/catalogue")
+def workflow_catalogue(entity: Entity = Depends(require_studio_reader)):
+    return ok(flows.catalogue())
+
+
+@router.get("/workflows")
+def list_workflows(db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    rows = (db.query(StudioWorkflow).filter(StudioWorkflow.entity_id == entity.id)
+            .order_by(StudioWorkflow.name).all())
+    return ok([flows.describe(db, w) for w in rows])
+
+
+@router.post("/workflows")
+def create_workflow(body: WorkflowBody, db: Session = Depends(get_db), user: User = Depends(get_current_user),
+                    entity: Entity = Depends(require_entity_write)):
+    if not body.name or body.definition is None:
+        raise HTTPException(status_code=400, detail="A workflow needs a name and a definition.")
+    if body.environment not in ENVIRONMENTS:
+        raise HTTPException(status_code=400, detail=f"Environment is one of {', '.join(ENVIRONMENTS)}.")
+    try:
+        wf = flows.create(db, entity, user, name=body.name, description=body.description,
+                          definition=body.definition, environment=body.environment)
+    except flows.WorkflowError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(flows.describe(db, wf))
+
+
+@router.get("/workflows/{workflow_id}")
+def get_workflow(workflow_id: str, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    wf = _flow(db, entity, workflow_id)
+    recent = (db.query(StudioRun).filter(StudioRun.workflow_id == wf.id, StudioRun.kind == "workflow")
+              .order_by(StudioRun.created_at.desc()).limit(20).all())
+    return ok({**flows.describe(db, wf), "recent_runs": [runs.describe(db, r) for r in recent]})
+
+
+@router.patch("/workflows/{workflow_id}")
+def update_workflow(workflow_id: str, body: WorkflowBody, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user), entity: Entity = Depends(require_entity_write)):
+    wf = _flow(db, entity, workflow_id)
+    try:
+        flows.update(db, wf, entity, user, body.model_dump(exclude_unset=True))
+    except flows.WorkflowError as exc:
+        db.rollback()
+        raise _http(exc)
+    db.commit()
+    return ok(flows.describe(db, wf))
+
+
+@router.post("/workflows/{workflow_id}/publish")
+def publish_workflow(workflow_id: str, db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                     entity: Entity = Depends(get_current_entity)):
+    from app.services.approvals import ApprovalRefused
+
+    wf = _flow(db, entity, workflow_id)
+    try:
+        flows.publish(db, wf, entity, user)
+    except flows.WorkflowError as exc:
+        db.rollback()
+        raise _http(exc)
+    except ApprovalRefused as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    db.commit()
+    return ok(flows.describe(db, wf))
+
+
+@router.post("/workflows/{workflow_id}/{action}")
+def toggle_or_run_workflow(workflow_id: str, action: str, body: RunWorkflowBody | None = None,
+                           db: Session = Depends(get_db), user: User = Depends(require_entity_admin),
+                           entity: Entity = Depends(get_current_entity)):
+    wf = _flow(db, entity, workflow_id)
+    try:
+        if action in ("enable", "disable"):
+            flows.set_enabled(db, wf, entity, user, action == "enable")
+            db.commit()
+            return ok(flows.describe(db, wf))
+        if action == "run":
+            run = flows.start_manual(db, wf, user, (body.period if body else None))
+            db.commit()
+            return ok(runs.describe(db, run))
+    except flows.WorkflowError as exc:
+        db.rollback()
+        raise _http(exc)
+    raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.post("/workflows/dry-run")
+def dry_run_workflow(body: DryRunBody, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    """What the definition would do with this sample event — nothing is started, stored or sent."""
+    try:
+        return ok(flows.dry_run(db, entity, body.definition, body.sample, body.period))
+    except flows.WorkflowError as exc:
+        raise _http(exc)
+
+
+# --- Notifications: a person's own, for the company in view ------------------
+def _describe_notification(n: StudioNotification) -> dict[str, Any]:
+    return {"id": str(n.id), "severity": n.severity, "title": n.title, "body": n.body, "link": n.link,
+            "source_run_id": str(n.source_run_id) if n.source_run_id else None,
+            "read": n.read_at is not None, "created_at": n.created_at.isoformat() if n.created_at else None}
+
+
+@router.get("/notifications")
+def my_notifications(unread_only: bool = False, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    q = db.query(StudioNotification).filter(StudioNotification.user_id == user.id,
+                                            StudioNotification.entity_id == entity.id)
+    unread = q.filter(StudioNotification.read_at.is_(None)).count()
+    if unread_only:
+        q = q.filter(StudioNotification.read_at.is_(None))
+    rows = q.order_by(StudioNotification.created_at.desc()).limit(50).all()
+    return ok({"unread": unread, "items": [_describe_notification(n) for n in rows]})
+
+
+class ReadBody(BaseModel):
+    ids: list[str] | None = None
+
+
+@router.post("/notifications/read")
+def mark_notifications_read(body: ReadBody, db: Session = Depends(get_db),
+                            user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    """Mark the named notifications, or all of them, read. Only ever the caller's own."""
+    q = db.query(StudioNotification).filter(StudioNotification.user_id == user.id,
+                                            StudioNotification.entity_id == entity.id,
+                                            StudioNotification.read_at.is_(None))
+    if body.ids:
+        wanted = []
+        for i in body.ids:
+            try:
+                wanted.append(uuid.UUID(i))
+            except ValueError:
+                continue
+        q = q.filter(StudioNotification.id.in_(wanted))
+    now = datetime.now(UTC)
+    n = 0
+    for row in q.all():
+        row.read_at = now
+        n += 1
+    db.commit()
+    return ok({"marked": n})
+
+
+# --- The month's integration picture, for Month close and Validations --------
+@router.get("/period/{period}")
+def period_integration(period: str, db: Session = Depends(get_db), entity: Entity = Depends(require_studio_reader)):
+    """Every Studio run for this month, the workflows that ran for it, and connection health."""
+    from app.models import StudioConnection
+
+    try:
+        month = date.fromisoformat(period if len(period) > 7 else f"{period}-01").replace(day=1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="The month is YYYY-MM.")
+    rows = (db.query(StudioRun).filter(StudioRun.entity_id == entity.id,
+                                       or_(StudioRun.period_month == month, StudioRun.effective_from == month))
+            .order_by(StudioRun.created_at.desc()).limit(100).all())
+    conns_ = db.query(StudioConnection).filter(StudioConnection.entity_id == entity.id).all()
+    described = [runs.describe(db, r) for r in rows]
+    latest: dict[str, dict[str, Any]] = {}
+    for r in described:
+        if r["kind"] in ("import", "sync") and r["object_type"] not in latest:
+            latest[r["object_type"]] = r
+    unreconciled = [r for r in latest.values() if r["status"] in ("failed", "partially_completed")]
+    return ok({
+        "period": month.isoformat(),
+        "runs": described,
+        "latest_by_input": latest,
+        "attention": [{"run_id": r["id"], "object_type": r["object_type"], "status": r["status"],
+                       "rejected": (r.get("counts") or {}).get("rejected", 0)} for r in unreconciled],
+        "connections": [{"id": str(c.id), "name": c.name, "health": conns.describe(db, c)["health"],
+                         "last_error": c.last_error if conns.describe(db, c)["health"] == "failing" else None}
+                        for c in conns_],
+    })

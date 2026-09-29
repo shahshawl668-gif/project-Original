@@ -43,6 +43,9 @@ from app.models.studio import (
     StudioInboundReceipt,
     StudioStream,
     StudioWebhook,
+    StudioNotification,
+    StudioWorkflow,
+    StudioWorkflowFire,
 )
 from app.models.budget import BudgetLine, BudgetVersion, ENTITY_SCOPE
 from app.models.rule_engine import Formula, SlabRule
@@ -183,4 +186,7 @@ __all__ = [
     "StudioInboundEndpoint",
     "StudioInboundReceipt",
     "StudioWebhook",
+    "StudioNotification",
+    "StudioWorkflow",
+    "StudioWorkflowFire",
 ]

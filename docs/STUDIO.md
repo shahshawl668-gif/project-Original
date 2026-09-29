@@ -36,10 +36,10 @@ Where the design changed during building, the change is stated here.
 | Secret storage for outbound credentials | None | **Built** (phase 2): Fernet under `STUDIO_SECRET_KEY`, refused in production without it |
 | Outbound HTTP / SSRF protection | None | **Built** (phase 2): allow-list, HTTPS, public addresses only, pinned connect, no redirects |
 | Webhooks, event outbox | None | **Built** (phase 2) |
-| Workflows, in-product notifications | None | Phase 3 |
+| Workflows, in-product notifications | None | **Built** (phase 3) |
 | Sandboxed scripting | None; the formula evaluator is a whitelisted AST, in-process | Phase 4 — see §7 |
 | Environments / releases | None; every company is one environment | Phase 4 |
-| "Payroll Control Centre" | No page by that name. Month close (`/reconciliation`) and Validations (`/payroll/validation`) together do its job | Phase 3 links Studio into those pages |
+| "Payroll Control Centre" | No page by that name. Month close (`/reconciliation`) and Validations (`/payroll/validation`) together do its job | **Linked** (phase 3): both show the month's integration picture |
 
 ---
 
@@ -436,9 +436,106 @@ Validation of the month is the expensive step, measured under phase 1.
   `studio_publish_requires_independent_approver`, on the Team page beside the
   others.
 
-## 4. Phase 3 — workflows and the month-close links
+## 4. Phase 3 — shipped: workflows, notifications, month-close links
 
-Not yet built.
+### Workflows (`services/studio/workflows.py`)
+
+A workflow is **trigger → conditions → actions, as data** — a small fixed
+vocabulary, not a programming language. It is edited as a working copy and
+put in force by publishing (owner or manager; someone other than the last
+editor where the approval policy says so). Publishing re-checks every stream,
+webhook and person the definition names. A run keeps a copy of the definition
+it started with, and the version, so an edit never changes a run under way.
+
+| Triggers | |
+|---|---|
+| `manual` | Run now, from the builder, optionally for a named month |
+| `schedule` | Hour, day or week, at a time, in a named time zone (the stream scheduler's rules) |
+| `import.completed` | An import or sync finished |
+| `inputs.ready` | *Derived:* after every import or sync, the month is checked; fires when every required input (register, master, attendance, CTC, prior register) is present — once per distinct set of inputs |
+| `validation.completed`, `validation.failed` | A month's validation finished, or failed for good |
+| `finding.state_changed` | A finding was acknowledged, waived, resolved or reopened |
+| `period.submitted`, `period.signed_off`, `period.reopened` | The month's approval moved |
+| `inbound.received` | A signed inbound webhook call was accepted |
+
+**Conditions** test the event's data (`data.counts.rejected gt 0`,
+`data.object_type eq salary_register`). A value that cannot be compared makes
+the condition false, never true by accident.
+
+| Actions | What it calls |
+|---|---|
+| `sync` — fetch and import | `sync.start` on a stream; the stream's published mapping is applied there. Waits for the run. Rejections make the step a warning, or a failure if the step says so |
+| `check_readiness` | The same input counts the validation digests use; fails naming what is missing |
+| `start_validation` | `validation_jobs.submit_for_period`, the screens' own queue. Waits for the job; can fail on critical findings |
+| `assign_findings` | `issues.assign` on the month's active findings of chosen severities — owner and due date only |
+| `notify` | An in-product notification (`studio_notifications`) to roles or named people with access |
+| `report` | A notification linking to validation results, Month close, the findings worklist or the run. A link, not an attachment: the page checks each reader's own access |
+| `webhook` | A signed `workflow.message` event to one webhook, through the outbox |
+
+**What no workflow can do.** Sign, submit or approve a month; waive or
+resolve a finding; publish a rule; approve anything. A definition naming one
+of these is refused when saved, with the reason. Sign-off keeps its
+approval controls because no path to it exists here.
+
+**"Apply mapping" is not a separate step.** Mapping without storing is only a
+preview, and the builder's preview already exists on the mapping page. In a
+workflow, mapping happens inside the `sync` step, with the stream's published
+(or pinned) version, recorded on the run.
+
+**Execution.** A workflow run is a `studio_runs` row of kind `workflow`,
+drained by the same worker. Steps run in order. A step that starts work
+records the child and requeues the run five seconds later — a long validation
+never holds a worker thread. Each step has a timeout (default 60 min) and
+retries (0–3, backing off 30 s × 2ⁿ); the whole run has a timeout (default
+120 min). A failed step runs the failure branch (only notify, report or
+webhook) and fails the run naming the step. **Cancel** stops the run and the
+sync or validation it is waiting on. Statuses: queued, running, completed,
+partially completed (a step ended in a warning), failed, cancelled.
+
+**Duplicates and loops.** Every start is written to `studio_workflow_fires`
+under a key unique per workflow — `event:<id>`, `schedule:<slot>`,
+`ready:<month>:<input digests>`, `manual:<uuid>` — so an event fanned out twice
+starts one run. Events carry `causation`: work a workflow starts is stamped
+with its id and depth, a workflow never fires on an event its own run caused,
+chains stop at depth 3, and a workflow starts at most `max_runs_per_hour` runs
+(default 20). Each refusal is kept as the workflow's *last skip*, with its
+reason, on the list and the builder.
+
+**Who a run acts as.** Automatic runs act as the person who published the
+workflow, and only while that person can still manage the company; otherwise
+the start is skipped with the reason, and publishing again fixes it.
+
+**Dry run.** Evaluates the conditions against a sample event, resolves each
+step (month, stream, recipients, rendered titles, whether readiness would
+pass now) and returns the plan. Nothing is started, stored or sent.
+
+### Notifications
+
+In-product only — nothing leaves the product. A bell in the header shows the
+reader's own notifications for the company in view; marking read affects only
+the reader's own. Templates fill `{{period}}`, `{{workflow}}`,
+`{{counts.rejected}}`, `{{event.data…}}` with values; nothing is evaluated.
+
+### Month close and Validations
+
+There is no page called "Payroll Control Centre"; Month close
+(`/reconciliation`) and Validations (`/payroll/validation`, with its results) do its job. Both now
+show **Data from your systems** for the month: the latest import or sync per
+input with its counts, anything rejected or failed ("these records are not in
+the month until they are fixed"), failing connections, and workflows that ran —
+each linking to its run, which links to its evidence. For people without Studio
+access the panel is not shown.
+
+### What changed from the design
+
+* **No savepoints.** The first build guarded duplicate starts with a
+  savepoint; SQLite's driver does not honour savepoints, and a fire record was
+  committed without its run, blocking that trigger for good. Now the key is
+  checked, then inserted, with the unique constraint as the backstop — a race
+  fails the whole fan-out batch, which is retried and then sees the key.
+* **"Awaiting approval"** is a run status the product lists, but no workflow
+  run enters it: nothing a workflow does needs a person's approval, because
+  everything that would is outside its vocabulary.
 
 ## 5. Phase 4 — developer workspace and releases
 
@@ -494,6 +591,23 @@ Not yet built. See §7 on scripting.
 8. **Studio → Webhooks** to tell other systems when things happen: add the
    receiver's host to the allow-list, create the webhook, copy the secret once,
    **Send test**, and watch the delivery log.
+
+### Administrator — automating the month (phase 3)
+
+1. **Studio → Workflows → New workflow.** Start from *Validate when inputs are
+   ready*.
+2. In the builder, check the trigger's required inputs, then the steps:
+   validate the month, assign its critical findings to the person who works
+   them, notify the payroll team. Add a failure step that notifies you.
+3. **Dry run** with the sample event: it shows each step resolved — the month,
+   who would be notified, whether readiness would pass now. Nothing happens.
+4. **Publish** (an owner or manager; a second one if your policy requires
+   independence). From now on, the first import that completes the month's
+   inputs starts it — once per set of inputs.
+5. Watch **Runs** on the builder, or the bell in the header. A failed run
+   names its step; the step links to the sync or validation it started.
+6. On **Month close**, *Data from your systems* shows how each input arrived
+   and anything that still needs fixing before you approve.
 
 ### Developer
 
@@ -593,3 +707,8 @@ endpoints answer 404. Events written while rolled back are not written at all,
 so on roll-forward nothing from that window is delivered — stated, not hidden.
 Before rolling forward in production, **set `STUDIO_SECRET_KEY`**; without it
 connections and webhooks cannot store their secrets and say so.
+
+Phase 3 adds three tables (`studio_workflows`, `studio_workflow_fires`,
+`studio_notifications`) and changes no column. Rolling back stops workflows;
+the runs they left stay readable in run history, as rows of a kind the older
+code does not claim.
