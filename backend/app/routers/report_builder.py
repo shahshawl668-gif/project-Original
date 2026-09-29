@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+from datetime import UTC, datetime
 import uuid
 from typing import Any
 
@@ -144,10 +145,12 @@ def _job(db: Session, user: User, entity: Entity, job_id: uuid.UUID) -> ReportJo
 
 
 def _job_detail(job: ReportJob) -> dict:
+    expired = bool(job.expires_at and report_jobs._aware(job.expires_at) <= datetime.now(UTC))
     return {
         "id": str(job.id), "definition_id": str(job.definition_id),
         "definition_name": job.definition_name, "definition_version": job.definition_version,
-        "state": job.state, "stage": job.stage, "attempt": job.attempt,
+        "state": "expired" if expired else job.state,
+        "stage": "expired" if expired else job.stage, "attempt": job.attempt,
         "record_count": job.record_count, "control_totals": job.control_totals,
         "source_references": job.source_references,
         "artifact_bytes": job.artifact_bytes, "artifact_sha256": job.artifact_sha256,
