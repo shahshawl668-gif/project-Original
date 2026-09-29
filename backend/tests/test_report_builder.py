@@ -97,3 +97,23 @@ def test_saved_excel_exports_every_row_and_typed_period(client, workspace, monke
     info = {row[0]: row[1] for row in wb["About this report"].values if row[0]}
     assert info["Record count"] == 2
     assert info["Definition version"] == 1
+
+
+def test_report_name_cannot_inject_spreadsheet_formula(client, workspace):
+    from openpyxl import load_workbook
+
+    entity, user, headers = workspace
+    _register(entity, user, date(2026, 4, 1), [
+        {"employee_id": "E1", "dimensions": _dims(department="A")}
+    ])
+    created = client.post("/api/reports/builder/saved", json={
+        "name": '=HYPERLINK("https://example.invalid")',
+        "specification": _spec(), "visibility": "private"
+    }, headers=headers)
+    assert created.status_code == 200
+    payload = client.get(f"/api/reports/builder/saved/{created.json()['data']['id']}.xlsx", headers=headers)
+    assert payload.status_code == 200
+    wb = load_workbook(io.BytesIO(payload.content))
+    names = [row[1] for row in wb["About this report"].values if row[0] == "Report"]
+    assert names[0].startswith("'=")
+    assert all(cell.data_type != "f" for row in wb["About this report"] for cell in row)
