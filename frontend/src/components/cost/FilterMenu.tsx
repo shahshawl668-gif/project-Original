@@ -59,7 +59,7 @@ export function FilterMenu({
       align="right"
       width="w-80"
     >
-      <div className="sticky top-0 z-10 bg-white p-1 dark:bg-ink-900">
+      <div className="sticky top-0 z-10 bg-white p-1">
         <div className="relative">
           <Search size={13} className="absolute left-2.5 top-2.5 text-ink-400" />
           <input
@@ -67,13 +67,13 @@ export function FilterMenu({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Find a department, location, grade…"
             aria-label="Search filter values"
-            className="h-8 w-full rounded-lg border border-ink-200 bg-white pl-7 pr-2 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+            className="h-8 w-full rounded-lg border border-ink-200 bg-white pl-7 pr-2 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
       </div>
 
       {matching.length === 0 && (
-        <p className="px-2.5 py-3 text-xs text-ink-500 dark:text-ink-400">
+        <p className="px-2.5 py-3 text-xs text-ink-500">
           {usable.length
             ? "Nothing matches that."
             : "Only one value on every dimension — upload an employee master to filter by department, location or grade."}
@@ -97,8 +97,8 @@ export function FilterMenu({
                 className={cn(
                   "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors",
                   on
-                    ? "bg-brand-50 font-medium text-brand-900 dark:bg-brand-500/15 dark:text-brand-100"
-                    : "text-ink-700 hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-white/[0.06]",
+                    ? "bg-brand-50 font-medium text-brand-900"
+                    : "text-ink-700 hover:bg-ink-50",
                 )}
               >
                 <span
@@ -107,7 +107,7 @@ export function FilterMenu({
                     "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border",
                     on
                       ? "border-brand-600 bg-brand-600 text-white"
-                      : "border-ink-300 dark:border-white/20",
+                      : "border-ink-300",
                   )}
                 >
                   {on && <Check size={11} strokeWidth={3} />}
@@ -123,7 +123,7 @@ export function FilterMenu({
         <button
           type="button"
           onClick={onClear}
-          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border-t border-ink-100 px-2.5 py-2 text-xs font-medium text-ink-600 hover:bg-ink-50 dark:border-white/5 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border-t border-ink-100 px-2.5 py-2 text-xs font-medium text-ink-600 hover:bg-ink-50"
         >
           <X size={12} /> Clear {count === 1 ? "filter" : "all filters"}
         </button>
@@ -160,9 +160,9 @@ export function ActiveFilters({
           key={`${key}:${value}`}
           type="button"
           onClick={() => onToggle(key, value)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 py-1 pl-2.5 pr-1.5 text-xs font-medium text-brand-800 hover:border-brand-400 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-100"
+          className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 py-1 pl-2.5 pr-1.5 text-xs font-medium text-brand-800 hover:border-brand-400"
         >
-          <span className="text-brand-500 dark:text-brand-300">{labels[key] ?? key}:</span>
+          <span className="text-brand-500">{labels[key] ?? key}:</span>
           {value}
           <X size={12} className="opacity-60" aria-label={`Remove ${value}`} />
         </button>
@@ -170,7 +170,7 @@ export function ActiveFilters({
       <button
         type="button"
         onClick={onClear}
-        className="rounded-full px-2 py-1 text-xs font-medium text-ink-500 hover:bg-ink-100 dark:text-ink-400 dark:hover:bg-white/[0.06]"
+        className="rounded-full px-2 py-1 text-xs font-medium text-ink-500 hover:bg-ink-100"
       >
         Clear
       </button>

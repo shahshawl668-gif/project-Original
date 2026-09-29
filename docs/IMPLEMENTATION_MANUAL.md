@@ -100,7 +100,7 @@ Then, in the platform console, **Create client workspace** with the client's
 company name and owner email. The owner accepts the invitation link, sets a
 password, and signs in at `/w/<workspace>/login`. The workspace starts with one
 entity. Add the rest under
-**Settings → Team & invitations** (organization) and the entity controls.
+**Configuration & admin → Team & invitations** (organization) and the entity controls.
 
 Set `org_type`:
 
@@ -118,7 +118,7 @@ with nothing uploaded says so rather than showing zeros.*
 
 ### Step 2 — Salary components
 
-**Settings → Salary components.** One row per component in the client's
+**Configuration & admin → Salary components.** One row per component in the client's
 structure, each flagged for its statutory treatment:
 
 | Flag | Meaning | Get this wrong and… |
@@ -140,7 +140,7 @@ structure, each flagged for its statutory treatment:
 
 ### Step 3 — Statutory engine
 
-**Settings → Statutory engine.** Rates, ceilings, rounding and eligibility.
+**Configuration & admin → Statutory engine.** Rates, ceilings, rounding and eligibility.
 
 ![Statutory configuration](images/10-settings-statutory.png)
 
@@ -153,14 +153,14 @@ retroactively. A run already recorded stays exactly as it was reported.
 
 ### Step 4 — PT and LWF slabs
 
-**Settings → PT / LWF slabs.** Import the shipped defaults for every state the
+**Configuration & admin → PT / LWF slabs.** Import the shipped defaults for every state the
 client employs in, then check each one against the state's current
 notification. Professional tax is state law and changes on its own schedule;
 Maharashtra has gender-specific slabs.
 
 ### Step 5 — Employee master
 
-**Payroll → (workforce master).** ID, name, gender, date of joining, date of
+**Data & imports → (workforce master).** ID, name, gender, date of joining, date of
 exit, work state, department, cost centre, designation, employment type, bank
 account and IFSC.
 
@@ -171,7 +171,7 @@ thing it finds.
 
 ### Step 6 — Attendance
 
-**Attendance → Attendance register.** Validate before committing. The file must
+**Data & imports → Attendance.** Validate before committing. The file must
 be internally consistent — calendar days, present, paid leave, weekly off,
 holiday, LOP and paid days have to add up — before it can be used to judge pay.
 
@@ -183,8 +183,13 @@ against the register.
 
 ### Step 7 — First validation run
 
-**Payroll → Upload & validate.** Three steps: upload the file, configure the run
-(period, run type), then validate.
+**Data & imports → Salary register.** Four stages: choose the file with its
+month and run type; map its columns (each source column beside sample values,
+how a suggestion was matched, and the required fields still unmapped); the
+server check (employees read, revision, whether it replaced the month's
+register); then validate. On the first upload for a client, map every earning
+and deduction and save the mapping as a named format — next month it is one
+click. Unmapped columns are not imported, never guessed.
 
 ![Upload and validate](images/02-payroll-upload.png)
 
@@ -197,7 +202,7 @@ actual, financial impact and a suggested fix.
 > is the point. Work them in severity order. Most first-run CRITICALs trace back
 > to a component flag (Step 2), not to the payroll.
 
-**Then read the coverage, not just the failures.** **Settings → Validation
+**Then read the coverage, not just the failures.** **Configuration & admin → Validation
 matrix → Rule packs** groups the built-in checks by what they protect — import
 integrity, lifecycle and identity, salary structure, PF, ESIC, PT and LWF, TDS,
 minimum wage, bonus and gratuity, attendance, arrears, period comparison — and
@@ -217,7 +222,7 @@ their own pages from the bank file and the voucher.
 
 Built-in checks cover statute and payroll integrity. A client's own policy — a
 loss-of-pay limit, a basic-to-gross floor, a department that must agree with
-the master — goes in **Settings → Validation matrix → Draft a company rule**.
+the master — goes in **Configuration & admin → Validation matrix → Draft a company rule**.
 
 - **Basic** compares a field, component or deduction with a value or another
   field, optionally only when some conditions hold.
@@ -254,12 +259,12 @@ or Excel file is previewed row by row — new, new version, unchanged, or the
 exact error — and only a file with no errors creates drafts. **Copying to other
 companies** (tick versions, choose companies you manage) creates drafts there,
 checked against each company's own components, recorded in both audit trails.
-The same applies to configuration: **Settings → Configuration upload → Copy
+The same applies to configuration: **Configuration & admin → Configuration upload → Copy
 from another company** previews each section before replacing it.
 
 ### Step 8 — Bank file profile
 
-**Settings → Bank file profiles.** Every bank and every client formats payment
+**Configuration & admin → Bank file profiles.** Every bank and every client formats payment
 files differently, so the layout is configuration, not code: delimited or fixed
 width, delimiter, header rows, rows to skip, trailer rows, amount unit and sign,
 employee-ID transforms, row filters, and a column map.
@@ -271,7 +276,7 @@ before saving — testing stores nothing.
 
 ### Step 9 — JV template
 
-**Settings → JV templates.** How payroll posts to the ledger, which no two
+**Configuration & admin → JV templates.** How payroll posts to the ledger, which no two
 companies do the same way: posting basis, split mode, grouping, detail level,
 sign convention, net pay source, voucher date rule, narration template, export
 format and balance tolerance.
@@ -287,17 +292,17 @@ Exports: generic CSV, Tally, SAP and Zoho.
 
 ### Step 10 — Month close
 
-**Bank & JV → Month close** brings the period together: bank reconciliation, JV
+**Reconciliation & approvals → Month close & approval** brings the period together: bank reconciliation, JV
 balance, and the month's approval.
 
 ![Month close](images/05-month-close.png)
 
 Before the first month end, agree with the client's owner whether approval must
-come from a second person (**Settings → Team & invitations → Approval
+come from a second person (**Configuration & admin → Team & invitations → Approval
 controls**, owner only). Then check the approval panel's blockers on a
 validated month: each "could not be performed" statutory check names the input
 it needs. The usual ones at go-live are the employee master, a minimum-wage
-applicability decision (**Settings → Minimum wage**), and register columns the
+applicability decision (**Configuration & admin → Minimum wage**), and register columns the
 client's export leaves out. Close those before the parallel run, so approvals do
 not become a habit of stating reasons for gaps that could have been filled.
 

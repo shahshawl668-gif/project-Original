@@ -82,14 +82,14 @@ export default function StudioOverviewPage() {
 
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
             <Card><CardContent className="space-y-3 py-5">
-              <h2 className="text-base font-semibold text-ink-900 dark:text-white">Set up an integration</h2>
+              <h2 className="text-base font-semibold text-ink-900">Set up an integration</h2>
               <p className="text-xs text-ink-500">Four steps. Each ticks itself when it has actually happened for {data.company.name}.</p>
               <ol className="space-y-2">
                 {steps.map((s, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
                     {s.done ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success-600" /> : <Circle size={16} className="mt-0.5 shrink-0 text-ink-300" />}
                     <span>
-                      <Link href={s.href} className={s.done ? "text-ink-500 line-through" : "font-medium text-brand-700 hover:underline dark:text-brand-300"}>{s.label}</Link>
+                      <Link href={s.href} className={s.done ? "text-ink-500 line-through" : "font-medium text-brand-700 hover:underline"}>{s.label}</Link>
                       <span className="block text-xs text-ink-500">{s.hint}</span>
                     </span>
                   </li>
@@ -99,16 +99,16 @@ export default function StudioOverviewPage() {
             </CardContent></Card>
 
             <Card><CardContent className="space-y-3 py-5">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><AlertTriangle size={16} className="text-warning-600" /> Needs attention</h2>
+              <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><AlertTriangle size={16} className="text-warning-600" /> Needs attention</h2>
               {data.needs_attention.length === 0 ? (
                 <p className="text-sm text-ink-500">No failed or partly rejected runs in the last seven days.</p>
               ) : (
-                <ul className="divide-y divide-ink-100 dark:divide-white/5">
+                <ul className="divide-y divide-ink-100">
                   {data.needs_attention.map((r) => <RunLine key={r.id} run={r} />)}
                 </ul>
               )}
               {data.keys.expiring_within_14_days.length ? (
-                <div className="rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100">
+                <div className="rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-900">
                   Keys expiring soon: {data.keys.expiring_within_14_days.map((k) => `${k.prefix} (${new Date(k.expires_at).toLocaleDateString("en-IN")})`).join(", ")}. Rotate them in the API Centre.
                 </div>
               ) : null}
@@ -116,16 +116,16 @@ export default function StudioOverviewPage() {
           </div>
 
           <Card><CardContent className="space-y-3 py-5">
-            <h2 className="text-base font-semibold text-ink-900 dark:text-white">What Studio does</h2>
+            <h2 className="text-base font-semibold text-ink-900">What Studio does</h2>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {data.sections.map((s) => s.available && s.href ? (
-                <Link key={s.key} href={s.href} className="rounded-xl border border-ink-200 p-3 transition hover:border-brand-400 hover:bg-brand-50/40 dark:border-white/10">
-                  <span className="flex items-center justify-between text-sm font-semibold text-ink-900 dark:text-white">{s.label} <Badge variant="success">available</Badge></span>
+                <Link key={s.key} href={s.href} className="rounded-xl border border-ink-200 p-3 transition hover:border-brand-400 hover:bg-brand-50/40">
+                  <span className="flex items-center justify-between text-sm font-semibold text-ink-900">{s.label} <Badge variant="success">available</Badge></span>
                   <span className="block pt-1 text-xs text-ink-500">{s.summary}</span>
                 </Link>
               ) : (
-                <div key={s.key} className="rounded-xl border border-dashed border-ink-200 p-3 opacity-70 dark:border-white/10">
-                  <span className="flex items-center justify-between text-sm font-semibold text-ink-600 dark:text-ink-300">{s.label} <Badge variant="secondary">not in this release</Badge></span>
+                <div key={s.key} className="rounded-xl border border-dashed border-ink-200 p-3 opacity-70">
+                  <span className="flex items-center justify-between text-sm font-semibold text-ink-600">{s.label} <Badge variant="secondary">not in this release</Badge></span>
                   <span className="block pt-1 text-xs text-ink-500">{s.summary}</span>
                 </div>
               ))}
@@ -143,7 +143,7 @@ function Stat({ icon: Icon, label, value, note, warn }: {
   return (
     <Card><CardContent className="space-y-1 py-4">
       <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500"><Icon size={14} /> {label}</p>
-      <p className="text-2xl font-bold text-ink-900 dark:text-white">{value}</p>
+      <p className="text-2xl font-bold text-ink-900">{value}</p>
       <p className={warn ? "text-xs text-warning-700" : "text-xs text-ink-500"}>{note}</p>
     </CardContent></Card>
   );

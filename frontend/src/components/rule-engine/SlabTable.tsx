@@ -191,7 +191,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
             <TableRow>
               <TableCell
                 colSpan={showEmployer ? 11 : 10}
-                className="py-8 text-center text-ink-500 dark:text-ink-400"
+                className="py-8 text-center text-ink-500"
               >
                 No slabs yet. Add your first row.
               </TableCell>
@@ -205,7 +205,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                 key={idx}
                 className={
                   e || monthErr
-                    ? "bg-danger-50/60 dark:bg-danger-500/[0.08]"
+                    ? "bg-danger-50/60"
                     : undefined
                 }
               >
@@ -214,10 +214,10 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                     type="number"
                     value={r.min_salary}
                     onChange={(ev) => update(idx, { min_salary: ev.target.value })}
-                    className={e?.min_salary ? "border-danger-400 dark:border-danger-500/60" : ""}
+                    className={e?.min_salary ? "border-danger-400" : ""}
                   />
                   {e?.min_salary && (
-                    <p className="mt-1 text-xs text-danger-600 dark:text-danger-300">
+                    <p className="mt-1 text-xs text-danger-600">
                       {e.min_salary}
                     </p>
                   )}
@@ -227,7 +227,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                     type="number"
                     value={r.max_salary}
                     onChange={(ev) => update(idx, { max_salary: ev.target.value })}
-                    className={e?.max_salary ? "border-danger-400 dark:border-danger-500/60" : ""}
+                    className={e?.max_salary ? "border-danger-400" : ""}
                   />
                 </TableCell>
                 <TableCell>
@@ -236,7 +236,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                     step="0.01"
                     value={r.deduction_amount}
                     onChange={(ev) => update(idx, { deduction_amount: ev.target.value })}
-                    className={e?.deduction_amount ? "border-danger-400 dark:border-danger-500/60" : ""}
+                    className={e?.deduction_amount ? "border-danger-400" : ""}
                   />
                 </TableCell>
                 {showEmployer && (
@@ -246,10 +246,10 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                       step="0.01"
                       value={r.employer_amount ?? 0}
                       onChange={(ev) => update(idx, { employer_amount: ev.target.value })}
-                      className={e?.employer_amount ? "border-danger-400 dark:border-danger-500/60" : ""}
+                      className={e?.employer_amount ? "border-danger-400" : ""}
                     />
                     {e?.employer_amount && (
-                      <p className="mt-1 text-xs text-danger-600 dark:text-danger-300">
+                      <p className="mt-1 text-xs text-danger-600">
                         {e.employer_amount}
                       </p>
                     )}
@@ -294,12 +294,12 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                     placeholder="all months"
                     value={monthsText[idx] ?? ""}
                     onChange={(ev) => updateMonths(idx, ev.target.value)}
-                    className={monthErr ? "border-danger-400 dark:border-danger-500/60" : ""}
+                    className={monthErr ? "border-danger-400" : ""}
                   />
                   {monthErr ? (
-                    <p className="mt-1 text-xs text-danger-600 dark:text-danger-300">{monthErr}</p>
+                    <p className="mt-1 text-xs text-danger-600">{monthErr}</p>
                   ) : (
-                    <p className="mt-1 text-[10px] text-ink-400 dark:text-ink-500">
+                    <p className="mt-1 text-[10px] text-ink-400">
                       e.g. 2 (Feb only)
                     </p>
                   )}
@@ -309,7 +309,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                 <TableCell><Input aria-label={`Row ${idx + 1} official source`} placeholder="Gazette URL or notification" value={r.source_reference ?? ""} onChange={(ev) => update(idx, { source_reference: ev.target.value || null })} /></TableCell>
                 <TableCell>
                   <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)}>
-                    <Trash2 className="h-4 w-4 text-danger-600 dark:text-danger-400" />
+                    <Trash2 className="h-4 w-4 text-danger-600" />
                   </Button>
                 </TableCell>
               </TableRow>

@@ -26,7 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-2 py-1.5 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-2 py-1.5 text-sm text-ink-900";
 const MANAGE = new Set(["owner", "manager"]);
 const WRITE = new Set(["owner", "manager", "analyst"]);
 
@@ -123,7 +123,7 @@ export default function MappingEditorPage() {
 
       <Card><CardContent className="space-y-3 py-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">1 · Sample data</h2>
+          <h2 className="text-base font-semibold text-ink-900">1 · Sample data</h2>
           <span className="text-xs text-ink-500">{sample.length ? `${sample.length} record(s) · fields: ${sampleFields.slice(0, 12).join(", ")}${sampleFields.length > 12 ? "…" : ""}` : "No sample yet"}</span>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
@@ -143,7 +143,7 @@ export default function MappingEditorPage() {
 
       <Card><CardContent className="space-y-3 py-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">2 · Fields</h2>
+          <h2 className="text-base font-semibold text-ink-900">2 · Fields</h2>
           {editable ? <div className="flex gap-2">
             <button type="button" disabled={!sample.length} onClick={suggest} className="rounded-lg border border-ink-200 px-2.5 py-1 text-xs disabled:opacity-40">Suggest from sample</button>
             <button type="button" onClick={addField} className="inline-flex items-center gap-1 rounded-lg border border-brand-300 px-2.5 py-1 text-xs text-brand-700"><Plus size={12} /> Field</button></div> : null}
@@ -154,7 +154,7 @@ export default function MappingEditorPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-xs">
             <thead className="text-left uppercase tracking-wide text-ink-500"><tr><th className="py-1 pr-2">Product field</th><th className="pr-2">From</th><th className="pr-2">Read as</th><th className="pr-2">Required</th><th className="pr-2">Default</th><th className="pr-2">Format / pad / codes</th><th className="pr-2">Lookup (from=to per line)</th><th className="pr-2">Formula or condition</th><th /></tr></thead>
-            <tbody className="divide-y divide-ink-100 align-top dark:divide-white/5">
+            <tbody className="divide-y divide-ink-100 align-top">
               {spec.fields.map((f, i) => (
                 <tr key={i}>
                   <td className="py-1.5 pr-2"><input list="target-fields" aria-label="Product field" disabled={!editable} className={FIELD} value={f.target} onChange={(e) => setField(i, { target: e.target.value })} placeholder="employee_id or extra.my_field" /></td>
@@ -197,18 +197,18 @@ export default function MappingEditorPage() {
 
       <Card><CardContent className="space-y-3 py-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">3 · Preview</h2>
+          <h2 className="text-base font-semibold text-ink-900">3 · Preview</h2>
           <button type="button" disabled={!sample.length} onClick={() => void runPreview()} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40"><Eye size={14} /> Preview on the sample</button>
         </div>
         {!preview ? <p className="text-sm text-ink-500">Load sample data, then preview. Nothing is stored.</p> : (
           <>
             <p className="text-sm"><strong>{preview.mapped}</strong> of {preview.rows} record(s) map cleanly; <strong className={preview.rejected ? "text-danger-700" : ""}>{preview.rejected}</strong> would be rejected.{preview.truncated ? " (First 200 shown.)" : ""}</p>
-            <div className="max-h-96 overflow-auto rounded-lg border border-ink-200 dark:border-white/10">
+            <div className="max-h-96 overflow-auto rounded-lg border border-ink-200">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-ink-50 text-left uppercase tracking-wide text-ink-500 dark:bg-ink-900"><tr><th className="px-2 py-1">Row</th><th className="px-2">Result</th><th className="px-2">Output / errors</th></tr></thead>
-                <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+                <thead className="sticky top-0 bg-ink-50 text-left uppercase tracking-wide text-ink-500"><tr><th className="px-2 py-1">Row</th><th className="px-2">Result</th><th className="px-2">Output / errors</th></tr></thead>
+                <tbody className="divide-y divide-ink-100">
                   {preview.results.map((r) => (
-                    <tr key={r.row} className={r.errors.length ? "bg-danger-50/50 dark:bg-danger-500/5" : ""}>
+                    <tr key={r.row} className={r.errors.length ? "bg-danger-50/50" : ""}>
                       <td className="px-2 py-1 tabular-nums">{r.row}</td>
                       <td className="px-2">{r.errors.length ? "Rejected" : "Mapped"}{r.defaults_used.length ? <span className="block text-ink-400">default: {r.defaults_used.join(", ")}</span> : null}</td>
                       <td className="px-2 font-mono">{r.errors.length ? r.errors.map((e) => <span key={e.field + e.message} className="block text-danger-700">{e.message}</span>) : JSON.stringify(r.output)}</td>
@@ -223,7 +223,7 @@ export default function MappingEditorPage() {
 
       {siblings.length > 1 ? (
         <Card><CardContent className="space-y-2 py-5">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><GitCompare size={16} /> Compare with another version</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><GitCompare size={16} /> Compare with another version</h2>
           <select aria-label="Compare with" className={cn(FIELD, "max-w-xs")} value={compareWith} onChange={(e) => setCompareWith(e.target.value)}>
             <option value="">Choose a version</option>{siblings.filter((s) => s.id !== v.id).map((s) => <option key={s.id} value={s.id}>v{s.version} ({s.status})</option>)}</select>
           {compare.data ? (compare.data.changes.length === 0 ? <p className="text-sm text-ink-500">No differences.</p> : (
@@ -264,7 +264,7 @@ function ImportWithMapping({ mappingId, objectType }: { mappingId: string; objec
   };
   return (
     <Card><CardContent className="space-y-3 py-5">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><FileUp size={16} /> Import a file with this mapping</h2>
+      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><FileUp size={16} /> Import a file with this mapping</h2>
       <p className="text-xs text-ink-500">The same checks, counts, rejections and lineage as the integration API. Every record is accounted for on the run page.</p>
       <div className="grid gap-3 md:grid-cols-5">
         <label className="text-xs font-semibold text-ink-700 md:col-span-2">File<input type="file" accept=".csv,.xlsx" className="mt-1 block text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>

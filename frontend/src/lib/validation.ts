@@ -170,8 +170,18 @@ export type EmployeePage = Page<RunEmployee> & {
   employee_results_recorded: boolean;
 };
 
+export type RuleFacet = {
+  rule_id: string; rule_name: string; severity: string; count: number;
+  /** Distinct employees with this finding (older servers omit it). */
+  employees?: number;
+  /** Rupee total for a priced check; null when the check does not price its effect. */
+  financial_impact?: number | null;
+};
+
 export type FindingPage = Page<RunFinding> & {
-  rules: { rule_id: string; rule_name: string; severity: string; count: number }[];
+  rules: RuleFacet[];
+  components?: { component: string; count: number }[];
+  locations?: { location: string; count: number }[];
 };
 
 export type PeriodStatus = {
@@ -393,6 +403,7 @@ export const validationApi = {
     params: {
       page?: number; page_size?: number; sort?: string; order?: "asc" | "desc"; severity?: string;
       rule_id?: string; employee_id?: string; rule_prefix?: string; q?: string;
+      component?: string; state?: string; owner?: string; location?: string;
     } = {},
   ) => get<FindingPage>(`/api/validation/runs/${encodeURIComponent(runId)}/findings${qs(params)}`),
   compare: (base: string, target: string, show = "all") =>

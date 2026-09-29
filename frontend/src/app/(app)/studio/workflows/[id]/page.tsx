@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900";
 const MANAGE = new Set(["owner", "manager"]);
 const WRITE = new Set(["owner", "manager", "analyst"]);
 
@@ -118,7 +118,7 @@ export default function WorkflowBuilderPage() {
       {!w.active_version ? <AlertBanner variant="info" title="Draft">Nothing runs until an owner or manager publishes it. Publishing re-checks every stream, webhook and person it names.</AlertBanner> : null}
 
       <Card><CardContent className="space-y-3 py-5">
-        <h2 className="text-base font-semibold text-ink-900 dark:text-white">1 · When</h2>
+        <h2 className="text-base font-semibold text-ink-900">1 · When</h2>
         <select aria-label="Trigger" disabled={!editable} className={cn(FIELD, "max-w-md")} value={def.trigger.type}
           onChange={(e) => setDef({ ...def, trigger: { type: e.target.value, ...(e.target.value === "schedule" ? { schedule: { every: "day", at: "07:00", timezone: "Asia/Kolkata" } } : {}), ...(e.target.value === "inputs.ready" ? { required: ["register", "master"] } : {}) } })}>
           {Object.entries(cat.data.triggers).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
@@ -130,7 +130,7 @@ export default function WorkflowBuilderPage() {
       </CardContent></Card>
 
       <Card><CardContent className="space-y-3 py-5">
-        <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900 dark:text-white">2 · Only if</h2>
+        <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900">2 · Only if</h2>
           {editable && EVENT_FIELDS[def.trigger.type] ? <button type="button" onClick={() => setDef({ ...def, conditions: [...def.conditions, { field: EVENT_FIELDS[def.trigger.type][0], op: "eq", value: "" }] })} className="inline-flex items-center gap-1 rounded-lg border border-brand-300 px-2.5 py-1 text-xs text-brand-700"><Plus size={12} /> Condition</button> : null}</div>
         {def.conditions.length === 0 ? <p className="text-sm text-ink-500">Always — every time the trigger happens.</p> : null}
         <datalist id="event-fields">{(EVENT_FIELDS[def.trigger.type] ?? []).map((f) => <option key={f} value={f} />)}</datalist>
@@ -156,7 +156,7 @@ export default function WorkflowBuilderPage() {
       </CardContent></Card>
 
       <Card><CardContent className="space-y-3 py-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><FlaskConical size={16} /> Dry run and run now</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><FlaskConical size={16} /> Dry run and run now</h2>
         <div className="grid gap-3 md:grid-cols-[1fr_12rem]">
           <label className="text-xs font-semibold text-ink-700">Sample event (what the trigger would carry)
             <textarea aria-label="Sample event" className={cn(FIELD, "mt-1 h-28 font-mono text-xs")} value={sample} onChange={(e) => setSample(e.target.value)} /></label>
@@ -167,7 +167,7 @@ export default function WorkflowBuilderPage() {
           </div>
         </div>
         {dry ? (
-          <div className="rounded-xl border border-ink-200 p-3 text-sm dark:border-white/10" data-testid="dry-run">
+          <div className="rounded-xl border border-ink-200 p-3 text-sm" data-testid="dry-run">
             <p className="font-semibold">{dry.would_run ? "It would run." : "It would not run: a condition is false."}</p>
             {dry.conditions.map((c, i) => <p key={i} className="text-xs">{c.holds ? "✓" : "✗"} {c.field} {c.op} {String(c.value ?? "")} — the event has <code>{JSON.stringify(c.actual)}</code></p>)}
             <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs">{dry.steps.map((s) => (
@@ -180,8 +180,8 @@ export default function WorkflowBuilderPage() {
       </CardContent></Card>
 
       <Card><CardContent className="py-5">
-        <h2 className="text-base font-semibold text-ink-900 dark:text-white">Runs</h2>
-        {w.recent_runs?.length ? <ul className="divide-y divide-ink-100 dark:divide-white/5">{w.recent_runs.map((r) => <RunLine key={r.id} run={r} />)}</ul> : <p className="text-sm text-ink-500">Not run yet.</p>}
+        <h2 className="text-base font-semibold text-ink-900">Runs</h2>
+        {w.recent_runs?.length ? <ul className="divide-y divide-ink-100">{w.recent_runs.map((r) => <RunLine key={r.id} run={r} />)}</ul> : <p className="text-sm text-ink-500">Not run yet.</p>}
       </CardContent></Card>
     </div>
   );
@@ -216,11 +216,11 @@ function StepsEditor({ title, catalogue, steps, editable, failureBranch, onChang
   const move = (i: number, d: number) => { const next = [...steps]; const [x] = next.splice(i, 1); next.splice(i + d, 0, x); onChange(next); };
   return (
     <Card><CardContent className="space-y-3 py-5">
-      <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900 dark:text-white">{title}</h2>
+      <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900">{title}</h2>
         {editable ? <button type="button" onClick={() => onChange([...steps, { type: failureBranch ? "notify" : types[0][0], params: failureBranch ? { roles: ["owner"], title: "{{workflow}} failed", severity: "error" } : {} }])} className="inline-flex items-center gap-1 rounded-lg border border-brand-300 px-2.5 py-1 text-xs text-brand-700"><Plus size={12} /> Step</button> : null}</div>
       {steps.length === 0 ? <p className="text-sm text-ink-500">{failureBranch ? "Nothing — the run fails and says which step and why." : "No steps."}</p> : null}
       {steps.map((s, i) => (
-        <div key={i} className="space-y-2 rounded-xl border border-ink-200 p-3 dark:border-white/10" data-testid={failureBranch ? "failure-step" : "step"}>
+        <div key={i} className="space-y-2 rounded-xl border border-ink-200 p-3" data-testid={failureBranch ? "failure-step" : "step"}>
           <div className="grid gap-2 md:grid-cols-[2rem_1fr_1fr_6rem_7rem_auto]">
             <span className="pt-1.5 text-sm font-semibold text-ink-500">{i + 1}</span>
             <select aria-label="Action" disabled={!editable} className={FIELD} value={s.type} onChange={(e) => set(i, { type: e.target.value, params: {} })}>

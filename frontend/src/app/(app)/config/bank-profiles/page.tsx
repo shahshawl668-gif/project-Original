@@ -146,11 +146,11 @@ export default function BankProfilesPage() {
         <Card>
           <CardContent className="py-5">
             <div className="flex items-center justify-between pb-3">
-              <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Saved</h3>
+              <h3 className="text-sm font-semibold text-ink-900">Saved</h3>
               <button
                 type="button"
                 onClick={reset}
-                className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline dark:text-brand-300"
+                className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
               >
                 <Plus size={12} /> New
               </button>
@@ -162,10 +162,10 @@ export default function BankProfilesPage() {
                     <button
                       type="button"
                       onClick={() => edit(profile)}
-                      className={`min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-ink-50 dark:hover:bg-ink-800 ${
+                      className={`min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-ink-50 ${
                         profile.id === editingId
-                          ? "font-semibold text-brand-600 dark:text-brand-300"
-                          : "text-ink-700 dark:text-ink-200"
+                          ? "font-semibold text-brand-600"
+                          : "text-ink-700"
                       }`}
                     >
                       {profile.name}
@@ -185,10 +185,10 @@ export default function BankProfilesPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-ink-500 dark:text-ink-400">None yet.</p>
+              <p className="text-xs text-ink-500">None yet.</p>
             )}
 
-            <h3 className="pb-2 pt-5 text-sm font-semibold text-ink-900 dark:text-white">
+            <h3 className="pb-2 pt-5 text-sm font-semibold text-ink-900">
               Start from
             </h3>
             <div className="space-y-1">
@@ -203,14 +203,14 @@ export default function BankProfilesPage() {
                     setEditingId(null);
                     setTest(null);
                   }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-ink-800"
+                  className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition hover:bg-ink-50"
                 >
                   {preset.name}
                 </button>
               ))}
             </div>
             {presets?.caveat && (
-              <p className="pt-3 text-[11px] leading-relaxed text-warning-700 dark:text-warning-300">
+              <p className="pt-3 text-[11px] leading-relaxed text-warning-700">
                 {presets.caveat}
               </p>
             )}
@@ -299,7 +299,7 @@ export default function BankProfilesPage() {
                   />
                 </Field>
                 <Field label="Header row">
-                  <label className="flex h-9 items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+                  <label className="flex h-9 items-center gap-2 text-sm text-ink-700">
                     <input
                       type="checkbox"
                       checked={draft.has_header}
@@ -310,7 +310,7 @@ export default function BankProfilesPage() {
                 </Field>
               </div>
 
-              <p className="text-xs text-ink-500 dark:text-ink-400">
+              <p className="text-xs text-ink-500">
                 A control total on the last line is not a payment. Set trailer rows to drop
                 it — it is then read as the file&apos;s own stated total and compared with the
                 sum of the lines.
@@ -322,16 +322,16 @@ export default function BankProfilesPage() {
             <CardContent className="py-5">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
                 <div>
-                  <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+                  <h3 className="text-base font-semibold text-ink-900">
                     Column mapping
                   </h3>
-                  <p className="text-xs text-ink-500 dark:text-ink-400">
+                  <p className="text-xs text-ink-500">
                     {draft.has_header
                       ? "Give the column name as the file writes it."
                       : "Give the column number, counting from 1."}
                   </p>
                 </div>
-                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800">
+                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50">
                   {suggest.isPending ? (
                     <Loader2 size={14} className="animate-spin" />
                   ) : (
@@ -385,15 +385,15 @@ export default function BankProfilesPage() {
             <CardContent className="py-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+                  <h3 className="text-base font-semibold text-ink-900">
                     Test against a real file
                   </h3>
-                  <p className="text-xs text-ink-500 dark:text-ink-400">
+                  <p className="text-xs text-ink-500">
                     Nothing is stored. This is what the mapping would produce.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800">
+                  <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50">
                     {runTest.isPending ? (
                       <Loader2 size={14} className="animate-spin" />
                     ) : (
@@ -429,7 +429,7 @@ export default function BankProfilesPage() {
 
               {test && (
                 <div className="mt-4 space-y-3">
-                  <p className="text-sm text-ink-700 dark:text-ink-200">
+                  <p className="text-sm text-ink-700">
                     Read <strong>{test.row_count}</strong> payments totalling{" "}
                     <strong>{formatINR(test.total)}</strong>
                     {test.stated_total !== null &&
@@ -441,7 +441,7 @@ export default function BankProfilesPage() {
                   {test.problems.map((problem) => (
                     <p
                       key={problem}
-                      className="text-xs text-warning-700 dark:text-warning-300"
+                      className="text-xs text-warning-700"
                     >
                       {problem}
                     </p>
@@ -449,28 +449,28 @@ export default function BankProfilesPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-ink-200 text-left text-[10px] uppercase tracking-wide text-ink-400 dark:border-ink-700">
+                        <tr className="border-b border-ink-200 text-left text-[10px] uppercase tracking-wide text-ink-400">
                           <th className="py-1.5 pr-3 font-semibold">Code</th>
                           <th className="py-1.5 pr-3 font-semibold">Name</th>
                           <th className="py-1.5 pr-3 font-semibold">Account</th>
                           <th className="py-1.5 text-right font-semibold">Amount</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-ink-200/60 dark:divide-ink-700/50">
+                      <tbody className="divide-y divide-ink-200/60">
                         {test.rows.map((row) => (
                           <tr key={row.row_number}>
-                            <td className="py-1.5 pr-3 text-ink-800 dark:text-ink-100">
+                            <td className="py-1.5 pr-3 text-ink-800">
                               {row.employee_id ?? (
                                 <span className="text-danger-600">not mapped</span>
                               )}
                             </td>
-                            <td className="py-1.5 pr-3 text-ink-600 dark:text-ink-300">
+                            <td className="py-1.5 pr-3 text-ink-600">
                               {row.employee_name ?? "—"}
                             </td>
-                            <td className="py-1.5 pr-3 text-ink-600 dark:text-ink-300">
+                            <td className="py-1.5 pr-3 text-ink-600">
                               {row.account_number ?? "—"}
                             </td>
-                            <td className="py-1.5 text-right tabular-nums text-ink-900 dark:text-white">
+                            <td className="py-1.5 text-right tabular-nums text-ink-900">
                               {formatINR(row.amount)}
                             </td>
                           </tr>
@@ -479,7 +479,7 @@ export default function BankProfilesPage() {
                     </table>
                   </div>
                   {test.truncated && (
-                    <p className="text-[11px] text-ink-500 dark:text-ink-400">
+                    <p className="text-[11px] text-ink-500">
                       Showing the first 25 rows.
                     </p>
                   )}
@@ -494,7 +494,7 @@ export default function BankProfilesPage() {
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 dark:border-ink-700 dark:bg-ink-900 dark:text-white";
+  "h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400";
 
 function Field({
   label,
@@ -511,7 +511,7 @@ function Field({
         {label}
       </span>
       {children}
-      {hint && <p className="pt-1 text-[11px] text-ink-500 dark:text-ink-400">{hint}</p>}
+      {hint && <p className="pt-1 text-[11px] text-ink-500">{hint}</p>}
     </div>
   );
 }

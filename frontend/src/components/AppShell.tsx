@@ -2,352 +2,137 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard,
-  UploadCloud,
-  ClipboardCheck,
-  History,
-  FolderArchive,
-  Settings2,
-  Layers,
-  Code2,
-  BarChart3,
-  Menu,
-  X,
-  ChevronRight,
-  FileSpreadsheet,
-  Ban,
-  Landmark,
-  LogOut,
-  Shield,
-  Search,
-  Bell,
-  Sparkles,
-  ShieldCheck,
-  ChevronDown,
-  Building2,
-  Command,
-  IndianRupee,
-  FileDown,
-  ScrollText,
-  Target,
-  Scale,
-  UserPlus,
-  KeyRound,
-  CalendarDays,
-  Banknote,
-  BookOpen,
-  Loader2,
-  Loader,
-  ListTodo,
-  LayoutGrid,
-  PlugZap,
-  Activity,
-  Cable,
-  Shuffle,
-  Webhook,
-  GitBranch,
-  Workflow,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, LogOut, Menu, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { useEntity } from "@/context/EntityContext";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
+import { ADMIN_ITEMS, NAV_GROUPS, breadcrumbsFor, isActiveHref, type NavGroup } from "@/lib/navigation";
 import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 import { EntitySwitcher } from "@/components/EntitySwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
+import { noteNavigation } from "@/components/layout/BackLink";
+import { ContextBar } from "@/components/layout/ContextBar";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { SupportBanner } from "@/components/SupportBanner";
+import { cn } from "@/lib/utils";
 
 /**
- * Six boxes, not twenty-five links.
+ * Navigation is grouped by the job at hand — see the month, bring data in,
+ * check it, close it, understand it, report, connect systems, configure — and
+ * is defined once in `lib/navigation.ts`.
  *
- * Everything used to be listed at once, which made the sidebar a wall of text
- * where the four things anyone does daily were indistinguishable from the
- * twenty they configure once. Each group is now a box that opens, and only the
- * one you are working in is open.
- *
- * The grouping follows how a month is actually worked — run the payroll, check
- * the attendance behind it, reconcile what left the bank and what hit the
- * ledger — rather than how the code is organised.
+ * Small groups are always open: a menu of eight headings with two or three
+ * links each reads faster than eight closed boxes. The two large groups
+ * (Studio and Configuration) collapse unless you are inside them.
  */
-const navGroups = [
-  {
-    label: "Payroll",
-    icon: UploadCloud,
-    blurb: "Registers, results and CTC",
-    items: [
-      { href: "/payroll/upload", label: "Upload & validate", icon: UploadCloud },
-      { href: "/payroll/validation", label: "Validations", icon: Loader },
-      { href: "/payroll/results", label: "Results", icon: ClipboardCheck },
-      { href: "/payroll/issues", label: "Issues", icon: ListTodo },
-      { href: "/payroll/history", label: "Register history", icon: History },
-      { href: "/ctc/upload", label: "Upload CTC", icon: FileSpreadsheet },
-      { href: "/ctc/history", label: "CTC history", icon: FolderArchive },
-      { href: "/budget/upload", label: "Upload budget", icon: Target },
-    ],
-  },
-  {
-    label: "Attendance",
-    icon: CalendarDays,
-    blurb: "Days worked, days paid",
-    items: [
-      { href: "/payroll/attendance", label: "Attendance register", icon: CalendarDays },
-    ],
-  },
-  {
-    label: "Bank & JV",
-    icon: Scale,
-    blurb: "Payments and the ledger",
-    items: [
-      { href: "/reconciliation", label: "Month close", icon: Scale },
-      { href: "/reconciliation/bank", label: "Bank payments", icon: Banknote },
-      { href: "/reconciliation/jv", label: "Journal voucher", icon: BookOpen },
-    ],
-  },
-  {
-    label: "Insights",
-    icon: BarChart3,
-    blurb: "Cost and reporting",
-    items: [
-      { href: "/dashboards", label: "Dashboards", icon: LayoutGrid },
-      { href: "/cost", label: "Cost analysis", icon: IndianRupee },
-      { href: "/reports", label: "Reports", icon: FileDown },
-    ],
-  },
-  {
-    label: "Studio",
-    icon: PlugZap,
-    blurb: "Connect your systems",
-    items: [
-      { href: "/studio", label: "Studio overview", icon: PlugZap },
-      { href: "/studio/api", label: "API Centre", icon: KeyRound },
-      { href: "/studio/connections", label: "Connections", icon: Cable },
-      { href: "/studio/mapping", label: "Data mapping", icon: Shuffle },
-      { href: "/studio/workflows", label: "Workflows", icon: Workflow },
-      { href: "/studio/webhooks", label: "Webhooks", icon: Webhook },
-      { href: "/studio/developer", label: "Developer", icon: Code2 },
-      { href: "/studio/releases", label: "Releases", icon: GitBranch },
-      { href: "/studio/runs", label: "Run history", icon: Activity },
-    ],
-  },
-  {
-    label: "Settings",
-    icon: Settings2,
-    blurb: "Rules, people and history",
-    items: [
-      { href: "/config/companies", label: "Group companies", icon: Building2 },
-      { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
-      { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
-      { href: "/config/components", label: "Salary components", icon: Layers },
-      { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
-      { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },
-      { href: "/config/validation-matrix", label: "Validation matrix", icon: ClipboardCheck },
-      { href: "/config/rules", label: "Rule suppressions", icon: Ban },
-      { href: "/rule-engine/formula", label: "Formulas", icon: Code2 },
-      { href: "/rule-engine/slabs", label: "PT / LWF slabs", icon: BarChart3 },
-      { href: "/config/minimum-wage", label: "Minimum wage", icon: IndianRupee },
-      { href: "/config/team", label: "Team & invitations", icon: UserPlus },
-      { href: "/audit", label: "Audit trail", icon: ScrollText },
-    ],
-  },
-];
-
-function useNavGroups() {
+function useNavGroups(): NavGroup[] {
   const { user } = useAuth();
   const { activeRole } = useEntity();
   return useMemo(() => {
     // Studio is a technical workspace (analyst and above); a viewer would
     // only meet a refusal there, so it is not offered.
-    const groups = activeRole === "viewer" ? navGroups.filter((g) => g.label !== "Studio") : navGroups;
-    return groups.map((g) => {
-      if (g.label !== "Settings") return g;
-      const adminItems =
-        user?.role === "admin"
-          ? [
-              { href: "/admin/users", label: "Users & roles", icon: Shield },
-              { href: "/admin/support", label: "Support access", icon: KeyRound },
-            ]
-          : [];
-      return { ...g, items: [...g.items, ...adminItems] };
-    });
+    const groups = activeRole === "viewer" ? NAV_GROUPS.filter((g) => g.id !== "studio") : NAV_GROUPS;
+    return groups.map((g) =>
+      g.id === "config" && user?.role === "admin" ? { ...g, items: [...g.items, ...ADMIN_ITEMS] } : g,
+    );
   }, [user?.role, activeRole]);
 }
 
-/** Pages reached from a menu item rather than listed in the menu themselves. */
-const BELONGS_TO: Record<string, string[]> = {
-  "/payroll/results": ["/payroll/runs", "/payroll/employee"],
-};
-
-/** Menu items that are only active on their own page, not on pages beneath them. */
-const EXACT = new Set(["/studio"]);
-
-function isActiveHref(pathname: string, href: string): boolean {
-  if (href === "/" || EXACT.has(href)) return pathname === href;
-  const under = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
-  return under(href) || (BELONGS_TO[href] ?? []).some(under);
-}
-
-/** One collapsible box. Opens itself when you are somewhere inside it. */
-function NavGroup({
-  group,
-  onNavigate,
-}: {
-  group: ReturnType<typeof useNavGroups>[number];
-  onNavigate?: () => void;
-}) {
+function NavSection({ group, onNavigate }: { group: NavGroup; onNavigate?: () => void }) {
   const pathname = usePathname();
   const holdsCurrentPage = group.items.some((i) => isActiveHref(pathname, i.href));
-  // `null` means "nobody has clicked yet", so the route decides. Once someone
-  // clicks, their choice wins until they navigate into a different box.
   const [manual, setManual] = useState<boolean | null>(null);
-  const open = manual ?? holdsCurrentPage;
-  const GroupIcon = group.icon;
-
-  useEffect(() => {
-    setManual(null);
-  }, [holdsCurrentPage]);
+  const open = !group.collapsible || (manual ?? holdsCurrentPage);
+  useEffect(() => setManual(null), [holdsCurrentPage]);
+  const listId = `nav-${group.id}`;
 
   return (
-    <div
-      className={`overflow-hidden rounded-xl border transition-colors ${
-        open || holdsCurrentPage
-          ? "border-brand-200 bg-brand-50/50"
-          : "border-ink-200/70 bg-white hover:border-brand-200"
-      }`}
-    >
-      <button
-        type="button"
-        onClick={() => setManual(!open)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
-      >
-        <span
-          className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${
-            holdsCurrentPage ? "bg-brand-600 text-white" : "bg-brand-100 text-brand-700"
-          }`}
+    <div className="pt-3 first:pt-1">
+      {group.collapsible ? (
+        <button
+          type="button"
+          onClick={() => setManual(!open)}
+          aria-expanded={open}
+          aria-controls={listId}
+          className="flex w-full items-center gap-1 rounded-md px-2.5 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-500 transition-colors hover:text-ink-800"
         >
-          <GroupIcon size={15} strokeWidth={2} aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold text-ink-800">
-            {group.label}
-          </span>
-          <span className="block truncate text-[10.5px] text-ink-500">{group.blurb}</span>
-        </span>
-        <ChevronDown
-          size={15}
-          aria-hidden
-          className={`flex-shrink-0 text-ink-400 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-
+          <span className="flex-1 truncate">{group.label}</span>
+          <ChevronDown size={13} aria-hidden className={cn("flex-shrink-0 transition-transform", open ? "" : "-rotate-90")} />
+        </button>
+      ) : (
+        <p className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-500">{group.label}</p>
+      )}
       {open && (
-        <div className="space-y-0.5 border-t border-brand-100 px-2 pb-2 pt-2">
+        <ul id={listId} className="mt-0.5 space-y-px">
           {group.items.map((item) => {
             const Icon = item.icon;
             const active = isActiveHref(pathname, item.href);
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
-                aria-current={active ? "page" : undefined}
-                className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12.5px] transition-colors ${
-                  active
-                    ? "bg-brand-600 font-semibold text-white"
-                    : "text-ink-600 hover:bg-brand-100/70 hover:text-ink-900"
-                }`}
-              >
-                <Icon
-                  size={14}
-                  strokeWidth={active ? 2.2 : 1.9}
-                  aria-hidden
-                  className={`flex-shrink-0 ${active ? "text-white" : "text-ink-400 group-hover:text-brand-700"}`}
-                />
-                <span className="truncate">{item.label}</span>
-              </Link>
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "group flex items-center gap-2.5 rounded-md px-2.5 py-[5px] text-[13px] transition-colors duration-fast",
+                    active ? "bg-brand-50 font-medium text-brand-800" : "text-ink-700 hover:bg-ink-100 hover:text-ink-900",
+                  )}
+                >
+                  <Icon
+                    size={15}
+                    strokeWidth={active ? 2.1 : 1.8}
+                    aria-hidden
+                    className={cn("flex-shrink-0", active ? "text-brand-600" : "text-ink-400 group-hover:text-ink-600")}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
   );
 }
 
-function Sidebar({
-  groups,
-  onClose,
-}: {
-  groups: ReturnType<typeof useNavGroups>;
-  onClose?: () => void;
-}) {
-  const pathname = usePathname();
-  const homeActive = pathname === "/dashboard";
-
+function BrandMark({ onClick }: { onClick?: () => void }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden border-r border-ink-200/80 bg-white">
-      <div className="flex items-center justify-between gap-3 px-4 pb-4 pt-5">
-        <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5" onClick={onClose}>
-          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-[0_6px_20px_-6px_rgba(2,132,199,0.6)]">
-            <ShieldCheck size={17} className="text-white" strokeWidth={2.25} aria-hidden />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[15px] font-bold leading-tight tracking-tight text-ink-900">
-              {PRODUCT_NAME}
-            </span>
-            <span className="mt-0.5 block truncate text-[9.5px] font-semibold uppercase tracking-[0.18em] text-brand-700">
-              {PRODUCT_TAGLINE}
-            </span>
-          </span>
-        </Link>
+    <Link href="/control-centre" className="flex min-w-0 items-center gap-2" onClick={onClick}>
+      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-600">
+        <ShieldCheck size={15} className="text-white" strokeWidth={2.25} aria-hidden />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[14px] font-semibold leading-tight tracking-tight text-ink-900">{PRODUCT_NAME}</span>
+        <span className="block truncate text-[10.5px] leading-tight text-ink-500">{PRODUCT_TAGLINE}</span>
+      </span>
+    </Link>
+  );
+}
+
+function Sidebar({ groups, onClose }: { groups: NavGroup[]; onClose?: () => void }) {
+  return (
+    <div className="flex h-full flex-col overflow-hidden border-r border-ink-200 bg-white">
+      <div className="flex h-14 flex-shrink-0 items-center justify-between gap-3 border-b border-ink-100 px-4">
+        <BrandMark onClick={onClose} />
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 lg:hidden"
+            className="rounded-md p-1.5 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 lg:hidden"
             aria-label="Close menu"
           >
             <X size={18} />
           </button>
         )}
       </div>
-
-      <nav className="scrollbar-thin flex-1 space-y-2 overflow-y-auto px-3 pb-6">
-        <Link
-          href="/dashboard"
-          onClick={onClose}
-          aria-current={homeActive ? "page" : undefined}
-          className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition-colors ${
-            homeActive
-              ? "border-brand-600 bg-brand-600 text-white"
-              : "border-ink-200/70 bg-white text-ink-800 hover:border-brand-200 hover:bg-brand-50"
-          }`}
-        >
-          <span
-            className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg ${
-              homeActive ? "bg-white/20 text-white" : "bg-brand-100 text-brand-700"
-            }`}
-          >
-            <Building2 size={15} strokeWidth={2} aria-hidden />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-semibold">Companies</span>
-            <span
-              className={`block truncate text-[10.5px] ${homeActive ? "text-white/75" : "text-ink-500"}`}
-            >
-              Your group at a glance
-            </span>
-          </span>
-        </Link>
-
+      <nav aria-label="Main" className="scrollbar-thin flex-1 overflow-y-auto px-2 pb-6 pt-2">
         {groups.map((group) => (
-          <NavGroup key={group.label} group={group} onNavigate={onClose} />
+          <NavSection key={group.id} group={group} onNavigate={onClose} />
         ))}
       </nav>
-
-      <div className="border-t border-ink-200/80 px-4 py-3">
+      <div className="border-t border-ink-100 px-3 py-2.5">
         <ApiHealthBadge />
       </div>
     </div>
@@ -356,24 +141,28 @@ function Sidebar({
 
 function ProfileMenu() {
   const { user, isAuthenticated, logout } = useAuth();
+  const { activeRole } = useEntity();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!open) return;
     const onClick = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
-    if (open) document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   if (!isAuthenticated || !user) {
     return (
-      <Link
-        href="/login"
-        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-600 to-accent-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-soft transition-all hover:shadow-glow"
-      >
+      <Link href="/login" className="inline-flex h-8 items-center rounded-lg bg-brand-600 px-3 text-xs font-medium text-white hover:bg-brand-700">
         Sign in
       </Link>
     );
@@ -386,57 +175,51 @@ function ProfileMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-ink-200/70 bg-white py-1 pl-1 pr-3 text-xs font-medium text-ink-800 shadow-sm transition-colors hover:bg-ink-50/70 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-100 dark:hover:bg-white/[0.08]"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Account: ${user.email}`}
+        className="flex h-8 items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 text-ink-700 transition-colors hover:bg-ink-100"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-accent-500 text-[11px] font-semibold text-white">
-          {initial}
-        </span>
-        <span className="hidden max-w-[8rem] truncate sm:inline">{user.email}</span>
-        <ChevronDown size={13} className="text-ink-400" />
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-800 text-[11px] font-semibold text-white">{initial}</span>
+        <ChevronDown size={13} className="text-ink-400" aria-hidden />
       </button>
       {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right animate-fade-up rounded-2xl border border-ink-200/70 bg-white p-2 shadow-elevated dark:border-white/10 dark:bg-ink-900"
-        >
-          <div className="rounded-xl bg-gradient-to-br from-brand-50 via-white to-accent-50 p-3 dark:from-brand-500/10 dark:via-ink-900 dark:to-accent-500/10">
-            <p className="text-xs font-semibold text-ink-900 dark:text-white">{user.email}</p>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-700 ring-1 ring-brand-200 dark:bg-white/10 dark:text-brand-300 dark:ring-brand-500/30">
-                {user.role || "user"}
-              </span>
-              <span className="text-[10px] text-ink-500 dark:text-ink-300">
-                {user.company_name || "Tenant"}
-              </span>
-            </div>
+        <div role="menu" className="absolute right-0 top-full z-50 mt-1.5 w-64 animate-fade-up rounded-xl border border-ink-200 bg-white p-1 shadow-elevated">
+          <div className="px-3 py-2.5">
+            <p className="truncate text-[13px] font-medium text-ink-900">{user.email}</p>
+            <p className="mt-0.5 text-xs text-ink-500">
+              {activeRole ? <span className="capitalize">{activeRole}</span> : (user.role || "user")}
+              {user.company_name ? ` · ${user.company_name}` : ""}
+            </p>
           </div>
-          <div className="my-1 h-px bg-ink-100 dark:bg-white/10" />
+          <div className="my-1 h-px bg-ink-100" />
           <Link
-            href="/config/statutory"
+            role="menuitem"
+            href="/config/team"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-white/[0.06]"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-ink-700 transition-colors hover:bg-ink-50"
           >
-            <Settings2 size={14} className="text-ink-400" />
-            Statutory settings
+            Team & invitations
           </Link>
           <Link
-            href="/config/rules"
+            role="menuitem"
+            href="/audit"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-white/[0.06]"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-ink-700 transition-colors hover:bg-ink-50"
           >
-            <Ban size={14} className="text-ink-400" />
-            Rule preferences
+            Audit trail
           </Link>
-          <div className="my-1 h-px bg-ink-100 dark:bg-white/10" />
+          <div className="my-1 h-px bg-ink-100" />
           <button
+            role="menuitem"
             type="button"
             onClick={() => {
               setOpen(false);
               void logout().finally(() => router.replace("/login"));
             }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-danger-700 transition-colors hover:bg-danger-50"
           >
-            <LogOut size={14} />
+            <LogOut size={14} aria-hidden />
             Sign out
           </button>
         </div>
@@ -448,34 +231,22 @@ function ProfileMenu() {
 /**
  * The mark on its own, for anyone the product does not yet know.
  *
- * Signed out, the navigation was still rendered in full — every box, every
- * settings link, the whole shape of the product — above a page that could load
- * nothing. It advertised a menu that did not work and made a visitor guess
- * which part was broken. There is nothing to navigate until there is an
- * account, so there is no navigation.
+ * Signed out, there is nothing to navigate until there is an account, so
+ * there is no navigation — a menu that cannot load anything only makes a
+ * visitor guess which part is broken.
  */
 function BrandFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg-canvas)]">
-      <header className="flex-shrink-0 border-b border-ink-200/80 bg-white">
-        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
-          <Link href="/" className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-[0_6px_20px_-6px_rgba(2,132,199,0.6)]">
-              <ShieldCheck size={17} className="text-white" strokeWidth={2.25} aria-hidden />
+      <header className="flex-shrink-0 border-b border-ink-200 bg-white">
+        <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-600">
+              <ShieldCheck size={15} className="text-white" strokeWidth={2.25} aria-hidden />
             </span>
-            <span className="min-w-0">
-              <span className="block text-[15px] font-bold leading-tight tracking-tight text-ink-900">
-                {PRODUCT_NAME}
-              </span>
-              <span className="mt-0.5 block truncate text-[9.5px] font-semibold uppercase tracking-[0.18em] text-brand-700">
-                {PRODUCT_TAGLINE}
-              </span>
-            </span>
+            <span className="text-[14px] font-semibold tracking-tight text-ink-900">{PRODUCT_NAME}</span>
           </Link>
-          <Link
-            href="/login"
-            className="inline-flex h-9 items-center rounded-lg bg-brand-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-brand-700"
-          >
+          <Link href="/login" className="inline-flex h-8 items-center rounded-lg bg-brand-600 px-3.5 text-xs font-medium text-white transition-colors hover:bg-brand-700">
             Sign in
           </Link>
         </div>
@@ -485,15 +256,75 @@ function BrandFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
+function Breadcrumbs({ groups }: { groups: NavGroup[] }) {
+  const pathname = usePathname();
+  const crumbs = breadcrumbsFor(pathname, groups);
+  return (
+    <nav aria-label="Breadcrumb" className="hidden min-w-0 md:block">
+      <ol className="flex min-w-0 items-center gap-1 text-[13px]">
+        {crumbs.map((c, i) => {
+          const last = i === crumbs.length - 1;
+          return (
+            <li key={`${c.label}-${i}`} className="flex min-w-0 items-center gap-1">
+              {i > 0 ? <ChevronRight size={13} className="flex-shrink-0 text-ink-300" aria-hidden /> : null}
+              {last || !c.href ? (
+                <span aria-current={last ? "page" : undefined} className={cn("truncate", last ? "font-medium text-ink-900" : "text-ink-500")}>
+                  {c.label}
+                </span>
+              ) : (
+                <Link href={c.href} className="truncate text-ink-500 transition-colors hover:text-ink-900">
+                  {c.label}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const groups = useNavGroups();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const { generation } = useEntity();
+  const mainRef = useRef<HTMLElement>(null);
+  const positions = useRef(new Map<string, number>());
+  const popped = useRef(false);
 
-  // Deciding who you are takes a moment. Showing the workspace during it and
-  // then snatching it away reads as a bug, so the mark stands in until the
-  // answer is known.
+  useEffect(() => {
+    const onPop = () => { popped.current = true; };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // The scroll container is <main>, not the window, so the browser cannot
+  // restore it. A new page starts at the top; going back returns to where the
+  // reader was — waiting for the page to be tall enough, since its data may
+  // still be arriving.
+  useEffect(() => {
+    noteNavigation();
+    setMobileOpen(false);
+    const main = mainRef.current;
+    if (!main) return;
+    const key = window.location.pathname + window.location.search;
+    const target = popped.current ? positions.current.get(key) ?? 0 : 0;
+    popped.current = false;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      if (target === 0 || main.scrollHeight - main.clientHeight >= target || tries++ > 20) {
+        main.scrollTo({ top: target });
+        return;
+      }
+      timer = setTimeout(attempt, 100);
+    };
+    attempt();
+    return () => clearTimeout(timer);
+  }, [pathname]);
+
   if (authLoading) {
     return (
       <BrandFrame>
@@ -508,18 +339,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) {
     return (
       <BrandFrame>
-        <div className="w-full max-w-md rounded-2xl border border-ink-200/70 bg-white p-8 text-center shadow-soft">
-          <h1 className="font-display text-xl font-bold tracking-tight text-ink-900">
-            Sign in to continue
-          </h1>
+        <div className="w-full max-w-md rounded-xl border border-ink-200 bg-white p-8 text-center shadow-soft">
+          <h1 className="text-lg font-semibold tracking-tight text-ink-900">Sign in to continue</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-600">
-            {PRODUCT_NAME} holds payroll data, so nothing is shown until we know who
-            you are.
+            {PRODUCT_NAME} holds payroll data, so nothing is shown until we know who you are.
           </p>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Link
               href="/login"
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-brand-600 px-5 text-sm font-medium text-white transition-colors hover:bg-brand-700"
             >
               Sign in
             </Link>
@@ -529,63 +357,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // The home page is not in any group, so it needs naming here or the
-  // breadcrumb falls back to its own parent and reads "Workspace › Workspace".
-  const allItems = groups.flatMap((g) => g.items);
-  const currentItem = allItems.find((i) => isActiveHref(pathname, i.href));
-  const pageTitle =
-    pathname === "/dashboard" ? "Companies" : (currentItem?.label ?? "Workspace");
-
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg-canvas)]">
-      <aside className="hidden w-[15.5rem] flex-shrink-0 lg:flex lg:flex-col xl:w-[16.5rem]">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow-elevated"
+      >
+        Skip to content
+      </a>
+      <aside className="hidden w-60 flex-shrink-0 lg:flex lg:flex-col">
         <Sidebar groups={groups} />
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className="fixed inset-0 z-50 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <button
             type="button"
-            className="absolute inset-0 bg-ink-950/60 backdrop-blur-sm"
-            aria-label="Close menu overlay"
+            className="absolute inset-0 animate-fade-in bg-ink-950/30"
+            aria-label="Close menu"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative h-full w-[min(280px,86vw)] flex-shrink-0 shadow-2xl">
+          <div className="relative h-full w-[min(288px,86vw)] flex-shrink-0 animate-slide-in shadow-elevated">
             <Sidebar groups={groups} onClose={() => setMobileOpen(false)} />
           </div>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-40 flex-shrink-0 border-b border-ink-200/60 bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/70 dark:border-white/5 dark:bg-ink-950/85 dark:supports-[backdrop-filter]:bg-ink-950/65">
-          <div className="flex h-14 w-full items-center gap-3 px-4 sm:px-6 lg:gap-5">
+        <header className="z-40 flex-shrink-0 border-b border-ink-200 bg-white">
+          <div className="flex h-14 w-full items-center gap-2 px-3 sm:px-5 lg:gap-4">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="rounded-lg p-2 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-white/[0.06] dark:hover:text-white lg:hidden"
+              className="rounded-md p-1.5 text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900 lg:hidden"
               aria-label="Open navigation"
             >
               <Menu size={20} />
             </button>
-
-            <nav className="hidden min-w-0 items-center gap-1.5 text-sm md:flex">
-              <Link
-                href="/dashboard"
-                className="truncate text-xs font-semibold text-ink-400 transition-colors hover:text-ink-700 dark:text-ink-400 dark:hover:text-white"
-              >
-                Workspace
-              </Link>
-              <ChevronRight size={13} className="flex-shrink-0 text-ink-300 dark:text-ink-500" aria-hidden />
-              <span className="truncate text-xs font-semibold text-ink-900 dark:text-white">
-                {pageTitle}
-              </span>
-            </nav>
-
-            <div className="hidden min-w-0 flex-1 lg:flex" />
-
-            <div className="ml-auto flex items-center gap-2">
-              <NotificationBell />
+            <Breadcrumbs groups={groups} />
+            <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
               <EntitySwitcher />
+              <ContextBar />
+              <span className="mx-0.5 hidden h-5 w-px bg-ink-200 sm:block" aria-hidden />
+              <NotificationBell />
               <ProfileMenu />
             </div>
           </div>
@@ -593,9 +407,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <SupportBanner />
 
-        <main className="scrollbar-thin flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10 lg:py-9">
-            <PageTransition>{children}</PageTransition>
+        <main
+          id="main"
+          ref={mainRef}
+          tabIndex={-1}
+          className="scrollbar-thin flex-1 overflow-y-auto outline-none"
+          onScroll={(e) => positions.current.set(window.location.pathname + window.location.search, e.currentTarget.scrollTop)}
+        >
+          <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+            {/* Keyed on the company generation: a switch remounts the page, so
+                no filter or selection from the last company survives. */}
+            <PageTransition key={generation}>{children}</PageTransition>
           </div>
         </main>
       </div>

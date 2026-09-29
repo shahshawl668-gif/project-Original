@@ -26,7 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900";
 const MANAGE = new Set(["owner", "manager"]);
 
 const PRESETS: { label: string; scopes: string[] }[] = [
@@ -80,7 +80,7 @@ function Accounts() {
     <Card><CardContent className="space-y-4 py-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><KeyRound size={16} /> Service accounts and keys</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><KeyRound size={16} /> Service accounts and keys</h2>
           <p className="text-xs text-ink-500">A service account is a machine, not a person: it cannot sign in, and it can only do what its scopes allow in the companies it names. It can never publish rules, waive or resolve findings, or sign off a month.</p>
         </div>
         {!creating ? (
@@ -102,7 +102,7 @@ function Accounts() {
       }} /> : null}
       {accounts.error ? <AlertBanner variant="error" title="Could not load service accounts">{(accounts.error as Error).message}</AlertBanner> : null}
       {!accounts.data ? <Skeleton className="h-24 w-full" /> : accounts.data.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-500 dark:border-white/10">
+        <p className="rounded-xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-500">
           No service accounts for this company yet. Create one for each system that will send data — one per system, so a key can be revoked without stopping the others.
         </p>
       ) : (
@@ -114,11 +114,11 @@ function Accounts() {
 
 function IssuedKey({ issued, onClose }: { issued: IssuedCredential; onClose: () => void }) {
   return (
-    <div role="alert" className="space-y-2 rounded-xl border-2 border-warning-300 bg-warning-50 p-4 text-sm text-warning-950 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-100">
+    <div role="alert" className="space-y-2 rounded-xl border-2 border-warning-300 bg-warning-50 p-4 text-sm text-warning-950">
       <p className="flex items-center gap-2 font-semibold"><TriangleAlert size={16} /> Copy this key now — it will not be shown again</p>
       <p className="text-xs">Store it in the sending system&apos;s secret store. PeopleOpsLab keeps only a fingerprint; nobody here can show it to you later. If it is lost, rotate it.</p>
       <div className="flex items-center gap-2">
-        <code data-testid="issued-key" className="min-w-0 flex-1 break-all rounded bg-white px-2 py-1.5 font-mono text-xs text-ink-900 dark:bg-ink-900 dark:text-ink-100">{issued.key}</code>
+        <code data-testid="issued-key" className="min-w-0 flex-1 break-all rounded bg-white px-2 py-1.5 font-mono text-xs text-ink-900">{issued.key}</code>
         <button type="button" onClick={() => void copy(issued.key, "Key copied")} className="inline-flex items-center gap-1 rounded-lg border border-warning-400 px-2 py-1.5 text-xs font-semibold"><Copy size={12} /> Copy</button>
       </div>
       <p className="text-xs">Prefix <code>{issued.prefix}</code> · expires {new Date(issued.expires_at).toLocaleDateString("en-IN")}</p>
@@ -152,7 +152,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4 dark:border-brand-500/30 dark:bg-brand-500/5">
+    <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4">
       <div className="grid gap-3 md:grid-cols-[1fr_1fr_12rem]">
         <label className="text-xs font-semibold text-ink-700">Name — the system that will use it
           <input className={cn(FIELD, "mt-1")} placeholder="e.g. HRMS nightly feed" value={name} onChange={(e) => setName(e.target.value)} /></label>
@@ -167,7 +167,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
         <legend className="text-xs font-semibold text-ink-700">Companies it may act on — only ones you manage</legend>
         <div className="mt-1 flex flex-wrap gap-2">
           {manageable.map((e) => (
-            <label key={e.id} className="flex items-center gap-1.5 rounded-lg border border-ink-200 px-2 py-1 text-sm dark:border-white/10">
+            <label key={e.id} className="flex items-center gap-1.5 rounded-lg border border-ink-200 px-2 py-1 text-sm">
               <input type="checkbox" checked={companies.includes(e.id)} onChange={() => setCompanies(toggle(companies, e.id))} /> {e.name}
             </label>
           ))}
@@ -222,16 +222,16 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
     account.status === "active" ? "Service account disabled — every key stopped" : "Service account enabled");
 
   return (
-    <div className="rounded-xl border border-ink-200 p-4 dark:border-white/10">
+    <div className="rounded-xl border border-ink-200 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-900 dark:text-white">
+          <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-900">
             {account.name} <Badge variant={account.environment === "production" ? "primary" : "secondary"}>{account.environment}</Badge>
             {account.status !== "active" ? <Badge variant="destructive">disabled</Badge> : null}
           </p>
           {account.description ? <p className="text-xs text-ink-500">{account.description}</p> : null}
           <p className="pt-1 text-xs text-ink-600">Companies: {account.companies.map((c) => c.name).join(", ")}{account.hidden_companies ? ` + ${account.hidden_companies} you cannot see` : ""}</p>
-          <div className="flex flex-wrap gap-1 pt-1">{account.scopes.map((s) => <code key={s} className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px] dark:bg-white/10">{s}</code>)}</div>
+          <div className="flex flex-wrap gap-1 pt-1">{account.scopes.map((s) => <code key={s} className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px]">{s}</code>)}</div>
         </div>
         <div className="flex gap-2">
           <button type="button" disabled={busy || account.status !== "active"} onClick={() => void issue()} className="rounded-lg border border-ink-200 px-2.5 py-1 text-xs disabled:opacity-40">Issue key</button>
@@ -241,7 +241,7 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
       {account.credentials.length ? (
         <table className="mt-3 w-full text-xs">
           <thead className="text-left uppercase tracking-wide text-ink-500"><tr><th className="py-1">Key</th><th>State</th><th>Expires</th><th>Last used</th><th /></tr></thead>
-          <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+          <tbody className="divide-y divide-ink-100">
             {account.credentials.map((c) => (
               <tr key={c.id}>
                 <td className="py-1.5 font-mono">{c.prefix}…<span className="block font-sans text-ink-400">{c.label}</span></td>
@@ -283,7 +283,7 @@ function Docs() {
   return (
     <Card id="docs"><CardContent className="space-y-4 py-5">
       <div>
-        <h2 className="text-base font-semibold text-ink-900 dark:text-white">Integration API documentation</h2>
+        <h2 className="text-base font-semibold text-ink-900">Integration API documentation</h2>
         <p className="text-xs text-ink-500">Read live from the published contract. Base URL: <code className="break-all">{base}</code>
           {" · "}<a className="text-brand-700 underline" href={`/api/proxy/api/integration/v1/openapi.json`} target="_blank" rel="noreferrer">OpenAPI JSON</a>.
           Examples use invented people; <code>$POL_KEY</code> stands for your key, which never appears on this page.</p>
@@ -324,7 +324,7 @@ function QuickStart({ base, companyId }: { base: string; companyId: string }) {
     ["5 · Start validation once the month's register is in", curl(base, companyId, "post", "/validation-jobs", { period_month: "2026-06-01" }, true)],
   ];
   return (
-    <details className="rounded-xl border border-ink-200 p-3 dark:border-white/10" open>
+    <details className="rounded-xl border border-ink-200 p-3" open>
       <summary className="cursor-pointer text-sm font-semibold">Quick start — five calls</summary>
       <div className="space-y-3 pt-3">{steps.map(([t, c]) => <div key={t}><p className="pb-1 text-xs font-semibold text-ink-700">{t}</p><Snippet code={c} /></div>)}</div>
     </details>
@@ -344,20 +344,20 @@ function Contract({ spec, base, companyId }: { spec: OpenApi; base: string; comp
   }, [spec]);
   return (
     <div className="space-y-4">
-      <details className="rounded-xl border border-ink-200 p-3 dark:border-white/10">
+      <details className="rounded-xl border border-ink-200 p-3">
         <summary className="cursor-pointer text-sm font-semibold">Contract — authentication, scopes, idempotency, limits, errors, versioning (v{spec.info.version})</summary>
         <div className="pt-2"><Markdown text={spec.info.description} /></div>
       </details>
       {(spec.tags ?? []).map((t) => (
         <div key={t.name} className="space-y-2">
-          <h3 className="text-sm font-semibold capitalize text-ink-900 dark:text-white">{t.name} <span className="font-normal text-ink-500">— {t.description}</span></h3>
+          <h3 className="text-sm font-semibold capitalize text-ink-900">{t.name} <span className="font-normal text-ink-500">— {t.description}</span></h3>
           {(byTag[t.name] ?? []).map(({ method, path, op }) => {
             const content = op.requestBody?.content?.["application/json"];
             const examples = content?.examples ? Object.entries(content.examples) : content?.example !== undefined ? [["example", { value: content.example }] as const] : [];
             const needsIdem = /Idempotency-Key is required/i.test(op.description ?? "");
             const concrete = path.replace("{kind}", "employee_master");
             return (
-              <details key={`${method}${path}`} className="rounded-lg border border-ink-200 px-3 py-2 dark:border-white/10">
+              <details key={`${method}${path}`} className="rounded-lg border border-ink-200 px-3 py-2">
                 <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm">
                   <span className={cn("rounded px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase", METHOD_TONE[method] ?? "bg-ink-100")}>{method}</span>
                   <code className="text-xs">{path}</code><span className="text-ink-600">{op.summary}</span>
@@ -366,7 +366,7 @@ function Contract({ spec, base, companyId }: { spec: OpenApi; base: string; comp
                   {op.description ? <Markdown text={op.description} /> : null}
                   {op.parameters?.length ? (
                     <table className="w-full text-xs"><tbody>{op.parameters.filter((p) => !["authorization"].includes(p.name.toLowerCase())).map((p) => (
-                      <tr key={`${p.in}${p.name}`} className="border-b border-ink-100 dark:border-white/5">
+                      <tr key={`${p.in}${p.name}`} className="border-b border-ink-100">
                         <td className="py-1 pr-2 font-mono">{p.name}</td><td className="pr-2 text-ink-500">{p.in}{p.required ? " · required" : ""}</td>
                         <td className="text-ink-600">{p.description ?? p.schema?.pattern ?? ""}</td></tr>))}</tbody></table>
                   ) : null}

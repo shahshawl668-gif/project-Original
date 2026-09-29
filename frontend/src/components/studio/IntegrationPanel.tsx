@@ -31,7 +31,7 @@ export function IntegrationPanel({ period }: { period: string | null | undefined
   return (
     <Card data-testid="integration-panel"><CardContent className="space-y-3 py-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><Cable size={16} /> Data from your systems</h3>
+        <h3 className="flex items-center gap-2 text-base font-semibold text-ink-900"><Cable size={16} /> Data from your systems</h3>
         <Link href="/studio/runs" className="text-xs text-brand-700 underline">All Studio runs</Link>
       </div>
       {!d ? <p className="text-sm text-ink-500">Reading…</p> : d.runs.length === 0 && d.connections.length === 0 ? (
@@ -42,7 +42,7 @@ export function IntegrationPanel({ period }: { period: string | null | undefined
             {INPUTS.map((k) => {
               const r = d.latest_by_input[k];
               return (
-                <div key={k} className="rounded-lg border border-ink-200 p-2 text-xs dark:border-white/10">
+                <div key={k} className="rounded-lg border border-ink-200 p-2 text-xs">
                   <p className="font-semibold">{OBJECT_LABEL[k] ?? k}</p>
                   {r ? (
                     <Link href={`/studio/runs/${r.id}`} className="mt-1 flex flex-wrap items-center gap-1.5 hover:underline">
@@ -63,7 +63,7 @@ export function IntegrationPanel({ period }: { period: string | null | undefined
           ) : null}
           {failing.length ? <p className="text-sm text-danger-700">Failing: {failing.map((c) => <Link key={c.id} href={`/studio/connections/${c.id}`} className="mr-2 underline">{c.name}</Link>)}</p> : null}
           {flows.length ? (
-            <ul className="text-xs text-ink-600 dark:text-ink-300">{flows.slice(0, 5).map((r) => (
+            <ul className="text-xs text-ink-600">{flows.slice(0, 5).map((r) => (
               <li key={r.id} className="flex items-center gap-2 py-0.5"><Link href={`/studio/runs/${r.id}`} className="underline">{runTitle(r)}</Link> <StatusBadge status={r.status} /> <span className="text-ink-400">{fmtTime(r.queued_at)}</span></li>))}</ul>
           ) : null}
         </>

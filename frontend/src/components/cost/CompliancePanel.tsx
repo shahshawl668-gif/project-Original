@@ -24,37 +24,37 @@ const STATUS: Record<
   blocked: {
     label: "Blocked",
     icon: FileWarning,
-    className: "border-danger-200 bg-danger-50 text-danger-800 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-300",
+    className: "border-danger-200 bg-danger-50 text-danger-800",
     dot: "bg-danger-500",
   },
   overdue: {
     label: "Overdue",
     icon: AlertTriangle,
-    className: "border-danger-200 bg-danger-50 text-danger-800 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-300",
+    className: "border-danger-200 bg-danger-50 text-danger-800",
     dot: "bg-danger-500",
   },
   due_soon: {
     label: "Due soon",
     icon: Clock,
-    className: "border-warning-200 bg-warning-50 text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300",
+    className: "border-warning-200 bg-warning-50 text-warning-800",
     dot: "bg-warning-500",
   },
   ready: {
     label: "Nothing blocking",
     icon: CheckCircle2,
-    className: "border-success-200 bg-success-50 text-success-800 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300",
+    className: "border-success-200 bg-success-50 text-success-800",
     dot: "bg-success-500",
   },
   open: {
     label: "Open",
     icon: CircleDashed,
-    className: "border-ink-200 bg-ink-50 text-ink-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-300",
+    className: "border-ink-200 bg-ink-50 text-ink-700",
     dot: "bg-ink-400",
   },
   no_register: {
     label: "No register",
     icon: CircleDashed,
-    className: "border-ink-200 bg-ink-50 text-ink-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-400",
+    className: "border-ink-200 bg-ink-50 text-ink-600",
     dot: "bg-ink-300",
   },
 };
@@ -104,7 +104,7 @@ export function CompliancePanel({
                     {obligation.authority} · {obligation.cadence}
                   </p>
                 </div>
-                <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide dark:bg-black/25">
+                <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
                   <Icon size={11} /> {status.label}
                 </span>
               </div>
@@ -134,7 +134,7 @@ export function CompliancePanel({
         })}
       </div>
 
-      <p className="mt-4 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-400">
+      <p className="mt-4 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600">
         {data.disclaimer}
       </p>
     </Panel>

@@ -90,9 +90,9 @@ export function fetchPaidDayBases() {
 }
 
 export const SEVERITY_TONE: Record<string, string> = {
-  CRITICAL: "bg-danger-500/10 text-danger-700 ring-1 ring-danger-500/30 dark:text-danger-300",
-  WARNING: "bg-warning-500/10 text-warning-800 ring-1 ring-warning-500/30 dark:text-warning-200",
-  INFO: "bg-ink-500/10 text-ink-600 ring-1 ring-ink-500/20 dark:text-ink-300",
+  CRITICAL: "bg-danger-500/10 text-danger-700 ring-1 ring-danger-500/30",
+  WARNING: "bg-warning-500/10 text-warning-800 ring-1 ring-warning-500/30",
+  INFO: "bg-ink-500/10 text-ink-600 ring-1 ring-ink-500/20",
 };
 
 /** The template this product reads, for a client who has no export yet. */

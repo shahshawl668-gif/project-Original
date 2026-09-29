@@ -16,10 +16,10 @@ import { cn } from "@/lib/utils";
 
 /** Rising cost reads as bad news; falling cost as good. */
 function toneFor(delta: number) {
-  if (delta === 0) return "text-ink-500 dark:text-ink-400";
+  if (delta === 0) return "text-ink-500";
   return delta > 0
-    ? "text-danger-600 dark:text-danger-400"
-    : "text-success-700 dark:text-success-400";
+    ? "text-danger-600"
+    : "text-success-700";
 }
 
 function DeltaTable({
@@ -39,7 +39,7 @@ function DeltaTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+          <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
             <th className="py-2 text-left font-semibold">{firstColumn}</th>
             <th className="py-2 text-right font-semibold">{aLabel}</th>
             <th className="py-2 text-right font-semibold">{bLabel}</th>
@@ -52,15 +52,15 @@ function DeltaTable({
             <tr
               key={row.key}
               className={cn(
-                "border-b border-ink-100 last:border-0 dark:border-white/5",
+                "border-b border-ink-100 last:border-0",
                 emphasise?.(row) && "font-semibold",
               )}
             >
-              <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{row.label}</td>
-              <td className="py-2 text-right text-ink-600 dark:text-ink-300">
+              <td className="py-2 pr-3 text-ink-800">{row.label}</td>
+              <td className="py-2 text-right text-ink-600">
                 {formatINR(row.a, true)}
               </td>
-              <td className="py-2 text-right text-ink-900 dark:text-white">
+              <td className="py-2 text-right text-ink-900">
                 {formatINR(row.b, true)}
               </td>
               <td className={cn("py-2 text-right", toneFor(row.delta))}>
@@ -123,30 +123,30 @@ export function ComparePanel({
         description="Every line of the taxonomy, both periods, and what moved between them."
       >
         <div className="mb-5 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-ink-200/70 p-3 dark:border-white/10">
+          <div className="rounded-xl border border-ink-200/70 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">{aLabel}</p>
-            <p className="font-display text-xl font-semibold tabular-nums text-ink-900 dark:text-white">
+            <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
               {formatINR(ctc?.a ?? 0, true)}
             </p>
-            <p className="flex items-center gap-1 text-xs text-ink-500 dark:text-ink-400">
+            <p className="flex items-center gap-1 text-xs text-ink-500">
               <Users size={12} /> {data.headcount.a} employees
             </p>
           </div>
-          <div className="flex flex-col items-center justify-center rounded-xl border border-ink-200/70 p-3 text-center dark:border-white/10">
+          <div className="flex flex-col items-center justify-center rounded-xl border border-ink-200/70 p-3 text-center">
             <ArrowRight size={16} className="mb-1 text-ink-400" />
             <p className={cn("font-display text-xl font-semibold tabular-nums", toneFor(ctc?.delta ?? 0))}>
               {formatDelta(ctc?.delta ?? 0)}
             </p>
-            <p className="text-xs text-ink-500 dark:text-ink-400">
+            <p className="text-xs text-ink-500">
               {formatPct(ctc?.delta_pct ?? null)} in total CTC
             </p>
           </div>
-          <div className="rounded-xl border border-ink-200/70 p-3 dark:border-white/10">
+          <div className="rounded-xl border border-ink-200/70 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">{bLabel}</p>
-            <p className="font-display text-xl font-semibold tabular-nums text-ink-900 dark:text-white">
+            <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
               {formatINR(ctc?.b ?? 0, true)}
             </p>
-            <p className="flex items-center gap-1 text-xs text-ink-500 dark:text-ink-400">
+            <p className="flex items-center gap-1 text-xs text-ink-500">
               <Users size={12} /> {data.headcount.b} employees
               {data.headcount.delta !== 0 && (
                 <span className={toneFor(data.headcount.delta)}>
@@ -160,7 +160,7 @@ export function ComparePanel({
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
               Roll-ups
             </h4>
             <DeltaTable
@@ -170,7 +170,7 @@ export function ComparePanel({
               firstColumn="Total"
               emphasise={(row) => row.key === "ctc"}
             />
-            <h4 className="pt-3 text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            <h4 className="pt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
               By {data.group_by_label.toLowerCase()}, on {data.measure_label}
             </h4>
             <DeltaTable
@@ -182,7 +182,7 @@ export function ComparePanel({
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
               Line by line
             </h4>
             <DeltaTable

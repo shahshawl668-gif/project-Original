@@ -103,7 +103,7 @@ Two rules hold regardless of role:
 
 ### Approval controls (maker–checker)
 
-**Settings → Team & invitations → Approval controls.** Everyone can see them;
+**Configuration & admin → Team & invitations → Approval controls.** Everyone can see them;
 only an **owner** can change them, and each change is written to the audit
 trail with the before and after.
 
@@ -169,7 +169,7 @@ commercial and contractual decision, not a technical one.
 
 ## 4. Inviting people
 
-**Settings → Team & invitations.**
+**Configuration & admin → Team & invitations.**
 
 ![Team and invitations](images/11-team.png)
 
@@ -199,7 +199,7 @@ email used to accept it; an invitation is not a general-purpose key.
 
 ## 5. Users & roles (platform)
 
-**Settings → Users & roles**, platform administrators only.
+**Configuration & admin → Users & roles**, platform administrators only.
 
 Lists accounts in **your own organization**, plus any organization you currently
 hold a live support grant on. It does not list every user on the installation —
@@ -234,7 +234,7 @@ reports something that cannot be reproduced otherwise.
 
 ### Opening one
 
-**Settings → Support access** (platform side):
+**Configuration & admin → Support access** (platform side):
 
 1. Choose the organization.
 2. Write a real reason — "Investigating ticket 412, cost dashboard shows no
@@ -264,7 +264,7 @@ belongs to should be told, not only whoever can change the setting.
 
 ## 7. The audit trail
 
-**Settings → Audit trail.** Append-only. Records configuration changes, uploads,
+**Configuration & admin → Audit trail.** Append-only. Records configuration changes, uploads,
 validation runs, finding decisions, sign-offs, invitations, member changes, and
 every support session and use.
 
@@ -288,7 +288,7 @@ trail that can survive a rolled-back change records events that never happened.
 
 - Re-verify every statutory rate against current notifications (§9).
 - Review PT and LWF slabs per state.
-- Review rule suppressions and switched-off rule packs (Settings → Validation
+- Review rule suppressions and switched-off rule packs (Configuration & admin → Validation
   matrix) — a suppression made once should not become invisible forever.
   Waivers end by themselves for the same reason (90 days unless a date is
   given, at most 366) and reopen their finding when they lapse.

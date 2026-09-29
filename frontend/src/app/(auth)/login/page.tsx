@@ -54,7 +54,7 @@ export default function LoginPage() {
   return (
     <AuthShell>
       <div className="animate-fade-up">
-        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-600">
           Welcome back
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
@@ -123,7 +123,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={busy || secondsRemaining > 0}
-            className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(2,132,199,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(2,132,199,0.7)] disabled:opacity-60"
+            className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-brand-600 hover:bg-brand-700 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(2,132,199,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(2,132,199,0.7)] disabled:opacity-60"
           >
             <span
               aria-hidden

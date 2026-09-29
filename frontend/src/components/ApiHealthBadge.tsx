@@ -8,6 +8,7 @@ type Status =
   | { kind: "ok"; via: "proxy" | "direct" }
   | { kind: "fail"; detail: string };
 
+/** Whether the API answered on page load. Quiet when it did; plain when it did not. */
 export function ApiHealthBadge() {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
 
@@ -24,34 +25,17 @@ export function ApiHealthBadge() {
     };
   }, []);
 
-  if (status.kind === "loading") {
-    return (
-      <span className="inline-flex items-center gap-2 rounded-full bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-300 ring-1 ring-white/10">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-400" />
-        Checking
-      </span>
-    );
-  }
-
-  if (status.kind === "ok") {
-    return (
-      <span className="inline-flex items-center gap-2 rounded-full bg-success-500/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-success-400 ring-1 ring-success-500/30">
-        <span className="relative flex h-1.5 w-1.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-400 opacity-75" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success-400" />
-        </span>
-        API live · {status.via}
-      </span>
-    );
-  }
+  const [dot, text, title] =
+    status.kind === "loading"
+      ? ["bg-ink-300 animate-pulse-soft", "Checking service…", undefined]
+      : status.kind === "ok"
+        ? ["bg-success-500", "Service available", `Connected (${status.via})`]
+        : ["bg-danger-500", "Service unreachable", status.detail];
 
   return (
-    <span
-      title={status.detail}
-      className="inline-flex items-center gap-2 rounded-full bg-danger-500/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-danger-400 ring-1 ring-danger-500/30"
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-danger-400" />
-      API offline
+    <span role="status" title={title} className="inline-flex items-center gap-2 px-1 text-xs text-ink-500">
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
+      <span className={status.kind === "fail" ? "font-medium text-danger-700" : undefined}>{text}</span>
     </span>
   );
 }

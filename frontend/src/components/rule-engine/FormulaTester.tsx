@@ -53,11 +53,11 @@ export function FormulaTester({ expression, conditions }: Props) {
   return (
     <Card>
       <CardHeader>
-        <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           Sandbox
         </p>
         <CardTitle>Formula tester</CardTitle>
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+        <p className="text-xs text-ink-500">
           Provide sample inputs and run the formula end-to-end.
         </p>
       </CardHeader>
@@ -81,14 +81,14 @@ export function FormulaTester({ expression, conditions }: Props) {
           {loading ? "Testing…" : "Test formula"}
         </Button>
         {result && (
-          <div className="rounded-xl border border-ink-200 bg-ink-50/50 p-4 text-sm dark:border-white/[0.07] dark:bg-white/[0.03]">
+          <div className="rounded-xl border border-ink-200 bg-ink-50/50 p-4 text-sm">
             {result.ok ? (
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+                  <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
                     Computed value
                   </p>
-                  <p className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
+                  <p className="font-display text-2xl font-bold tracking-tight text-ink-900">
                     {(result.result ?? 0).toLocaleString(undefined, {
                       maximumFractionDigits: 2,
                     })}
@@ -99,7 +99,7 @@ export function FormulaTester({ expression, conditions }: Props) {
                 </Badge>
               </div>
             ) : (
-              <div className="text-sm text-danger-700 dark:text-danger-300">{result.error}</div>
+              <div className="text-sm text-danger-700">{result.error}</div>
             )}
           </div>
         )}

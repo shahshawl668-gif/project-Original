@@ -126,7 +126,7 @@ export default function JvPage() {
                   type="month"
                   value={period}
                   onChange={(event) => setPeriod(event.target.value)}
-                  className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-900 dark:text-white"
+                  className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
                 />
               </div>
 
@@ -182,19 +182,19 @@ export default function JvPage() {
                 href={apiAbsoluteUrl(
                   `/api/reconciliation/jv/export?period=${period}&template_id=${templateId}&format=${format || "generic_csv"}`,
                 )}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50"
               >
                 <FileDown size={14} /> Download voucher
               </a>
             </div>
 
             {template && template.state === "draft" && (
-              <p className="pt-3 text-xs text-warning-700 dark:text-warning-300">
+              <p className="pt-3 text-xs text-warning-700">
                 This template is a draft. It can be previewed and exported, but an owner or
                 manager has to approve it before it is the mapping this entity posts with.
               </p>
             )}
-            <p className="pt-3 text-xs text-ink-500 dark:text-ink-400">
+            <p className="pt-3 text-xs text-ink-500">
               The export is shaped like the target system&apos;s import file, which is not the
               same as being its specification. Run the first month through your accounting
               system&apos;s own import preview before trusting it.
@@ -246,7 +246,7 @@ export default function JvPage() {
             <Card>
               <CardContent className="py-5">
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
-                  <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+                  <h3 className="text-base font-semibold text-ink-900">
                     What is wrong with the mapping
                   </h3>
                   <SeverityCounts counts={result.counts} />
@@ -261,19 +261,19 @@ export default function JvPage() {
               <CardContent className="py-5">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
                   <div>
-                    <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+                    <h3 className="text-base font-semibold text-ink-900">
                       {voucher.number}
                       {voucher.scope ? ` · ${voucher.scope}` : ""}
                     </h3>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                    <p className="text-xs text-ink-500">
                       {voucher.type} dated {voucher.date} — {voucher.narration}
                     </p>
                   </div>
                   <span
                     className={
                       voucher.balanced
-                        ? "text-xs font-semibold text-success-700 dark:text-success-400"
-                        : "text-xs font-semibold text-danger-600 dark:text-danger-400"
+                        ? "text-xs font-semibold text-success-700"
+                        : "text-xs font-semibold text-danger-600"
                     }
                   >
                     {voucher.balanced
@@ -285,45 +285,45 @@ export default function JvPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-ink-200 text-left text-[10px] uppercase tracking-wide text-ink-400 dark:border-ink-700">
+                      <tr className="border-b border-ink-200 text-left text-[10px] uppercase tracking-wide text-ink-400">
                         <th className="py-2 pr-3 font-semibold">Account</th>
                         <th className="py-2 pr-3 font-semibold">Cost centre</th>
                         <th className="py-2 pr-3 text-right font-semibold">Debit</th>
                         <th className="py-2 text-right font-semibold">Credit</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+                    <tbody className="divide-y divide-ink-200/70">
                       {voucher.lines.map((line, index) => (
                         <tr key={`${line.account_code}-${line.label}-${index}`}>
                           <td className="py-2 pr-3">
-                            <span className="font-medium text-ink-900 dark:text-white">
+                            <span className="font-medium text-ink-900">
                               {line.account_code}
                             </span>
-                            <span className="block text-xs text-ink-500 dark:text-ink-400">
+                            <span className="block text-xs text-ink-500">
                               {line.label}
                             </span>
                           </td>
-                          <td className="py-2 pr-3 text-xs text-ink-500 dark:text-ink-400">
+                          <td className="py-2 pr-3 text-xs text-ink-500">
                             {line.cost_center ?? "—"}
                           </td>
-                          <td className="py-2 pr-3 text-right tabular-nums text-ink-800 dark:text-ink-100">
+                          <td className="py-2 pr-3 text-right tabular-nums text-ink-800">
                             {line.debit ? formatINR(line.debit) : ""}
                           </td>
-                          <td className="py-2 text-right tabular-nums text-ink-800 dark:text-ink-100">
+                          <td className="py-2 text-right tabular-nums text-ink-800">
                             {line.credit ? formatINR(line.credit) : ""}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t-2 border-ink-300 font-semibold dark:border-ink-600">
-                        <td className="py-2 pr-3 text-ink-900 dark:text-white" colSpan={2}>
+                      <tr className="border-t-2 border-ink-300 font-semibold">
+                        <td className="py-2 pr-3 text-ink-900" colSpan={2}>
                           Total
                         </td>
-                        <td className="py-2 pr-3 text-right tabular-nums text-ink-900 dark:text-white">
+                        <td className="py-2 pr-3 text-right tabular-nums text-ink-900">
                           {formatINR(voucher.total_debit)}
                         </td>
-                        <td className="py-2 text-right tabular-nums text-ink-900 dark:text-white">
+                        <td className="py-2 text-right tabular-nums text-ink-900">
                           {formatINR(voucher.total_credit)}
                         </td>
                       </tr>
@@ -339,7 +339,7 @@ export default function JvPage() {
               type="button"
               onClick={() => keep.mutate()}
               disabled={keep.isPending}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50"
             >
               {keep.isPending ? (
                 <Loader2 size={14} className="animate-spin" />

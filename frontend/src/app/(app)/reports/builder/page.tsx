@@ -100,20 +100,20 @@ export default function ReportBuilderPage() {
         <nav aria-label="Builder steps" className="flex flex-wrap gap-2">
           {steps.map((label, index) => <button key={label} type="button" onClick={() => setStep(index)}
             aria-current={step === index ? "step" : undefined}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium ${step === index ? "bg-brand-600 text-white" : "bg-ink-50 text-ink-600 dark:bg-white/10 dark:text-ink-200"}`}>
+            className={`rounded-full px-3 py-1.5 text-xs font-medium ${step === index ? "bg-brand-600 text-white" : "bg-ink-50 text-ink-600"}`}>
             {index + 1}. {label}
           </button>)}
         </nav>
-        <h2 className="text-xl font-semibold text-ink-900 dark:text-white">{steps[step]}</h2>
+        <h2 className="text-xl font-semibold text-ink-900">{steps[step]}</h2>
         {step === 0 && <div className="space-y-3">
-          <p className="text-sm text-ink-600 dark:text-ink-300">Payroll cost is the first approved dataset. It uses the same cost calculations as Insights and preserves unassigned dimensions.</p>
-          <div className="rounded-xl border border-ink-200 p-4 dark:border-white/10">
+          <p className="text-sm text-ink-600">Payroll cost is the first approved dataset. It uses the same cost calculations as Insights and preserves unassigned dimensions.</p>
+          <div className="rounded-xl border border-ink-200 p-4">
             <h3 className="font-semibold">{dataset?.label ?? "Loading dataset…"}</h3>
             <p className="mt-1 text-sm text-ink-500">Grain: {dataset?.grain}. {dataset?.note}</p>
           </div>
         </div>}
         {step === 1 && <div className="grid gap-2 sm:grid-cols-2">
-          {fields.map((field) => <label key={field.key} className="flex items-center gap-2 rounded-lg border border-ink-200 p-3 text-sm dark:border-white/10">
+          {fields.map((field) => <label key={field.key} className="flex items-center gap-2 rounded-lg border border-ink-200 p-3 text-sm">
             <input type="checkbox" checked={spec.fields.includes(field.key)} onChange={() => {
               const next = spec.fields.includes(field.key) ? spec.fields.filter((x) => x !== field.key) : [...spec.fields, field.key];
               if (next.length) update({ fields: next, sort: next.includes(spec.sort) ? spec.sort : next[0] });
@@ -125,14 +125,14 @@ export default function ReportBuilderPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {(["date_from", "date_to"] as const).map((key) => <label key={key} className="space-y-1 text-sm">
               <span>{key === "date_from" ? "From period" : "To period"}</span>
-              <select className="w-full rounded-lg border p-2 dark:bg-ink-900" value={spec[key] ?? ""} onChange={(e) => update({ [key]: e.target.value || null })}>
+              <select className="w-full rounded-lg border p-2" value={spec[key] ?? ""} onChange={(e) => update({ [key]: e.target.value || null })}>
                 <option value="">All available</option>
                 {(periods.data?.periods ?? []).map((p) => <option key={p.period} value={p.period}>{p.label}</option>)}
               </select>
             </label>)}
           </div>
           <label className="block space-y-1 text-sm">Filter dimension
-            <select className="block w-full rounded-lg border p-2 dark:bg-ink-900" value={Object.keys(spec.filters)[0] ?? ""} onChange={(e) => update({ filters: e.target.value ? { [e.target.value]: [] } : {} })}>
+            <select className="block w-full rounded-lg border p-2" value={Object.keys(spec.filters)[0] ?? ""} onChange={(e) => update({ filters: e.target.value ? { [e.target.value]: [] } : {} })}>
               <option value="">No filter</option>
               {(dimensions.data?.dimensions ?? []).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
             </select>
@@ -145,19 +145,19 @@ export default function ReportBuilderPage() {
         </div>}
         {step === 3 && <div className="space-y-3 text-sm">
           <p>Optional advanced calculation. Use gross, deductions, net, employer_cost, ctc, headcount or person_months with +, −, × and ÷. Division by zero returns blank.</p>
-          <label className="block space-y-1">Column label<input className="block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.calculations[0]?.label ?? ""} onChange={(e) => update({ calculations: [{ key: "calc_custom", label: e.target.value, expression: spec.calculations[0]?.expression ?? "" }] })} /></label>
-          <label className="block space-y-1">Expression<input className="block w-full rounded-lg border p-2 dark:bg-ink-900" placeholder="ctc / headcount" value={spec.calculations[0]?.expression ?? ""} onChange={(e) => update({ calculations: [{ key: "calc_custom", label: spec.calculations[0]?.label ?? "Custom measure", expression: e.target.value }] })} /></label>
+          <label className="block space-y-1">Column label<input className="block w-full rounded-lg border p-2" value={spec.calculations[0]?.label ?? ""} onChange={(e) => update({ calculations: [{ key: "calc_custom", label: e.target.value, expression: spec.calculations[0]?.expression ?? "" }] })} /></label>
+          <label className="block space-y-1">Expression<input className="block w-full rounded-lg border p-2" placeholder="ctc / headcount" value={spec.calculations[0]?.expression ?? ""} onChange={(e) => update({ calculations: [{ key: "calc_custom", label: spec.calculations[0]?.label ?? "Custom measure", expression: e.target.value }] })} /></label>
           <button type="button" className="text-brand-600" onClick={() => update({ calculations: [], fields: spec.fields.filter((x) => x !== "calc_custom"), sort: spec.sort === "calc_custom" ? "period" : spec.sort })}>Clear calculation</button>
         </div>}
         {step === 4 && <label className="block space-y-2 text-sm">Group rows by
-          <select className="block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.dimension} onChange={(e) => update({ dimension: e.target.value })}>
+          <select className="block w-full rounded-lg border p-2" value={spec.dimension} onChange={(e) => update({ dimension: e.target.value })}>
             {(dataset?.dimensions ?? []).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
           </select>
           <p className="text-xs text-ink-500">One row per month and group. Totals use the shared BI calculation, not a join to a component table.</p>
         </label>}
         {step === 5 && <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm">Sort column<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.sort} onChange={(e) => update({ sort: e.target.value })}>{spec.fields.map((key) => <option key={key} value={key}>{fields.find((f) => f.key === key)?.label ?? key}</option>)}</select></label>
-          <label className="text-sm">Order<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.order} onChange={(e) => update({ order: e.target.value as "asc" | "desc" })}><option value="asc">Ascending</option><option value="desc">Descending</option></select></label>
+          <label className="text-sm">Sort column<select className="mt-1 block w-full rounded-lg border p-2" value={spec.sort} onChange={(e) => update({ sort: e.target.value })}>{spec.fields.map((key) => <option key={key} value={key}>{fields.find((f) => f.key === key)?.label ?? key}</option>)}</select></label>
+          <label className="text-sm">Order<select className="mt-1 block w-full rounded-lg border p-2" value={spec.order} onChange={(e) => update({ order: e.target.value as "asc" | "desc" })}><option value="asc">Ascending</option><option value="desc">Descending</option></select></label>
           <p className="text-xs text-ink-500 sm:col-span-2">This release supports an aggregate detail table. Pivot and PDF layouts require the report job phase.</p>
         </div>}
         {step === 6 && <div className="space-y-3">
@@ -166,17 +166,17 @@ export default function ReportBuilderPage() {
             <p className="text-sm font-medium">{preview.status === "ok" ? `${preview.record_count} rows matched` : preview.status === "missing_data" ? "No salary register for this period" : "No records match these filters"}</p>
             {preview.truncated_preview && <p className="text-xs text-amber-700">Preview shows the first 200 rows; the total matched count is shown above.</p>}
             {preview.control_totals && <p className="text-xs text-ink-500">Control total CTC: {Number(preview.control_totals.ctc).toLocaleString("en-IN")}. Grain: {preview.grain}.</p>}
-            <div className="max-h-96 overflow-auto rounded-lg border"><table className="min-w-full text-left text-xs"><thead className="sticky top-0 bg-ink-50 dark:bg-ink-900"><tr>{spec.fields.map((key) => <th key={key} className="whitespace-nowrap p-2">{fields.find((f) => f.key === key)?.label ?? key}</th>)}</tr></thead><tbody>{preview.rows.map((row, i) => <tr key={i} className="border-t">{spec.fields.map((key) => <td key={key} className="whitespace-nowrap p-2">{row[key] ?? "—"}</td>)}</tr>)}</tbody></table></div>
+            <div className="max-h-96 overflow-auto rounded-lg border"><table className="min-w-full text-left text-xs"><thead className="sticky top-0 bg-ink-50"><tr>{spec.fields.map((key) => <th key={key} className="whitespace-nowrap p-2">{fields.find((f) => f.key === key)?.label ?? key}</th>)}</tr></thead><tbody>{preview.rows.map((row, i) => <tr key={i} className="border-t">{spec.fields.map((key) => <td key={key} className="whitespace-nowrap p-2">{row[key] ?? "—"}</td>)}</tr>)}</tbody></table></div>
           </div>}
         </div>}
         {step === 7 && <div className="space-y-3">
-          <label className="block text-sm">Report name<input className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="block text-sm">Visibility<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={visibility} onChange={(e) => setVisibility(e.target.value as "private" | "shared")}><option value="private">Personal draft</option><option value="shared">Company shared (manager access)</option></select></label>
+          <label className="block text-sm">Report name<input className="mt-1 block w-full rounded-lg border p-2" value={name} onChange={(e) => setName(e.target.value)} /></label>
+          <label className="block text-sm">Visibility<select className="mt-1 block w-full rounded-lg border p-2" value={visibility} onChange={(e) => setVisibility(e.target.value as "private" | "shared")}><option value="private">Personal draft</option><option value="shared">Company shared (manager access)</option></select></label>
           <p className="text-xs text-ink-500">A saved definition contains choices, not a frozen result. Access is checked again when previewed.</p>
           <button type="button" disabled={busy || !name.trim()} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {activeId ? "Save new version" : "Save draft"}</button>
           {activeId && <button type="button" disabled={busy || !spec.date_from || !spec.date_to} onClick={download} className="ml-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={15} /> Download Excel</button>}
           {activeId && (!spec.date_from || !spec.date_to) && <p className="text-xs text-ink-500">Choose both period bounds before export.</p>}
-          {activeId && <div className="space-y-1 text-xs text-ink-500"><strong className="block text-ink-700 dark:text-ink-200">Definition history</strong>{(versions.data?.versions ?? []).map((item) => <p key={item.version}>Version {item.version} · {item.name} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded"}</p>)}</div>}
+          {activeId && <div className="space-y-1 text-xs text-ink-500"><strong className="block text-ink-700">Definition history</strong>{(versions.data?.versions ?? []).map((item) => <p key={item.version}>Version {item.version} · {item.name} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded"}</p>)}</div>}
         </div>}
         <div className="flex justify-between border-t pt-4">
           <button type="button" disabled={step === 0} onClick={() => setStep((n) => n - 1)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40">Back</button>
@@ -186,7 +186,7 @@ export default function ReportBuilderPage() {
       <Card><CardContent className="space-y-3 py-5">
         <h2 className="font-semibold">Saved reports</h2>
         <p className="text-xs text-ink-500">Personal drafts and reports shared with this company.</p>
-        {(saved.data?.reports ?? []).map((report) => <div key={report.id} className="rounded-lg border p-3 text-sm dark:border-white/10">
+        {(saved.data?.reports ?? []).map((report) => <div key={report.id} className="rounded-lg border p-3 text-sm">
           <span className="block font-medium">{report.name}</span><span className="text-xs text-ink-500">{report.visibility} · v{report.version} · {report.status}</span>
           <div className="mt-2 flex gap-3"><button type="button" onClick={() => load(report)} className="text-brand-600 hover:underline">Open</button><button type="button" onClick={() => clone(report)} className="text-brand-600 hover:underline">Clone</button></div>
         </div>)}

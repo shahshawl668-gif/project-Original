@@ -16,7 +16,7 @@ import { PERIOD_PRESETS, dashboardsApi, type Dashboard, type PeriodSpec, type Ti
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900";
 const WRITE_ROLES = new Set(["owner", "manager", "analyst"]);
 
 export default function DashboardPage() {
@@ -101,7 +101,7 @@ export default function DashboardPage() {
       />
 
       {editing ? (
-        <div className="grid gap-3 rounded-2xl border border-ink-200 p-4 md:grid-cols-[1fr_1fr_auto] dark:border-white/10">
+        <div className="grid gap-3 rounded-2xl border border-ink-200 p-4 md:grid-cols-[1fr_1fr_auto]">
           <label className="text-xs font-semibold text-ink-700">Name<input className={cn(FIELD, "mt-1 w-full")} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
           <label className="text-xs font-semibold text-ink-700">Description<input className={cn(FIELD, "mt-1 w-full")} value={draft.description ?? ""} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
           <label className={cn("flex items-center gap-2 self-end pb-2 text-xs font-semibold", !WRITE_ROLES.has(activeRole ?? "") && "opacity-50")}>
@@ -134,7 +134,7 @@ export default function DashboardPage() {
       ) : null}
 
       {draft.layout.tiles.length === 0 && building !== "new" ? (
-        <div className="rounded-2xl border border-dashed border-ink-200 px-6 py-12 text-center text-sm text-ink-500 dark:border-white/10">
+        <div className="rounded-2xl border border-dashed border-ink-200 px-6 py-12 text-center text-sm text-ink-500">
           This dashboard has no tiles yet.{" "}
           {draft.can_edit ? <button type="button" className="font-semibold text-brand-700 underline" onClick={() => { setEditing(true); setBuilding("new"); }}>Add the first tile</button> : null}
         </div>

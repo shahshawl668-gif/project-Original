@@ -159,10 +159,10 @@ export function invitationUrl(token: string): string {
 }
 
 export const STATE_TONE: Record<InvitationState, string> = {
-  pending: "bg-brand-500/10 text-brand-700 ring-1 ring-brand-500/25 dark:text-brand-300",
-  accepted: "bg-success-500/10 text-success-700 ring-1 ring-success-500/25 dark:text-success-300",
-  revoked: "bg-ink-500/10 text-ink-600 ring-1 ring-ink-500/20 dark:text-ink-300",
-  expired: "bg-warning-500/10 text-warning-800 ring-1 ring-warning-500/25 dark:text-warning-200",
+  pending: "bg-brand-500/10 text-brand-700 ring-1 ring-brand-500/25",
+  accepted: "bg-success-500/10 text-success-700 ring-1 ring-success-500/25",
+  revoked: "bg-ink-500/10 text-ink-600 ring-1 ring-ink-500/20",
+  expired: "bg-warning-500/10 text-warning-800 ring-1 ring-warning-500/25",
 };
 
 export function formatWhen(iso: string | null): string {

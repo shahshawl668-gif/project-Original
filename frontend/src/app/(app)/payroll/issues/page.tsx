@@ -1,27 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  AlertTriangle, CalendarClock, ChevronLeft, ChevronRight, Download, Loader2, MessageSquare,
-  Paperclip, Repeat, Search, UserRound, X,
-} from "lucide-react";
+import { AlertTriangle, Download, MessageSquare, Paperclip, Repeat, Search } from "lucide-react";
 
-import { useEntity } from "@/context/EntityContext";
+import { DataTable, FilterSelect, Pagination, type Column } from "@/components/data/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
+import { Drawer } from "@/components/ui/drawer";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
+import { useEntity } from "@/context/EntityContext";
+import { saveBlob } from "@/lib/download";
+import { count, date, dateTime, inr, plural } from "@/lib/format";
 import {
   ISSUE_STATE_LABEL, issuesApi,
   type Assignee, type Issue, type IssueDetail, type IssuePage, type IssueState, type WorklistParams,
 } from "@/lib/issues";
-import { inr, monthLabel } from "@/lib/validation";
 import { cn } from "@/lib/utils";
+import { monthLabel } from "@/lib/validation";
 
 /**
  * Issues — the findings worklist.
@@ -30,26 +31,26 @@ import { cn } from "@/lib/utils";
  * Findings are grouped by fingerprint across months, so each carries its own
  * owner, due date, comments, evidence and decision history, and the same issue
  * recurring for the fifth month is visibly not the same as a new one.
+ *
+ * Filters live in the URL: a link from the Control Centre or a results page
+ * arrives already filtered, and coming back to the list finds it as it was.
  */
 
 const PAGE_SIZE = 50;
 const WRITE_ROLES = new Set(["owner", "manager", "analyst"]);
-const FIELD =
-  "rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
-const SEV: Record<string, string> = {
-  CRITICAL: "bg-danger-100 text-danger-800 dark:bg-danger-500/15 dark:text-danger-200",
-  WARNING: "bg-warning-100 text-warning-800 dark:bg-warning-500/15 dark:text-warning-200",
-  INFO: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200",
-};
-const STATE_TONE: Record<IssueState, string> = {
-  open: "bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-300",
-  acknowledged: "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300",
-  waived: "bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-ink-200",
-  resolved: "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300",
-};
+const FIELD = "h-8 rounded-lg border border-ink-200 bg-white px-2.5 text-[13px] text-ink-900";
+const SEVERITY_TONE: Record<string, StatusTone> = { CRITICAL: "danger", WARNING: "warning", INFO: "info" };
+const SEVERITY_LABEL: Record<string, string> = { CRITICAL: "Critical", WARNING: "Warning", INFO: "Info" };
+const STATE_TONE: Record<IssueState, StatusTone> = { open: "danger", acknowledged: "info", waived: "neutral", resolved: "success" };
+const STATES: IssueState[] = ["open", "acknowledged", "waived", "resolved"];
 
-const impactText = (i: Issue) =>
-  i.impact_calculated ? inr(i.last_financial_impact, 0) : "Not calculated";
+function ImpactCell({ i }: { i: Pick<Issue, "impact_calculated" | "last_financial_impact"> }) {
+  return i.impact_calculated ? (
+    <span className="num">{inr(i.last_financial_impact)}</span>
+  ) : (
+    <span className="text-xs italic text-ink-400" title="This check does not price its effect. It is not a ₹0 finding.">Not calculated</span>
+  );
+}
 
 function useDebounced<T>(value: T, ms = 300): T {
   const [v, setV] = useState(value);
@@ -64,27 +65,45 @@ function IssuesContent() {
   const { entity, activeRole } = useEntity();
   const qc = useQueryClient();
   const canWrite = WRITE_ROLES.has(activeRole ?? "");
-  const searchParams = useSearchParams();
-  // A dashboard or a results page can link here already filtered.
-  const [params, setParams] = useState<WorklistParams>(() => ({
-    state: (searchParams.get("state") as WorklistParams["state"]) ?? "active",
-    severity: searchParams.get("severity") || undefined,
-    rule_id: searchParams.get("rule_id") || undefined,
-    owner: searchParams.get("owner") || undefined,
-    overdue: searchParams.get("overdue") === "true" || undefined,
-    sort: "priority",
-    page: 1,
-  }));
-  const [search, setSearch] = useState("");
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+
+  const params: WorklistParams = useMemo(() => ({
+    state: (sp.get("state") ?? "active") as WorklistParams["state"],
+    severity: sp.get("severity") || undefined,
+    rule_id: sp.get("rule_id") || undefined,
+    owner: sp.get("owner") || undefined,
+    overdue: sp.get("overdue") === "true" || undefined,
+    recurring: sp.get("recurring") === "true" || undefined,
+    sort: (sp.get("sort") as WorklistParams["sort"]) || "priority",
+    page: Number(sp.get("page") || 1),
+  }), [sp]);
+  const set = useCallback((patch: Record<string, string | number | boolean | null | undefined>, keepPage = false) => {
+    const p = new URLSearchParams(sp.toString());
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined || v === null || v === "" || v === false) p.delete(k);
+      else p.set(k, String(v));
+    }
+    if (!keepPage) p.delete("page");
+    router.replace(`${pathname}${p.toString() ? `?${p.toString()}` : ""}`, { scroll: false });
+  }, [sp, pathname, router]);
+
+  const [search, setSearch] = useState(sp.get("q") ?? "");
   const q = useDebounced(search);
+  useEffect(() => {
+    if ((sp.get("q") ?? "") !== q) set({ q });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
 
-  const listKey = ["issues", entity?.id, { ...params, q }];
   const list = useQuery<IssuePage>({
-    queryKey: listKey,
+    queryKey: ["issues", entity?.id, { ...params, q }],
     queryFn: () => issuesApi.worklist({ ...params, q, page_size: PAGE_SIZE }),
     enabled: !!entity,
+    placeholderData: keepPreviousData,
   });
   const assignees = useQuery<Assignee[]>({
     queryKey: ["issue-assignees", entity?.id],
@@ -92,206 +111,170 @@ function IssuesContent() {
     enabled: !!entity,
   });
 
-  useEffect(() => { setSelected(new Set()); }, [params, q, entity?.id]);
-
-  const set = (patch: Partial<WorklistParams>) => setParams((p) => ({ ...p, page: 1, ...patch }));
+  // Selection is per result set: a filter change clears it, so a bulk action
+  // never reaches rows the reader can no longer see.
+  useEffect(() => { setSelected(new Set()); }, [params, q]);
   const refresh = () => qc.invalidateQueries({ queryKey: ["issues", entity?.id] });
 
   const data = list.data;
-  const items = data?.items ?? [];
-  const allSelected = items.length > 0 && items.every((i) => selected.has(i.fingerprint));
+  const filtered = !!(params.severity || params.rule_id || params.owner || params.overdue || params.recurring || q || params.state !== "active");
+
+  const columns: Column<Issue>[] = [
+    {
+      id: "employee", header: "Employee", pin: true,
+      cell: (i) => (
+        <span className="block max-w-[12rem]">
+          <span className="block font-mono text-xs text-ink-500">{i.employee_id}</span>
+          <span className="block truncate text-ink-900">{i.employee_name ?? "—"}</span>
+        </span>
+      ),
+    },
+    {
+      id: "check", header: "Check",
+      cell: (i) => (
+        <span className="block max-w-[18rem]">
+          <span className="font-mono text-xs text-ink-500">{i.rule_id}</span> <span className="text-ink-900">{i.rule_name}</span>
+        </span>
+      ),
+    },
+    { id: "severity", header: "Severity", cell: (i) => <StatusPill tone={SEVERITY_TONE[i.severity] ?? "neutral"}>{SEVERITY_LABEL[i.severity] ?? i.severity}</StatusPill> },
+    {
+      id: "state", header: "State",
+      cell: (i) => (
+        <span className="block">
+          <StatusPill tone={STATE_TONE[i.state]}>{ISSUE_STATE_LABEL[i.state]}</StatusPill>
+          {i.state === "waived" && i.waived_until ? <span className="mt-0.5 block text-xs text-ink-500">until {date(i.waived_until)}</span> : null}
+          {i.waiver_open_ended ? <span className="mt-0.5 block text-xs font-medium text-warning-800" title="Waived before every waiver had to end. Waive again with an end date, or reopen.">No end date — review</span> : null}
+        </span>
+      ),
+    },
+    {
+      id: "seen", header: "Seen", hideable: true,
+      cell: (i) => i.occurrence_count > 1
+        ? <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-warning-800"><Repeat size={12} aria-hidden /> {i.occurrence_count} months</span>
+        : <span className="whitespace-nowrap text-xs text-ink-600">{monthLabel(i.first_seen_period)}</span>,
+    },
+    { id: "impact", header: "Impact", numeric: true, cell: (i) => <ImpactCell i={i} /> },
+    { id: "owner", header: "Owner", hideable: true, cell: (i) => i.owner_email ? <span className="block max-w-[12rem] truncate text-xs text-ink-700" title={i.owner_email}>{i.owner_email}</span> : <span className="text-xs text-ink-400">Unassigned</span> },
+    {
+      id: "due", header: "Due", hideable: true,
+      cell: (i) => <span className={cn("whitespace-nowrap text-xs", i.overdue ? "font-medium text-danger-700" : "text-ink-600")}>{i.due_date ? date(i.due_date) : "—"}{i.overdue ? " · overdue" : ""}</span>,
+    },
+    {
+      id: "activity", header: <span className="sr-only">Comments and evidence</span>,
+      cell: (i) => (
+        <span className="inline-flex items-center gap-2 text-xs text-ink-500">
+          {i.comment_count ? <span className="inline-flex items-center gap-0.5" title={plural(i.comment_count, "comment")}><MessageSquare size={12} aria-hidden />{i.comment_count}</span> : null}
+          {i.attachment_count ? <span className="inline-flex items-center gap-0.5" title={plural(i.attachment_count, "file")}><Paperclip size={12} aria-hidden />{i.attachment_count}</span> : null}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Issues"
         description="Every finding still to be worked, across months — with an owner, a due date, comments, evidence and the decisions taken on it."
       />
 
       {data ? (
-        <div className="flex flex-wrap gap-2 text-xs">
-          {(["open", "acknowledged", "waived", "resolved"] as IssueState[]).map((s) => (
-            <button key={s} type="button" onClick={() => set({ state: s })}
-              className={cn("rounded-full px-3 py-1 font-semibold", STATE_TONE[s],
-                params.state === s && "ring-2 ring-current")}>
-              {ISSUE_STATE_LABEL[s]} {data.counts[s] ?? 0}
+        <nav aria-label="Issue states" className="flex flex-wrap items-center gap-1.5">
+          {[
+            { key: "active", label: "Open and in progress", n: (data.counts.open ?? 0) + (data.counts.acknowledged ?? 0), on: params.state === "active" && !params.overdue && params.owner !== "none" },
+            ...STATES.map((s) => ({ key: s, label: ISSUE_STATE_LABEL[s], n: data.counts[s] ?? 0, on: params.state === s })),
+          ].map((c) => (
+            <button key={c.key} type="button" aria-pressed={c.on} onClick={() => set({ state: c.key === "active" ? null : c.key, overdue: null, owner: null })}
+              className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px]", c.on ? "border-ink-900 bg-ink-900 text-white" : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")}>
+              {c.label} <span className={cn("num text-xs", c.on ? "text-white/80" : "text-ink-500")}>{count(c.n)}</span>
             </button>
           ))}
-          <button type="button" onClick={() => set({ state: "active", overdue: !params.overdue })}
-            className={cn("rounded-full bg-warning-50 px-3 py-1 font-semibold text-warning-800 dark:bg-warning-500/10 dark:text-warning-200",
-              params.overdue && "ring-2 ring-current")}>
-            Overdue {data.overdue}
+          <span className="mx-1 h-5 w-px bg-ink-200" aria-hidden />
+          <button type="button" aria-pressed={!!params.overdue} onClick={() => set({ state: null, overdue: !params.overdue })}
+            className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px]", params.overdue ? "border-danger-600 bg-danger-600 text-white" : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")}>
+            Overdue <span className="num text-xs opacity-80">{count(data.overdue)}</span>
           </button>
-          <button type="button" onClick={() => set({ state: "active", owner: params.owner === "none" ? undefined : "none" })}
-            className={cn("rounded-full bg-ink-100 px-3 py-1 font-semibold text-ink-700 dark:bg-white/10 dark:text-ink-200",
-              params.owner === "none" && "ring-2 ring-current")}>
-            Unassigned {data.unassigned}
+          <button type="button" aria-pressed={params.owner === "none"} onClick={() => set({ state: null, owner: params.owner === "none" ? null : "none" })}
+            className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px]", params.owner === "none" ? "border-ink-900 bg-ink-900 text-white" : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")}>
+            Unassigned <span className="num text-xs opacity-80">{count(data.unassigned)}</span>
           </button>
-        </div>
+        </nav>
       ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-          <input className={cn(FIELD, "w-full py-2 pl-9")} placeholder="Search employee or rule…" value={search}
-            onChange={(e) => setSearch(e.target.value)} aria-label="Search issues" />
-        </div>
-        <select className={FIELD} aria-label="State" value={params.state ?? ""}
-          onChange={(e) => set({ state: e.target.value as WorklistParams["state"] })}>
-          <option value="active">Open and in progress</option>
-          <option value="">All states</option>
-          {(["open", "acknowledged", "waived", "resolved"] as IssueState[]).map((s) => (
-            <option key={s} value={s}>{ISSUE_STATE_LABEL[s]}</option>
-          ))}
-        </select>
-        <select className={FIELD} aria-label="Severity" value={params.severity ?? ""}
-          onChange={(e) => set({ severity: e.target.value || undefined })}>
-          <option value="">Any severity</option>
-          <option value="CRITICAL">Critical</option>
-          <option value="WARNING">Warning</option>
-          <option value="INFO">Info</option>
-        </select>
-        <select className={FIELD} aria-label="Rule" value={params.rule_id ?? ""}
-          onChange={(e) => set({ rule_id: e.target.value || undefined })}>
-          <option value="">Any rule</option>
-          {(data?.rules ?? []).map((r) => (
-            <option key={r.rule_id} value={r.rule_id}>{r.rule_id} · {r.rule_name} ({r.count})</option>
-          ))}
-        </select>
-        <select className={FIELD} aria-label="Owner" value={params.owner ?? ""}
-          onChange={(e) => set({ owner: e.target.value || undefined })}>
-          <option value="">Anyone</option>
-          <option value="me">Assigned to me</option>
-          <option value="none">Unassigned</option>
-          {(assignees.data ?? []).map((a) => <option key={a.user_id} value={a.user_id}>{a.email}</option>)}
-        </select>
-        <label className="flex items-center gap-1.5 text-xs text-ink-600 dark:text-ink-300">
-          <input type="checkbox" checked={!!params.recurring} onChange={(e) => set({ recurring: e.target.checked })} />
-          Recurring (3+ months)
-        </label>
-        <select className={FIELD} aria-label="Sort" value={params.sort}
-          onChange={(e) => set({ sort: e.target.value as WorklistParams["sort"] })}>
-          <option value="priority">Worst first</option>
-          <option value="due_date">Due soonest</option>
-          <option value="impact">Largest impact</option>
-          <option value="last_seen">Most recent</option>
-        </select>
-      </div>
 
       {canWrite && selected.size > 0 ? (
-        <BulkBar fingerprints={Array.from(selected)} assignees={assignees.data ?? []}
-          onDone={() => { setSelected(new Set()); void refresh(); }} />
+        <BulkBar
+          fingerprints={Array.from(selected)}
+          total={data?.total ?? 0}
+          assignees={assignees.data ?? []}
+          onClear={() => setSelected(new Set())}
+          onDone={() => { setSelected(new Set()); void refresh(); }}
+        />
       ) : null}
 
-      {list.error ? (
-        <AlertBanner variant="error" title="Could not load issues">
-          {list.error instanceof Error ? list.error.message : "Try again."}
-        </AlertBanner>
-      ) : !data ? (
-        <Skeleton className="h-72 w-full rounded-2xl" />
-      ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ink-200 px-6 py-12 text-center text-sm text-ink-500 dark:border-white/10">
-          No issues match these filters. This lists findings from validation runs; a month that was never
-          validated has none to show — see <Link className="underline" href="/payroll/results">Results</Link> for coverage.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
-                <tr>
-                  {canWrite ? (
-                    <th className="w-10 px-3 py-2.5">
-                      <input type="checkbox" aria-label="Select all on this page" checked={allSelected}
-                        onChange={(e) => setSelected(e.target.checked ? new Set(items.map((i) => i.fingerprint)) : new Set())} />
-                    </th>
-                  ) : null}
-                  {["Employee", "Check", "State", "Seen", "Impact", "Owner", "Due", ""].map((h) => (
-                    <th key={h} className="px-3 py-2.5 text-left font-semibold">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
-                {items.map((i) => (
-                  <tr key={i.fingerprint} className="hover:bg-ink-50/60 dark:hover:bg-white/[0.04]">
-                    {canWrite ? (
-                      <td className="px-3 py-2.5">
-                        <input type="checkbox" aria-label={`Select ${i.employee_id} ${i.rule_id}`}
-                          checked={selected.has(i.fingerprint)}
-                          onChange={(e) => setSelected((prev) => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(i.fingerprint); else next.delete(i.fingerprint);
-                            return next;
-                          })} />
-                      </td>
-                    ) : null}
-                    <td className="px-3 py-2.5">
-                      <span className="font-mono text-xs text-ink-500">{i.employee_id}</span>
-                      <span className="block text-ink-800 dark:text-ink-100">{i.employee_name ?? "—"}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={cn("mr-1.5 rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold", SEV[i.severity])}>{i.rule_id}</span>
-                      <span className="text-ink-700 dark:text-ink-200">{i.rule_name}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", STATE_TONE[i.state])}>{ISSUE_STATE_LABEL[i.state]}</span>
-                      {i.state === "waived" && i.waived_until ? (
-                        <span className="block text-[11px] text-ink-500">until {i.waived_until}</span>
-                      ) : null}
-                      {i.waiver_open_ended ? (
-                        <span className="block text-[11px] font-semibold text-warning-700" title="Waived before every waiver had to end. Waive it again with an end date, or reopen it.">
-                          no end date — review
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-ink-600 dark:text-ink-300">
-                      {i.occurrence_count > 1 ? (
-                        <span className="inline-flex items-center gap-1 font-semibold text-warning-700"><Repeat size={12} /> {i.occurrence_count} months</span>
-                      ) : monthLabel(i.first_seen_period)}
-                    </td>
-                    <td className={cn("px-3 py-2.5 tabular-nums", !i.impact_calculated && "text-xs italic text-ink-500")}>{impactText(i)}</td>
-                    <td className="px-3 py-2.5 text-xs text-ink-600 dark:text-ink-300">{i.owner_email ?? <span className="text-ink-400">Unassigned</span>}</td>
-                    <td className={cn("px-3 py-2.5 text-xs", i.overdue ? "font-semibold text-danger-700" : "text-ink-600 dark:text-ink-300")}>
-                      {i.due_date ?? "—"}{i.overdue ? " · overdue" : ""}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <button type="button" onClick={() => setOpen(i.fingerprint)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline dark:text-brand-300">
-                        {i.comment_count ? <><MessageSquare size={12} />{i.comment_count}</> : null}
-                        {i.attachment_count ? <><Paperclip size={12} />{i.attachment_count}</> : null}
-                        Open
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <DataTable
+        id="issues"
+        caption="Issues worklist"
+        columns={columns}
+        rows={data?.items}
+        rowKey={(i) => i.fingerprint}
+        loading={list.isLoading}
+        refreshing={list.isFetching && !list.isLoading}
+        error={list.isError ? <AlertBanner variant="error" title="Issues could not be loaded" details={(list.error as Error)?.message}>Try again in a moment.</AlertBanner> : undefined}
+        onRowOpen={(i) => setOpen(i.fingerprint)}
+        rowLabel={(i) => `${i.rule_id} ${i.rule_name} for ${i.employee_name ?? i.employee_id}`}
+        selectable={canWrite}
+        selected={selected}
+        onSelectedChange={setSelected}
+        toolbar={
+          <>
+            <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" aria-hidden />
+              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Employee or check" aria-label="Search issues"
+                className="h-8 w-full rounded-lg border border-ink-200 bg-white pl-8 pr-2 text-[13px] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            </div>
+            <FilterSelect label="Severity" allLabel="Any severity" value={params.severity ?? ""} onChange={(v) => set({ severity: v })}
+              options={["CRITICAL", "WARNING", "INFO"].map((s) => ({ value: s, label: SEVERITY_LABEL[s] }))} />
+            <FilterSelect label="Check" allLabel="Any check" value={params.rule_id ?? ""} onChange={(v) => set({ rule_id: v })}
+              options={(data?.rules ?? []).map((r) => ({ value: r.rule_id, label: `${r.rule_id} · ${r.rule_name} (${r.count})` }))} />
+            <FilterSelect label="Owner" allLabel="Anyone" value={params.owner ?? ""} onChange={(v) => set({ owner: v })}
+              options={[{ value: "me", label: "Assigned to me" }, { value: "none", label: "Unassigned" }, ...(assignees.data ?? []).map((a) => ({ value: a.user_id, label: a.email }))]} />
+            <label className="inline-flex items-center gap-1.5 text-xs text-ink-700">
+              <input type="checkbox" className="accent-brand-600" checked={!!params.recurring} onChange={(e) => set({ recurring: e.target.checked })} />
+              Recurring (3+ months)
+            </label>
+            <label className="inline-flex items-center gap-1.5 text-xs text-ink-500">
+              Sort
+              <select aria-label="Sort" className={FIELD} value={params.sort} onChange={(e) => set({ sort: e.target.value === "priority" ? null : e.target.value })}>
+                <option value="priority">Worst first</option>
+                <option value="due_date">Due soonest</option>
+                <option value="impact">Largest impact</option>
+                <option value="last_seen">Most recent</option>
+              </select>
+            </label>
+            {filtered ? (
+              <button type="button" className="text-xs font-medium text-brand-700 hover:underline" onClick={() => { setSearch(""); router.replace(pathname, { scroll: false }); }}>
+                Reset
+              </button>
+            ) : null}
+          </>
+        }
+        empty={
+          <>
+            No issues match these filters. This lists findings from validation runs; a month that was never validated has none to show —{" "}
+            <Link className="underline" href="/control-centre">see the Control Centre</Link>.
+          </>
+        }
+        footer={data ? <Pagination page={data.page} pages={data.pages} total={data.total} pageSize={PAGE_SIZE} onPage={(p) => set({ page: p }, true)} noun="issues" /> : null}
+        minWidth="70rem"
+      />
 
-      {data && data.pages > 1 ? (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-ink-500">Page {data.page} of {data.pages} · {data.total.toLocaleString("en-IN")} issues</span>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" disabled={data.page <= 1} aria-label="Previous page"
-              onClick={() => setParams((p) => ({ ...p, page: (p.page ?? 1) - 1 }))}><ChevronLeft size={15} /></Button>
-            <Button type="button" variant="outline" disabled={data.page >= data.pages} aria-label="Next page"
-              onClick={() => setParams((p) => ({ ...p, page: (p.page ?? 1) + 1 }))}><ChevronRight size={15} /></Button>
-          </div>
-        </div>
-      ) : null}
-
-      {open ? (
-        <IssuePanel fingerprint={open} canWrite={canWrite} assignees={assignees.data ?? []}
-          onClose={() => setOpen(null)} onChanged={() => void refresh()} />
-      ) : null}
+      <IssuePanel fingerprint={open} canWrite={canWrite} assignees={assignees.data ?? []} onClose={() => setOpen(null)} onChanged={() => void refresh()} />
     </div>
   );
 }
 
-function BulkBar({ fingerprints, assignees, onDone }: {
-  fingerprints: string[]; assignees: Assignee[]; onDone: () => void;
+function BulkBar({ fingerprints, total, assignees, onDone, onClear }: {
+  fingerprints: string[]; total: number; assignees: Assignee[]; onDone: () => void; onClear: () => void;
 }) {
   const [mode, setMode] = useState<"none" | "waive" | "assign" | "resolve">("none");
   const [reason, setReason] = useState("");
@@ -300,11 +283,12 @@ function BulkBar({ fingerprints, assignees, onDone }: {
   const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Outcomes are shown as the server confirms them — never assumed.
   const run = async (fn: () => ReturnType<typeof issuesApi.bulk>) => {
     setBusy(true);
     try {
       const out = await fn();
-      toast.success(`${out.updated} issue(s) updated`, {
+      toast.success(`${plural(out.updated, "issue")} updated`, {
         description: out.skipped.length ? `${out.skipped.length} skipped: ${out.skipped[0].reason}` : undefined,
       });
       onDone();
@@ -316,79 +300,85 @@ function BulkBar({ fingerprints, assignees, onDone }: {
   };
 
   return (
-    <div className="space-y-3 rounded-2xl border border-brand-200 bg-brand-50/60 p-3 text-sm dark:border-brand-500/30 dark:bg-brand-500/10">
+    <section aria-label="Bulk actions" className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/60 px-3 py-2.5 text-[13px]">
       <div className="flex flex-wrap items-center gap-2">
-        <strong className="text-ink-800 dark:text-white">{fingerprints.length} selected</strong>
-        <Button type="button" variant="outline" disabled={busy}
+        <p className="text-ink-800" aria-live="polite">
+          <b>{plural(fingerprints.length, "issue")} selected</b>
+          <span className="text-ink-500"> on this page, of {count(total)} matching</span>
+        </p>
+        <button type="button" className="text-xs text-brand-700 hover:underline" onClick={onClear}>Clear</button>
+        <span className="mx-1 h-5 w-px bg-brand-200" aria-hidden />
+        <Button size="sm" variant="outline" disabled={busy}
           onClick={() => void run(() => issuesApi.bulk(fingerprints, { action: "decision", state: "acknowledged" }))}>
           Mark in progress
         </Button>
-        <Button type="button" variant="outline" onClick={() => setMode("resolve")}>Resolve…</Button>
-        <Button type="button" variant="outline" onClick={() => setMode("waive")}>Waive…</Button>
-        <Button type="button" variant="outline" onClick={() => setMode("assign")}>Assign…</Button>
+        <Button size="sm" variant="outline" aria-pressed={mode === "resolve"} onClick={() => setMode("resolve")}>Resolve…</Button>
+        <Button size="sm" variant="outline" aria-pressed={mode === "waive"} onClick={() => setMode("waive")}>Waive…</Button>
+        <Button size="sm" variant="outline" aria-pressed={mode === "assign"} onClick={() => setMode("assign")}>Assign…</Button>
       </div>
       {mode === "waive" || mode === "resolve" ? (
         <div className="flex flex-wrap items-end gap-2">
-          <label className="min-w-72 flex-1 text-xs text-ink-700 dark:text-ink-200">
-            {mode === "waive" ? "Reason (required, applies to every selected issue)" : "Why these are resolved (required)"}
+          <label className="min-w-[18rem] flex-1 text-xs text-ink-700">
+            {mode === "waive" ? "Reason — required, recorded on every selected issue" : "Why these are resolved — required"}
             <input className={cn(FIELD, "mt-1 w-full")} value={reason} onChange={(e) => setReason(e.target.value)} />
           </label>
           {mode === "waive" ? (
-            <label className="text-xs text-ink-700 dark:text-ink-200">
-              Waived until (default 90 days)
+            <label className="text-xs text-ink-700">
+              Waived until (90 days if blank)
               <input type="date" className={cn(FIELD, "mt-1 block")} value={until} onChange={(e) => setUntil(e.target.value)} />
             </label>
           ) : null}
-          <Button type="button" disabled={busy || !reason.trim()}
+          <Button size="sm" disabled={busy || !reason.trim()}
             onClick={() => void run(() => issuesApi.bulk(fingerprints, {
               action: "decision", state: mode === "waive" ? "waived" : "resolved",
               reason, waived_until: mode === "waive" ? until || null : null,
             }))}>
-            Apply to {fingerprints.length}
+            {mode === "waive" ? "Waive" : "Resolve"} {plural(fingerprints.length, "issue")}
           </Button>
         </div>
       ) : null}
       {mode === "assign" ? (
         <div className="flex flex-wrap items-end gap-2">
-          <label className="text-xs text-ink-700 dark:text-ink-200">
+          <label className="text-xs text-ink-700">
             Owner
             <select className={cn(FIELD, "mt-1 block")} value={owner} onChange={(e) => setOwner(e.target.value)}>
               <option value="">Unassigned</option>
               {assignees.map((a) => <option key={a.user_id} value={a.user_id}>{a.email}</option>)}
             </select>
           </label>
-          <label className="text-xs text-ink-700 dark:text-ink-200">
+          <label className="text-xs text-ink-700">
             Due
             <input type="date" className={cn(FIELD, "mt-1 block")} value={due} onChange={(e) => setDue(e.target.value)} />
           </label>
-          <Button type="button" disabled={busy}
+          <Button size="sm" disabled={busy}
             onClick={() => void run(() => issuesApi.bulk(fingerprints, { action: "assign", owner_user_id: owner || null, due_date: due || null }))}>
-            Assign {fingerprints.length}
+            Assign {plural(fingerprints.length, "issue")}
           </Button>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }
 
 function IssuePanel({ fingerprint, canWrite, assignees, onClose, onChanged }: {
-  fingerprint: string; canWrite: boolean; assignees: Assignee[]; onClose: () => void; onChanged: () => void;
+  fingerprint: string | null; canWrite: boolean; assignees: Assignee[]; onClose: () => void; onChanged: () => void;
 }) {
   const { entity } = useEntity();
   const qc = useQueryClient();
   const key = ["issue", entity?.id, fingerprint];
-  const detail = useQuery<IssueDetail>({ queryKey: key, queryFn: () => issuesApi.detail(fingerprint) });
+  const detail = useQuery<IssueDetail>({ queryKey: key, queryFn: () => issuesApi.detail(fingerprint!), enabled: !!fingerprint });
   const [comment, setComment] = useState("");
   const [reason, setReason] = useState("");
   const [until, setUntil] = useState("");
   const [busy, setBusy] = useState(false);
-  const [owner, setOwner] = useState<string | null>(null);
-  const [due, setDue] = useState<string | null>(null);
+  const [owner, setOwner] = useState<string>("");
+  const [due, setDue] = useState<string>("");
 
   const f = detail.data?.finding;
   useEffect(() => {
     if (f) { setOwner(f.owner_user_id ?? ""); setDue(f.due_date ?? ""); }
   }, [f]);
+  useEffect(() => { setComment(""); setReason(""); setUntil(""); }, [fingerprint]);
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -405,18 +395,6 @@ function IssuePanel({ fingerprint, canWrite, assignees, onClose, onChanged }: {
     }
   };
 
-  const download = async (id: string, name: string) => {
-    try {
-      const blob = await issuesApi.download(fingerprint, id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = name; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-      toast.error("Download failed", { description: e instanceof Error ? e.message : "" });
-    }
-  };
-
   const decisions = useMemo(() => (f ? ([
     { state: "acknowledged", label: "Mark in progress", needs: false },
     { state: "resolved", label: "Resolve", needs: true },
@@ -424,148 +402,156 @@ function IssuePanel({ fingerprint, canWrite, assignees, onClose, onChanged }: {
     { state: "open", label: "Reopen", needs: false },
   ] as { state: IssueState; label: string; needs: boolean }[]).filter((d) => d.state !== f.state) : []), [f]);
 
-  // Rendered into <body>: the page sits inside an animated (transformed)
-  // wrapper, and a fixed element inside a transform is positioned against it
-  // rather than the viewport.
-  return createPortal(
-    <div className="fixed inset-0 z-[70] flex justify-end bg-ink-950/30" role="dialog" aria-modal="true" aria-label="Issue detail"
-      onClick={onClose}>
-      <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl dark:bg-ink-900" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-xs text-ink-500">{f?.rule_id} · {f?.employee_id}</p>
-            <h2 className="text-lg font-semibold text-ink-900 dark:text-white">{f?.rule_name ?? "Loading…"}</h2>
-            {f ? <p className="text-sm text-ink-600 dark:text-ink-300">{f.employee_name ?? "—"}</p> : null}
+  return (
+    <Drawer
+      open={!!fingerprint}
+      onClose={onClose}
+      width="lg"
+      title={f?.rule_name ?? "Loading…"}
+      description={f ? <><span className="font-mono">{f.rule_id}</span> · {f.employee_name ?? "—"} · <span className="font-mono">{f.employee_id}</span></> : null}
+    >
+      {!f ? (
+        detail.isError ? <AlertBanner variant="error" title="This issue could not be loaded">{(detail.error as Error)?.message}</AlertBanner> : <Skeleton className="h-64 w-full" />
+      ) : (
+        <div className="space-y-6 text-[13px]">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill tone={STATE_TONE[f.state]}>{ISSUE_STATE_LABEL[f.state]}</StatusPill>
+            <StatusPill tone={SEVERITY_TONE[f.severity] ?? "neutral"}>{SEVERITY_LABEL[f.severity] ?? f.severity}</StatusPill>
+            {f.overdue ? <span className="inline-flex items-center gap-1 text-xs font-medium text-danger-700"><AlertTriangle size={12} aria-hidden /> Overdue</span> : null}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-ink-500 hover:bg-ink-100 dark:hover:bg-white/10"><X size={18} /></button>
-        </div>
+          <dl className="grid grid-cols-2 gap-3 rounded-lg border border-ink-200 p-3">
+            <div><dt className="text-xs text-ink-500">First seen</dt><dd className="font-medium text-ink-900">{monthLabel(f.first_seen_period)}</dd></div>
+            <div><dt className="text-xs text-ink-500">Last seen</dt><dd className="font-medium text-ink-900">{monthLabel(f.last_seen_period)} · {plural(f.occurrence_count, "month")}</dd></div>
+            <div><dt className="text-xs text-ink-500">Impact (last run)</dt><dd className="font-medium text-ink-900"><ImpactCell i={f} /></dd></div>
+            {f.waiver_reason ? <div><dt className="text-xs text-ink-500">Waiver</dt><dd className="text-ink-900">{f.waiver_reason}{f.waived_until ? ` (until ${date(f.waived_until)})` : ""}</dd></div> : null}
+          </dl>
+          <Link href={`/payroll/employee/${encodeURIComponent(f.employee_id)}`} className="inline-block text-xs font-medium text-brand-700 hover:underline">
+            Open the employee in the latest run
+          </Link>
 
-        {!f ? <Loader2 className="animate-spin text-ink-400" /> : (
-          <div className="space-y-5 text-sm">
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              <dt className="text-ink-500">State</dt><dd><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", STATE_TONE[f.state])}>{ISSUE_STATE_LABEL[f.state]}</span></dd>
-              <dt className="text-ink-500">Severity</dt><dd>{f.severity}</dd>
-              <dt className="text-ink-500">First seen</dt><dd>{monthLabel(f.first_seen_period)}</dd>
-              <dt className="text-ink-500">Last seen</dt><dd>{monthLabel(f.last_seen_period)} · {f.occurrence_count} month(s)</dd>
-              <dt className="text-ink-500">Impact</dt><dd className={!f.impact_calculated ? "italic text-ink-500" : ""}>{f.impact_calculated ? inr(f.last_financial_impact, 2) : "Impact not calculated"}</dd>
-              {f.waiver_reason ? (<><dt className="text-ink-500">Waiver</dt><dd>{f.waiver_reason}{f.waived_until ? ` (until ${f.waived_until})` : ""}</dd></>) : null}
-            </dl>
-            <Link href={`/payroll/employee/${encodeURIComponent(f.employee_id)}`} className="text-xs font-semibold text-brand-700 hover:underline dark:text-brand-300">
-              Open the employee in the latest run
-            </Link>
-
-            <section className="space-y-2">
-              <h3 className="flex items-center gap-2 font-semibold text-ink-900 dark:text-white"><UserRound size={14} /> Owner and due date</h3>
-              <div className="flex flex-wrap items-end gap-2">
-                <select className={FIELD} aria-label="Owner" disabled={!canWrite} value={owner ?? ""} onChange={(e) => setOwner(e.target.value)}>
+          <section className="space-y-2" aria-labelledby="owner-h">
+            <h3 id="owner-h" className="text-[13px] font-semibold text-ink-900">Owner and due date</h3>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-xs text-ink-600">Owner
+                <select className={cn(FIELD, "mt-1 block")} disabled={!canWrite} value={owner} onChange={(e) => setOwner(e.target.value)}>
                   <option value="">Unassigned</option>
                   {assignees.map((a) => <option key={a.user_id} value={a.user_id}>{a.email}</option>)}
                 </select>
-                <input type="date" aria-label="Due date" className={FIELD} disabled={!canWrite} value={due ?? ""} onChange={(e) => setDue(e.target.value)} />
-                {canWrite ? (
-                  <Button type="button" variant="outline" disabled={busy}
-                    onClick={() => void act(() => issuesApi.assign(fingerprint, { owner_user_id: owner || null, due_date: due || null }), "Assignment saved")}>
-                    <CalendarClock size={14} /> Save
+              </label>
+              <label className="text-xs text-ink-600">Due
+                <input type="date" className={cn(FIELD, "mt-1 block")} disabled={!canWrite} value={due} onChange={(e) => setDue(e.target.value)} />
+              </label>
+              {canWrite ? (
+                <Button size="sm" variant="outline" disabled={busy}
+                  onClick={() => void act(() => issuesApi.assign(fingerprint!, { owner_user_id: owner || null, due_date: due || null }), "Assignment saved")}>
+                  Save
+                </Button>
+              ) : null}
+            </div>
+          </section>
+
+          {canWrite ? (
+            <section className="space-y-2" aria-labelledby="decision-h">
+              <h3 id="decision-h" className="text-[13px] font-semibold text-ink-900">Decision</h3>
+              <label className="block text-xs text-ink-600">Reason (required to resolve or waive)
+                <input className={cn(FIELD, "mt-1 w-full")} value={reason} onChange={(e) => setReason(e.target.value)} />
+              </label>
+              <label className="block text-xs text-ink-600">
+                Waive until — a waiver always expires; 90 days if left blank
+                <input type="date" className={cn(FIELD, "mt-1 block")} value={until} onChange={(e) => setUntil(e.target.value)} />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {decisions.map((d) => (
+                  <Button key={d.state} size="sm" variant={d.state === "resolved" ? "default" : "outline"}
+                    disabled={busy || (d.needs && !reason.trim())}
+                    onClick={() => void act(() => issuesApi.decide(fingerprint!, {
+                      state: d.state, reason: reason || null, waived_until: d.state === "waived" ? until || null : null,
+                    }), `${d.label} — saved`)}>
+                    {d.label}
                   </Button>
-                ) : null}
+                ))}
               </div>
-              {f.overdue ? <p className="flex items-center gap-1 text-xs font-semibold text-danger-700"><AlertTriangle size={12} /> Overdue</p> : null}
             </section>
+          ) : null}
 
+          <section className="space-y-2" aria-labelledby="comments-h">
+            <h3 id="comments-h" className="text-[13px] font-semibold text-ink-900">Comments</h3>
+            {detail.data!.comments.length === 0 ? <p className="text-xs text-ink-500">No comments yet.</p> : (
+              <ul className="space-y-2">
+                {detail.data!.comments.map((c) => (
+                  <li key={c.id} className="rounded-lg bg-ink-50 px-3 py-2">
+                    <p className="whitespace-pre-wrap text-ink-800">{c.body}</p>
+                    <p className="mt-1 text-xs text-ink-500">{c.author_email} · {dateTime(c.created_at)}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
             {canWrite ? (
-              <section className="space-y-2">
-                <h3 className="font-semibold text-ink-900 dark:text-white">Decision</h3>
-                <input className={cn(FIELD, "w-full")} placeholder="Reason (required to resolve or waive)" value={reason} onChange={(e) => setReason(e.target.value)} />
-                <label className="block text-xs text-ink-600 dark:text-ink-300">
-                  Waive until (a waiver always expires — 90 days if left blank)
-                  <input type="date" className={cn(FIELD, "mt-1 block")} value={until} onChange={(e) => setUntil(e.target.value)} />
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {decisions.map((d) => (
-                    <Button key={d.state} type="button" variant={d.state === "resolved" ? "default" : "outline"}
-                      disabled={busy || (d.needs && !reason.trim())}
-                      onClick={() => void act(() => issuesApi.decide(fingerprint, {
-                        state: d.state, reason: reason || null, waived_until: d.state === "waived" ? until || null : null,
-                      }), `${d.label} — saved`)}>
-                      {d.label}
-                    </Button>
-                  ))}
-                </div>
-              </section>
+              <div className="flex gap-2">
+                <label className="sr-only" htmlFor="new-comment">Add a comment</label>
+                <textarea id="new-comment" className="min-h-[2.5rem] flex-1 rounded-lg border border-ink-200 px-2.5 py-1.5 text-[13px]" rows={2} placeholder="Add a comment" value={comment} onChange={(e) => setComment(e.target.value)} />
+                <Button size="sm" disabled={busy || !comment.trim()} onClick={() => void act(() => issuesApi.comment(fingerprint!, comment), "Comment added")}>Post</Button>
+              </div>
             ) : null}
+          </section>
 
-            <section className="space-y-2">
-              <h3 className="flex items-center gap-2 font-semibold text-ink-900 dark:text-white"><MessageSquare size={14} /> Comments</h3>
-              {detail.data!.comments.length === 0 ? <p className="text-xs text-ink-500">No comments yet.</p> : (
-                <ul className="space-y-2">
-                  {detail.data!.comments.map((c) => (
-                    <li key={c.id} className="rounded-lg bg-ink-50 px-3 py-2 dark:bg-white/[0.04]">
-                      <p className="whitespace-pre-wrap text-ink-800 dark:text-ink-100">{c.body}</p>
-                      <p className="mt-1 text-[11px] text-ink-500">{c.author_email} · {c.created_at ? new Date(c.created_at).toLocaleString("en-IN") : ""}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {canWrite ? (
-                <div className="flex gap-2">
-                  <textarea className={cn(FIELD, "flex-1")} rows={2} placeholder="Add a comment" value={comment} onChange={(e) => setComment(e.target.value)} />
-                  <Button type="button" disabled={busy || !comment.trim()}
-                    onClick={() => void act(() => issuesApi.comment(fingerprint, comment), "Comment added")}>Post</Button>
-                </div>
-              ) : null}
-            </section>
+          <section className="space-y-2" aria-labelledby="evidence-h">
+            <h3 id="evidence-h" className="text-[13px] font-semibold text-ink-900">Evidence</h3>
+            {detail.data!.attachments.length === 0 ? <p className="text-xs text-ink-500">No files attached.</p> : (
+              <ul className="divide-y divide-ink-100 rounded-lg border border-ink-200">
+                {detail.data!.attachments.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                    <span className="min-w-0 truncate">{a.filename} · {a.size < 1024 ? `${a.size} bytes` : `${Math.round(a.size / 1024).toLocaleString("en-IN")} KB`} · {a.uploaded_by_email}</span>
+                    <button type="button" className="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline"
+                      onClick={async () => {
+                        try { saveBlob(await issuesApi.download(fingerprint!, a.id), a.filename); } catch (e) { toast.error("Download failed", { description: e instanceof Error ? e.message : "" }); }
+                      }}>
+                      <Download size={12} aria-hidden /> Download
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canWrite ? (
+              <label className="block text-xs text-ink-600">
+                Attach a file (PDF, image, spreadsheet, CSV or text; up to 5 MB)
+                <input type="file" className="mt-1 block text-xs" disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.txt"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void act(() => issuesApi.attach(fingerprint!, file), "File attached");
+                    e.target.value = "";
+                  }} />
+              </label>
+            ) : null}
+          </section>
 
-            <section className="space-y-2">
-              <h3 className="flex items-center gap-2 font-semibold text-ink-900 dark:text-white"><Paperclip size={14} /> Evidence</h3>
-              {detail.data!.attachments.length === 0 ? <p className="text-xs text-ink-500">No files attached.</p> : (
-                <ul className="space-y-1">
-                  {detail.data!.attachments.map((a) => (
-                    <li key={a.id} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="min-w-0 truncate">{a.filename} · {a.size < 1024 ? `${a.size} bytes` : `${Math.round(a.size / 1024).toLocaleString("en-IN")} KB`} · {a.uploaded_by_email}</span>
-                      <button type="button" className="inline-flex items-center gap-1 font-semibold text-brand-700 dark:text-brand-300"
-                        onClick={() => void download(a.id, a.filename)}><Download size={12} /> Download</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {canWrite ? (
-                <label className="block text-xs text-ink-600 dark:text-ink-300">
-                  Attach a file (PDF, image, spreadsheet, CSV or text; up to 5 MB)
-                  <input type="file" className="mt-1 block text-xs" disabled={busy}
-                    accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.txt"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void act(() => issuesApi.attach(fingerprint, file), "File attached");
-                      e.target.value = "";
-                    }} />
-                </label>
-              ) : null}
-            </section>
-
-            <section className="space-y-1">
-              <h3 className="font-semibold text-ink-900 dark:text-white">History</h3>
-              {detail.data!.history.length === 0 ? <p className="text-xs text-ink-500">No decisions yet.</p> : (
-                <ul className="space-y-1 text-xs text-ink-600 dark:text-ink-300">
-                  {detail.data!.history.map((h) => (
-                    <li key={h.id}>
-                      {h.created_at ? new Date(h.created_at).toLocaleString("en-IN") : "—"} · {h.from_state ?? "new"} → {h.to_state}
-                      {" "}by {h.actor_email ?? "the system"}{h.reason ? ` — ${h.reason}` : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body,
+          <section className="space-y-1" aria-labelledby="history-h">
+            <h3 id="history-h" className="text-[13px] font-semibold text-ink-900">History</h3>
+            {detail.data!.history.length === 0 ? <p className="text-xs text-ink-500">No decisions yet.</p> : (
+              <ol className="space-y-1.5 border-l border-ink-200 pl-3 text-xs text-ink-600">
+                {detail.data!.history.map((h) => (
+                  <li key={h.id}>
+                    <span className="text-ink-900">
+                      {h.from_state === h.to_state
+                        ? `Updated — still ${(ISSUE_STATE_LABEL[h.to_state as IssueState] ?? h.to_state).toLowerCase()}`
+                        : `${h.from_state ? ISSUE_STATE_LABEL[h.from_state as IssueState] ?? h.from_state : "New"} → ${ISSUE_STATE_LABEL[h.to_state as IssueState] ?? h.to_state}`}
+                    </span>
+                    {" "}by {h.actor_email ?? "the system"} · {dateTime(h.created_at)}
+                    {h.reason ? <span className="block text-ink-500">{h.reason}</span> : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        </div>
+      )}
+    </Drawer>
   );
 }
 
 export default function IssuesPage() {
   return (
-    <Suspense fallback={<Skeleton className="h-96 w-full rounded-2xl" />}>
+    <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
       <IssuesContent />
     </Suspense>
   );

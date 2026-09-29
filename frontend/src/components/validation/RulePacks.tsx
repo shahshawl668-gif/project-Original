@@ -58,14 +58,14 @@ export function RulePacks({ entityId, canChange }: { entityId: string | undefine
   return (
     <Card><CardContent className="space-y-3 py-5">
       <div>
-        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><PackageCheck size={17} /> Rule packs</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><PackageCheck size={17} /> Rule packs</h2>
         <p className="text-xs text-ink-500">
           Built-in checks grouped by what they protect. A pack switched off reports its checks as <strong>Disabled</strong> in every run — never as passed. Coverage is from the latest current run.
         </p>
       </div>
       {error ? <AlertBanner variant="error" title="Not changed">{error}</AlertBanner> : null}
       {packs.isError ? <AlertBanner variant="error" title="Could not load rule packs">Retry this page.</AlertBanner> : null}
-      <div className="divide-y divide-ink-200 dark:divide-white/10">
+      <div className="divide-y divide-ink-200">
         {(packs.data ?? []).map((pack) => {
           const expanded = open === pack.key;
           return (
@@ -75,7 +75,7 @@ export function RulePacks({ entityId, canChange }: { entityId: string | undefine
                   onClick={() => setOpen(expanded ? null : pack.key)}>
                   {expanded ? <ChevronDown size={16} className="mt-0.5 shrink-0" /> : <ChevronRight size={16} className="mt-0.5 shrink-0" />}
                   <span>
-                    <span className="block text-sm font-semibold text-ink-900 dark:text-white">{pack.name}
+                    <span className="block text-sm font-semibold text-ink-900">{pack.name}
                       <span className="ml-2 text-xs font-normal text-ink-500">{pack.checks.length} check(s) · {STATE_LABEL[pack.state]}</span>
                     </span>
                     <span className="block text-xs text-ink-500">{pack.elsewhere ?? pack.purpose}</span>
@@ -97,7 +97,7 @@ export function RulePacks({ entityId, canChange }: { entityId: string | undefine
                 </div>
               </div>
               {pending?.key === pack.key ? (
-                <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-ink-50 p-2 dark:bg-white/[0.04]">
+                <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-ink-50 p-2">
                   <label className="min-w-64 flex-1 text-xs font-semibold text-ink-700">
                     Why {pending.enabled ? "switch it on" : "switch it off"}? (kept in the audit trail)
                     <input className="mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm" value={reason}
@@ -127,7 +127,7 @@ export function RulePacks({ entityId, canChange }: { entityId: string | undefine
                     {pack.checks.map((c) => (
                       <li key={c.rule_id} className="flex flex-wrap items-center gap-x-2">
                         <span className="w-24 shrink-0 font-mono text-ink-500">{c.rule_id}</span>
-                        <span className="text-ink-800 dark:text-ink-100">{c.name}</span>
+                        <span className="text-ink-800">{c.name}</span>
                         {c.material ? <span className="rounded bg-ink-100 px-1 text-[10px] font-semibold uppercase text-ink-600">statutory</span> : null}
                         {!c.enabled ? <span className="rounded bg-ink-200 px-1 text-[10px] font-semibold uppercase text-ink-600">disabled</span> : null}
                         {!c.runs_in_validation ? <span className="text-ink-400">checked at upload</span> : null}

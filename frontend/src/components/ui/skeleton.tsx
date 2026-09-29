@@ -1,32 +1,32 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
+/** A placeholder with the shape of what is coming. It pulses; it does not sweep. */
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-md bg-ink-100/80 dark:bg-white/[0.06]",
-        "before:absolute before:inset-0 before:-translate-x-full",
-        "before:bg-gradient-to-r before:from-transparent before:via-white/70 before:to-transparent",
-        "dark:before:via-white/10",
-        "before:animate-[shimmer_2s_linear_infinite]",
-        className,
-      )}
-      style={{
-        backgroundSize: "1000px 100%",
-      }}
-      {...props}
-    />
-  );
+  return <div aria-hidden className={cn("animate-pulse-soft rounded-md bg-ink-100", className)} {...props} />;
 }
 
 export function StatCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
-      <Skeleton className="mb-4 h-10 w-10 rounded-xl" />
-      <Skeleton className="mb-2 h-9 w-24" />
-      <Skeleton className="mb-1 h-3 w-32" />
-      <Skeleton className="h-3 w-40" />
+    <div className="rounded-xl border border-ink-200 bg-white p-4">
+      <Skeleton className="mb-3 h-3 w-24" />
+      <Skeleton className="mb-2 h-6 w-20" />
+      <Skeleton className="h-3 w-32" />
+    </div>
+  );
+}
+
+/** Rows for a table that is loading, at the density the table will have. */
+export function TableSkeleton({ rows = 8, cols = 5 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="divide-y divide-ink-100" role="status" aria-label="Loading">
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex items-center gap-4 px-3 py-2.5">
+          {Array.from({ length: cols }).map((__, c) => (
+            <Skeleton key={c} className={cn("h-3", c === 0 ? "w-40" : "flex-1")} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

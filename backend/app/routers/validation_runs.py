@@ -597,12 +597,36 @@ def list_run_findings(
     rule_prefix: str | None = Query(default=None, max_length=100,
                                     description="Comma-separated, e.g. LOP,ATT,ARR"),
     q: str | None = Query(default=None, max_length=100),
+    component: str | None = Query(default=None, max_length=255),
+    state: str | None = Query(default=None, pattern="^(open|acknowledged|waived|resolved)$",
+                              description="Review state; a finding nobody has reviewed is open"),
+    owner: str | None = Query(default=None, max_length=64, description="'me', 'none' or a user id"),
+    location: str | None = Query(default=None, max_length=64, description="The employee's work state in this run"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     entity: Entity = Depends(get_current_entity),
 ):
     run = _run(db, entity, run_id)
     query = db.query(FindingRecord).filter(FindingRecord.run_id == run.id)
+    tracked = db.query(FindingState.fingerprint).filter(FindingState.entity_id == entity.id)
+    if state == "open":
+        # Open includes a finding that has no review record yet.
+        query = query.filter(~FindingRecord.fingerprint.in_(tracked.filter(FindingState.state != "open")))
+    elif state:
+        query = query.filter(FindingRecord.fingerprint.in_(tracked.filter(FindingState.state == state)))
+    if owner == "none":
+        query = query.filter(~FindingRecord.fingerprint.in_(tracked.filter(FindingState.owner_user_id.isnot(None))))
+    elif owner:
+        owner_id = user.id if owner == "me" else _uuid(owner, "Owner")
+        query = query.filter(FindingRecord.fingerprint.in_(tracked.filter(FindingState.owner_user_id == owner_id)))
+    if component:
+        query = query.filter(FindingRecord.component == component)
+    if location:
+        query = query.filter(FindingRecord.employee_id.in_(
+            db.query(ValidationRunEmployee.employee_id).filter(
+                ValidationRunEmployee.run_id == run.id, ValidationRunEmployee.work_state == location,
+            )
+        ))
     if rule_prefix:
         prefixes = [p.strip() for p in rule_prefix.split(",") if p.strip()][:10]
         if prefixes:
@@ -637,9 +661,26 @@ def list_run_findings(
         ).all()
     }
     rules = (
-        db.query(FindingRecord.rule_id, FindingRecord.rule_name, FindingRecord.severity, func.count())
+        db.query(FindingRecord.rule_id, FindingRecord.rule_name, FindingRecord.severity, func.count(),
+                 func.sum(FindingRecord.financial_impact), func.count(func.distinct(FindingRecord.employee_id)))
         .filter(FindingRecord.run_id == run.id)
         .group_by(FindingRecord.rule_id, FindingRecord.rule_name, FindingRecord.severity)
+        .all()
+    )
+    # Facets over the whole run (not the filtered page), so a filter menu
+    # always offers every value there is to choose.
+    components = (
+        db.query(FindingRecord.component, func.count())
+        .filter(FindingRecord.run_id == run.id, FindingRecord.component.isnot(None))
+        .group_by(FindingRecord.component)
+        .all()
+    )
+    locations = (
+        db.query(ValidationRunEmployee.work_state, func.count(FindingRecord.id))
+        .join(ValidationRunEmployee, (ValidationRunEmployee.run_id == FindingRecord.run_id)
+              & (ValidationRunEmployee.employee_id == FindingRecord.employee_id))
+        .filter(FindingRecord.run_id == run.id, ValidationRunEmployee.work_state.isnot(None))
+        .group_by(ValidationRunEmployee.work_state)
         .all()
     )
     items = []
@@ -676,10 +717,15 @@ def list_run_findings(
         "pages": (total + page_size - 1) // page_size,
         "items": items,
         "rules": sorted(
-            ({"rule_id": rid, "rule_name": name, "severity": sev, "count": n}
-             for rid, name, sev, n in rules),
+            ({"rule_id": rid, "rule_name": name, "severity": sev, "count": n, "employees": people,
+              # Only a check that prices its effect has a rupee total; for the
+              # rest the total is unknown, not zero.
+              "financial_impact": _money(impact) if rid in explain_svc.MONETARY_RULES else None}
+             for rid, name, sev, n, impact, people in rules),
             key=lambda x: -x["count"],
         ),
+        "components": sorted(({"component": c, "count": n} for c, n in components), key=lambda x: -x["count"]),
+        "locations": sorted(({"location": s, "count": n} for s, n in locations), key=lambda x: -x["count"]),
     })
 
 

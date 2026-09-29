@@ -86,15 +86,15 @@ function CompareContent() {
             {GROUPS.map((g) => (
               <button key={g.id} type="button" onClick={() => setGroup(g.id)}
                 className={`rounded-2xl border p-4 text-left shadow-soft ${g.tone} ${group === g.id ? "ring-2 ring-brand-500" : ""}`}>
-                <p className="text-2xs font-semibold uppercase tracking-widest">{g.label}</p>
+                <p className="text-2xs font-semibold uppercase tracking-[0.06em]">{g.label}</p>
                 <p className="num text-2xl font-bold">{data.counts[g.id].toLocaleString("en-IN")}</p>
                 <p className="text-xs">{g.meaning} · {inr(data.financial_impact[g.id])}</p>
               </button>
             ))}
           </div>
-          <div className="overflow-x-auto rounded-2xl border border-ink-200/70 bg-white shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
+          <div className="overflow-x-auto rounded-2xl border border-ink-200/70 bg-white shadow-soft">
             <table className="w-full text-sm">
-              <thead className="bg-ink-50/80 text-left text-[11px] uppercase tracking-[0.12em] text-ink-500">
+              <thead className="bg-ink-50/80 text-left text-[11px] uppercase tracking-[0.06em] text-ink-500">
                 <tr>
                   <th className="px-4 py-2.5">Employee</th>
                   <th className="px-4 py-2.5">Rule</th>

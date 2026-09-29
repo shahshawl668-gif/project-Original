@@ -136,7 +136,7 @@ export default function RegisterHistoryContent() {
         description={
           <>
             Salary registers keyed by calendar month; re-uploading the same{" "}
-            <code className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-semibold text-ink-700 dark:bg-white/[0.06] dark:text-ink-200">
+            <code className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-semibold text-ink-700">
               period_month
             </code>{" "}
             replaces the prior snapshot for that tenant.
@@ -159,11 +159,11 @@ export default function RegisterHistoryContent() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="flex min-h-[22rem] flex-col overflow-hidden">
-          <div className="border-b border-ink-100 px-5 py-4 dark:border-white/[0.06]">
-            <p className="text-2xs font-bold uppercase tracking-[0.2em] text-ink-400 dark:text-ink-500">
+          <div className="border-b border-ink-100 px-5 py-4">
+            <p className="text-2xs font-bold uppercase tracking-[0.2em] text-ink-400">
               Registers
             </p>
-            <p className="mt-1 text-sm font-semibold text-ink-900 dark:text-white">
+            <p className="mt-1 text-sm font-semibold text-ink-900">
               {loading ? "Loading…" : `${registers.length} stored`}
             </p>
           </div>
@@ -184,7 +184,7 @@ export default function RegisterHistoryContent() {
             ) : registers.length === 0 ? (
               <div className="p-4">
                 <EmptyState
-                  icon={<CalendarDays className="h-6 w-6 text-ink-400 dark:text-ink-300" />}
+                  icon={<CalendarDays className="h-6 w-6 text-ink-400" />}
                   title="No registers stored"
                   description="Upload payroll with an explicit period so we can normalize rows for auditing."
                   action={
@@ -196,31 +196,31 @@ export default function RegisterHistoryContent() {
                 />
               </div>
             ) : (
-              <div className="scrollbar-thin divide-y divide-ink-100 dark:divide-white/[0.05]">
+              <div className="scrollbar-thin divide-y divide-ink-100">
                 {registers.map((reg) => (
                   <button
                     key={reg.id}
                     type="button"
                     onClick={() => void openRegister(reg.id)}
-                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04] ${
+                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-ink-50/60 ${
                       activeId === reg.id
-                        ? "border-l-[3px] border-brand-600 bg-brand-50/50 dark:bg-brand-500/10"
+                        ? "border-l-[3px] border-brand-600 bg-brand-50/50"
                         : ""
                     }`}
                   >
                     <div
                       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                         activeId === reg.id
-                          ? "bg-white shadow-sm ring-1 ring-brand-600/15 dark:bg-brand-500/15 dark:ring-brand-500/30"
-                          : "bg-ink-100 dark:bg-white/[0.05]"
+                          ? "bg-white shadow-sm ring-1 ring-brand-600/15"
+                          : "bg-ink-100"
                       }`}
                     >
                       <CalendarDays
                         size={17}
                         className={
                           activeId === reg.id
-                            ? "text-brand-700 dark:text-brand-300"
-                            : "text-ink-500 dark:text-ink-300"
+                            ? "text-brand-700"
+                            : "text-ink-500"
                         }
                         strokeWidth={1.75}
                       />
@@ -229,19 +229,19 @@ export default function RegisterHistoryContent() {
                       <p
                         className={`truncate text-sm font-semibold ${
                           activeId === reg.id
-                            ? "text-brand-900 dark:text-brand-200"
-                            : "text-ink-900 dark:text-white"
+                            ? "text-brand-900"
+                            : "text-ink-900"
                         }`}
                       >
                         {fmtMonth(reg.period_month)}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
+                      <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium uppercase tracking-wide text-ink-400">
                         <Users size={11} aria-hidden /> {reg.employee_count ?? "—"} employees
                       </p>
                     </div>
                     <ChevronRight
                       size={15}
-                      className="shrink-0 text-ink-300 dark:text-ink-500"
+                      className="shrink-0 text-ink-300"
                       aria-hidden
                     />
                   </button>
@@ -255,14 +255,14 @@ export default function RegisterHistoryContent() {
           {!activeId ? (
             <CardContent className="flex min-h-[20rem] flex-col items-center justify-center p-8">
               <EmptyState
-                icon={<FileText className="h-7 w-7 text-ink-400 dark:text-ink-300" strokeWidth={1.5} />}
+                icon={<FileText className="h-7 w-7 text-ink-400" strokeWidth={1.5} />}
                 title="Select a register"
                 description="Choose a pay month on the left to inspect validated rows and export CSV."
                 className="border-0 bg-transparent"
               />
             </CardContent>
           ) : detailLoading ? (
-            <div className="flex min-h-[20rem] flex-col border-b border-ink-100 px-6 py-5 dark:border-white/[0.06]">
+            <div className="flex min-h-[20rem] flex-col border-b border-ink-100 px-6 py-5">
               <Skeleton className="h-6 w-48" />
               <Skeleton className="mt-3 h-3 w-full max-w-md" />
               <div className="mt-8 space-y-3">
@@ -274,18 +274,18 @@ export default function RegisterHistoryContent() {
             </div>
           ) : detail ? (
             <div className="flex min-h-[20rem] flex-col">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-100 px-6 py-5 dark:border-white/[0.06]">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink-100 px-6 py-5">
                 <div>
-                  <h2 className="font-display text-lg font-bold tracking-tight text-ink-900 dark:text-white">
+                  <h2 className="font-display text-lg font-bold tracking-tight text-ink-900">
                     {fmtMonth(detail.period_month)}
                   </h2>
-                  <p className="mt-1 text-sm text-ink-600 dark:text-ink-300">
+                  <p className="mt-1 text-sm text-ink-600">
                     {detail.filename || "Manual upload"} · Stored{" "}
-                    <span className="font-medium text-ink-800 dark:text-ink-100">
+                    <span className="font-medium text-ink-800">
                       {fmtDate(detail.created_at)}
                     </span>{" "}
                     ·{" "}
-                    <span className="font-semibold text-ink-900 dark:text-white">
+                    <span className="font-semibold text-ink-900">
                       {detail.employee_count}
                     </span>{" "}
                     employees
@@ -296,11 +296,11 @@ export default function RegisterHistoryContent() {
                 </Button>
               </div>
 
-              <div className="border-b border-ink-100 px-6 py-3 dark:border-white/[0.06]">
+              <div className="border-b border-ink-100 px-6 py-3">
                 <div className="relative">
                   <Search
                     size={16}
-                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400 dark:text-ink-500"
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400"
                     aria-hidden
                   />
                   <input
@@ -308,7 +308,7 @@ export default function RegisterHistoryContent() {
                     placeholder="Search by employee ID or name…"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-ink-200 bg-ink-50/80 py-2 pl-10 pr-4 text-sm font-medium text-ink-900 outline-none ring-brand-500/20 placeholder:text-ink-400 focus:border-brand-400 focus:bg-white focus:ring-[3px] dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500 dark:focus:bg-white/[0.07]"
+                    className="h-10 w-full rounded-xl border border-ink-200 bg-ink-50/80 py-2 pl-10 pr-4 text-sm font-medium text-ink-900 outline-none ring-brand-500/20 placeholder:text-ink-400 focus:border-brand-400 focus:bg-white focus:ring-[3px]"
                   />
                 </div>
               </div>
@@ -316,7 +316,7 @@ export default function RegisterHistoryContent() {
               <div className="scrollbar-thin flex-1 overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="sticky top-0 z-10 bg-ink-50/95 text-left text-2xs font-bold uppercase tracking-[0.12em] text-ink-500 backdrop-blur dark:bg-ink-900/95 dark:text-ink-300">
+                    <tr className="sticky top-0 z-10 bg-ink-50/95 text-left text-2xs font-semibold uppercase tracking-[0.06em] text-ink-500 backdrop-blur">
                       <th className="whitespace-nowrap px-5 py-3 font-semibold">Employee</th>
                       <th className="whitespace-nowrap px-5 py-3 font-semibold">Paid / LOP</th>
                       {compKeys.map((k) => (
@@ -329,7 +329,7 @@ export default function RegisterHistoryContent() {
                       )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+                  <tbody className="divide-y divide-ink-100">
                     {filteredRows.length === 0 ? (
                       <tr>
                         <td
@@ -355,30 +355,30 @@ export default function RegisterHistoryContent() {
                       filteredRows.map((row, idx) => (
                         <tr
                           key={row.employee_id}
-                          className={`transition-colors hover:bg-brand-50/25 dark:hover:bg-brand-500/10 ${
+                          className={`transition-colors hover:bg-brand-50/25 ${
                             idx % 2 === 0
-                              ? "bg-white dark:bg-transparent"
-                              : "bg-ink-50/35 dark:bg-white/[0.02]"
+                              ? "bg-white"
+                              : "bg-ink-50/35"
                           }`}
                         >
                           <td className="whitespace-nowrap px-5 py-2.5">
-                            <p className="font-semibold text-ink-900 dark:text-white">
+                            <p className="font-semibold text-ink-900">
                               {row.employee_id}
                             </p>
                             {row.employee_name ? (
-                              <p className="text-xs text-ink-500 dark:text-ink-400">
+                              <p className="text-xs text-ink-500">
                                 {row.employee_name}
                               </p>
                             ) : null}
                           </td>
-                          <td className="whitespace-nowrap px-5 py-2.5 text-xs text-ink-600 dark:text-ink-300">
+                          <td className="whitespace-nowrap px-5 py-2.5 text-xs text-ink-600">
                             {row.paid_days != null ? (
                               <span>
-                                <span className="font-semibold text-ink-900 dark:text-white">
+                                <span className="font-semibold text-ink-900">
                                   {row.paid_days}
                                 </span>
                                 {row.lop_days != null ? (
-                                  <span className="text-ink-400 dark:text-ink-500">
+                                  <span className="text-ink-400">
                                     {" "}
                                     / {row.lop_days} LOP
                                   </span>
@@ -391,7 +391,7 @@ export default function RegisterHistoryContent() {
                           {compKeys.map((k) => (
                             <td
                               key={k}
-                              className="num whitespace-nowrap px-5 py-2.5 text-right text-sm text-ink-800 dark:text-ink-100"
+                              className="num whitespace-nowrap px-5 py-2.5 text-right text-sm text-ink-800"
                             >
                               {row.components[k]?.toLocaleString("en-IN", {
                                 maximumFractionDigits: 0,
@@ -399,7 +399,7 @@ export default function RegisterHistoryContent() {
                             </td>
                           ))}
                           {detail.rows.some((r) => r.increment_arrear_total > 0) && (
-                            <td className="num whitespace-nowrap px-5 py-2.5 text-right text-sm font-medium text-accent-700 dark:text-accent-300">
+                            <td className="num whitespace-nowrap px-5 py-2.5 text-right text-sm font-medium text-accent-700">
                               {row.increment_arrear_total > 0
                                 ? row.increment_arrear_total.toLocaleString("en-IN", {
                                     maximumFractionDigits: 0,
@@ -414,7 +414,7 @@ export default function RegisterHistoryContent() {
                 </table>
               </div>
               {detail.rows.length > 0 ? (
-                <div className="border-t border-ink-100 px-6 py-2.5 text-2xs font-medium uppercase tracking-wide text-ink-400 dark:border-white/[0.06] dark:text-ink-500">
+                <div className="border-t border-ink-100 px-6 py-2.5 text-2xs font-medium uppercase tracking-wide text-ink-400">
                   Showing {filteredRows.length} of {detail.rows.length} employees
                 </div>
               ) : null}

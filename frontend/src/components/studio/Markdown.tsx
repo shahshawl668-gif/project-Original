@@ -16,8 +16,8 @@ export function Markdown({ text }: { text: string }) {
     if (heading) {
       const level = heading[1].length;
       blocks.push(level <= 2
-        ? <h3 key={i} className="pt-3 text-base font-semibold text-ink-900 dark:text-white">{inline(heading[2])}</h3>
-        : <h4 key={i} className="pt-2 text-sm font-semibold text-ink-900 dark:text-white">{inline(heading[2])}</h4>);
+        ? <h3 key={i} className="pt-3 text-base font-semibold text-ink-900">{inline(heading[2])}</h3>
+        : <h4 key={i} className="pt-2 text-sm font-semibold text-ink-900">{inline(heading[2])}</h4>);
       i += 1;
       continue;
     }
@@ -32,8 +32,8 @@ export function Markdown({ text }: { text: string }) {
       blocks.push(
         <div key={`t${i}`} className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead><tr>{head.map((c, j) => <th key={j} className="border-b border-ink-200 px-2 py-1 text-left font-semibold dark:border-white/10">{inline(c)}</th>)}</tr></thead>
-            <tbody>{body.map((r, k) => <tr key={k}>{r.map((c, j) => <td key={j} className="border-b border-ink-100 px-2 py-1 align-top dark:border-white/5">{inline(c)}</td>)}</tr>)}</tbody>
+            <thead><tr>{head.map((c, j) => <th key={j} className="border-b border-ink-200 px-2 py-1 text-left font-semibold">{inline(c)}</th>)}</tr></thead>
+            <tbody>{body.map((r, k) => <tr key={k}>{r.map((c, j) => <td key={j} className="border-b border-ink-100 px-2 py-1 align-top">{inline(c)}</td>)}</tr>)}</tbody>
           </table>
         </div>,
       );
@@ -53,7 +53,7 @@ export function Markdown({ text }: { text: string }) {
       para.push(lines[i].trim());
       i += 1;
     }
-    blocks.push(<p key={`p${i}`} className="text-sm leading-relaxed text-ink-700 dark:text-ink-200">{inline(para.join(" "))}</p>);
+    blocks.push(<p key={`p${i}`} className="text-sm leading-relaxed text-ink-700">{inline(para.join(" "))}</p>);
   }
   return <div className="space-y-2">{blocks}</div>;
 }
@@ -61,7 +61,7 @@ export function Markdown({ text }: { text: string }) {
 function inline(text: string): ReactNode {
   const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
   return parts.map((p, k) => {
-    if (p.startsWith("`") && p.endsWith("`")) return <code key={k} className="rounded bg-ink-100 px-1 font-mono text-[12px] dark:bg-white/10">{p.slice(1, -1)}</code>;
+    if (p.startsWith("`") && p.endsWith("`")) return <code key={k} className="rounded bg-ink-100 px-1 font-mono text-[12px]">{p.slice(1, -1)}</code>;
     if (p.startsWith("**") && p.endsWith("**")) return <strong key={k}>{p.slice(2, -2)}</strong>;
     return <Fragment key={k}>{p}</Fragment>;
   });

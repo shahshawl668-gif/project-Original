@@ -186,6 +186,45 @@ def test_a_queued_validation_produces_a_run_readable_by_id(client, company):
     assert pf["items"][0]["expected_value"] == f"{expected_pf(25000):.2f}"
 
 
+def test_findings_filter_on_the_server_by_component_state_owner_and_location(client, company):
+    """Filters apply to the whole run, not to the page a browser happens to hold."""
+    job = _validated(client, company, register_csv(pf_zero_for={"E003"}))
+    base = f"/api/validation/runs/{job['run_id']}/findings"
+    everything = _data(client.get(base, headers=company))
+    assert everything["total"] > 1
+
+    # Location is the employee's work state in this run.
+    in_state = _data(client.get(f"{base}?location=Karnataka", headers=company))
+    assert in_state["total"] > 0
+    assert {f["employee_id"] for f in in_state["items"]} <= {eid for eid, _, _ in STAFF}
+    assert _data(client.get(f"{base}?location=Goa", headers=company))["total"] == 0
+    assert {"location": "Karnataka", "count": in_state["total"]} in everything["locations"]
+
+    # Component: the facet's count is the filter's total.
+    facet = everything["components"][0]
+    by_component = _data(client.get(f"{base}?component={facet['component']}", headers=company))
+    assert by_component["total"] == facet["count"]
+    assert {f["component"] for f in by_component["items"]} == {facet["component"]}
+
+    # Review state and owner come from the finding's lifecycle across months.
+    first = everything["items"][0]
+    decided = client.post(f"/api/findings/{first['fingerprint']}/decision", headers=company,
+                          json={"state": "acknowledged", "note": "Looking into it"})
+    assert decided.status_code == 200, decided.text
+    progressing = _data(client.get(f"{base}?state=acknowledged", headers=company))
+    assert [f["id"] for f in progressing["items"]] == [first["id"]]
+    still_open = _data(client.get(f"{base}?state=open", headers=company))
+    assert still_open["total"] == everything["total"] - 1
+    assert first["id"] not in {f["id"] for f in still_open["items"]}
+    assert _data(client.get(f"{base}?owner=none", headers=company))["total"] == everything["total"]
+    assert _data(client.get(f"{base}?owner=me", headers=company))["total"] == 0
+
+    # A priced check carries its rupee total; an unpriced one says unknown, not zero.
+    rules = {r["rule_id"]: r for r in everything["rules"]}
+    assert rules["STAT-001"]["financial_impact"] > 0 and rules["STAT-001"]["employees"] == 1
+    assert all(r["financial_impact"] is None for rid, r in rules.items() if rid.startswith("ID-"))
+
+
 def test_validating_the_frozen_upload_keeps_checks_the_stored_register_would_lose(client, company):
     """PAN is not a column the decomposed register keeps. The job still checks it."""
     job = _validated(client, company, register_csv(pf_zero_for=set()))

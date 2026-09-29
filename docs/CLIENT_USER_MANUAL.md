@@ -57,24 +57,50 @@ Each card shows the latest period, how many people were on it, open findings,
 anything critical, and the total financial exposure. **Open** selects that
 company and takes you into its work. A company with nothing uploaded says so.
 
-The company you are currently working on is also shown top-right, and you can
-switch there at any time.
+### Payroll Control Centre — the month in one place
+
+**Overview → Payroll Control Centre** shows one month for one company: which
+files have arrived, how validation is going, what is still open, what changed
+since the previous run, what blocks approval, whether the bank and ledger
+reconcile, and the evidence pack. At the top it says the **next step** —
+upload, validate, work the issues, submit — worked out from where the month
+actually stands.
+
+![Payroll Control Centre](images/19-control-centre.png)
+
+The month's state is one of: *Not started*, *Awaiting data*, *Ready to
+validate*, *Running*, *Action required*, *Incomplete*, *Ready for approval*,
+*Signed off* or *Reopened*. A month with no failed checks is **not** shown as
+clean if some statutory checks could not be performed — it says *Incomplete*
+and tells you which inputs were missing. Every panel links to the page where
+that part is worked, already set to this month and this run.
+
+### The header
+
+The company you are working on is always shown top-right; with several
+companies it is a menu, and switching clears everything on screen so nothing
+from the previous company stays behind. On month pages (the Control Centre,
+upload, results, issues, month close) the **working period** and the month's
+**current run** sit beside it. The period says *latest* until you choose one;
+your choice is remembered per company until you close the browser.
 
 ### The sidebar
 
-Six boxes. Click one to open it; only the box you are working in stays open.
+Tasks in the order a month is worked. The two long groups, Studio and
+Configuration, open when you are in them.
 
-![The Settings box, opened](images/15-sidebar-settings-open.png)
+![The navigation](images/15-sidebar-settings-open.png)
 
-| Box | What is inside |
+| Group | What is inside |
 |---|---|
-| **Companies** | The landing page |
-| **Payroll** | Upload & validate, Results, Register history, CTC, Budget |
-| **Attendance** | The attendance register |
-| **Bank & JV** | Month close, Bank payments, Journal voucher |
-| **Insights** | Cost analysis, Reports |
-| **Studio** | Connections to your other systems: the API Centre, connections, data mapping, webhooks, and the run history of every batch they sent (analysts and above) |
-| **Settings** | Rules, people, history |
+| **Overview** | Payroll Control Centre, Companies |
+| **Data & imports** | Salary register, Register history, Attendance, CTC upload and history, Budget |
+| **Validation & findings** | Validation runs, Results, Issues |
+| **Reconciliation & approvals** | Month close & approval, Bank payments, Journal voucher |
+| **Analytics & dashboards** | Dashboards, Cost analysis |
+| **Reports** | Report Centre, Report Builder |
+| **Studio** | Connections to your other systems: the API Centre, connections, data mapping, workflows, webhooks, developer tools, releases, and the run history of every batch they sent (analysts and above) |
+| **Configuration & admin** | Companies, statutory settings, rules, formulas, slabs, bank and JV formats, team, audit trail |
 
 ---
 
@@ -85,7 +111,7 @@ Once payroll is run and before it is paid:
 ```
   1  Upload attendance        →  do the days add up?
   2  Upload the register      →  does the pay match the statute and the days?
-  3  Work the findings        →  fix, or explain (Payroll → Issues)
+  3  Work the findings        →  fix, or explain (Validation & findings → Issues)
   4  Reconcile the bank file  →  did the right money reach the right accounts?
   5  Post the journal voucher →  does the ledger agree?
   6  Sign the period off      →  closed, with a record of who closed it
@@ -100,7 +126,7 @@ product tell you that someone lost three days the register never deducted.
 
 ### Step 1 — Attendance
 
-**Attendance → Attendance register.** Upload the month's attendance, then
+**Data & imports → Attendance.** Upload the month's attendance, then
 **validate** before committing.
 
 ![Attendance](images/04-attendance.png)
@@ -114,21 +140,36 @@ Fix the file and upload again. When it validates clean, commit it.
 
 ### Step 2 — Upload the register
 
-**Payroll → Upload & validate.** Three steps, shown across the top.
+**Data & imports → Salary register.** Four stages, shown across the top; each
+says what happened before the next one starts.
 
-![Upload and validate](images/02-payroll-upload.png)
+![Salary register — mapping columns](images/02-payroll-upload.png)
 
-1. **Upload file** — CSV or Excel, straight out of your payroll system.
-2. **Configure run** — the payroll month, and the run type (regular, increment,
-   arrears, full & final). Map the file's columns once and save the mapping as
-   a format for next month.
-3. **Validate** — queues the full statutory pass.
+1. **Choose file** — CSV or Excel, straight out of your payroll system, with
+   the payroll month and the run type. The page lists what the file needs: an
+   Employee ID column and, with the strict header check on, one column per
+   salary component. *Regular* replaces the month's register used by cost
+   reports and dashboards; *arrear* runs are validated but leave it alone.
+2. **Map columns** — each column in your file beside a sample of its values
+   and the field it maps to. A suggestion says how it was found (*same name* or
+   *known alias*); anything you change says *set by you*; a column nobody maps
+   is *not imported* — it is never guessed to be an earning. Required fields
+   that are still unmapped are listed on the right, and the next step waits for
+   them. Search the columns, apply a saved format, or save this one for next
+   month.
+3. **Server check** — the file is uploaded and read on the server: employees
+   read, columns imported and ignored, the revision number for the month, and
+   whether it replaced the month's register. Rows are not rejected here; a row
+   with a wrong or missing value is reported by validation as a finding against
+   that employee. Uploading the same month again adds a new revision; earlier
+   revisions are kept with the runs that read them.
+4. **Validate** — queues the full statutory pass.
 
 **Validation runs on the server, not in your browser.** After you press
 **Run validation** you are taken to a progress page showing the stage (reading
 the register, checking employees, saving results) and how many employees have
 been checked. **You can close the page** — the validation keeps going, the
-upload page shows a link back to it, and **Payroll → Validations** lists every
+upload page shows a link back to it, and **Validation & findings → Validation runs** lists every
 validation with its outcome. A large register (thousands of employees) takes a
 few minutes.
 
@@ -162,9 +203,21 @@ rate or rule is edited — the page shows **"Revalidation required"**, names
 what changed, and offers to revalidate. A month is never shown as current when
 its inputs have moved.
 
-Large results are paged: search and filter by employee, risk level, severity or
-rule, and download the whole run to Excel — exactly as it was recorded, not
-re-computed.
+The figures across the top are the run's employees, the critical findings and
+warnings still open after waivers, the open exposure, and the high-risk
+employees; the ones with an arrow open the matching list. Under them, the
+**outcome strip** says how much was checked (see Coverage below) — kept apart
+from the issue counts on purpose.
+
+Large results are paged on the server, fifty at a time, with the total always
+stated. On **Findings**, filter by severity, check, component, location,
+review state or owner, sort by employee, check, severity or impact, and choose
+**Grouped by check** to see each check once with its number of findings,
+employees and rupee total. Filters are kept in the page address: open a
+finding, go back, and the list is as you left it. **Columns** hides or shows
+columns and **Compact** fits more rows; both are remembered on this computer.
+Click a row (or press Enter on it) for a quick look without leaving the table;
+**Excel** downloads the whole run exactly as it was recorded, not re-computed.
 
 Each finding carries a rule ID, a severity, what was expected, what the register
 actually said, the difference in rupees, and a suggested fix. Where the product
@@ -194,11 +247,13 @@ employee view lists every check for that person with its outcome and the reason.
 
 ![Coverage](images/18-coverage.png)
 
-**Why this result?** Every finding has a **Why this result?** link. It opens
-the finding with everything behind it: the file, sheet, row and column the value
-came from; the calculation, restated from what the run recorded; the tolerance;
-the rule and the version of it in force; who has reviewed it since; and whether
-the month has been approved. Statutory figures there are your company's
+**Why this result?** Every finding has a **Why?** link. It opens the finding
+with everything behind it, in order: the actual, expected and difference and
+their rupee impact; the inputs the check read; the rule and the version of it
+in force; each step of the calculation with the tolerance and rounding; the
+suggested correction; the file, sheet, row and column the value came from; and
+the review and approval history. **Back to findings** returns to the list with
+its filters. Statutory figures there are your company's
 configuration at the time of the run — not a statement of the law.
 
 ![Why this result](images/17-why-this-result.png)
@@ -207,10 +262,12 @@ configuration at the time of the run — not a statement of the law.
 
 | Severity | Meaning | Do |
 |---|---|---|
-| **CRITICAL** | A statutory breach or an unexplained money difference | Before paying |
-| **HIGH** | Very likely wrong | This cycle |
-| **MEDIUM** | Worth a look | This cycle if you can |
-| **LOW / INFO** | Observation | When convenient |
+| **Critical** | A statutory breach or an unexplained money difference | Before paying |
+| **Warning** | Very likely wrong, or worth a look | This cycle |
+| **Info** | An observation | When convenient |
+
+Each employee also gets a **risk level** (high, medium, low) from a score that
+weighs their findings; it orders the employee list and is not a severity.
 
 **A finding is a question, not an accusation.** The product is telling you what
 it computed and what your register said. Sometimes the register is right and the
@@ -218,11 +275,12 @@ configuration is wrong — say so, and it stops asking.
 
 ### Working the issues
 
-**Payroll → Issues** is where findings get worked. It lists every finding
+**Validation & findings → Issues** is where findings get worked. It lists every finding
 still open across months — not just this upload — worst first: critical before
 warning, the ones that keep coming back before the new ones, the expensive
 before the cheap. Filter by state, severity, rule, owner, overdue or recurring,
-or search by employee.
+or search by employee. The filters are kept in the page address, so a link
+from the Control Centre arrives already filtered.
 
 ![Issues](images/20-issues.png)
 
@@ -260,7 +318,7 @@ role, and only people who can work this company can be given one.
 
 ### Step 4 — Bank payments
 
-**Bank & JV → Bank payments.** Upload the payment advice you send the bank, or
+**Reconciliation & approvals → Bank payments.** Upload the payment advice you send the bank, or
 the statement you get back.
 
 ![Bank payments](images/06-bank-payments.png)
@@ -281,7 +339,7 @@ What it finds, among others:
 
 ### Step 5 — Journal voucher
 
-**Bank & JV → Journal voucher.** Builds the accounting entry from the register
+**Reconciliation & approvals → Journal voucher.** Builds the accounting entry from the register
 using your own account codes.
 
 ![Journal voucher](images/07-journal-voucher.png)
@@ -291,7 +349,7 @@ Zoho.
 
 ### Step 6 — Month close
 
-**Bank & JV → Month close** shows the period together: bank reconciliation, JV,
+**Reconciliation & approvals → Month close & approval** shows the period together: bank reconciliation, JV,
 and the month's **approval**.
 
 ![Month close](images/05-month-close.png)
@@ -330,7 +388,7 @@ approval trail, and the rates and schedules in force.
 
 ### Cost analysis
 
-**Insights → Cost analysis.** What payroll cost, broken down by department, cost
+**Analytics & dashboards → Cost analysis.** What payroll cost, broken down by department, cost
 centre, state, grade or any other dimension on the employee master, and how it
 moved month to month.
 
@@ -359,7 +417,7 @@ false underspend — and is left out of the totals.
 
 ### Dashboards
 
-**Insights → Dashboards.** Boards of your own and boards shared with the
+**Analytics & dashboards → Dashboards.** Boards of your own and boards shared with the
 company. **Start from a template** — payroll cost, headcount and movement,
 statutory contributions, validation quality, issue resolution, budget vs actual,
 department cost, month-close readiness — to get a private copy you can use as it
@@ -388,7 +446,7 @@ group never see this company's boards.
 
 ### Reports
 
-**Insights → Reports.** Select the company first, then a reporting period,
+**Reports → Report Centre.** Select the company first, then a reporting period,
 dimension and optional filters. The catalogue groups available reports by
 purpose and lists required input data. Choose **Mask names** when the workbook
 will be shared with someone who need not see employee identities. Download the
@@ -402,7 +460,7 @@ as evidence; generating the same report later may produce different values if
 source registers or configurations have changed. The current catalogue does
 not create an official statutory filing format.
 
-**Build a report:** Open **Insights → Reports → Build a report**. Choose the
+**Build a report:** Open **Reports → Report Builder**. Choose the
 payroll cost dataset, columns, period and filters, optional arithmetic calculation,
 breakdown and sort. Preview the result and its CTC control total before saving a
 personal draft. A manager can share a definition with the company. A saved
@@ -415,7 +473,7 @@ the summary and data-basis sheets before sharing.
 
 ### Register history
 
-**Payroll → Register history.** Every register uploaded, by period.
+**Data & imports → Register history.** Every register uploaded, by period.
 
 ![Register history](images/13-register-history.png)
 
@@ -493,11 +551,11 @@ your administrator grants it.
 Only if you allow it, only for a stated reason, only for a time limit, only
 read-only, with identities masked — and you will see a banner the whole time and
 can revoke instantly. Your owner controls this under
-**Settings → Team & invitations → Support access**, including switching it off
+**Configuration & admin → Team & invitations → Support access**, including switching it off
 entirely.
 
 **I closed the browser during validation. Is it lost?**
-No. It kept running on the server. Open **Payroll → Validations**, or the upload
+No. It kept running on the server. Open **Validation & findings → Validation runs**, or the upload
 page, which links to any validation still in progress.
 
 **We re-uploaded the register. Where did the first results go?**
@@ -523,7 +581,7 @@ Because the product did not work out a rupee figure for it — not because it
 costs nothing. Open **Why this result?** to see what was compared.
 
 **Who changed this setting?**
-**Settings → Audit trail.** Append-only, and it records who did what and when.
+**Configuration & admin → Audit trail.** Append-only, and it records who did what and when.
 
 ---
 

@@ -18,7 +18,7 @@ import { AUTH_LABEL, studioConnApi } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900";
 const MANAGE = new Set(["owner", "manager"]);
 
 export default function ConnectionsPage() {
@@ -34,7 +34,7 @@ export default function ConnectionsPage() {
       <Destinations canManage={canManage} />
       <Card><CardContent className="space-y-3 py-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Connections for {entity?.name}</h2>
+          <h2 className="text-base font-semibold text-ink-900">Connections for {entity?.name}</h2>
           {canManage && !creating ? (
             <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white"><Plus size={14} /> New connection</button>
           ) : null}
@@ -42,17 +42,17 @@ export default function ConnectionsPage() {
         {creating ? <NewConnection onCancel={() => setCreating(false)} /> : null}
         {list.error ? <AlertBanner variant="error" title="Could not load connections">{(list.error as Error).message}</AlertBanner> : null}
         {!list.data ? <Skeleton className="h-24 w-full" /> : list.data.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-500 dark:border-white/10">
+          <p className="rounded-xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-500">
             No connections yet. A connection can fetch from a REST API on a schedule, or receive files you upload through a mapping.
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-ink-500"><tr>
               <th className="py-1">Connection</th><th>Kind</th><th>Authentication</th><th>Streams</th><th>Health</th><th>Last success</th><th>Last failure</th></tr></thead>
-            <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+            <tbody className="divide-y divide-ink-100">
               {list.data.map((c) => (
                 <tr key={c.id}>
-                  <td className="py-2"><Link href={`/studio/connections/${c.id}`} className="font-medium text-brand-700 hover:underline dark:text-brand-300">{c.name}</Link>
+                  <td className="py-2"><Link href={`/studio/connections/${c.id}`} className="font-medium text-brand-700 hover:underline">{c.name}</Link>
                     <span className="block text-xs text-ink-400">{c.provider === "rest" ? c.base_url : "File uploads"} · {c.environment}{c.status !== "active" ? " · disabled" : ""}</span></td>
                   <td className="text-xs">{c.system_kind.replace("_", " ")}</td>
                   <td className="text-xs">{c.auth_method.replace(/_/g, " ")}</td>
@@ -83,7 +83,7 @@ function Destinations({ canManage }: { canManage: boolean }) {
   };
   return (
     <Card><CardContent className="space-y-3 py-5">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><Globe size={16} /> Allowed destinations</h2>
+      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><Globe size={16} /> Allowed destinations</h2>
       <p className="text-xs text-ink-500">Connections and webhooks can reach only these hosts — over HTTPS, and only at public addresses. Internal networks and cloud metadata addresses are always refused, and redirects are never followed.</p>
       {q.data && !q.data.secret_store.available ? (
         <AlertBanner variant="warning" title="Credentials cannot be stored on this server">{q.data.secret_store.note}</AlertBanner>
@@ -93,7 +93,7 @@ function Destinations({ canManage }: { canManage: boolean }) {
       ) : null}
       <div className="flex flex-wrap gap-2">
         {(q.data?.hosts ?? []).map((h) => (
-          <span key={h.id} className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-2.5 py-1 font-mono text-xs dark:border-white/10">
+          <span key={h.id} className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-2.5 py-1 font-mono text-xs">
             {h.host}{h.note ? <span className="font-sans text-ink-400">· {h.note}</span> : null}
             {canManage ? <button type="button" aria-label={`Remove ${h.host}`} onClick={() => void studioConnApi.removeDestination(h.id).then(refresh)}><Trash2 size={11} /></button> : null}
           </span>
@@ -133,7 +133,7 @@ function NewConnection({ onCancel }: { onCancel: () => void }) {
   };
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
   return (
-    <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4 dark:border-brand-500/30">
+    <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4">
       <div className="grid gap-3 md:grid-cols-4">
         <label className="text-xs font-semibold text-ink-700 md:col-span-2">Name<input className={cn(FIELD, "mt-1")} value={form.name} onChange={set("name")} placeholder="e.g. HRMS production" /></label>
         <label className="text-xs font-semibold text-ink-700">System<select aria-label="System" className={cn(FIELD, "mt-1")} value={form.system_kind} onChange={set("system_kind")}>

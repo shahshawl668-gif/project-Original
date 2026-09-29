@@ -14,7 +14,7 @@ export function WorkflowSteps({ run }: { run: Run }) {
   return (
     <Card><CardContent className="space-y-3 py-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-ink-900 dark:text-white">Steps</h2>
+        <h2 className="text-base font-semibold text-ink-900">Steps</h2>
         <span className="text-xs text-ink-500">
           Triggered by {trigger.type === "manual" ? `hand (${trigger.by ?? "a person"})` : trigger.type === "schedule" ? `schedule (${trigger.slot ?? ""})` : `event ${trigger.event ?? trigger.type}`}
           {wf.period ? ` · month ${wf.period.slice(0, 7)}` : ""} · {String(run.versions?.workflow ?? "")}
@@ -35,7 +35,7 @@ export function WorkflowSteps({ run }: { run: Run }) {
 
 function StepRow({ step }: { step: WorkflowStep }) {
   return (
-    <li className="rounded-xl border border-ink-200 p-3 text-sm dark:border-white/10">
+    <li className="rounded-xl border border-ink-200 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">{step.index + 1}. {step.label}</span>
         <span className="flex items-center gap-2 text-xs text-ink-500">
@@ -44,7 +44,7 @@ function StepRow({ step }: { step: WorkflowStep }) {
           <Badge variant={STEP_VARIANT[step.status] ?? "secondary"}>{step.status}</Badge>
         </span>
       </div>
-      {step.message ? <p className="mt-1 text-xs text-ink-600 dark:text-ink-300">{step.message}</p> : null}
+      {step.message ? <p className="mt-1 text-xs text-ink-600">{step.message}</p> : null}
       {step.ref?.run_id ? <Link className="text-xs text-brand-700 underline" href={`/studio/runs/${step.ref.run_id}`}>Open the run it started</Link> : null}
       {step.ref?.job_id ? <Link className="ml-3 text-xs text-brand-700 underline" href={`/payroll/validation?job=${step.ref.job_id}`}>Open the validation</Link> : null}
     </li>

@@ -127,7 +127,7 @@ export function CompensationView({
       </div>
 
       {data.identity.masked && (
-        <p className="flex items-center gap-2 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-400">
+        <p className="flex items-center gap-2 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600">
           <EyeOff size={13} /> Identities are masked — {data.identity.reason}. The figures are
           unchanged; only who they belong to is withheld.
         </p>
@@ -174,22 +174,22 @@ export function CompensationView({
             ].map((row) => (
               <div key={row.label}>
                 <div className="flex items-baseline justify-between pb-1 text-sm">
-                  <span className="text-ink-700 dark:text-ink-200">{row.label}</span>
-                  <span className="tabular-nums font-medium text-ink-900 dark:text-white">
+                  <span className="text-ink-700">{row.label}</span>
+                  <span className="tabular-nums font-medium text-ink-900">
                     {formatINR(row.value, true)}
-                    <span className="ml-2 text-xs font-normal text-ink-500 dark:text-ink-400">
+                    <span className="ml-2 text-xs font-normal text-ink-500">
                       {row.pct.toFixed(1)}%
                     </span>
                   </span>
                 </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-ink-100 dark:bg-white/[0.08]">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-ink-100">
                   <div className="h-full rounded-full"
                        style={{ width: `${Math.min(100, row.pct)}%`, background: row.color }} />
                 </div>
               </div>
             ))}
             {data.mix.variable === 0 && (
-              <p className="pt-1 text-xs text-ink-500 dark:text-ink-400">
+              <p className="pt-1 text-xs text-ink-500">
                 No variable component is configured, so everything reads as fixed. Configure
                 bonus or incentive components to split this.
               </p>
@@ -256,7 +256,7 @@ export function CompensationView({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
                 <th className="py-2 text-left font-semibold">{data.group_by_label}</th>
                 <th className="py-2 text-right font-semibold">Employees</th>
                 <th className="py-2 text-right font-semibold">Median</th>
@@ -274,37 +274,37 @@ export function CompensationView({
                   key={group.group}
                   onClick={() => onSelectGroup?.(group.group)}
                   className={cn(
-                    "border-b border-ink-100 last:border-0 dark:border-white/5",
-                    onSelectGroup && "cursor-pointer hover:bg-ink-50 dark:hover:bg-white/[0.04]",
+                    "border-b border-ink-100 last:border-0",
+                    onSelectGroup && "cursor-pointer hover:bg-ink-50",
                   )}
                 >
                   <td className="py-2 pr-3">
                     <span className="flex items-center gap-2">
                       <span aria-hidden className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                             style={{ background: palette[index % palette.length] }} />
-                      <span className="text-ink-800 dark:text-ink-100">{group.group}</span>
+                      <span className="text-ink-800">{group.group}</span>
                     </span>
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">{group.count}</td>
-                  <td className="py-2 text-right font-medium text-ink-900 dark:text-white">
+                  <td className="py-2 text-right text-ink-500">{group.count}</td>
+                  <td className="py-2 text-right font-medium text-ink-900">
                     {formatINR(group.median, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-600 dark:text-ink-300">
+                  <td className="py-2 text-right text-ink-600">
                     {formatINR(group.mean, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                  <td className="py-2 text-right text-ink-500">
                     {formatINR(group.p25, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                  <td className="py-2 text-right text-ink-500">
                     {formatINR(group.p75, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                  <td className="py-2 text-right text-ink-500">
                     {formatINR(group.min, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                  <td className="py-2 text-right text-ink-500">
                     {formatINR(group.max, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                  <td className="py-2 text-right text-ink-500">
                     {group.range_ratio ? `${group.range_ratio.toFixed(1)}×` : "—"}
                   </td>
                 </tr>
@@ -325,7 +325,7 @@ export function CompensationView({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
                 <th className="py-2 text-left font-semibold">Employee</th>
                 <th className="py-2 text-left font-semibold">Name</th>
                 <th className="py-2 text-left font-semibold">{data.group_by_label}</th>
@@ -337,19 +337,19 @@ export function CompensationView({
             <tbody className="tabular-nums">
               {data.employees.slice(0, 15).map((employee) => (
                 <tr key={employee.employee_id}
-                    className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                  <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{employee.employee_id}</td>
-                  <td className="py-2 pr-3 text-ink-600 dark:text-ink-300">
+                    className="border-b border-ink-100 last:border-0">
+                  <td className="py-2 pr-3 text-ink-800">{employee.employee_id}</td>
+                  <td className="py-2 pr-3 text-ink-600">
                     {employee.employee_name ?? "—"}
                   </td>
-                  <td className="py-2 pr-3 text-ink-600 dark:text-ink-300">{employee.group}</td>
-                  <td className="py-2 text-right font-medium text-ink-900 dark:text-white">
+                  <td className="py-2 pr-3 text-ink-600">{employee.group}</td>
+                  <td className="py-2 text-right font-medium text-ink-900">
                     {formatINR(employee.annual_ctc, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                  <td className="py-2 text-right text-ink-500">
                     {formatINR(employee.fixed, true)}
                   </td>
-                  <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                  <td className="py-2 text-right text-ink-500">
                     {formatINR(employee.variable, true)}
                   </td>
                 </tr>
@@ -358,7 +358,7 @@ export function CompensationView({
           </table>
         </div>
         {data.employees.length > 15 && (
-          <p className="mt-2 text-xs text-ink-500 dark:text-ink-400">
+          <p className="mt-2 text-xs text-ink-500">
             Showing 15 of {data.employees.length}. The employee-cost report has the full list.
           </p>
         )}

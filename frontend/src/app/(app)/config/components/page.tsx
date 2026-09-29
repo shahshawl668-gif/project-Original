@@ -119,7 +119,7 @@ export default function ComponentsPage() {
     v ? (
       <Badge variant="success">Yes</Badge>
     ) : (
-      <span className="text-xs text-ink-400 dark:text-ink-500">No</span>
+      <span className="text-xs text-ink-400">No</span>
     );
 
   return (
@@ -145,7 +145,7 @@ export default function ComponentsPage() {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="bg-ink-50/80 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
+              <tr className="bg-ink-50/80 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">PF</th>
                 <th className="px-4 py-3">ESIC</th>
@@ -158,21 +158,21 @@ export default function ComponentsPage() {
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+            <tbody className="divide-y divide-ink-100">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-ink-500 dark:text-ink-400">
+                  <td colSpan={10} className="px-4 py-12 text-center text-ink-500">
                     Loading…
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-ink-500 dark:text-ink-400">
+                  <td colSpan={10} className="px-4 py-12 text-center text-ink-500">
                     No components yet — start with{" "}
                     <button
                       type="button"
                       onClick={openCreate}
-                      className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300"
+                      className="font-semibold text-brand-700 hover:text-brand-800"
                     >
                       add component
                     </button>
@@ -183,9 +183,9 @@ export default function ComponentsPage() {
                 rows.map((r) => (
                   <tr
                     key={r.id}
-                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                    className="transition-colors hover:bg-ink-50/60"
                   >
-                    <td className="px-4 py-3 font-semibold text-ink-900 dark:text-white">
+                    <td className="px-4 py-3 font-semibold text-ink-900">
                       {r.component_name}
                     </td>
                     <td className="px-4 py-3">{yesNo(r.pf_applicable)}</td>
@@ -195,20 +195,20 @@ export default function ComponentsPage() {
                     <td className="px-4 py-3">{yesNo(r.bonus_applicable)}</td>
                     <td className="px-4 py-3">{yesNo(r.included_in_wages)}</td>
                     <td className="px-4 py-3">{yesNo(r.taxable)}</td>
-                    <td className="px-4 py-3 text-xs text-ink-500 dark:text-ink-400">
+                    <td className="px-4 py-3 text-xs text-ink-500">
                       {r.tax_exemption_type}
                     </td>
                     <td className="space-x-3 whitespace-nowrap px-4 py-3 text-right">
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 transition-colors hover:text-brand-800"
                         onClick={() => openEdit(r)}
                       >
                         <Pencil size={12} /> Edit
                       </button>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-danger-600 transition-colors hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-danger-600 transition-colors hover:text-danger-700"
                         onClick={() => void remove(r.id)}
                       >
                         <Trash2 size={12} /> Delete
@@ -224,20 +224,20 @@ export default function ComponentsPage() {
 
       <Card>
         <CardContent className="space-y-5 p-6">
-          <h2 className="font-display text-lg font-bold tracking-tight text-ink-900 dark:text-white">
+          <h2 className="font-display text-lg font-bold tracking-tight text-ink-900">
             {editing ? "Edit component" : "New component"}
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Component name">
               <input
-                className="mt-1.5 w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                className="mt-1.5 w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                 value={form.component_name}
                 onChange={(e) => setForm({ ...form, component_name: e.target.value })}
               />
             </Field>
             <Field label="Tax exemption type">
               <input
-                className="mt-1.5 w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500"
+                className="mt-1.5 w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
                 value={form.tax_exemption_type}
                 onChange={(e) => setForm({ ...form, tax_exemption_type: e.target.value })}
                 placeholder="none, HRA, LTA…"
@@ -297,7 +297,7 @@ export default function ComponentsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="font-display text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+      <span className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
         {label}
       </span>
       {children}
@@ -315,7 +315,7 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-ink-200/70 bg-ink-50/40 px-3 py-2 text-sm font-medium text-ink-800 transition-colors hover:bg-ink-100/60 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-200 dark:hover:bg-white/[0.07]">
+    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-ink-200/70 bg-ink-50/40 px-3 py-2 text-sm font-medium text-ink-800 transition-colors hover:bg-ink-100/60">
       <input
         type="checkbox"
         checked={checked}

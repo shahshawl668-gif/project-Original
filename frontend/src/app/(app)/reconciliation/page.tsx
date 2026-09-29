@@ -90,7 +90,7 @@ export default function ReconciliationOverviewPage() {
               href={apiAbsoluteUrl(
                 `/api/reports/bank-jv-reconciliation.xlsx?date_to=${data.period.slice(0, 7)}`,
               )}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50"
             >
               <FileDown size={14} /> Reconciliation pack
             </a>
@@ -174,26 +174,26 @@ export default function ReconciliationOverviewPage() {
 
           <Card>
             <CardContent className="py-5">
-              <h3 className="pb-1 text-base font-semibold text-ink-900 dark:text-white">
+              <h3 className="pb-1 text-base font-semibold text-ink-900">
                 Reconciliations kept
               </h3>
-              <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+              <p className="pb-3 text-xs text-ink-500">
                 A reconciliation is only a control if it leaves a record. Closing one does
                 not erase its exceptions — it records that a named person accepted them.
               </p>
               {data.runs?.length ? (
-                <div className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+                <div className="divide-y divide-ink-200/70">
                   {data.runs.map((run) => (
                     <div
                       key={run.id}
                       className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
                     >
-                      <span className="flex items-center gap-2 text-ink-800 dark:text-ink-100">
+                      <span className="flex items-center gap-2 text-ink-800">
                         <Users size={13} className="text-ink-400" />
                         {run.kind === "bank" ? "Bank payments" : "Journal voucher"} ·{" "}
                         {run.period_label}
                       </span>
-                      <span className="text-xs tabular-nums text-ink-500 dark:text-ink-400">
+                      <span className="text-xs tabular-nums text-ink-500">
                         {run.exception_count} exception(s) ·{" "}
                         {run.state === "closed"
                           ? `closed by ${run.closed_by ?? "—"}`
@@ -203,7 +203,7 @@ export default function ReconciliationOverviewPage() {
                   ))}
                 </div>
               ) : (
-                <p className="py-4 text-sm text-ink-500 dark:text-ink-400">
+                <p className="py-4 text-sm text-ink-500">
                   None kept for this month yet.
                 </p>
               )}
@@ -231,13 +231,13 @@ function StepCard({
   return (
     <Card>
       <CardContent className="space-y-3 py-5">
-        <h3 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white">
+        <h3 className="flex items-center gap-2 text-base font-semibold text-ink-900">
           <Icon size={16} className="text-ink-400" /> {title}
         </h3>
         {children}
         <Link
           href={href}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline dark:text-brand-300"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
         >
           {cta} <ArrowRight size={14} />
         </Link>

@@ -165,7 +165,7 @@ export default function ReportsPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-3 dark:border-white/5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-3">
             <ActiveFilters
               dimensions={dims.data?.dimensions ?? []}
               filters={filters}
@@ -180,14 +180,14 @@ export default function ReportsPage() {
                 "ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
                 masked
                   ? "border-brand-500 bg-brand-600 text-white"
-                  : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-200 dark:hover:bg-white/[0.07]",
+                  : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
               )}
             >
               <EyeOff size={14} />
               {masked ? "Names masked" : "Mask names"}
             </button>
           </div>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
+          <p className="text-xs text-ink-500">
             Masking replaces each name with a stable per-workspace token and initials. The
             figures are unchanged — it is for a report that will be forwarded further than the
             people who may see who earns what.
@@ -218,26 +218,26 @@ export default function ReportsPage() {
         <div className="space-y-7">
           {Array.from(new Set((reports.data?.reports ?? []).map((report) => report.group))).map((group) => (
             <section key={group} aria-label={group}>
-              <h2 className="mb-3 text-base font-semibold text-ink-900 dark:text-white">{group}</h2>
+              <h2 className="mb-3 text-base font-semibold text-ink-900">{group}</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {(reports.data?.reports ?? []).filter((report) => report.group === group).map((report) => (
             <Card key={report.key}>
               <CardContent className="flex h-full flex-col gap-2 py-4">
-                <span className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white">
-                  <FileSpreadsheet size={15} className="text-brand-600 dark:text-brand-400" />
+                <span className="flex items-center gap-2 text-sm font-semibold text-ink-900">
+                  <FileSpreadsheet size={15} className="text-brand-600" />
                   {report.title}
                 </span>
-                <p className="flex-1 text-xs text-ink-500 dark:text-ink-400">
+                <p className="flex-1 text-xs text-ink-500">
                   {report.description}
                 </p>
-                <p className="text-xs text-ink-500 dark:text-ink-400">
+                <p className="text-xs text-ink-500">
                   Required: {report.required_data}. Period: selected range above.
                 </p>
                 <button
                   type="button"
                   onClick={() => download(report)}
                   disabled={busy === report.key}
-                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 disabled:opacity-60 dark:border-white/10 dark:text-ink-200 dark:hover:bg-white/[0.06]"
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 disabled:opacity-60"
                 >
                   {busy === report.key ? (
                     <><Loader2 size={13} className="animate-spin" /> Building…</>

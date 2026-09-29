@@ -54,17 +54,17 @@ export function VersionPanel({ formulas, onChanged, onLoad }: Props) {
   return (
     <Card>
       <CardHeader>
-        <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           History
         </p>
         <CardTitle>Versions</CardTitle>
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+        <p className="text-xs text-ink-500">
           Each save produces a new immutable version. Roll back at any time.
         </p>
       </CardHeader>
       <CardContent className="p-0">
         {formulas.length === 0 ? (
-          <p className="p-6 text-sm text-ink-500 dark:text-ink-400">
+          <p className="p-6 text-sm text-ink-500">
             No versions yet — save your first formula.
           </p>
         ) : (
@@ -80,10 +80,10 @@ export function VersionPanel({ formulas, onChanged, onLoad }: Props) {
             <TableBody>
               {formulas.map((f) => (
                 <TableRow key={f.id}>
-                  <TableCell className="font-display font-semibold text-ink-900 dark:text-white">
+                  <TableCell className="font-display font-semibold text-ink-900">
                     v{f.version}
                   </TableCell>
-                  <TableCell className="text-ink-600 dark:text-ink-300">
+                  <TableCell className="text-ink-600">
                     {new Date(f.created_at).toLocaleString()}
                   </TableCell>
                   <TableCell>
@@ -122,7 +122,7 @@ export function VersionPanel({ formulas, onChanged, onLoad }: Props) {
                       size="sm"
                       onClick={() => handleDelete(f.id)}
                       disabled={busyId === f.id}
-                      className="text-danger-600 hover:text-danger-700 dark:text-danger-400 dark:hover:text-danger-300"
+                      className="text-danger-600 hover:text-danger-700"
                     >
                       Delete
                     </Button>

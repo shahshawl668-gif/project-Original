@@ -1,15 +1,19 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export const Table = ({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
-  <div className="w-full overflow-auto">
-    <table
-      className={cn(
-        "w-full border-collapse text-sm text-ink-700 dark:text-ink-200",
-        className,
-      )}
-      {...props}
-    />
+/**
+ * Table primitives. Headers are sticky inside their scroll container, numbers
+ * are tabular and right-aligned (`numeric`), and the first column can be
+ * pinned (`pin`) so a wide table scrolls sideways without losing whose row it
+ * is. For paged, sortable, selectable tables use `DataTable`.
+ */
+export const Table = ({
+  className,
+  containerClassName,
+  ...props
+}: React.HTMLAttributes<HTMLTableElement> & { containerClassName?: string }) => (
+  <div className={cn("scrollbar-thin w-full overflow-auto", containerClassName)}>
+    <table className={cn("w-full border-separate border-spacing-0 text-[13px] text-ink-700", className)} {...props} />
   </div>
 );
 
@@ -17,45 +21,33 @@ export const TableHeader = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-  <thead
-    className={cn(
-      "bg-ink-50/80 text-ink-500 dark:bg-white/[0.04] dark:text-ink-300",
-      className,
-    )}
-    {...props}
-  />
+  <thead className={cn("[&_th]:sticky [&_th]:top-0 [&_th]:z-10", className)} {...props} />
 );
 
 export const TableBody = ({
   className,
   ...props
-}: React.HTMLAttributes<HTMLTableSectionElement>) => (
-  <tbody
-    className={cn("divide-y divide-ink-100 dark:divide-white/[0.06]", className)}
-    {...props}
-  />
-);
+}: React.HTMLAttributes<HTMLTableSectionElement>) => <tbody className={cn(className)} {...props} />;
 
 export const TableRow = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLTableRowElement>) => (
-  <tr
-    className={cn(
-      "transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]",
-      className,
-    )}
-    {...props}
-  />
+  <tr className={cn("group/row transition-colors duration-fast hover:bg-ink-50/70", className)} {...props} />
 );
 
 export const TableHead = ({
   className,
+  numeric,
+  pin,
   ...props
-}: React.ThHTMLAttributes<HTMLTableCellElement>) => (
+}: React.ThHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean; pin?: boolean }) => (
   <th
+    scope="col"
     className={cn(
-      "h-10 px-3 text-left align-middle text-[11px] font-semibold uppercase tracking-[0.12em]",
+      "h-9 whitespace-nowrap border-b border-ink-200 bg-ink-50 px-3 text-left align-middle text-xs font-medium text-ink-500",
+      numeric && "text-right",
+      pin && "left-0 z-20 [position:sticky]",
       className,
     )}
     {...props}
@@ -64,7 +56,17 @@ export const TableHead = ({
 
 export const TableCell = ({
   className,
+  numeric,
+  pin,
   ...props
-}: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-  <td className={cn("px-3 py-2.5 align-middle text-sm", className)} {...props} />
+}: React.TdHTMLAttributes<HTMLTableCellElement> & { numeric?: boolean; pin?: boolean }) => (
+  <td
+    className={cn(
+      "border-b border-ink-100 px-3 py-2 align-middle",
+      numeric && "num whitespace-nowrap text-right",
+      pin && "sticky left-0 z-[1] bg-white group-hover/row:bg-ink-50",
+      className,
+    )}
+    {...props}
+  />
 );

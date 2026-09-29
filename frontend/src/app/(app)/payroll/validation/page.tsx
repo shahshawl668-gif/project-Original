@@ -128,13 +128,13 @@ function JobProgress({ jobId }: { jobId: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-ink-200/70 bg-white p-6 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
+      <div className="rounded-2xl border border-ink-200/70 bg-white p-6 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-2xs font-semibold uppercase tracking-widest text-ink-500">
+            <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-ink-500">
               {monthLabel(job.period_month)} · job {job.id.slice(0, 8)}
             </p>
-            <h2 className="mt-1 flex items-center gap-2 font-display text-xl font-bold text-ink-900 dark:text-white">
+            <h2 className="mt-1 flex items-center gap-2 font-display text-xl font-bold text-ink-900">
               {job.state === "succeeded" ? (
                 <CheckCircle2 className="text-success-600" size={22} />
               ) : job.state === "failed" ? (
@@ -146,7 +146,7 @@ function JobProgress({ jobId }: { jobId: string }) {
               )}
               {job.cancel_requested && active ? "Stopping…" : job.stage_label}
             </h2>
-            <p className="mt-1 text-sm text-ink-600 dark:text-ink-300" aria-live="polite">
+            <p className="mt-1 text-sm text-ink-600" aria-live="polite">
               {job.employee_total
                 ? `${job.employee_done.toLocaleString("en-IN")} of ${job.employee_total.toLocaleString("en-IN")} employees checked`
                 : "Counting employees…"}
@@ -176,7 +176,7 @@ function JobProgress({ jobId }: { jobId: string }) {
         </div>
 
         <div
-          className="mt-5 h-2.5 w-full overflow-hidden rounded-full bg-ink-100 dark:bg-white/10"
+          className="mt-5 h-2.5 w-full overflow-hidden rounded-full bg-ink-100"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -269,9 +269,9 @@ function RecentJobs() {
     );
   }
   return (
-    <div className="overflow-x-auto rounded-2xl border border-ink-200/70 bg-white shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
+    <div className="overflow-x-auto rounded-2xl border border-ink-200/70 bg-white shadow-soft">
       <table className="w-full text-sm">
-        <thead className="bg-ink-50/80 text-left text-[11px] uppercase tracking-[0.12em] text-ink-500">
+        <thead className="bg-ink-50/80 text-left text-[11px] uppercase tracking-[0.06em] text-ink-500">
           <tr>
             <th className="px-4 py-2.5">Month</th>
             <th className="px-4 py-2.5">Status</th>

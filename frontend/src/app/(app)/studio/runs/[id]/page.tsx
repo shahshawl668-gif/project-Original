@@ -104,7 +104,7 @@ export default function StudioRunPage() {
 
       {r.counts ? (
         <Card><CardContent className="space-y-3 py-5">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Reconciliation</h2>
+          <h2 className="text-base font-semibold text-ink-900">Reconciliation</h2>
           <CountsFunnel counts={r.counts} />
         </CardContent></Card>
       ) : r.status === "queued" || r.status === "running" ? (
@@ -113,7 +113,7 @@ export default function StudioRunPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card><CardContent className="space-y-2 py-5 text-sm">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Source and lineage</h2>
+          <h2 className="text-base font-semibold text-ink-900">Source and lineage</h2>
           <Row k="Source system" v={r.source.system} />
           <Row k="Source object" v={r.source.object} />
           <Row k="Batch id" v={r.source.batch_id} />
@@ -131,7 +131,7 @@ export default function StudioRunPage() {
         </CardContent></Card>
 
         <Card><CardContent className="space-y-2 py-5 text-sm">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">What it led to</h2>
+          <h2 className="text-base font-semibold text-ink-900">What it led to</h2>
           {validationRun ? (
             <p><Link href={`/payroll/results?run=${encodeURIComponent(validationRun)}`} className="font-semibold text-brand-700 underline">Validation results</Link> — findings, coverage and “Why this result?” for this data.</p>
           ) : validationJob ? (
@@ -144,7 +144,7 @@ export default function StudioRunPage() {
           {r.links.ignored_columns?.length ? <p className="text-warning-800">Columns not recognised and ignored: {r.links.ignored_columns.join(", ")}</p> : null}
           {r.links.warnings?.length ? <ul className="list-disc pl-5 text-xs text-ink-600">{r.links.warnings.map((w) => <li key={w}>{w}</li>)}</ul> : null}
           {missing ? (
-            <div className={missing.count ? "rounded-lg border border-warning-200 bg-warning-50 p-2 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100" : "text-xs text-ink-500"}>
+            <div className={missing.count ? "rounded-lg border border-warning-200 bg-warning-50 p-2 text-xs text-warning-900" : "text-xs text-ink-500"}>
               {missing.count
                 ? <><strong>{missing.count} employee(s) stored here were not in this full fetch.</strong> Nothing was removed — the stream reports absences rather than acting on them. Check whether they left: {missing.employee_ids.join(", ")}{missing.count > missing.employee_ids.length ? " …" : ""}</>
                 : "Every employee stored here was in this full fetch."}
@@ -160,7 +160,7 @@ export default function StudioRunPage() {
       {["import", "sync"].includes(r.kind) ? (
         <Card><CardContent className="space-y-3 py-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-ink-900 dark:text-white">Records not stored</h2>
+            <h2 className="text-base font-semibold text-ink-900">Records not stored</h2>
             <select aria-label="Show" className="rounded-lg border border-ink-200 px-2 py-1 text-sm" value={disposition}
               onChange={(e) => { setDisposition(e.target.value as typeof disposition); setPage(1); }}>
               <option value="">Rejected and skipped</option><option value="rejected">Rejected</option><option value="skipped">Skipped</option>
@@ -179,7 +179,7 @@ export default function StudioRunPage() {
                   <tr><th className="py-1 pr-3">Row</th><th className="py-1 pr-3">Employee</th><th className="py-1 pr-3">Outcome</th>
                     <th className="py-1 pr-3">Field</th><th className="py-1 pr-3">Reason</th><th className="py-1 pr-3">Source record</th><th className="py-1" /></tr>
                 </thead>
-                <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+                <tbody className="divide-y divide-ink-100">
                   {rejections.data.items.map((x) => (
                     <tr key={x.id}>
                       <td className="py-1.5 pr-3 tabular-nums">{x.row_number}</td>
@@ -226,7 +226,7 @@ export default function StudioRunPage() {
 
 function Row({ k, v, mono }: { k: string; v: string | null | undefined; mono?: boolean }) {
   return (
-    <p className="flex justify-between gap-3 border-b border-ink-100 py-1 last:border-0 dark:border-white/5">
+    <p className="flex justify-between gap-3 border-b border-ink-100 py-1 last:border-0">
       <span className="text-ink-500">{k}</span>
       <span className={mono ? "break-all text-right font-mono text-xs" : "text-right"}>{v || "—"}</span>
     </p>

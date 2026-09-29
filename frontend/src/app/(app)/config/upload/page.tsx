@@ -127,7 +127,7 @@ function CopyFromCompany() {
 
   return (
     <Card><CardContent className="space-y-4 py-6">
-      <h2 className="text-base font-semibold text-ink-900 dark:text-white">Copy from another company</h2>
+      <h2 className="text-base font-semibold text-ink-900">Copy from another company</h2>
       <p className="text-sm text-ink-600">Bring {entity?.name ?? "this company"} the configuration of a company you already set up. Each section you choose replaces that section here; nothing changes until you have seen the preview. JV templates arrive as drafts.</p>
       {error && <AlertBanner variant="error" title="Not copied">{error}</AlertBanner>}
       {done && <AlertBanner variant="success" title="Copied">{done}</AlertBanner>}

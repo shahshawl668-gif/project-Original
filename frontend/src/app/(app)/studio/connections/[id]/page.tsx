@@ -19,7 +19,7 @@ import { AUTH_LABEL, OBJECT_LABEL, studioConnApi, studioMapApi, type Connection,
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900";
 const MANAGE = new Set(["owner", "manager"]);
 const WRITE = new Set(["owner", "manager", "analyst"]);
 
@@ -76,14 +76,14 @@ export default function ConnectionPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card><CardContent className="space-y-2 py-5 text-sm">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Authentication</h2>
+          <h2 className="text-base font-semibold text-ink-900">Authentication</h2>
           <p>{AUTH_LABEL[c.auth_method] ?? c.auth_method}</p>
           {Object.entries(c.auth_config).filter(([k]) => k !== "extra_headers").map(([k, v]) => <p key={k} className="text-xs"><span className="text-ink-500">{k.replace(/_/g, " ")}:</span> <code>{String(v)}</code></p>)}
           {Object.entries(c.secret_hint).map(([k, v]) => <p key={k} className="text-xs"><span className="text-ink-500">{k.replace(/_/g, " ")}:</span> <code>{v ?? "not set"}</code></p>)}
           {c.oauth ? <p className="text-xs">OAuth: {c.oauth.connected ? `connected, token until ${fmtTime(c.oauth.expires_at)}${c.oauth.has_refresh_token ? ", refreshes itself" : ""}` : "not connected"}</p> : null}
           <p className="text-xs text-ink-500">Credentials last changed {fmtTime(c.secret_updated_at)}. They are stored encrypted and never shown again — only masked.</p>
           {canManage && Object.keys(c.secret_hint).length ? (
-            <div className="space-y-2 border-t border-ink-100 pt-2 dark:border-white/5">
+            <div className="space-y-2 border-t border-ink-100 pt-2">
               <p className="text-xs font-semibold">Rotate credentials</p>
               {Object.keys(c.secret_hint).map((k) => <input key={k} type="password" autoComplete="off" aria-label={`New ${k}`} placeholder={`New ${k.replace(/_/g, " ")}`} className={FIELD} value={creds[k] ?? ""} onChange={(e) => setCreds({ ...creds, [k]: e.target.value })} />)}
               <button type="button" disabled={busy || !Object.values(creds).some(Boolean)} onClick={() => void act(() => studioConnApi.update(c.id, { secrets: creds }), "Credentials replaced").then(() => setCreds({}))} className="rounded-lg border border-brand-300 px-3 py-1.5 text-xs font-semibold text-brand-700 disabled:opacity-40">Replace</button>
@@ -91,19 +91,19 @@ export default function ConnectionPage() {
           ) : null}
         </CardContent></Card>
         <Card><CardContent className="space-y-2 py-5 text-sm">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Health</h2>
+          <h2 className="text-base font-semibold text-ink-900">Health</h2>
           <p>Last test: {fmtTime(c.last_tested_at)} {c.last_test_result ? (c.last_test_result.ok ? "— passed" : `— failed: ${c.last_test_result.message}`) : ""}</p>
           {c.last_test_result?.sample_fields?.length ? <p className="text-xs text-ink-500">Fields seen: {c.last_test_result.sample_fields.join(", ")}</p> : null}
           <p>Last success: {fmtTime(c.last_success_at)}</p>
           <p>Last failure: {fmtTime(c.last_failure_at)}</p>
           <h3 className="pt-2 text-sm font-semibold">Recent syncs</h3>
-          {c.recent_runs?.length ? <ul className="divide-y divide-ink-100 dark:divide-white/5">{c.recent_runs.map((r) => <RunLine key={r.id} run={r} />)}</ul> : <p className="text-xs text-ink-500">None yet.</p>}
+          {c.recent_runs?.length ? <ul className="divide-y divide-ink-100">{c.recent_runs.map((r) => <RunLine key={r.id} run={r} />)}</ul> : <p className="text-xs text-ink-500">None yet.</p>}
         </CardContent></Card>
       </div>
 
       <Card><CardContent className="space-y-3 py-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><h2 className="text-base font-semibold text-ink-900 dark:text-white">Streams</h2>
+          <div><h2 className="text-base font-semibold text-ink-900">Streams</h2>
             <p className="text-xs text-ink-500">Each stream is one kind of record: where it is read from, how it is paged, which mapping reads it, and when it runs.</p></div>
           {canManage && !adding && c.provider === "rest" ? <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white"><Plus size={14} /> Add stream</button> : null}
         </div>
@@ -112,7 +112,7 @@ export default function ConnectionPage() {
         {c.streams.map((s) => editing === s.id ? (
           <StreamForm key={s.id} connection={c} stream={s} onDone={() => { setEditing(null); void refresh(); }} />
         ) : (
-          <div key={s.id} className="rounded-xl border border-ink-200 p-3 text-sm dark:border-white/10">
+          <div key={s.id} className="rounded-xl border border-ink-200 p-3 text-sm">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-semibold">{s.name} <Badge variant="secondary">{OBJECT_LABEL[s.object_type] ?? s.object_type}</Badge> {!s.enabled ? <Badge variant="destructive">off</Badge> : null}</p>
@@ -177,7 +177,7 @@ function StreamForm({ connection, stream, onDone }: { connection: Connection; st
   };
   const matching = (mappings.data ?? []).filter((m) => m.object_type === f.object_type);
   return (
-    <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4 dark:border-brand-500/30">
+    <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4">
       <div className="grid gap-3 md:grid-cols-4">
         <L label="Name"><input className={FIELD} value={f.name} onChange={set("name")} /></L>
         <L label="Records are"><select aria-label="Records are" className={FIELD} value={f.object_type} onChange={set("object_type")}>

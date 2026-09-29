@@ -89,6 +89,27 @@ def suggested_mapping(columns: list[str], component_names: set[str]) -> dict[str
     return mapping
 
 
+def suggestion_basis(columns: list[str], component_names: set[str]) -> dict[str, str]:
+    """
+    How each suggested destination was found: ``exact`` when the header is
+    the field's own name, ``alias`` when it is a known alternative spelling.
+    A screen shows this as the suggestion's confidence — it is the only
+    evidence the suggestion has, so it is the only one worth claiming.
+    """
+    basis: dict[str, str] = {}
+    for source, target in suggested_mapping(columns, component_names).items():
+        basis[source] = "exact" if normalize_col(source) == target else "alias"
+    return basis
+
+
+def required_fields(component_names: set[str], strict: bool = True) -> list[str]:
+    """What an upload must map: Employee ID, and under the strict header check
+    a column for every configured salary component (see ``validate_required_columns``)."""
+    if not strict:
+        return ["employee_id"]
+    return ["employee_id", *sorted({normalize_col(c) for c in component_names})]
+
+
 def check_mapping(
     columns: list[str], mapping: dict[str, str], component_names: set[str]
 ) -> None:

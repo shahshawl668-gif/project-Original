@@ -37,23 +37,23 @@ export function NotificationBell() {
   return (
     <div className="relative" ref={box}>
       <button type="button" aria-label={unread ? `${unread} unread notification(s)` : "Notifications"} onClick={() => setOpen(!open)}
-        className="relative rounded-lg p-2 text-ink-500 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-white/[0.06]">
+        className="relative rounded-lg p-2 text-ink-500 hover:bg-ink-100 hover:text-ink-900">
         <Bell size={18} />
         {unread ? <span className="absolute -right-0.5 -top-0.5 min-w-[1.1rem] rounded-full bg-danger-600 px-1 text-center text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span> : null}
       </button>
       {open ? (
-        <div className="absolute right-0 z-50 mt-2 w-96 max-w-[90vw] rounded-xl border border-ink-200 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-ink-900" role="dialog" aria-label="Notifications">
+        <div className="absolute right-0 z-50 mt-2 w-96 max-w-[90vw] rounded-xl border border-ink-200 bg-white p-2 shadow-xl" role="dialog" aria-label="Notifications">
           <div className="flex items-center justify-between px-2 py-1">
             <span className="text-sm font-semibold">Notifications</span>
             {unread ? <button type="button" className="text-xs text-brand-700 underline" onClick={() => void read()}>Mark all read</button> : null}
           </div>
           {q.data.items.length === 0 ? <p className="px-2 py-4 text-sm text-ink-500">Nothing yet. Workflows send notifications here.</p> : (
-            <ul className="max-h-96 divide-y divide-ink-100 overflow-y-auto dark:divide-white/5">
+            <ul className="max-h-96 divide-y divide-ink-100 overflow-y-auto">
               {q.data.items.map((n) => {
                 const body = (
                   <>
                     <span className="flex items-center gap-2"><span className={cn("h-2 w-2 flex-shrink-0 rounded-full", n.read ? "bg-ink-200" : DOT[n.severity])} />
-                      <span className={cn("text-sm", n.read ? "text-ink-500" : "font-semibold text-ink-900 dark:text-white")}>{n.title}</span></span>
+                      <span className={cn("text-sm", n.read ? "text-ink-500" : "font-semibold text-ink-900")}>{n.title}</span></span>
                     {n.body ? <span className="block pl-4 text-xs text-ink-500">{n.body}</span> : null}
                     <span className="block pl-4 text-[11px] text-ink-400">{n.created_at ? new Date(n.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span>
                   </>

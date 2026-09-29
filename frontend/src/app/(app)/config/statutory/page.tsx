@@ -27,25 +27,25 @@ function Section({ title, icon, children, defaultOpen = true }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
+    <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03]">
       <button
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-ink-50 dark:hover:bg-white/[0.04]"
+        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-ink-50"
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-2">
           {icon}
-          <span className="font-display text-sm font-semibold text-ink-800 dark:text-white">
+          <span className="font-display text-sm font-semibold text-ink-800">
             {title}
           </span>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-ink-400 dark:text-ink-500" />
+          <ChevronUp size={16} className="text-ink-400" />
         ) : (
-          <ChevronDown size={16} className="text-ink-400 dark:text-ink-500" />
+          <ChevronDown size={16} className="text-ink-400" />
         )}
       </button>
       {open && (
-        <div className="border-t border-ink-100 px-5 pb-5 pt-4 dark:border-white/[0.06]">
+        <div className="border-t border-ink-100 px-5 pb-5 pt-4">
           {children}
         </div>
       )}
@@ -56,11 +56,11 @@ function Section({ title, icon, children, defaultOpen = true }: {
 function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+      <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
         {label}
       </label>
       {children}
-      {help && <p className="text-xs text-ink-400 dark:text-ink-500">{help}</p>}
+      {help && <p className="text-xs text-ink-400">{help}</p>}
     </div>
   );
 }
@@ -76,7 +76,7 @@ function NumberInput({ value, onChange, step = "0.0001", min = "0", max = "1" }:
       step={step}
       min={min}
       max={max}
-      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40"
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -90,7 +90,7 @@ function TextInput({ value, onChange, placeholder = "" }: {
       type="text"
       value={value}
       placeholder={placeholder}
-      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-ink-500"
+      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -101,13 +101,13 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
     <button
       onClick={() => onChange(!checked)}
       className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
-        checked ? "text-brand-700 dark:text-brand-300" : "text-ink-500 dark:text-ink-400"
+        checked ? "text-brand-700" : "text-ink-500"
       }`}
     >
       {checked ? (
-        <ToggleRight size={20} className="text-brand-600 dark:text-brand-300" />
+        <ToggleRight size={20} className="text-brand-600" />
       ) : (
-        <ToggleLeft size={20} className="text-ink-400 dark:text-ink-500" />
+        <ToggleLeft size={20} className="text-ink-400" />
       )}
       {label}
     </button>
@@ -130,7 +130,7 @@ function TagInput({ values, onChange, placeholder }: {
       {values.map((v) => (
         <span
           key={v}
-          className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+          className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700"
         >
           {v}
           <button onClick={() => onChange(values.filter((x) => x !== v))}>
@@ -139,7 +139,7 @@ function TagInput({ values, onChange, placeholder }: {
         </span>
       ))}
       <input
-        className="min-w-24 rounded border border-dashed border-ink-300 px-2 py-0.5 text-sm transition-colors focus:border-brand-400 focus:outline-none dark:border-white/15 dark:bg-transparent dark:text-white dark:focus:border-brand-400"
+        className="min-w-24 rounded border border-dashed border-ink-300 px-2 py-0.5 text-sm transition-colors focus:border-brand-400 focus:outline-none"
         placeholder={placeholder || "Add…"}
         value={input}
         onChange={(e) => setInput(e.target.value)}
@@ -150,7 +150,7 @@ function TagInput({ values, onChange, placeholder }: {
           }
         }}
       />
-      <button onClick={add} className="text-brand-600 hover:text-brand-800 dark:text-brand-300">
+      <button onClick={add} className="text-brand-600 hover:text-brand-800">
         <Plus size={14} />
       </button>
     </div>
@@ -180,7 +180,7 @@ function ExprTester({ expression, sampleCtx }: { expression: string; sampleCtx: 
       <button
         onClick={run}
         disabled={running}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-50 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:opacity-50"
       >
         <Beaker size={12} /> {running ? "Testing…" : "Test expression"}
       </button>
@@ -188,8 +188,8 @@ function ExprTester({ expression, sampleCtx }: { expression: string; sampleCtx: 
         <span
           className={`font-mono text-xs ${
             result.startsWith("✓")
-              ? "text-success-700 dark:text-success-300"
-              : "text-danger-600 dark:text-danger-300"
+              ? "text-success-700"
+              : "text-danger-600"
           }`}
         >
           {result}
@@ -212,7 +212,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
     <div className="space-y-5">
       {/* Rates */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           Contribution rates
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -228,7 +228,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Wage */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           PF wage computation
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -269,13 +269,13 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Above-ceiling mode */}
       <div>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           Above-ceiling contributions
         </p>
         <select
           value={cfg.above_ceiling_mode}
           onChange={(e) => set("above_ceiling_mode", e.target.value as PFConfig["above_ceiling_mode"])}
-          className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+          className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40"
         >
           <option value="none">None — always cap at ceiling</option>
           <option value="employee_choice">Employee choice — voluntary above ceiling</option>
@@ -285,7 +285,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Voluntary PF */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           Voluntary PF
         </p>
         <Toggle
@@ -304,7 +304,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Eligibility */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           PF eligibility
         </p>
         <div className="space-y-3">
@@ -334,7 +334,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
     <div className="space-y-5">
       {/* Rates */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           Contribution rates
         </p>
         <div className="grid max-w-xs grid-cols-2 gap-3">
@@ -349,7 +349,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
 
       {/* Wage */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           ESIC wage computation
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -378,14 +378,14 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
 
       {/* Rounding */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           Rounding
         </p>
         <div className="flex items-center gap-4">
           {(["up", "down", "nearest"] as const).map((m) => (
             <label
               key={m}
-              className="flex cursor-pointer items-center gap-2 text-sm text-ink-700 dark:text-ink-200"
+              className="flex cursor-pointer items-center gap-2 text-sm text-ink-700"
             >
               <input
                 type="radio"
@@ -411,7 +411,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
 
       {/* Eligibility */}
       <div>
-        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-300">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
           Eligibility & entry/exit
         </p>
         <div className="space-y-3">
@@ -447,14 +447,14 @@ function ComponentMappingPanel({ cfg, onChange }: {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-ink-500 dark:text-ink-400">
+      <p className="text-sm text-ink-500">
         Define aliases for upload columns and override component flags without changing ComponentConfig.
       </p>
 
-      <div className="overflow-x-auto rounded-xl border border-ink-200/70 dark:border-white/10">
+      <div className="overflow-x-auto rounded-xl border border-ink-200/70">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-ink-50/80 text-[11px] uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
+            <tr className="bg-ink-50/80 text-[11px] uppercase tracking-[0.06em] text-ink-500">
               {["Upload column", "Component name", "PF", "ESIC", "In wages", "Taxable", ""].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-semibold">
                   {h}
@@ -462,15 +462,15 @@ function ComponentMappingPanel({ cfg, onChange }: {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+          <tbody className="divide-y divide-ink-100">
             {cfg.entries.map((e, i) => (
-              <tr key={i} className="hover:bg-ink-50/40 dark:hover:bg-white/[0.03]">
+              <tr key={i} className="hover:bg-ink-50/40">
                 <td className="px-3 py-2">
                   <input
                     type="text"
                     value={e.upload_column}
                     placeholder="column_name"
-                    className="w-28 rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                    className="w-28 rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-900"
                     onChange={(ev) => updateEntry(i, "upload_column", ev.target.value)}
                   />
                 </td>
@@ -479,7 +479,7 @@ function ComponentMappingPanel({ cfg, onChange }: {
                     type="text"
                     value={e.component_name}
                     placeholder="Component"
-                    className="w-28 rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                    className="w-28 rounded border border-ink-200 bg-white px-2 py-1 text-xs text-ink-900"
                     onChange={(ev) => updateEntry(i, "component_name", ev.target.value)}
                   />
                 </td>
@@ -498,7 +498,7 @@ function ComponentMappingPanel({ cfg, onChange }: {
                 <td className="px-3 py-2">
                   <button
                     onClick={() => removeEntry(i)}
-                    className="text-danger-400 transition-colors hover:text-danger-600 dark:text-danger-400 dark:hover:text-danger-300"
+                    className="text-danger-400 transition-colors hover:text-danger-600"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -511,7 +511,7 @@ function ComponentMappingPanel({ cfg, onChange }: {
 
       <button
         onClick={addEntry}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50 dark:border-brand-500/30 dark:text-brand-300 dark:hover:bg-brand-500/15"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 px-3 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50"
       >
         <Plus size={12} /> Add alias
       </button>
@@ -613,7 +613,7 @@ export default function StatutoryConfigPage() {
             Tenant-scoped PF & ESIC engine: rates, wage rules, rounding, eligibility expressions, and upload
             column overrides.
             {updatedAt ? (
-              <span className="mt-2 block text-xs font-medium uppercase tracking-wide text-ink-400 dark:text-ink-500">
+              <span className="mt-2 block text-xs font-medium uppercase tracking-wide text-ink-400">
                 Last saved · {new Date(updatedAt).toLocaleString("en-IN")}
               </span>
             ) : null}
@@ -672,10 +672,10 @@ export default function StatutoryConfigPage() {
           ].map((s) => (
             <div
               key={s.label}
-              className="rounded-lg border border-brand-200/60 bg-brand-50 px-3 py-1.5 text-xs dark:border-brand-500/30 dark:bg-brand-500/10"
+              className="rounded-lg border border-brand-200/60 bg-brand-50 px-3 py-1.5 text-xs"
             >
-              <span className="text-brand-700 dark:text-brand-300">{s.label}: </span>
-              <span className="font-semibold text-brand-900 dark:text-brand-100">{s.val}</span>
+              <span className="text-brand-700">{s.label}: </span>
+              <span className="font-semibold text-brand-900">{s.val}</span>
             </div>
           ))}
         </div>
@@ -685,7 +685,7 @@ export default function StatutoryConfigPage() {
       {/* ESIC */}
       <Section
         title="Employee State Insurance (ESIC)"
-        icon={<Shield size={16} className="text-success-500 dark:text-success-400" />}
+        icon={<Shield size={16} className="text-success-500" />}
       >
         <div className="mb-5 flex flex-wrap gap-2">
           {[
@@ -699,10 +699,10 @@ export default function StatutoryConfigPage() {
           ].map((s) => (
             <div
               key={s.label}
-              className="rounded-lg border border-success-200/60 bg-success-50 px-3 py-1.5 text-xs dark:border-success-500/30 dark:bg-success-500/10"
+              className="rounded-lg border border-success-200/60 bg-success-50 px-3 py-1.5 text-xs"
             >
-              <span className="text-success-700 dark:text-success-300">{s.label}: </span>
-              <span className="font-semibold text-success-800 dark:text-success-100">{s.val}</span>
+              <span className="text-success-700">{s.label}: </span>
+              <span className="font-semibold text-success-800">{s.val}</span>
             </div>
           ))}
         </div>
@@ -712,7 +712,7 @@ export default function StatutoryConfigPage() {
       {/* Component mapping */}
       <Section
         title="Component mapping overrides"
-        icon={<Settings2 size={16} className="text-ink-500 dark:text-ink-300" />}
+        icon={<Settings2 size={16} className="text-ink-500" />}
         defaultOpen={false}
       >
         <ComponentMappingPanel

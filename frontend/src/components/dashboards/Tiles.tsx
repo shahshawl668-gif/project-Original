@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 const COLORS = ["#0284c7", "#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316"];
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900";
 
 /** One tile: asks its question now, and shows the answer with what it rests on. */
 export function TileView({ tile, period, onEdit, onRemove }: {
@@ -33,11 +33,11 @@ export function TileView({ tile, period, onEdit, onRemove }: {
   });
   const r = q.data;
   return (
-    <div className={cn("flex flex-col rounded-2xl border border-ink-200/70 bg-white p-4 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70",
+    <div className={cn("flex flex-col rounded-2xl border border-ink-200/70 bg-white p-4 shadow-soft",
       tile.chart === "kpi" ? "min-h-[9rem]" : "min-h-[18rem]")}>
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-ink-900 dark:text-white">{tile.title}</h3>
+          <h3 className="truncate text-sm font-semibold text-ink-900">{tile.title}</h3>
           {r ? (
             <p className="truncate text-[11px] text-ink-500" title={r.metric.definition}>
               {r.metric.label} · {r.breakdown.key !== "period" || tile.chart !== "kpi" ? `by ${r.breakdown.label.toLowerCase()} · ` : ""}{r.period.label}
@@ -71,7 +71,7 @@ function Answer({ r, chart }: { r: QueryResult; chart: Chart }) {
   if (chart === "kpi") {
     return (
       <div>
-        <p className="font-display text-3xl font-bold tabular-nums text-ink-900 dark:text-white">{formatValue(r.total, unit)}</p>
+        <p className="font-display text-3xl font-bold tabular-nums text-ink-900">{formatValue(r.total, unit)}</p>
         {r.total === null && r.status === "ok" ? <p className="text-xs text-ink-500">Could not be computed from the data present.</p> : null}
         {r.note ? <p className="mt-1 text-xs text-ink-500">{r.note}</p> : null}
       </div>
@@ -85,11 +85,11 @@ function Answer({ r, chart }: { r: QueryResult; chart: Chart }) {
         <table className="w-full text-sm">
           <tbody>
             {r.rows.map((row) => (
-              <tr key={row.key} className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                <td className="py-1.5 pr-2 text-ink-700 dark:text-ink-200">
+              <tr key={row.key} className="border-b border-ink-100 last:border-0">
+                <td className="py-1.5 pr-2 text-ink-700">
                   {row.drill ? <Link href={row.drill} className="inline-flex items-center gap-1 hover:underline">{row.label} <ArrowUpRight size={11} /></Link> : row.label}
                 </td>
-                <td className="py-1.5 text-right tabular-nums text-ink-900 dark:text-white">{formatValue(row.value, unit)}</td>
+                <td className="py-1.5 text-right tabular-nums text-ink-900">{formatValue(row.value, unit)}</td>
               </tr>
             ))}
             {r.total !== null ? (
@@ -150,11 +150,11 @@ function BasisLine({ r }: { r: QueryResult }) {
   const warn = !!b && (b.missing_months.length > 0 || b.unvalidated_months > 0);
   const firstDrill = r.rows.find((row) => row.drill)?.drill;
   return (
-    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-2 text-[11px] dark:border-white/5">
-      <span className={warn ? "font-semibold text-warning-800 dark:text-warning-300" : "text-ink-400"}>
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 pt-2 text-[11px]">
+      <span className={warn ? "font-semibold text-warning-800" : "text-ink-400"}>
         {parts.length ? parts.join(" · ") : r.dataset.source}
       </span>
-      {firstDrill ? <Link href={firstDrill} className="inline-flex items-center gap-0.5 font-semibold text-brand-700 hover:underline dark:text-brand-300">Open <ArrowUpRight size={11} /></Link> : null}
+      {firstDrill ? <Link href={firstDrill} className="inline-flex items-center gap-0.5 font-semibold text-brand-700 hover:underline">Open <ArrowUpRight size={11} /></Link> : null}
     </div>
   );
 }
@@ -181,10 +181,10 @@ export function TileBuilder({ catalogue, initial, onSave, onCancel }: {
   const metricLabel = tile.kpi_id
     ? kpis.find((k) => k.id === tile.kpi_id)?.name
     : ds.metrics.find((m) => m.key === tile.metric)?.label;
-  const step = "space-y-1 rounded-xl border border-ink-200 p-3 dark:border-white/10";
+  const step = "space-y-1 rounded-xl border border-ink-200 p-3";
 
   return (
-    <div className="space-y-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-500/30 dark:bg-brand-500/5">
+    <div className="space-y-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <div className={step}>
           <p className="text-xs font-semibold text-ink-700">1 · Dataset</p>
@@ -226,7 +226,7 @@ export function TileBuilder({ catalogue, initial, onSave, onCancel }: {
           <div className="flex flex-wrap gap-1.5">
             {catalogue.charts.map((c) => (
               <button key={c} type="button" onClick={() => set({ chart: c })} aria-pressed={tile.chart === c}
-                className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold", tile.chart === c ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "bg-white text-ink-600 ring-1 ring-ink-200")}>
+                className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold", tile.chart === c ? "bg-ink-900 text-white" : "bg-white text-ink-600 ring-1 ring-ink-200")}>
                 {c === "kpi" ? "Single figure" : c[0].toUpperCase() + c.slice(1)}
               </button>
             ))}
@@ -262,7 +262,7 @@ export function TileBuilder({ catalogue, initial, onSave, onCancel }: {
           className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Save tile</button>
         <button type="button" onClick={onCancel} className="px-3 py-2 text-sm text-ink-600">Cancel</button>
       </div>
-      <div className="rounded-xl bg-white p-2 dark:bg-transparent">
+      <div className="rounded-xl bg-white p-2">
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Preview</p>
         <TileView tile={{ ...tile, title: tile.title || metricLabel || "Preview" }} period={{ preset: "last_6" }} />
       </div>

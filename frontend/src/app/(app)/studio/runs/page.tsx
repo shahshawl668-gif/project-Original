@@ -14,7 +14,7 @@ import { OBJECT_LABEL, STATUS_LABEL, runTitle, studioApi, type RunStatus } from 
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900";
 
 export default function StudioRunsPage() {
   return <Suspense fallback={<Skeleton className="h-96 w-full rounded-2xl" />}><Runs /></Suspense>;
@@ -73,22 +73,22 @@ function Runs() {
 
       {q.error ? <AlertBanner variant="error" title="Could not load run history">{(q.error as Error).message}</AlertBanner> : null}
       {!q.data ? <Skeleton className="h-64 w-full rounded-2xl" /> : q.data.items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-ink-200 px-6 py-12 text-center text-sm text-ink-500 dark:border-white/10">
+        <div className="rounded-2xl border border-dashed border-ink-200 px-6 py-12 text-center text-sm text-ink-500">
           No runs match. Runs appear here when a system sends data through the integration API — see the <Link href="/studio/api" className="font-semibold text-brand-700 underline">API Centre</Link>.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-ink-200 dark:border-white/10">
+        <div className="overflow-x-auto rounded-2xl border border-ink-200">
           <table className="w-full text-sm">
-            <thead className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500 dark:bg-white/[0.03]">
+            <thead className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
               <tr><th className="px-3 py-2">Queued</th><th className="px-3 py-2">Run</th><th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Started by</th><th className="px-3 py-2">Source / batch</th>
                 <th className="px-3 py-2 text-right">Received</th><th className="px-3 py-2 text-right">Accepted</th><th className="px-3 py-2 text-right">Rejected</th></tr>
             </thead>
-            <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+            <tbody className="divide-y divide-ink-100">
               {q.data.items.map((r) => (
-                <tr key={r.id} className="hover:bg-ink-50/60 dark:hover:bg-white/[0.02]">
+                <tr key={r.id} className="hover:bg-ink-50/60">
                   <td className="whitespace-nowrap px-3 py-2 text-ink-600">{fmtTime(r.queued_at)}</td>
-                  <td className="px-3 py-2"><Link href={`/studio/runs/${r.id}`} className="font-medium text-brand-700 hover:underline dark:text-brand-300">{runTitle(r)}</Link>
+                  <td className="px-3 py-2"><Link href={`/studio/runs/${r.id}`} className="font-medium text-brand-700 hover:underline">{runTitle(r)}</Link>
                     <span className="block text-[11px] text-ink-400">{r.period_month ? `for ${r.period_month.slice(0, 7)}` : r.effective_from ? `from ${r.effective_from}` : ""} {r.trigger !== "api" ? `· ${r.trigger}` : ""}</span></td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                   <td className="px-3 py-2 text-xs text-ink-600">{r.actor.type === "machine" ? "🔑 " : ""}{r.actor.label}</td>

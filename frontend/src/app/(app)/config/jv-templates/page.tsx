@@ -178,14 +178,14 @@ export default function JvTemplatesPage() {
         <Card>
           <CardContent className="py-5">
             <div className="flex items-center justify-between pb-3">
-              <h3 className="text-sm font-semibold text-ink-900 dark:text-white">Templates</h3>
+              <h3 className="text-sm font-semibold text-ink-900">Templates</h3>
               <button
                 type="button"
                 onClick={() => {
                   setDraft(BLANK);
                   setEditingId(null);
                 }}
-                className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline dark:text-brand-300"
+                className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
               >
                 <Plus size={12} /> New
               </button>
@@ -197,10 +197,10 @@ export default function JvTemplatesPage() {
                     <button
                       type="button"
                       onClick={() => void edit(template)}
-                      className={`min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-ink-50 dark:hover:bg-ink-800 ${
+                      className={`min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-ink-50 ${
                         template.id === editingId
-                          ? "font-semibold text-brand-600 dark:text-brand-300"
-                          : "text-ink-700 dark:text-ink-200"
+                          ? "font-semibold text-brand-600"
+                          : "text-ink-700"
                       }`}
                     >
                       <span className="block truncate">{template.name}</span>
@@ -223,10 +223,10 @@ export default function JvTemplatesPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-ink-500 dark:text-ink-400">None yet.</p>
+              <p className="text-xs text-ink-500">None yet.</p>
             )}
 
-            <h3 className="pb-2 pt-5 text-sm font-semibold text-ink-900 dark:text-white">
+            <h3 className="pb-2 pt-5 text-sm font-semibold text-ink-900">
               Start from
             </h3>
             <div className="space-y-1">
@@ -256,17 +256,17 @@ export default function JvTemplatesPage() {
                     setEditingId(null);
                     setSaved(null);
                   }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-ink-800"
+                  className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-ink-700 transition hover:bg-ink-50"
                 >
                   {preset.name}
-                  <span className="block text-[11px] text-ink-500 dark:text-ink-400">
+                  <span className="block text-[11px] text-ink-500">
                     {preset.rule_count} rules
                   </span>
                 </button>
               ))}
             </div>
             {presets?.caveat && (
-              <p className="pt-3 text-[11px] leading-relaxed text-warning-700 dark:text-warning-300">
+              <p className="pt-3 text-[11px] leading-relaxed text-warning-700">
                 {presets.caveat}
               </p>
             )}
@@ -389,10 +389,10 @@ export default function JvTemplatesPage() {
             <CardContent className="py-5">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
                 <div>
-                  <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+                  <h3 className="text-base font-semibold text-ink-900">
                     Posting rules
                   </h3>
-                  <p className="text-xs text-ink-500 dark:text-ink-400">
+                  <p className="text-xs text-ink-500">
                     Each line maps cost measures to one account. A correct mapping balances
                     by arithmetic — debits are gross plus employer cost, credits are the
                     liabilities plus net.
@@ -418,14 +418,14 @@ export default function JvTemplatesPage() {
                       ],
                     }))
                   }
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50"
                 >
                   <Plus size={14} /> Add a line
                 </button>
               </div>
 
               {draft.rules.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500 dark:text-ink-400">
+                <p className="py-6 text-center text-sm text-ink-500">
                   No rules yet. Start from a supplied template on the left, then change the
                   account codes to your own.
                 </p>
@@ -434,7 +434,7 @@ export default function JvTemplatesPage() {
                   {draft.rules.map((rule, index) => (
                     <div
                       key={index}
-                      className="rounded-xl border border-ink-200/70 p-3 dark:border-ink-700/60"
+                      className="rounded-xl border border-ink-200/70 p-3"
                     >
                       <div className="flex flex-wrap items-end gap-2">
                         <GripVertical size={14} className="mb-2.5 text-ink-300" />
@@ -505,7 +505,7 @@ export default function JvTemplatesPage() {
                                 className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
                                   on
                                     ? "bg-brand-600 text-white"
-                                    : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-ink-800 dark:text-ink-300 dark:hover:bg-ink-700"
+                                    : "bg-ink-100 text-ink-600 hover:bg-ink-200"
                                 }`}
                               >
                                 {measure.label}
@@ -540,7 +540,7 @@ export default function JvTemplatesPage() {
                     type="button"
                     onClick={() => approve.mutate(editingId)}
                     disabled={approve.isPending}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50"
                   >
                     {approve.isPending ? (
                       <Loader2 size={14} className="animate-spin" />
@@ -550,7 +550,7 @@ export default function JvTemplatesPage() {
                     Approve as the current mapping
                   </button>
                 )}
-                <p className="text-xs text-ink-500 dark:text-ink-400">
+                <p className="text-xs text-ink-500">
                   Editing an approved template withdraws its approval — the mapping that
                   posts to the ledger is re-approved when it changes.
                 </p>
@@ -587,8 +587,8 @@ function Coverage({
   if (!base.length) return null;
 
   return (
-    <div className="mt-4 rounded-xl border border-ink-200/70 px-4 py-3 dark:border-ink-700/60">
-      <p className="pb-2 text-xs font-semibold text-ink-700 dark:text-ink-200">
+    <div className="mt-4 rounded-xl border border-ink-200/70 px-4 py-3">
+      <p className="pb-2 text-xs font-semibold text-ink-700">
         {missing.length === 0
           ? "Every part of payroll cost is mapped to an account."
           : `${missing.length} part(s) of payroll cost have no account yet.`}
@@ -599,8 +599,8 @@ function Coverage({
             key={measure.key}
             className={`rounded-full px-2 py-0.5 text-[11px] ${
               covered.has(measure.key)
-                ? "bg-success-500/10 text-success-700 dark:text-success-300"
-                : "bg-danger-500/10 text-danger-700 dark:text-danger-300"
+                ? "bg-success-500/10 text-success-700"
+                : "bg-danger-500/10 text-danger-700"
             }`}
           >
             {measure.label}
@@ -608,7 +608,7 @@ function Coverage({
         ))}
       </div>
       {missing.length > 0 && (
-        <p className="pt-2 text-[11px] text-ink-500 dark:text-ink-400">
+        <p className="pt-2 text-[11px] text-ink-500">
           An unmapped measure is missing from the voucher entirely, and the voucher will not
           balance by exactly that amount.
         </p>
@@ -618,7 +618,7 @@ function Coverage({
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 dark:border-ink-700 dark:bg-ink-900 dark:text-white";
+  "h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400";
 
 function Field({
   label,
@@ -635,7 +635,7 @@ function Field({
         {label}
       </span>
       {children}
-      {hint && <p className="pt-1 text-[11px] text-ink-500 dark:text-ink-400">{hint}</p>}
+      {hint && <p className="pt-1 text-[11px] text-ink-500">{hint}</p>}
     </div>
   );
 }

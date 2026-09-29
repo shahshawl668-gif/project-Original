@@ -90,7 +90,7 @@ function InviteInner() {
     return (
       <AuthShell>
         <div className="animate-fade-up">
-          <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-danger-600">
+          <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-danger-600">
             <AlertTriangle size={13} /> Invitation
           </span>
           <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-ink-900">
@@ -128,7 +128,7 @@ function InviteInner() {
   return (
     <AuthShell>
       <div className="animate-fade-up">
-        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-600">
           You have been invited
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">

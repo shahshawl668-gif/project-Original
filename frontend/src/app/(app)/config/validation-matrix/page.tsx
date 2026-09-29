@@ -76,10 +76,10 @@ export default function ValidationMatrixPage() {
       <RulePacks entityId={entity?.id} canChange={canDraft} />
 
       <Card><CardContent className="space-y-3 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold text-ink-900 dark:text-white">Individual built-in checks</h2><p className="text-xs text-ink-500">{catalogData?.built_in_rules.length ?? 0} implemented checks · enabled by default. A disabled check reports “Disabled” in every run; it does not change statutory calculations.</p></div><input aria-label="Search validation checks" className={`max-w-xs ${INPUT}`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search rule, topic or ID" /></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold text-ink-900">Individual built-in checks</h2><p className="text-xs text-ink-500">{catalogData?.built_in_rules.length ?? 0} implemented checks · enabled by default. A disabled check reports “Disabled” in every run; it does not change statutory calculations.</p></div><input aria-label="Search validation checks" className={`max-w-xs ${INPUT}`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search rule, topic or ID" /></div>
         {preferences.isError && <AlertBanner variant="error" title="Could not load rule settings">Refresh before changing a check.</AlertBanner>}
-        <div className="max-h-[20rem] divide-y divide-ink-200 overflow-auto dark:divide-white/10">
-          {displayedRules.map((item) => <div key={item.rule_id} className="flex items-center justify-between gap-3 py-2"><div><p className="text-sm font-semibold text-ink-900 dark:text-white">{item.name} <span className="font-mono text-xs font-normal text-ink-500">{item.rule_id}</span></p><p className="text-xs text-ink-500">{item.family}</p></div><label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-700"><input type="checkbox" checked={!disabledRules.has(item.rule_id)} disabled={!canDraft || preferences.isPending || preferences.isError || toggle.isPending} onChange={(event) => toggle.mutate({ rule_id: item.rule_id, enabled: event.target.checked })} /> Enabled</label></div>)}
+        <div className="max-h-[20rem] divide-y divide-ink-200 overflow-auto">
+          {displayedRules.map((item) => <div key={item.rule_id} className="flex items-center justify-between gap-3 py-2"><div><p className="text-sm font-semibold text-ink-900">{item.name} <span className="font-mono text-xs font-normal text-ink-500">{item.rule_id}</span></p><p className="text-xs text-ink-500">{item.family}</p></div><label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-ink-700"><input type="checkbox" checked={!disabledRules.has(item.rule_id)} disabled={!canDraft || preferences.isPending || preferences.isError || toggle.isPending} onChange={(event) => toggle.mutate({ rule_id: item.rule_id, enabled: event.target.checked })} /> Enabled</label></div>)}
           {catalogData && displayedRules.length === 0 && <p className="py-4 text-sm text-ink-500">No matching checks.</p>}
         </div>
       </CardContent></Card>
@@ -174,11 +174,11 @@ function RuleEditor({ catalog, templates, onCreated }: {
   return (
     <Card><CardContent className="space-y-4 py-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><Plus size={17} /> Draft a company rule</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><Plus size={17} /> Draft a company rule</h2>
         <div className="inline-flex rounded-lg border border-ink-200 p-0.5 text-xs font-semibold" role="tablist" aria-label="Editor mode">
           {(["basic", "advanced"] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
-              className={cn("rounded-md px-3 py-1.5", mode === m ? "bg-ink-900 text-white dark:bg-white dark:text-ink-900" : "text-ink-600")}>
+              className={cn("rounded-md px-3 py-1.5", mode === m ? "bg-ink-900 text-white" : "text-ink-600")}>
               {m === "basic" ? "Basic" : "Advanced"}
             </button>
           ))}
@@ -190,13 +190,13 @@ function RuleEditor({ catalog, templates, onCreated }: {
           : "Nested AND/OR groups, calculations, last month's values, the employee master, narrowing by department or other dimensions, and what to do when an input is missing."}
       </p>
       {templates.length ? (
-        <div className="space-y-2 rounded-xl border border-brand-100 bg-brand-50 p-3 dark:border-brand-500/20 dark:bg-brand-500/5">
-          <p className="text-xs font-semibold text-ink-800 dark:text-ink-100">Start from a template</p>
+        <div className="space-y-2 rounded-xl border border-brand-100 bg-brand-50 p-3">
+          <p className="text-xs font-semibold text-ink-800">Start from a template</p>
           <div className="flex flex-wrap gap-2">
             {templates.map((t) => (
               <button key={t.key} type="button" disabled={!t.available} onClick={() => applyTemplate(t)}
                 title={t.available ? t.label : `Needs the component(s): ${t.missing_components.join(", ")}`}
-                className="rounded-lg border border-brand-200 bg-white px-2 py-1 text-xs font-semibold text-brand-700 disabled:opacity-40 dark:bg-transparent">
+                className="rounded-lg border border-brand-200 bg-white px-2 py-1 text-xs font-semibold text-brand-700 disabled:opacity-40">
                 {t.label}
               </button>
             ))}
@@ -242,7 +242,7 @@ function RuleEditor({ catalog, templates, onCreated }: {
               )}
             </div>
             {group ? <GroupEditor value={group} onChange={setGroup} catalog={catalog} /> : <p className="text-xs text-ink-500">Applies to every employee in scope.</p>}
-            <div className="space-y-2 rounded-xl border border-ink-200 p-3 dark:border-white/10">
+            <div className="space-y-2 rounded-xl border border-ink-200 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink-700">Only for (optional)</span>
                 <button type="button" onClick={() => setApplies([...applies, { dim: catalog.dimensions[0], values: "" }])} className="text-xs font-semibold text-brand-700">Add a dimension</button>
@@ -340,7 +340,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
     <Card><CardContent className="space-y-4 py-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Company rules and their versions</h2>
+          <h2 className="text-base font-semibold text-ink-900">Company rules and their versions</h2>
           <p className="text-xs text-ink-500">A version is never edited. Change a rule by drafting its next version; bring an old one back by rolling back to it; stop one by retiring it from a date — months before that keep it.</p>
         </div>
         <label className="text-xs font-semibold text-ink-700">Test against month<input type="month" className={`mt-1 ${INPUT}`} value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
@@ -348,7 +348,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
       {byKey.length === 0 ? <p className="text-sm text-ink-500">No company rules yet. Built-in validation still runs.</p> : null}
 
       {selected.length ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-ink-50 p-2 text-xs dark:bg-white/[0.04]">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-ink-50 p-2 text-xs">
           <strong>{selected.length} selected</strong>
           <button type="button" disabled={selected.length !== 2 || busy} className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-2 py-1 font-semibold disabled:opacity-40"
             onClick={async () => { try { setDiff(await matrixApi.compare(selected[0], selected[1])); } catch (e) { toast.error(e instanceof Error ? e.message : "Compare failed"); } }}>
@@ -358,11 +358,11 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
         </div>
       ) : null}
       {diff ? (
-        <div className="rounded-lg border border-ink-200 p-3 text-xs dark:border-white/10">
+        <div className="rounded-lg border border-ink-200 p-3 text-xs">
           <p className="mb-2 font-semibold">{diff.a.rule_key} v{diff.a.version} → {diff.b.rule_key} v{diff.b.version}: {diff.changes.length} difference(s)</p>
           <table className="w-full"><tbody>
             {diff.changes.map((c) => (
-              <tr key={c.field} className="border-t border-ink-100 align-top dark:border-white/5">
+              <tr key={c.field} className="border-t border-ink-100 align-top">
                 <td className="py-1 pr-3 font-semibold">{c.field.replaceAll("_", " ")}</td>
                 <td className="py-1 pr-3 text-danger-700">{render(c.field, c.a)}</td>
                 <td className="py-1 text-success-700">{render(c.field, c.b)}</td>
@@ -372,10 +372,10 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
         </div>
       ) : null}
 
-      <div className="divide-y divide-ink-200 dark:divide-white/10">
+      <div className="divide-y divide-ink-200">
         {byKey.map(([key, versions]) => (
           <div key={key} className="py-3">
-            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white">
+            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900">
               <History size={14} className="text-ink-400" /> {key}
               {disabledRules.has(key) ? <span className="rounded bg-ink-200 px-1 text-[10px] uppercase text-ink-600">disabled</span> : null}
             </p>
@@ -383,13 +383,13 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
               {versions.map((r) => {
                 const latest = r.version === versions[0].version;
                 return (
-                  <div key={r.id} className="rounded-lg border border-ink-200/70 p-3 dark:border-white/10">
+                  <div key={r.id} className="rounded-lg border border-ink-200/70 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <label className="flex min-w-0 flex-1 gap-2">
                         <input type="checkbox" aria-label={`Select ${r.rule_key} v${r.version}`} checked={selected.includes(r.id)}
                           onChange={(e) => setSelected(e.target.checked ? [...selected, r.id] : selected.filter((x) => x !== r.id))} />
                         <span className="min-w-0">
-                          <span className="block text-sm text-ink-900 dark:text-white">
+                          <span className="block text-sm text-ink-900">
                             v{r.version} · {r.name}{" "}
                             <span className={cn("ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase", STATUS_TONE[r.status])}>{r.status}</span>
                             {r.editor_mode === "advanced" ? <span className="ml-1 text-[10px] uppercase text-ink-400">advanced</span> : null}
@@ -399,7 +399,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
                             {r.state ? ` · ${r.state}` : ""}
                             {r.applies_to ? ` · only ${Object.entries(r.applies_to).map(([d, v]) => `${d.replaceAll("_", " ")} ${v.join("/")}`).join(", ")}` : ""}
                           </span>
-                          <span className="block text-xs text-ink-600 dark:text-ink-300">
+                          <span className="block text-xs text-ink-600">
                             {r.condition ? `When ${describeCondition(r.condition)}, expect` : "Expect"} {describeComparison(r.assertion)}.
                             {r.on_missing !== "cannot_validate" ? ` Missing input: ${r.on_missing === "skip" ? "skip" : "fail"}.` : ""}
                           </span>
@@ -419,7 +419,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
                       ) : null}
                     </div>
                     {pending?.id === r.id ? (
-                      <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-ink-50 p-2 dark:bg-white/[0.04]">
+                      <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-ink-50 p-2">
                         <label className="min-w-64 flex-1 text-xs font-semibold text-ink-700">
                           {pending.verb === "clone" ? "Why draft a new version?" : pending.verb === "rollback" ? "Why restore this version?" : pending.verb === "retire" ? "Why retire it?" : "What needs changing?"} (kept in the record)
                           <input className={`mt-1 ${INPUT}`} value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -456,7 +456,7 @@ function render(field: string, v: unknown): string {
 
 function ImpactView({ data }: { data: Impact }) {
   return (
-    <div className="mt-2 rounded-lg bg-brand-50 p-3 text-xs text-ink-700 dark:bg-brand-500/10 dark:text-ink-200">
+    <div className="mt-2 rounded-lg bg-brand-50 p-3 text-xs text-ink-700">
       <p className="font-semibold">
         {data.employees_evaluated} employees in {data.period_month.slice(0, 7)}: {data.outcomes.passed} pass,{" "}
         {data.outcomes.failed} fail, {data.outcomes.cannot_validate} could not be checked,{" "}
@@ -494,8 +494,8 @@ function CopyPanel({ ruleIds, companies }: { ruleIds: string[]; companies: { id:
     }
   };
   return (
-    <div className="space-y-2 rounded-xl border border-ink-200 p-3 text-xs dark:border-white/10">
-      <p className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Copy size={14} /> Copy the selected versions to other companies</p>
+    <div className="space-y-2 rounded-xl border border-ink-200 p-3 text-xs">
+      <p className="flex items-center gap-2 text-sm font-semibold text-ink-900"><Copy size={14} /> Copy the selected versions to other companies</p>
       <p className="text-ink-500">They arrive as drafts, checked against each company&apos;s own components, and go through that company&apos;s approval. Only companies you manage accept them.</p>
       <div className="flex flex-wrap gap-3">
         {companies.map((c) => (
@@ -555,7 +555,7 @@ function ImportCard({ onChanged }: { onChanged: () => void }) {
   };
   return (
     <Card><CardContent className="space-y-3 py-5">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><Upload size={16} /> Import rules from CSV or Excel</h2>
+      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><Upload size={16} /> Import rules from CSV or Excel</h2>
       <p className="text-xs text-ink-500">Export to get the format. Every row is checked exactly as a drafted rule; nothing is created until you have seen the preview, and everything created is a draft that still needs approval.</p>
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => void download()} className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-semibold"><Download size={12} /> Export rules (CSV)</button>
@@ -571,7 +571,7 @@ function ImportCard({ onChanged }: { onChanged: () => void }) {
           <p className="mb-1 text-xs">{preview.summary.new} new · {preview.summary.new_version} new version · {preview.summary.unchanged} unchanged · <span className={preview.summary.error ? "font-semibold text-danger-700" : ""}>{preview.summary.error} with errors</span></p>
           <table className="w-full text-xs"><thead><tr className="text-left text-ink-500"><th className="py-1 pr-2">Row</th><th className="pr-2">Rule</th><th className="pr-2">Result</th><th>Detail</th></tr></thead><tbody>
             {preview.rows.map((r) => (
-              <tr key={r.row} className="border-t border-ink-100 align-top dark:border-white/5">
+              <tr key={r.row} className="border-t border-ink-100 align-top">
                 <td className="py-1 pr-2">{r.row}</td>
                 <td className="pr-2 font-mono">{r.rule_key}</td>
                 <td className={cn("pr-2 font-semibold", r.status === "error" ? "text-danger-700" : "text-ink-700")}>{r.status.replace("_", " ")}</td>

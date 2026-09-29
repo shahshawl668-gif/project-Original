@@ -256,7 +256,7 @@ export default function SlabsPage() {
 
       <Card>
         <CardHeader>
-          <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+          <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
             Selection
           </p>
           <CardTitle>Filters</CardTitle>
@@ -313,7 +313,7 @@ export default function SlabsPage() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+            <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
               Editor
             </p>
             <CardTitle className="flex flex-wrap items-center gap-2">
@@ -322,9 +322,9 @@ export default function SlabsPage() {
               </span>
               <Badge variant="secondary">∑ {sumPreview.toFixed(2)}</Badge>
             </CardTitle>
-            <p className="text-xs text-ink-500 dark:text-ink-400">
+            <p className="text-xs text-ink-500">
               Slabs must be non-overlapping. Built-in {ruleType} defaults available for:{" "}
-              <span className="text-ink-700 dark:text-ink-200">{defaultStates.join(", ") || "—"}</span>
+              <span className="text-ink-700">{defaultStates.join(", ") || "—"}</span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -362,7 +362,7 @@ export default function SlabsPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-ink-500 dark:text-ink-400">Loading…</p>
+            <p className="text-sm text-ink-500">Loading…</p>
           ) : (
             <SlabTable
               slabs={slabs}

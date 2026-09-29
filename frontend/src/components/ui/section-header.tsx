@@ -15,21 +15,11 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-end justify-between gap-4", className)}>
+    <div className={cn("flex flex-wrap items-end justify-between gap-3", className)}>
       <div className="min-w-0 max-w-2xl">
-        {eyebrow && (
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-600 dark:text-brand-300">
-            {eyebrow}
-          </p>
-        )}
-        <h2 className="font-display text-lg font-bold tracking-tight text-ink-900 dark:text-white sm:text-xl">
-          {title}
-        </h2>
-        {description && (
-          <p className="mt-1 text-sm leading-relaxed text-ink-500 dark:text-ink-300">
-            {description}
-          </p>
-        )}
+        {eyebrow && <p className="mb-0.5 text-xs font-medium text-ink-500">{eyebrow}</p>}
+        <h2 className="text-[15px] font-semibold text-ink-900">{title}</h2>
+        {description && <p className="mt-0.5 text-[13px] leading-relaxed text-ink-500">{description}</p>}
       </div>
       {actions && <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>}
     </div>

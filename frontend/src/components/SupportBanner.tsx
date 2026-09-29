@@ -40,25 +40,25 @@ export function SupportBanner() {
             key={grant.id}
             className={
               pending
-                ? "flex flex-wrap items-start gap-3 border-b border-warning-300/70 bg-warning-50 px-4 py-2.5 dark:border-warning-500/30 dark:bg-warning-500/10"
-                : "flex flex-wrap items-start gap-3 border-b border-danger-300/70 bg-danger-50 px-4 py-2.5 dark:border-danger-500/30 dark:bg-danger-500/10"
+                ? "flex flex-wrap items-start gap-3 border-b border-warning-300/70 bg-warning-50 px-4 py-2.5"
+                : "flex flex-wrap items-start gap-3 border-b border-danger-300/70 bg-danger-50 px-4 py-2.5"
             }
           >
             {pending ? (
               <ShieldAlert
                 size={16}
-                className="mt-0.5 shrink-0 text-warning-700 dark:text-warning-300"
+                className="mt-0.5 shrink-0 text-warning-700"
               />
             ) : (
-              <EyeOff size={16} className="mt-0.5 shrink-0 text-danger-700 dark:text-danger-300" />
+              <EyeOff size={16} className="mt-0.5 shrink-0 text-danger-700" />
             )}
 
             <div className="min-w-0 flex-1">
               <p
                 className={
                   pending
-                    ? "text-sm font-semibold text-warning-900 dark:text-warning-200"
-                    : "text-sm font-semibold text-danger-800 dark:text-danger-200"
+                    ? "text-sm font-semibold text-warning-900"
+                    : "text-sm font-semibold text-danger-800"
                 }
               >
                 {pending
@@ -66,7 +66,7 @@ export function SupportBanner() {
                   : `${grant.admin_email} can read this organization right now`}
                 <span className="ml-2 font-normal opacity-80">{timeLeft(grant.expires_at)}</span>
               </p>
-              <p className="text-xs text-ink-700 dark:text-ink-300">
+              <p className="text-xs text-ink-700">
                 &ldquo;{grant.reason}&rdquo; — read-only, employee identities masked.
               </p>
             </div>
@@ -75,7 +75,7 @@ export function SupportBanner() {
               type="button"
               onClick={() => revoke.mutate(grant.id)}
               disabled={revoke.isPending}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink-300 bg-white px-2.5 text-xs font-semibold text-ink-800 transition hover:bg-ink-50 disabled:opacity-50 dark:border-ink-600 dark:bg-ink-900 dark:text-ink-100"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink-300 bg-white px-2.5 text-xs font-semibold text-ink-800 transition hover:bg-ink-50 disabled:opacity-50"
             >
               {revoke.isPending && <Loader2 size={12} className="animate-spin" />}
               {pending ? "Decline" : "End it now"}

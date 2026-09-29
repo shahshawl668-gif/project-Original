@@ -4,7 +4,7 @@ The import format is a saved translation, not a new payroll export specification
 Each entity keeps its own salary components and its own named import profiles.
 
 1. Set up Basic, HRA, Special Allowance and other components under Salary Components, including their PF, ESIC, PT, LWF and wage flags.
-2. Optionally download the CSV template on Payroll → Upload. Its header contains the entity's current components and standard payroll fields. Fill the rows and upload it.
+2. Optionally download the CSV template on Data & imports → Salary register (the Template button). Its header contains the entity's current components and standard payroll fields. Fill the rows and upload it.
 3. Or upload the CSV/XLSX exported by the client's HRMS directly. The preview proposes matches such as `EMP ID` → `employee_id`, `Basic Arrears` → `basic_arrear`, `Location State` → `state` and `Total Deductions` → `total_deductions`.
 4. Review **every** source column. Map each earning to its configured component, arrears to the component's arrear field, and totals/statutory deductions to standard fields. Ignored columns are shown as warnings. Two source columns cannot target the same field.
 5. Give the mapping a name (for example, `Darwinbox monthly payroll`) to reuse it for future exports. A changed HRMS layout can be reviewed and the profile updated.

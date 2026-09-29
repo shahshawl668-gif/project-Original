@@ -6,7 +6,9 @@ from app.services.payroll_parse import (
     check_mapping,
     dataframe_to_employees,
     parse_payroll_file,
+    required_fields,
     suggested_mapping,
+    suggestion_basis,
     validate_required_columns,
 )
 
@@ -24,6 +26,16 @@ def test_darwinbox_style_headers_and_zeros_preserved():
     assert rows[0]["state"] == "Karnataka"
     assert rows[0]["basic_arrear"] == 2000
     assert validate_required_columns(cols, {"Basic", "HRA"}, True)[0] == []
+
+
+def test_suggestion_basis_and_required_fields_agree_with_the_upload_check():
+    columns = ["EMP ID", "Basic", "Net Pay", "Mystery"]
+    assert suggestion_basis(columns, {"Basic"}) == {"EMP ID": "alias", "Basic": "exact", "Net Pay": "alias"}
+    # The list the screen shows is the list the upload enforces.
+    assert required_fields({"Basic", "Special Allowance"}) == ["employee_id", "basic", "special_allowance"]
+    assert required_fields({"Basic"}, strict=False) == ["employee_id"]
+    missing, _ = validate_required_columns(["employee_id"], {"Basic"}, True)
+    assert missing == ["Basic"]
 
 
 def test_mapping_rejects_duplicate_destinations_and_unconfigured_components():
@@ -73,6 +85,14 @@ def test_entity_template_preview_and_saved_profile(client):
     preview = client.post("/api/payroll/preview", headers=headers,
                           files={"file": ("register.csv", source, "text/csv")})
     assert preview.status_code == 200, preview.text
+    # The mapping screen is told what must be mapped and how each suggestion
+    # was found — a header that is the field's own name, or a known alias —
+    # and nothing is suggested for a header it does not recognise.
+    shown = preview.json()["data"]
+    assert shown["required"] == ["employee_id", "basic"]
+    assert shown["components"] == ["basic"]
+    assert shown["match"] == {"Employee Number": "alias", "Total Deductions": "exact", "Gross": "exact", "Net": "exact"}
+    assert "Base Pay" not in shown["mapping"]
     mapping = {"Employee Number": "employee_id", "Base Pay": "basic",
                "Total Deductions": "total_deductions", "Gross": "gross", "Net": "net"}
     saved = client.post("/api/payroll/import-profiles", headers=headers,

@@ -175,15 +175,15 @@ export default function TeamPage() {
 
       <Card>
         <CardContent className="py-5">
-          <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900 dark:text-white">
+          <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
             <Users size={16} className="text-ink-400" /> Members
           </h3>
-          <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+          <p className="pb-3 text-xs text-ink-500">
             You cannot change your own role or remove yourself — both directions are how an
             organization ends up with nobody who can administer it.
           </p>
 
-          <div className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+          <div className="divide-y divide-ink-200/70">
             {(members ?? []).map((member) => (
               <MemberRow
                 key={member.user_id}
@@ -200,7 +200,7 @@ export default function TeamPage() {
               />
             ))}
             {!members?.length && (
-              <p className="py-6 text-sm text-ink-500 dark:text-ink-400">Loading…</p>
+              <p className="py-6 text-sm text-ink-500">Loading…</p>
             )}
           </div>
         </CardContent>
@@ -212,30 +212,30 @@ export default function TeamPage() {
 
       <Card>
         <CardContent className="py-5">
-          <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900 dark:text-white">
+          <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
             <Mail size={16} className="text-ink-400" /> Invitations
           </h3>
-          <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+          <p className="pb-3 text-xs text-ink-500">
             An unaccepted invitation is an outstanding key to this organization&apos;s payroll.
             They expire, and you can revoke one at any time.
           </p>
 
           {pending.length ? (
-            <div className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+            <div className="divide-y divide-ink-200/70">
               {pending.map((invitation) => (
                 <div
                   key={invitation.id}
                   className="flex flex-wrap items-center justify-between gap-3 py-3"
                 >
                   <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900 dark:text-white">
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900">
                       {invitation.email}
                       <StateChip state={invitation.state} />
-                      <span className="text-xs font-normal text-ink-500 dark:text-ink-400">
+                      <span className="text-xs font-normal text-ink-500">
                         {ROLE_LABEL[invitation.role]}
                       </span>
                     </p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                    <p className="text-xs text-ink-500">
                       Invited by {invitation.invited_by ?? "—"} ·{" "}
                       {invitation.state === "expired" ? "expired" : "expires"}{" "}
                       {formatWhen(invitation.expires_at)}
@@ -248,7 +248,7 @@ export default function TeamPage() {
                       type="button"
                       onClick={() => resend.mutate(invitation.id)}
                       disabled={resend.isPending}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 text-xs font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 text-xs font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50"
                     >
                       <RotateCw size={12} /> New link
                     </button>
@@ -265,21 +265,21 @@ export default function TeamPage() {
               ))}
             </div>
           ) : (
-            <p className="py-4 text-sm text-ink-500 dark:text-ink-400">
+            <p className="py-4 text-sm text-ink-500">
               Nothing outstanding.
             </p>
           )}
 
           {history.length > 0 && (
             <details className="pt-4">
-              <summary className="cursor-pointer text-xs font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400">
+              <summary className="cursor-pointer text-xs font-medium text-ink-500 hover:text-ink-700">
                 {history.length} closed invitation{history.length === 1 ? "" : "s"}
               </summary>
-              <div className="divide-y divide-ink-200/70 pt-2 dark:divide-ink-700/60">
+              <div className="divide-y divide-ink-200/70 pt-2">
                 {history.map((invitation) => (
                   <p
                     key={invitation.id}
-                    className="flex flex-wrap items-center gap-2 py-2 text-xs text-ink-500 dark:text-ink-400"
+                    className="flex flex-wrap items-center gap-2 py-2 text-xs text-ink-500"
                   >
                     {invitation.email} <StateChip state={invitation.state} />
                     {invitation.accepted_at && `joined ${formatWhen(invitation.accepted_at)}`}
@@ -321,17 +321,17 @@ function TokenPanel({ invitation, onDone }: { invitation: Invitation; onDone: ()
     <Card>
       <CardContent className="space-y-3 py-5">
         <div>
-          <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+          <h3 className="text-base font-semibold text-ink-900">
             Invitation link for {invitation.email}
           </h3>
-          <p className="text-xs text-ink-500 dark:text-ink-400">
+          <p className="text-xs text-ink-500">
             Send this to them yourself. It is shown once — only a hash is stored, so this
             page cannot produce it again. Lost it? Issue a new link.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 font-mono text-xs text-ink-800 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-100">
+          <code className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 font-mono text-xs text-ink-800">
             {url}
           </code>
           <button
@@ -353,7 +353,7 @@ function TokenPanel({ invitation, onDone }: { invitation: Invitation; onDone: ()
           <button
             type="button"
             onClick={onDone}
-            className="inline-flex h-9 items-center rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+            className="inline-flex h-9 items-center rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50"
           >
             Done
           </button>
@@ -383,10 +383,10 @@ function InviteForm({
   return (
     <Card>
       <CardContent className="py-5">
-        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900 dark:text-white">
+        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
           <UserPlus size={16} className="text-ink-400" /> Invite someone
         </h3>
-        <p className="pb-4 text-xs text-ink-500 dark:text-ink-400">
+        <p className="pb-4 text-xs text-ink-500">
           Choose a role and company access. All companies also includes companies added later.
         </p>
 
@@ -400,7 +400,7 @@ function InviteForm({
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="name@company.in"
-              className="h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 dark:border-ink-700 dark:bg-ink-900 dark:text-white"
+              className="h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400"
             />
           </div>
 
@@ -500,15 +500,15 @@ function MemberRow({
     <div className="py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
-        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900 dark:text-white">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900">
           {member.email}
           {member.is_you && (
-            <span className="rounded-full bg-ink-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600 dark:text-ink-300">
+            <span className="rounded-full bg-ink-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600">
               You
             </span>
           )}
         </p>
-        <p className="text-xs text-ink-500 dark:text-ink-400">
+        <p className="text-xs text-ink-500">
           {member.entity_ids.length === 0
             ? "All companies, including future additions"
             : `${member.entity_ids.length} of ${entities.length} companies`}
@@ -583,14 +583,14 @@ function MemberRow({
             </button>
           </>
         ) : (
-          <span className="text-sm text-ink-500 dark:text-ink-400">
+          <span className="text-sm text-ink-500">
             {ROLE_LABEL[member.role] ?? member.role}
           </span>
         )}
       </div>
       </div>
       {mayManage && (
-        <details className="mt-2 rounded-lg border border-ink-200/70 px-3 py-2 text-xs dark:border-ink-700">
+        <details className="mt-2 rounded-lg border border-ink-200/70 px-3 py-2 text-xs">
           <summary className="cursor-pointer font-semibold text-brand-700">Company roles</summary>
           <p className="py-2 text-ink-500">The organization role is the default. A company role overrides it only for that employer.</p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -645,17 +645,17 @@ function SupportPanel() {
   return (
     <Card>
       <CardContent className="py-5">
-        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900 dark:text-white">
+        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
           <ShieldCheck size={16} className="text-ink-400" /> Support access
         </h3>
-        <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+        <p className="pb-3 text-xs text-ink-500">
           Whether the people who build this product may read your data to help you, and
           on what terms. Your decision — change it whenever you like.
         </p>
 
         <ul className="mb-4 space-y-1">
           {data.always_true.map((line) => (
-            <li key={line} className="flex items-start gap-2 text-xs text-ink-600 dark:text-ink-300">
+            <li key={line} className="flex items-start gap-2 text-xs text-ink-600">
               <Check size={13} className="mt-0.5 shrink-0 text-success-600" />
               {line}
             </li>
@@ -674,14 +674,14 @@ function SupportPanel() {
                 className={cn(
                   "rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-60",
                   chosen
-                    ? "border-brand-500 bg-brand-50/70 dark:border-brand-400/50 dark:bg-brand-500/10"
-                    : "border-ink-200 hover:border-ink-300 dark:border-ink-700",
+                    ? "border-brand-500 bg-brand-50/70"
+                    : "border-ink-200 hover:border-ink-300",
                 )}
               >
-                <span className="block text-sm font-semibold text-ink-900 dark:text-white">
+                <span className="block text-sm font-semibold text-ink-900">
                   {option.label}
                 </span>
-                <span className="block pt-0.5 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
+                <span className="block pt-0.5 text-[11px] leading-relaxed text-ink-500">
                   {option.hint}
                 </span>
               </button>
@@ -694,13 +694,13 @@ function SupportPanel() {
             {data.active.map((grant) => (
               <div
                 key={grant.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger-200 bg-danger-50/60 px-3 py-2.5 dark:border-danger-500/25 dark:bg-danger-500/10"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger-200 bg-danger-50/60 px-3 py-2.5"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink-900 dark:text-white">
+                  <p className="text-sm font-medium text-ink-900">
                     {grant.admin_email} · {grant.state} · {timeLeft(grant.expires_at)}
                   </p>
-                  <p className="text-xs text-ink-600 dark:text-ink-300">
+                  <p className="text-xs text-ink-600">
                     &ldquo;{grant.reason}&rdquo; · used {grant.use_count ?? 0} time(s)
                   </p>
                 </div>
@@ -717,7 +717,7 @@ function SupportPanel() {
                   <button
                     type="button"
                     onClick={() => revoke.mutate(grant.id)}
-                    className="inline-flex h-8 items-center rounded-lg border border-ink-300 px-2.5 text-xs font-semibold text-ink-800 dark:border-ink-600 dark:text-ink-100"
+                    className="inline-flex h-8 items-center rounded-lg border border-ink-300 px-2.5 text-xs font-semibold text-ink-800"
                   >
                     {grant.state === "pending" ? "Decline" : "End it now"}
                   </button>
@@ -729,13 +729,13 @@ function SupportPanel() {
 
         {used.length > 0 && (
           <details className="pt-4">
-            <summary className="cursor-pointer text-xs font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400">
+            <summary className="cursor-pointer text-xs font-medium text-ink-500 hover:text-ink-700">
               {used.length} past session{used.length === 1 ? "" : "s"}
             </summary>
-            <div className="divide-y divide-ink-200/70 pt-2 dark:divide-ink-700/60">
+            <div className="divide-y divide-ink-200/70 pt-2">
               {used.map((grant) => (
-                <p key={grant.id} className="py-2 text-xs text-ink-500 dark:text-ink-400">
-                  <span className="font-medium text-ink-700 dark:text-ink-200">
+                <p key={grant.id} className="py-2 text-xs text-ink-500">
+                  <span className="font-medium text-ink-700">
                     {grant.admin_email}
                   </span>{" "}
                   · {grant.state} · {formatWhen(grant.requested_at ?? null)} · used{" "}
@@ -791,10 +791,10 @@ function ApprovalPanel({ isOwner }: { isOwner: boolean }) {
   return (
     <Card>
       <CardContent className="py-5">
-        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900 dark:text-white">
+        <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
           <ShieldCheck size={16} className="text-ink-400" /> Approval controls
         </h3>
-        <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+        <p className="pb-3 text-xs text-ink-500">
           Whether approvals must come from someone other than the person who prepared the work.
           {isOwner ? " Changes are recorded in the audit trail." : " Only an owner can change these."}
         </p>
@@ -808,7 +808,7 @@ function ApprovalPanel({ isOwner }: { isOwner: boolean }) {
             <label
               key={setting.key}
               className={cn(
-                "flex items-start gap-3 rounded-xl border border-ink-200 px-3 py-2.5 dark:border-ink-700",
+                "flex items-start gap-3 rounded-xl border border-ink-200 px-3 py-2.5",
                 isOwner ? "cursor-pointer" : "opacity-80",
               )}
             >
@@ -820,8 +820,8 @@ function ApprovalPanel({ isOwner }: { isOwner: boolean }) {
                 onChange={(e) => save.mutate({ [setting.key]: e.target.checked })}
               />
               <span>
-                <span className="block text-sm font-semibold text-ink-900 dark:text-white">{setting.label}</span>
-                <span className="block pt-0.5 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
+                <span className="block text-sm font-semibold text-ink-900">{setting.label}</span>
+                <span className="block pt-0.5 text-[11px] leading-relaxed text-ink-500">
                   {setting.hint}
                 </span>
               </span>
