@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import io
 import uuid
-from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,11 +10,12 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user
 from app.envelope import ok
 from app.models import Entity, ReportDefinition, ReportDefinitionVersion, User
-from app.services import audit, report_builder, reporting, tenancy
+from app.services import audit, report_builder, report_exports, tenancy
 
 router = APIRouter()
 
@@ -135,53 +135,23 @@ def create(body: DefinitionInput, db: Session = Depends(get_db),
 @router.get("/saved/{report_id}.xlsx")
 def export_saved(report_id: uuid.UUID, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
-    """Export all aggregate rows with definition and current-data provenance."""
+    """Compatibility download for current aggregate reports; generated jobs are preferred."""
     _reader(db, user, entity)
     report = _get(db, user, entity, report_id)
-    spec = report_builder.validate(report.specification)
-    if not spec["date_from"] or not spec["date_to"]:
-        raise HTTPException(status_code=422, detail="Choose both period bounds before export")
-    result = report_builder.preview(db, entity.id, spec, row_limit=None)
-    wb = reporting._openpyxl().Workbook()
-    reporting._provenance_sheet(wb, {
-        "Module": "PeopleOps Reports", "Report": report.name,
-        "Definition ID": str(report.id), "Definition version": report.version,
-        "Entity": entity.name, "Entity code": getattr(entity, "code", "") or "",
-        "Period from": spec["date_from"], "Period to": spec["date_to"],
-        "Breakdown": spec["dimension"], "Filters": str(spec["filters"]),
-        "Requested by": user.email, "Generated at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "Data basis": "Current stored data; not a signed historical snapshot",
-        "Outcome": result["status"], "Record count": result["record_count"],
-    })
-    reporting._sheet(wb, "Summary", ["Metric", "Value"], [
-        ["Matched records", result["record_count"]],
-        *[[key.replace("_", " ").title(), value] for key, value in (result["control_totals"] or {}).items()],
-    ])
-    headers = spec["fields"]
-    rows = [[date.fromisoformat(item[key]) if key == "period" and item[key]
-             else item[key] for key in headers] for item in result["rows"]]
-    reporting._sheet(wb, "Details", headers, rows)
-    if "period" in headers:
-        column = headers.index("period") + 1
-        for sheet in wb.worksheets:
-            if sheet.title.startswith("Details"):
-                for cells in sheet.iter_cols(min_col=column, max_col=column, min_row=2):
-                    for cell in cells:
-                        cell.number_format = "mmm yyyy"
-    reporting._basis_sheet(db, entity.id, {
-        "date_from": date.fromisoformat(spec["date_from"]),
-        "date_to": date.fromisoformat(spec["date_to"]),
-    }, wb)
-    payload = io.BytesIO()
-    wb.save(payload)
-    payload.seek(0)
+    try:
+        payload, info = report_exports.build(db, entity, report, user)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if len(payload) > settings.report_artifact_max_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Report exceeds the configured export size")
     audit.record(db, entity_id=entity.id, user=user, action="report.downloaded",
                  object_type="report_definition", object_id=str(report.id),
                  summary="Downloaded a saved report",
-                 detail={"version": report.version, "rows": result["record_count"]})
+                 detail={"version": report.version, "rows": info["record_count"]})
     db.commit()
     filename = f"peopleops-report-{report.id.hex[:12]}-v{report.version}.xlsx"
-    return StreamingResponse(payload, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    return StreamingResponse(io.BytesIO(payload),
+                             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
