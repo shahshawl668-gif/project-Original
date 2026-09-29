@@ -202,7 +202,7 @@ export default function ReportBuilderPage() {
           {activeId && <button type="button" disabled={busy || dirty || !spec.date_from || !spec.date_to} onClick={generate} className="ml-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={15} /> Generate Excel</button>}
           {dirty && <p className="text-xs text-ink-500">Save your changes before generation.</p>}
           {job.data && <p className="text-sm">Job {job.data.id.slice(0, 8)}: {job.data.stage}{job.data.record_count !== null ? ` · ${job.data.record_count} rows` : ""}{job.data.error_message ? ` · ${job.data.error_message}` : ""}</p>}
-          {job.data?.state === "succeeded" && <button type="button" onClick={() => downloadJob(job.data.id)} className="text-brand-600 hover:underline">Download generated file</button>}
+          {job.data?.state === "succeeded" && <button type="button" onClick={() => job.data && downloadJob(job.data.id)} className="text-brand-600 hover:underline">Download generated file</button>}
           {activeId && (!spec.date_from || !spec.date_to) && <p className="text-xs text-ink-500">Choose both period bounds before export.</p>}
           {activeId && <div className="space-y-1 text-xs text-ink-500"><strong className="block text-ink-700 dark:text-ink-200">Definition history</strong>{(versions.data?.versions ?? []).map((item) => <p key={item.version}>Version {item.version} · {item.name} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded"}</p>)}</div>}
         </div>}
