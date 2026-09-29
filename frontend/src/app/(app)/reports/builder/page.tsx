@@ -31,6 +31,7 @@ export default function ReportBuilderPage() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const datasets = useQuery({ queryKey: ["reports", "datasets"], queryFn: () => apiJson<{ datasets: Dataset[] }>("/api/reports/builder/datasets") });
   const saved = useQuery({ queryKey: ["reports", "saved"], queryFn: () => apiJson<{ reports: Saved[] }>("/api/reports/builder/saved") });
+  const versions = useQuery({ queryKey: ["reports", "versions", activeId], enabled: !!activeId, queryFn: () => apiJson<{ versions: { version: number; name: string; created_at: string }[] }>(`/api/reports/builder/saved/${activeId}/versions`) });
   const dimensions = useQuery({ queryKey: ["bi", "dimensions"], queryFn: fetchDimensions });
   const periods = useQuery({ queryKey: ["bi", "periods"], queryFn: fetchPeriods });
   const dataset = datasets.data?.datasets[0];
@@ -53,7 +54,7 @@ export default function ReportBuilderPage() {
       });
       setActiveId(result.id);
       setSavedMessage(`Saved draft version ${result.version}. It will use current data when previewed again.`);
-      await saved.refetch();
+      await saved.refetch(); await versions.refetch();
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -158,6 +159,7 @@ export default function ReportBuilderPage() {
           <label className="block text-sm">Visibility<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={visibility} onChange={(e) => setVisibility(e.target.value as "private" | "shared")}><option value="private">Personal draft</option><option value="shared">Company shared (manager access)</option></select></label>
           <p className="text-xs text-ink-500">A saved definition contains choices, not a frozen result. Access is checked again when previewed.</p>
           <button type="button" disabled={busy || !name.trim()} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {activeId ? "Save new version" : "Save draft"}</button>
+          {activeId && <div className="space-y-1 text-xs text-ink-500"><strong className="block text-ink-700 dark:text-ink-200">Definition history</strong>{(versions.data?.versions ?? []).map((item) => <p key={item.version}>Version {item.version} · {item.name} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded"}</p>)}</div>}
         </div>}
         <div className="flex justify-between border-t pt-4">
           <button type="button" disabled={step === 0} onClick={() => setStep((n) => n - 1)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40">Back</button>
