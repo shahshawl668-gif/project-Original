@@ -45,14 +45,17 @@ async function copy(text: string, what = "Copied") {
 }
 
 export default function ApiCentrePage() {
-  const { activeRole } = useEntity();
+  const { activeRole, entity } = useEntity();
   const canManage = MANAGE.has(activeRole ?? "");
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="PeopleOps Studio" title="API Centre"
         description="Machine identities for the systems that send you data, the keys they use, and the documented, versioned integration API they call." />
       <StudioNav />
-      {canManage ? <Accounts /> : (
+      {entity && <AlertBanner variant="info" title={`API setup for ${entity.name}`}>
+        The API address is shared by the platform. Your key names its allowed companies, and each request is checked against that list. For a client integration, create a separate service account limited to this company and send its company ID. A different URL alone would not provide data isolation.
+      </AlertBanner>}
+      {canManage ? <Accounts key={entity?.id} /> : (
         <AlertBanner variant="info" title="Service accounts and keys are managed by owners and managers">
           You can read the documentation below and see every run in Run history.
         </AlertBanner>
@@ -163,6 +166,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
             <option value="production">Production</option><option value="test">Test</option><option value="development">Development</option>
           </select></label>
       </div>
+      <p className="text-xs text-warning-800">Environment is a key label in this deployment. Test and development keys still reach the same database; use a dedicated non-production company with synthetic data for rehearsals.</p>
       <fieldset>
         <legend className="text-xs font-semibold text-ink-700">Companies it may act on — only ones you manage</legend>
         <div className="mt-1 flex flex-wrap gap-2">
@@ -173,6 +177,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
           ))}
         </div>
       </fieldset>
+      {companies.length > 1 && <p className="text-xs text-warning-800">This key can act on multiple companies. Its callers must send X-Company-Id on every request. For independent clients, use one account per company.</p>}
       <fieldset>
         <legend className="text-xs font-semibold text-ink-700">Scopes — grant the least it needs</legend>
         <div className="mt-1 flex flex-wrap gap-2">
@@ -288,6 +293,7 @@ function Docs() {
           {" · "}<a className="text-brand-700 underline" href={`/api/proxy/api/integration/v1/openapi.json`} target="_blank" rel="noreferrer">OpenAPI JSON</a>.
           Examples use invented people; <code>$POL_KEY</code> stands for your key, which never appears on this page.</p>
       </div>
+      {entity && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-200 p-3 text-xs"><strong>Selected company:</strong> {entity.name} <code className="break-all">{entity.id}</code><button type="button" onClick={() => void copy(entity.id, "Company ID copied")} className="rounded border px-2 py-1 font-semibold">Copy company ID</button></div>}
       <QuickStart base={base} companyId={entity?.id ?? "<company id>"} />
       {spec.error ? <AlertBanner variant="error" title="Could not load the API contract">{(spec.error as Error).message}</AlertBanner> : null}
       {!spec.data ? <Skeleton className="h-40 w-full" /> : <Contract spec={spec.data} base={base} companyId={entity?.id ?? "<company id>"} />}
