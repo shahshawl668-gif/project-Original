@@ -312,7 +312,7 @@ def test_spreadsheet_text_is_safe_and_identifiers_remain_text():
 
     wb = Workbook()
     reporting._sheet(wb, "Employees", ["Employee ID", "Amount", "Employee"], [
-        ["00123", Decimal("12.50"), "=HYPERLINK(\\\"https://example.invalid\\\")"],
+        ["00123", Decimal("12.50"), '=HYPERLINK("https://example.invalid")'],
         ["+cmd", Decimal("-2.25"), "Normal"],
     ])
     ws = wb["Employees"]
