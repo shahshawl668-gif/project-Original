@@ -305,3 +305,35 @@ def test_the_trail_does_not_leak_between_entities(client, workspace):
     assert actions and set(actions) == {"entity.created"}
     # Group-level company setup is visible in the shared audit trail, while
     # the other employer's report access remains isolated.
+
+
+def test_spreadsheet_text_is_safe_and_identifiers_remain_text():
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    reporting._sheet(wb, "Employees", ["Employee ID", "Amount", "Employee"], [
+        ["00123", Decimal("12.50"), "=HYPERLINK(\\\"https://example.invalid\\\")"],
+        ["+cmd", Decimal("-2.25"), "Normal"],
+    ])
+    ws = wb["Employees"]
+    assert ws["A2"].value == "00123"
+    assert ws["A2"].number_format == "@"
+    assert ws["C2"].data_type != "f"
+    assert ws["C2"].value.startswith("'=")
+    assert ws["A3"].data_type != "f"
+    assert ws["B2"].value == Decimal("12.50")
+    assert ws.auto_filter.ref == "A1:C3"
+    assert ws.freeze_panes == "A2"
+
+
+def test_excel_row_limit_splits_without_losing_or_repeating_rows(monkeypatch):
+    from openpyxl import Workbook
+
+    monkeypatch.setattr(reporting, "EXCEL_MAX_ROWS", 4)
+    wb = Workbook()
+    reporting._sheet(wb, "Details", ["Employee ID"], [[str(i)] for i in range(8)])
+    names = [name for name in wb.sheetnames if name.startswith("Details")]
+    assert names == ["Details", "Details (2)", "Details (3)"]
+    values = [row[0] for name in names for row in
+              wb[name].iter_rows(min_row=2, values_only=True)]
+    assert values == [str(i) for i in range(8)]
