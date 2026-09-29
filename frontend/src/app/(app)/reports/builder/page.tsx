@@ -23,6 +23,7 @@ export default function ReportBuilderPage() {
   const [step, setStep] = useState(0);
   const [spec, setSpec] = useState<Spec>(initial);
   const [name, setName] = useState("Payroll cost by department");
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<"private" | "shared">("private");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,17 +48,29 @@ export default function ReportBuilderPage() {
   async function save() {
     setBusy(true); setError(null);
     try {
-      const result = await apiJson<Saved>("/api/reports/builder/saved", {
-        method: "POST", body: JSON.stringify({ name: name.trim(), specification: spec, visibility, status: "draft" }),
+      const result = await apiJson<Saved>(activeId ? `/api/reports/builder/saved/${activeId}` : "/api/reports/builder/saved", {
+        method: activeId ? "PUT" : "POST", body: JSON.stringify({ name: name.trim(), specification: spec, visibility, status: "draft" }),
       });
+      setActiveId(result.id);
       setSavedMessage(`Saved draft version ${result.version}. It will use current data when previewed again.`);
       await saved.refetch();
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
   function load(report: Saved) {
-    setSpec(report.specification); setName(report.name); setVisibility("private"); setPreview(null);
-    setSavedMessage(`Loaded a copy of ${report.name}; saving will create a new personal draft.`); setStep(1);
+    setSpec(report.specification); setName(report.name); setVisibility(report.visibility as "private" | "shared"); setPreview(null);
+    setActiveId(report.id);
+    setSavedMessage(`Editing ${report.name}, version ${report.version}. Preview uses current data.`); setStep(1);
+  }
+
+  async function clone(report: Saved) {
+    setBusy(true); setError(null);
+    try {
+      const copy = await apiJson<Saved>(`/api/reports/builder/saved/${report.id}/clone`, { method: "POST" });
+      load(copy); await saved.refetch();
+      setSavedMessage(`Created personal draft ${copy.name}.`);
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   }
 
   return <div className="space-y-5">
@@ -144,7 +157,7 @@ export default function ReportBuilderPage() {
           <label className="block text-sm">Report name<input className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={name} onChange={(e) => setName(e.target.value)} /></label>
           <label className="block text-sm">Visibility<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={visibility} onChange={(e) => setVisibility(e.target.value as "private" | "shared")}><option value="private">Personal draft</option><option value="shared">Company shared (manager access)</option></select></label>
           <p className="text-xs text-ink-500">A saved definition contains choices, not a frozen result. Access is checked again when previewed.</p>
-          <button type="button" disabled={busy || !name.trim()} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save draft</button>
+          <button type="button" disabled={busy || !name.trim()} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {activeId ? "Save new version" : "Save draft"}</button>
         </div>}
         <div className="flex justify-between border-t pt-4">
           <button type="button" disabled={step === 0} onClick={() => setStep((n) => n - 1)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40">Back</button>
@@ -154,9 +167,10 @@ export default function ReportBuilderPage() {
       <Card><CardContent className="space-y-3 py-5">
         <h2 className="font-semibold">Saved reports</h2>
         <p className="text-xs text-ink-500">Personal drafts and reports shared with this company.</p>
-        {(saved.data?.reports ?? []).map((report) => <button key={report.id} type="button" onClick={() => load(report)} className="block w-full rounded-lg border p-3 text-left text-sm hover:bg-ink-50 dark:border-white/10 dark:hover:bg-white/5">
+        {(saved.data?.reports ?? []).map((report) => <div key={report.id} className="rounded-lg border p-3 text-sm dark:border-white/10">
           <span className="block font-medium">{report.name}</span><span className="text-xs text-ink-500">{report.visibility} · v{report.version} · {report.status}</span>
-        </button>)}
+          <div className="mt-2 flex gap-3"><button type="button" onClick={() => load(report)} className="text-brand-600 hover:underline">Open</button><button type="button" onClick={() => clone(report)} className="text-brand-600 hover:underline">Clone</button></div>
+        </div>)}
         {saved.data?.reports.length === 0 && <p className="text-sm text-ink-500">No saved reports yet.</p>}
       </CardContent></Card>
     </div>
