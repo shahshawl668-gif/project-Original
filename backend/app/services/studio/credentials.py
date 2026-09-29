@@ -295,6 +295,12 @@ def rotate(
 
 
 def revoke(db: Session, credential: IntegrationCredential, *, actor: User, reason: str) -> IntegrationCredential:
+    account = db.get(ServiceAccount, credential.service_account_id)
+    if account is None:
+        raise ValueError("Service account not found.")
+    # A shared key affects every named company, so management of the current
+    # company alone is insufficient to revoke it.
+    _check_companies(db, actor, account.org_id, list(account.entity_ids or []))
     if not (reason or "").strip():
         raise ValueError("Say why the key is being revoked.")
     if credential.revoked_at is None:
