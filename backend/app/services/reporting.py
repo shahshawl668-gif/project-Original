@@ -637,8 +637,25 @@ REPORTS: dict[str, tuple[str, str, Callable]] = {
 RESTRICTED_REPORTS = {"pay-equity"}
 
 
+REPORT_GROUPS = {
+    "management-summary": ("Finance and management", "Salary register"),
+    "department-cost": ("Finance and management", "Salary register"),
+    "headcount": ("CTC and salary", "Salary register"),
+    "compensation": ("CTC and salary", "Salary register"),
+    "statutory-cost": ("Configured statutory validation", "Salary register and statutory configuration"),
+    "budget-variance": ("Finance and management", "Salary register and approved budget"),
+    "component-breakdown": ("CTC and salary", "Salary register with mapped components"),
+    "reconciliation": ("Payroll validation", "Validation findings"),
+    "bank-jv-reconciliation": ("Finance and management", "Salary register, bank file and journal voucher"),
+    "employee-cost": ("CTC and salary", "Salary register"),
+    "pay-equity": ("Finance and management", "Salary register and authorised attribute"),
+}
+
+
 def catalogue() -> list[dict]:
-    return [{"key": key, "title": title, "description": description}
+    return [{"key": key, "title": title, "description": description,
+             "group": REPORT_GROUPS[key][0], "required_data": REPORT_GROUPS[key][1],
+             "format": "xlsx"}
             for key, (title, description, _) in REPORTS.items()]
 
 
