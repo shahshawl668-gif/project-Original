@@ -402,6 +402,13 @@ as evidence; generating the same report later may produce different values if
 source registers or configurations have changed. The current catalogue does
 not create an official statutory filing format.
 
+**Build a report:** Open **Insights → Reports → Build a report**. Choose the
+payroll cost dataset, columns, period and filters, optional arithmetic calculation,
+breakdown and sort. Preview the result and its CTC control total before saving a
+personal draft. A manager can share a definition with the company. A saved
+definition is evaluated against current data when opened again. Preview shows
+at most 200 rows and states the full matched count; it is not an export.
+
 ![Reports](images/09-reports.png)
 
 ### Register history
