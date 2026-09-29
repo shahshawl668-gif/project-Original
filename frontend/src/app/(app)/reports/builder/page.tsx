@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Loader2, Save } from "lucide-react";
 
 import { AlertBanner } from "@/components/ui/alert-banner";
@@ -20,6 +20,7 @@ const steps = ["Dataset", "Fields", "Filters", "Calculations", "Grouping", "Layo
 const initial: Spec = { dataset: "payroll_cost", dimension: "department", fields: ["period", "dimension", "headcount", "gross", "ctc"], filters: {}, date_from: null, date_to: null, sort: "period", order: "asc", calculations: [] };
 
 export default function ReportBuilderPage() {
+  const queryClient = useQueryClient();
   const [step, setStep] = useState(0);
   const [spec, setSpec] = useState<Spec>(initial);
   const [name, setName] = useState("Payroll cost by department");
@@ -54,7 +55,7 @@ export default function ReportBuilderPage() {
       });
       setActiveId(result.id);
       setSavedMessage(`Saved draft version ${result.version}. It will use current data when previewed again.`);
-      await saved.refetch(); await versions.refetch();
+      await saved.refetch(); await queryClient.invalidateQueries({ queryKey: ["reports", "versions", result.id] });
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
