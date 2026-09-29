@@ -56,6 +56,29 @@ class Settings(BaseSettings):
     validation_worker_enabled: bool = True
     validation_worker_concurrency: int = 1
 
+    # --- PeopleOps Studio: integration API -----------------------------------
+    # Requests per minute per API key. Enforced in the API process: with more
+    # than one API instance the effective ceiling multiplies (see ratelimit.py).
+    integration_rate_limit_per_minute: int = 120
+    # Largest request body the integration API accepts, in megabytes.
+    integration_max_request_mb: int = 25
+    # Most records one import batch may carry.
+    integration_max_records: int = 50000
+    # How long a rejected record's own copy is kept for inspection and retry.
+    # The rejection itself (row, code, reason) is kept with the run.
+    studio_rejection_retention_days: int = 30
+    # Encrypts stored connection and webhook secrets (Fernet). One or more
+    # urlsafe-base64 32-byte keys, comma separated: the first encrypts, all
+    # decrypt, so a key can be rotated in. Unset in production means secrets
+    # cannot be stored at all — never stored in clear.
+    studio_secret_key: str = ""
+    # Local development and tests only: lets connections and webhooks reach
+    # private and loopback addresses. Forced off in production.
+    studio_allow_private_destinations: bool = False
+    # Outbound requests to connected systems.
+    studio_http_timeout_seconds: int = 30
+    studio_http_max_response_mb: int = 50
+
     # ------------------------------------------------------------------ utils
     @property
     def cors_origins_list(self) -> list[str]:
@@ -106,6 +129,10 @@ if settings.is_production:
             "ALLOW_ANONYMOUS_API=true in production — refusing. Forcing False."
         )
         object.__setattr__(settings, "allow_anonymous_api", False)
+
+    if settings.studio_allow_private_destinations:
+        logger.warning("STUDIO_ALLOW_PRIVATE_DESTINATIONS=true in production — refusing. Forcing False.")
+        object.__setattr__(settings, "studio_allow_private_destinations", False)
 
     if settings.database_url.startswith("sqlite"):
         # The most expensive mistake this product can make, because it does not

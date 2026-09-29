@@ -41,13 +41,22 @@ import {
   Loader,
   ListTodo,
   LayoutGrid,
+  PlugZap,
+  Activity,
+  Cable,
+  Shuffle,
+  Webhook,
+  GitBranch,
+  Workflow,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
+import { useEntity } from "@/context/EntityContext";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 import { EntitySwitcher } from "@/components/EntitySwitcher";
+import { NotificationBell } from "@/components/NotificationBell";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { SupportBanner } from "@/components/SupportBanner";
 
@@ -108,6 +117,22 @@ const navGroups = [
     ],
   },
   {
+    label: "Studio",
+    icon: PlugZap,
+    blurb: "Connect your systems",
+    items: [
+      { href: "/studio", label: "Studio overview", icon: PlugZap },
+      { href: "/studio/api", label: "API Centre", icon: KeyRound },
+      { href: "/studio/connections", label: "Connections", icon: Cable },
+      { href: "/studio/mapping", label: "Data mapping", icon: Shuffle },
+      { href: "/studio/workflows", label: "Workflows", icon: Workflow },
+      { href: "/studio/webhooks", label: "Webhooks", icon: Webhook },
+      { href: "/studio/developer", label: "Developer", icon: Code2 },
+      { href: "/studio/releases", label: "Releases", icon: GitBranch },
+      { href: "/studio/runs", label: "Run history", icon: Activity },
+    ],
+  },
+  {
     label: "Settings",
     icon: Settings2,
     blurb: "Rules, people and history",
@@ -131,8 +156,12 @@ const navGroups = [
 
 function useNavGroups() {
   const { user } = useAuth();
+  const { activeRole } = useEntity();
   return useMemo(() => {
-    return navGroups.map((g) => {
+    // Studio is a technical workspace (analyst and above); a viewer would
+    // only meet a refusal there, so it is not offered.
+    const groups = activeRole === "viewer" ? navGroups.filter((g) => g.label !== "Studio") : navGroups;
+    return groups.map((g) => {
       if (g.label !== "Settings") return g;
       const adminItems =
         user?.role === "admin"
@@ -143,7 +172,7 @@ function useNavGroups() {
           : [];
       return { ...g, items: [...g.items, ...adminItems] };
     });
-  }, [user?.role]);
+  }, [user?.role, activeRole]);
 }
 
 /** Pages reached from a menu item rather than listed in the menu themselves. */
@@ -151,8 +180,11 @@ const BELONGS_TO: Record<string, string[]> = {
   "/payroll/results": ["/payroll/runs", "/payroll/employee"],
 };
 
+/** Menu items that are only active on their own page, not on pages beneath them. */
+const EXACT = new Set(["/studio"]);
+
 function isActiveHref(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
+  if (href === "/" || EXACT.has(href)) return pathname === href;
   const under = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
   return under(href) || (BELONGS_TO[href] ?? []).some(under);
 }
@@ -552,6 +584,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="hidden min-w-0 flex-1 lg:flex" />
 
             <div className="ml-auto flex items-center gap-2">
+              <NotificationBell />
               <EntitySwitcher />
               <ProfileMenu />
             </div>

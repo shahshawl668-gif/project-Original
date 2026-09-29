@@ -73,6 +73,7 @@ Six boxes. Click one to open it; only the box you are working in stays open.
 | **Attendance** | The attendance register |
 | **Bank & JV** | Month close, Bank payments, Journal voucher |
 | **Insights** | Cost analysis, Reports |
+| **Studio** | Connections to your other systems: the API Centre, connections, data mapping, webhooks, and the run history of every batch they sent (analysts and above) |
 | **Settings** | Rules, people, history |
 
 ---
@@ -396,6 +397,54 @@ group never see this company's boards.
 **Payroll → Register history.** Every register uploaded, by period.
 
 ![Register history](images/13-register-history.png)
+
+---
+
+## 6b. Data sent by your other systems (Studio)
+
+If your HRMS, attendance or payroll system sends data to PeopleOpsLab directly,
+each batch appears in **Studio → Run history**.
+
+![Run history](images/28-studio-runs.png)
+
+Open a run to see what happened to every record:
+
+![One run: counts, lineage, rejections](images/29-studio-run.png)
+
+- **Received → accepted / rejected / skipped → created / updated / unchanged.**
+  The two lines under the counts must both be green: every record received is
+  accounted for, and every record accepted was stored.
+- **Rejected** records were not stored. Each says which row, which field and
+  why — a date that could not be read, a number that was not a number, the same
+  employee twice with different values. Fix them in the sending system and send
+  just those again. Nothing is ever stored as blank or zero because it could
+  not be read.
+- **Skipped** records were exact repeats of another row and were kept once.
+- **What it led to** links to the validation results, when the batch was a
+  register sent for validation.
+
+A run started by a connection your administrator set up (**Studio →
+Connections**) reads the same way, and also names the connection, the stream
+and the **mapping version** that turned the other system's fields into ours.
+If the same kind of rejection appears on every record, the mapping is the
+likely cause — tell whoever looks after it; they can preview a fix against
+the rejected rows before publishing it.
+
+A service account can acknowledge and comment on findings, but only a person
+can waive or resolve one, publish a rule, or approve a month.
+
+**Notifications.** If your administrator has set up workflows, the bell at the
+top of every page shows what they tell you — "June validated", "3 records
+rejected" — with a link to the page concerned. They are yours alone. Workflows
+can assign findings to you with a due date; they never waive, resolve or
+approve anything.
+
+**On Month close,** *Data from your systems* shows, for the month, how each
+input arrived and whether anything was rejected or failed. Rejected records
+are not in the month until they are fixed and sent again — check this before
+approving.
+
+![Data from your systems, on Month close](images/34-month-integration.png)
 
 ---
 

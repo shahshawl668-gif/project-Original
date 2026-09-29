@@ -321,6 +321,69 @@ Not zero findings — zero *unexplained* findings.
 
 ---
 
+## 4b. Connecting the client's systems (optional)
+
+When the client would rather send data from their systems than upload files
+each month, set up PeopleOps Studio after the parallel run has passed — the
+integration uses the same parsers and the same checks, so it should reproduce
+the parallel run's results exactly.
+
+1. In the client's workspace, **Studio → API Centre → New service account**
+   for each sending system. Tick only the companies it feeds and the least
+   scope it needs (*Send data* for a feed; add *validate* only for the system
+   that sends the register).
+2. Hand the key to the client's integration owner through their secret store.
+3. Have them rehearse every feed with the `/check` endpoints on last month's
+   data and compare the counts with the files you uploaded in the parallel run.
+4. Switch one feed at a time. After each first live batch, open it in
+   **Studio → Run history**: both reconciliation identities green, rejections
+   understood, lineage showing their system and batch ids.
+5. Keep the upload screens available as the fallback; they and the API write
+   the same records.
+
+**When the client's system has an API Studio can call instead** (pull rather
+than push), use a connection:
+
+1. **Studio → Connections**: add the system's API host to allowed
+   destinations, then create the connection with the credentials the client's
+   IT issued for integration — or OAuth **Connect** where offered. **Test** it.
+2. Add one stream per object (employees, attendance …). Leave the schedule
+   off until step 5.
+3. **Studio → Data mapping**: create a profile per data type, sample from the
+   stream, map the fields, and preview until no record is rejected for a
+   mapping reason. Publish. Where the client wants maker–checker, turn on the
+   independent-publisher policy first.
+4. Put the mapping on the stream and **Sync now** against last month. Compare
+   the run's counts with the parallel run's files, as above.
+5. Only then set the schedule, in the client's timezone. Choose deletion
+   handling deliberately: *report* is the safe choice for a full sync —
+   nothing is removed, missing employees are listed.
+
+No provider-specific connector exists yet; the generic REST connector reads
+any JSON API with page, offset or cursor paging. A system that only exports
+files uses the mapping page's file import through the same published mapping.
+
+![Data mapping](images/32-studio-mapping.png)
+
+Once feeds are stable, a workflow can take the month from *inputs arrived* to
+*validated and assigned*: **Studio → Workflows**, template *Validate when
+inputs are ready*. Dry-run it, have the client's owner publish it, and agree
+with them who is notified. It never approves anything; the month's sign-off
+stays with their people.
+
+For a client whose integration will change over time, set up a **test
+company** first (Studio → Versions & releases → mark it test), build and try
+connections, mappings and workflows there on synthetic data, and carry them to
+production by release. The client's second owner or manager approves each
+release; nothing reaches production on one person's say-so.
+
+The developer quick start and the rules a well-behaved client follows
+(idempotency keys, polling, error codes) are in [`STUDIO.md`](STUDIO.md) §6;
+the full contract is the OpenAPI document at `/api/integration/v1/openapi.json`,
+readable in Studio → API Centre.
+
+---
+
 ## 5. Deployment
 
 For the environment itself — hosting, database, domain, TLS — see

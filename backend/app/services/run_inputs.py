@@ -53,6 +53,9 @@ _IGNORED = {
     "upload_id", "created_by_user_id", "updated_by_user_id", "approved_by_user_id",
     "published_by_user_id", "published_at", "approved_at", "submitted_at",
     "submitted_by_user_id", "decided_by_user_id",
+    # Where a record came from is provenance. A re-import of identical data
+    # through another channel must not make a run look stale.
+    "lineage",
 }
 
 #: The inputs a run is fingerprinted on, in the order people read them.

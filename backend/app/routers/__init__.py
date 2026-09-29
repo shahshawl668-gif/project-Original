@@ -23,6 +23,7 @@ from app.routers import (
     signoff,
     statutory,
     statutory_config,
+    studio,
     users,
     validation_matrix,
     validation_runs,
@@ -57,6 +58,7 @@ api_router.include_router(rule_engine.router, prefix="/rule-engine", tags=["rule
 api_router.include_router(validation_matrix.router, prefix="/validation-matrix", tags=["validation-matrix"])
 api_router.include_router(validation_runs.router, prefix="/validation", tags=["validation"])
 api_router.include_router(income_tax.router, prefix="/income-tax", tags=["income-tax"])
+api_router.include_router(studio.router, prefix="/studio", tags=["studio"])
 # Config-Driven Statutory Engine (router has its own /api/config prefix)
 api_router.include_router(statutory_config.router)
 api_router.include_router(rule_preferences.router)

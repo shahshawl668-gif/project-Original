@@ -32,6 +32,7 @@ from app.services.finding_store import current_run
 DEFAULT_POLICY: dict[str, bool] = {
     "signoff_requires_independent_approver": False,
     "matrix_publish_requires_independent_approver": False,
+    "studio_publish_requires_independent_approver": False,
 }
 
 

@@ -118,9 +118,20 @@ def decide(
         raise IssueError("A waiver must state a reason" if to_state == "waived"
                          else "Say why this is resolved — what was corrected, or why it was never an error")
     until = waiver_end(waived_until) if to_state == "waived" else None
-    return finding_store.set_state(
+    before = state.state
+    out = finding_store.set_state(
         db, state=state, to_state=to_state, actor=actor, reason=reason, waived_until=until, note=note,
     )
+    if before != to_state:
+        from app.models import Entity
+        from app.services.studio import events
+
+        entity = db.get(Entity, state.entity_id)
+        if entity is not None:
+            events.emit(db, org_id=entity.org_id, entity_id=entity.id, type="finding.state_changed",
+                        data={"fingerprint": state.fingerprint, "rule_id": state.rule_id,
+                              "from": before, "to": to_state})
+    return out
 
 
 # ---------------------------------------------------------------------------

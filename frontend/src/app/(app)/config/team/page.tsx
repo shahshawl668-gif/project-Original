@@ -761,6 +761,11 @@ const APPROVAL_SETTINGS: { key: keyof ApprovalPolicy; label: string; hint: strin
     label: "Validation rules need a second person to publish",
     hint: "The person who drafted a rule cannot publish it.",
   },
+  {
+    key: "studio_publish_requires_independent_approver",
+    label: "Studio mappings need a second person to publish",
+    hint: "The person who drafted a data mapping cannot publish it — a mapping decides what every future import stores.",
+  },
 ];
 
 /**

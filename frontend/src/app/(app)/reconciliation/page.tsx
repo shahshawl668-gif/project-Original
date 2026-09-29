@@ -20,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { apiAbsoluteUrl } from "@/lib/api";
 import { formatINR } from "@/lib/cost-analysis";
 import { fetchOverview, type Overview } from "@/lib/reconciliation";
+import { IntegrationPanel } from "@/components/studio/IntegrationPanel";
 
 /**
  * Where the month stands, from register to bank to ledger.
@@ -168,6 +169,8 @@ export default function ReconciliationOverviewPage() {
           </div>
 
           <SignOffPanel period={data.period} />
+
+          <IntegrationPanel period={data.period} />
 
           <Card>
             <CardContent className="py-5">

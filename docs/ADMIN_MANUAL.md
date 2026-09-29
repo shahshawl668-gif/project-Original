@@ -418,6 +418,158 @@ decision for the client, not a housekeeping task.
   and is excluded from the totals, instead of showing ₹0 and a full underspend.
 - **Rollback:** redeploy the previous release; the two tables are ignored by it.
 
+### Upgrading to the Studio release (integration API)
+
+- **Automatic on first start.** Five new tables (`studio_service_accounts`,
+  `studio_credentials`, `studio_runs`, `studio_run_rejections`,
+  `studio_idempotency`) arrive through `create_all`; the `record_import_lineage`
+  migration adds a nullable `lineage` column to `employee_records`,
+  `attendance_rows` and `ctc_records`. Lineage is excluded from validation input
+  digests, so no existing run turns stale.
+- **Upload screens now name duplicates.** Committing a master or attendance file
+  with an employee twice still keeps the first row, and now says which ids were
+  skipped (`duplicates_skipped`) instead of dropping them unseen.
+- **The worker also processes Studio imports.** A deployment with
+  `VALIDATION_WORKER_ENABLED=false` and no `python -m app.worker` leaves API
+  imports queued; the Studio overview says so.
+- **Four new settings**, all with safe defaults: `INTEGRATION_RATE_LIMIT_PER_MINUTE`,
+  `INTEGRATION_MAX_REQUEST_MB`, `INTEGRATION_MAX_RECORDS`,
+  `STUDIO_REJECTION_RETENTION_DAYS`.
+- **Rollback:** redeploy the previous release. It ignores the new tables and
+  column; issued keys stop working with the integration API gone.
+
+### Upgrading to Studio connections, mapping and webhooks
+
+- **Set `STUDIO_SECRET_KEY` first.** Generate one with
+  `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+  and set it on the API service before anyone creates a connection or webhook.
+  Without it, production refuses to store their secrets (and says so) rather
+  than keeping them in clear. Keep it in the host's secret store, and keep a
+  copy: losing it means re-entering every connection's credentials. To rotate,
+  set `new-key,old-key`; both decrypt, the new one encrypts.
+- **Two new dependencies**, `httpx` and `cryptography`, in `requirements.txt`;
+  the build installs them.
+- **Ten new tables** arrive through `create_all`. No existing column changes.
+- **Three more settings**, safe by default: `STUDIO_ALLOW_PRIVATE_DESTINATIONS`
+  (forced off in production), `STUDIO_HTTP_TIMEOUT_SECONDS`,
+  `STUDIO_HTTP_MAX_RESPONSE_MB`.
+- **The worker now also** starts scheduled syncs and sends webhooks. With no
+  worker running, neither happens.
+- **Rollback:** redeploy the previous release; the new tables are ignored,
+  syncs and webhooks stop, and events are not recorded meanwhile.
+
+### Upgrading to Studio workflows
+
+- **Automatic on first start.** Three new tables (`studio_workflows`,
+  `studio_workflow_fires`, `studio_notifications`) arrive through `create_all`.
+  No settings, no new dependencies.
+- **The worker also runs workflows and their schedules.** With no worker,
+  none run.
+- **A bell appears in the header** for everyone: in-product notifications that
+  workflows send. Nothing is emailed.
+- **Rollback:** redeploy the previous release; workflows stop, their runs stay
+  in run history.
+
+### Upgrading to Studio releases
+
+- **Automatic on first start.** Two new tables (`studio_company_environments`,
+  `studio_releases`); every existing company is production until marked
+  otherwise. No settings, no new dependencies.
+- **Rollback:** redeploy the previous release; everything a release promoted
+  remains as ordinary mapping and workflow versions.
+
+---
+
+## 8b. PeopleOps Studio — keys for other systems
+
+A client's HRMS, attendance or payroll system can send data and read results
+through the integration API (`/api/integration/v1`). It does so as a **service
+account**, never as a person.
+
+![Studio overview](images/30-studio-overview.png)
+
+**Who may do what.** Owners and managers create service accounts and keys,
+only for companies they manage. Analysts see Studio's run history. Viewers do
+not see Studio. Platform staff have no access to a client's Studio beyond a
+break-glass grant, which is read-only as everywhere else.
+
+**What a key can never do**, whatever scopes it holds: publish a validation
+rule, waive or resolve a finding, submit or approve a month, change who has
+access. Those stay with people, and maker–checker still applies to rules a key
+proposes — the key is the preparer, so any owner or manager may approve.
+
+**Routine care**
+
+- One service account per sending system, so one can be revoked without
+  stopping the others.
+- Keys expire (90 days by default, at most a year). The Studio overview lists
+  keys expiring within 14 days. **Rotate** with an overlap long enough for the
+  other system to switch (24 hours by default).
+- **Revoke** at once when a key may have leaked — a ticket, a chat, a log. It
+  stops on the next request. Disabling the account stops all its keys.
+- A key found somewhere it should not be can be identified by its prefix
+  (`pol_live_1a2b3c4d`) in Studio → API Centre without anyone knowing the
+  secret. The product stores only a fingerprint and cannot show a key again.
+- Rejected records are kept for 30 days for inspection and retry; viewing one
+  is written to the audit trail.
+
+Every account change, key issue, rotation, revocation and every import a key
+submits is in the audit trail.
+
+**Connections, mapping and webhooks**
+
+- **Allowed destinations** (Studio → Connections) is the organisation's list of
+  hosts Studio may call. Add a host only when a connection or webhook needs it,
+  and remove it when that ends. Whatever a connection is configured with,
+  Studio refuses any host not on the list, any plain-HTTP address, and any
+  address inside a private network or the cloud's metadata service.
+- **Credentials** are encrypted, shown only masked, and replaced rather than
+  edited. Use an integration user the other system issues, never a person's
+  own password; prefer OAuth where the system offers it (**Connect**).
+- **Health.** Each connection shows its last test, last success and last
+  failure with the reason. A red one on the overview needs a look.
+- **Mappings** are published by an owner or manager; turn on *Studio mappings
+  need an independent publisher* (Configuration → Team → approval policy) so
+  the author cannot publish their own. A published version never changes.
+- **Webhooks.** A failed delivery is retried for about two days, then waits in
+  the failed queue until someone replays it. The receiving system must accept
+  the same event twice — delivery is at least once.
+
+![Connections](images/31-studio-connections.png)
+
+**Workflows**
+
+- Owners and managers publish, enable, disable and run workflows; analysts may
+  draft and edit them. Turn on the independent-publisher policy if one person
+  should not both write and put in force an automation.
+- A workflow acts as the person who published it. If that person leaves or
+  loses the manager role, its automatic starts stop and say why ("last
+  skipped") — publish it again as someone who can manage the company.
+- **No workflow can sign, submit or approve a month, waive or resolve a
+  finding, or publish a rule.** It can fetch, check, validate, assign, notify
+  and send webhooks. Approval controls are untouched.
+- If a workflow shows *last skipped* repeatedly with "its limit", something is
+  triggering it far more than expected — look at the trigger before raising
+  the limit.
+
+![Workflow builder](images/33-studio-workflow.png)
+
+**Environments and releases**
+
+- Keep configuration work out of production: a company marked **test**, with
+  synthetic data and its own connections to the provider's test system.
+- A release carries mappings and workflows upward — never data, connections,
+  credentials or webhook secrets. Set connections and webhooks up in each
+  environment under the same names.
+- **A release always needs a second person** to approve, even where your
+  approval policy lets one person publish alone: it changes production.
+- Promotion only adds versions. To undo one, open it and **Draft a rollback**:
+  it restores the earlier versions as new ones, through the same approval.
+- The **Developer workspace** tests formulas, conditions and lookups on
+  sample rows. Scripting is disabled on purpose; the page says why.
+
+![A release and its impact](images/35-studio-release.png)
+
 ---
 
 ## 9. What an administrator must not delegate

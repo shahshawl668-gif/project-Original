@@ -598,6 +598,7 @@ def run_migrations(engine: Engine) -> None:
         preserve_run_history,
         track_finding_work,
         extend_validation_rules,
+        record_import_lineage,
     )
     for step in steps:
         with engine.begin() as conn:
@@ -674,3 +675,18 @@ def extend_validation_rules(conn: Connection) -> None:
     ):
         if column not in have:
             conn.execute(text(f"ALTER TABLE validation_rule_versions ADD COLUMN {column} {ddl}"))  # nosec B608
+
+
+def record_import_lineage(conn: Connection) -> None:
+    """
+    Where each master, attendance and CTC record came from.
+
+    Additive and idempotent: one nullable JSON column per table, written by
+    every import from now on and left empty on records that predate it.
+    Excluded from the validation input digests, so adding it leaves every
+    existing run current. Rollback: the previous release ignores the column.
+    """
+    tables = _table_names(conn)
+    for table in ("employee_records", "attendance_rows", "ctc_records"):
+        if table in tables and "lineage" not in _columns(conn, table):
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN lineage JSON"))  # nosec B608

@@ -262,7 +262,7 @@
   <p class="standfirst">Everything in one place: how the product is put together, every route and who can reach it, how support access actually works, what to run to test it, and where it lives. Written against the code on <code>main</code>, not from memory.</p>
   <div class="meta">
     <span><b>Commit</b> 7eadc51 (branch) · 4cc2103 (main)</span>
-    <span><b>Tests</b> 1,021 passing, SQLite + PostgreSQL</span>
+    <span><b>Tests</b> 1,107 passing, SQLite + PostgreSQL</span>
     <span><b>Compiled</b> 25 Sep 2026</span>
   </div>
 </header>
@@ -275,6 +275,7 @@
     <a href="#blueprint">Blueprint</a>
     <a href="#routes">Routes &amp; access</a>
     <a href="#admin">Admin &amp; support access</a>
+    <a href="#integration">Integration API</a>
     <a href="#manuals">The three manuals</a>
     <a href="#testing">Testing points</a>
     <a href="#links">Live links</a>
@@ -319,17 +320,17 @@
       <div class="arrow">↓ HTTPS</div>
       <div class="tier">
         <div class="tname">API</div>
-        <div class="tbody"><b>FastAPI</b> · SQLAlchemy 2.0 typed models · Pydantic v2 · JWT auth. Every response is the envelope <code>{success, data, error}</code>. 22 routers; every tenant-scoped one resolves the caller's entity from the <code>X-Entity-Id</code> header.</div>
+        <div class="tbody"><b>FastAPI</b> · SQLAlchemy 2.0 typed models · Pydantic v2 · JWT auth. Every response is the envelope <code>{success, data, error}</code>. 27 routers; every tenant-scoped one resolves the caller's entity from the <code>X-Entity-Id</code> header. Beside it, mounted at <code>/api/integration/v1</code>, a <b>second application: the integration API</b> — its own OpenAPI contract, its own error catalogue, integration keys only (a person's session is refused there, and a key is refused everywhere else).</div>
       </div>
       <div class="arrow">↓</div>
       <div class="tier">
         <div class="tname">Engines</div>
-        <div class="tbody">39 service modules. Five statutory engines (<b>PF, ESIC, PT, LWF, income tax</b>), attendance and arrears rules, cost model, bank reconciliation, JV builder, risk scoring, masking, audit. <b>73 finding codes across 14 families.</b> The rule engine evaluates formulas through a restricted Python AST — fixed operator and function whitelist, no imports, no attribute access.</div>
+        <div class="tbody">73 service modules (<code>services/studio/</code> among them: keys, runs, imports, idempotency, rate limits, encrypted secrets, the outbound-destination guard, connections, the mapping engine and its versioned profiles, sync, the event outbox, webhooks, workflows, the developer workspace and releases). Five statutory engines (<b>PF, ESIC, PT, LWF, income tax</b>), attendance and arrears rules, cost model, bank reconciliation, JV builder, risk scoring, masking, audit. <b>73 finding codes across 14 families.</b> The rule engine evaluates formulas through a restricted Python AST — fixed operator and function whitelist, no imports, no attribute access.</div>
       </div>
       <div class="arrow">↓</div>
       <div class="tier">
         <div class="tname">PostgreSQL 16</div>
-        <div class="tbody">55 tables. Also the job queue: <code>validation_jobs</code> claimed with <code>SELECT … FOR UPDATE SKIP LOCKED</code>. Schema managed by <code>create_all</code> plus hand-rolled idempotent dialect-aware migrations in <code>app/migrations.py</code>.</div>
+        <div class="tbody">75 tables. Also the job queues: <code>validation_jobs</code> and <code>studio_runs</code> (imports, syncs and workflow runs), and the <code>studio_events</code> outbox with its <code>studio_deliveries</code>, both claimed with <code>SELECT … FOR UPDATE SKIP LOCKED</code> by the same worker loop. Schema managed by <code>create_all</code> plus hand-rolled idempotent dialect-aware migrations in <code>app/migrations.py</code>.</div>
       </div>
     </div>
 
@@ -360,6 +361,7 @@
       <table>
         <thead><tr><th>Stage</th><th>What happens</th><th>Where it lands</th></tr></thead>
         <tbody>
+          <tr><td>0 · Connect (Studio)</td><td>Another system can send the inputs below instead of a person uploading them. An owner or manager creates a <strong>service account</strong> — a machine identity with a shadow <code>users</code> row whose role is <code>machine</code>: no password, no membership, no company role, so it can never sign in or pass a human permission check. Its keys (<code>pol_live_…</code>, stored as SHA-256 only, shown once) carry scopes and name the companies they may touch, expire within a year, rotate with an overlap and revoke at once. Batches arrive at <code>/api/integration/v1/imports/{kind}</code>, are staged as a <code>studio_runs</code> row and processed by the worker through <strong>the same parsers and the same commit</strong> the upload screens use (<code>services/ingest.py</code>, <code>services/register_ingest.py</code>). Every record is accounted for — received = accepted + rejected + skipped, accepted = created + updated + unchanged — and every rejection keeps its row, field, reason and source record id. A value that cannot be read is rejected, never stored as blank or zero; a salary register is all or nothing. Each stored record carries <code>lineage</code> (run, source system, record id, batch, time), which is excluded from validation input digests. Writes that start work need an <code>Idempotency-Key</code>. A key can acknowledge or comment on a finding and propose a rule, but never waive, resolve, publish or sign. Studio can also <strong>pull</strong>: a <strong>connection</strong> describes another system's REST API (auth by header key, bearer, basic for integration users, or OAuth 2.0 client credentials / authorisation code with PKCE — never a password in a generic field); its secrets are encrypted with <code>STUDIO_SECRET_KEY</code> and only ever shown masked. Every outbound call goes through one guard: the host must be on the organisation's allow-list, HTTPS, and resolve only to public addresses (private, loopback, link-local and cloud-metadata addresses are refused, and the connection is pinned to the checked address, no redirects). A <strong>stream</strong> names one source object, its schedule and timezone, match key, full or incremental cursor, and what a record missing from a full sync means (ignore, report, or deactivate). Records pass through a <strong>published mapping</strong> — versioned, immutable once published, compared and previewed against sample data with row references, publishable only by someone other than its author when policy says so — and then the same import pipeline. The cursor advances in the same transaction as the records it covers, so an interrupted sync replays without duplicating. Business changes write an event to the <code>studio_events</code> outbox in their own transaction (import completed, validation completed or failed, finding state changed, month submitted, signed off, reopened); the worker fans events out to <strong>outbound webhooks</strong> signed with HMAC-SHA256 over a timestamp, retried with backoff into a failed queue, replayable. Delivery is at least once. <strong>Inbound webhooks</strong> are verified by the same signature, refused if stale, and de-duplicated by event id. <strong>Workflows</strong> (trigger → conditions → actions, as data) start on a person, a schedule or one of those events — including a derived <em>inputs ready</em>, checked after every import — and run as <code>studio_runs</code> of kind <code>workflow</code>: fetch through a stream, check the month's inputs, validate, assign findings, notify people in the product, send a report link or a webhook. A step that starts work waits for it by requeueing, not by holding a worker. Each start is recorded under a key unique per workflow (event id, schedule slot, set of inputs), so an event seen twice starts one run; events carry their causation, so a workflow never fires on its own work and chains stop at depth three; starts per hour are capped. No action signs, submits, waives, resolves, publishes or approves — a definition naming one is refused. Month close and Validations show how the month's inputs arrived, from the same runs. <strong>Environments are companies</strong>: each is marked development, test or production (the default). Configuration is built and tried in a test company on synthetic data, then carried upward by a <strong>release</strong> — published mapping versions and workflow definitions, by name; never records, runs, connections, credentials or webhook secrets. A workflow's streams, webhooks and people are re-resolved by name in the target, and anything missing blocks the release. The impact preview shows each change and whether that exact version was run in the source; an owner or manager other than the author approves; promotion is one transaction that only adds versions, recording what it replaced so a rollback is another release. Arbitrary scripting is disabled — the host has no sandbox — and the developer workspace tests formulas, conditions and lookups with the product's own evaluators instead.</td><td><span class="mono">studio_service_accounts</span>, <span class="mono">studio_credentials</span>, <span class="mono">studio_runs</span>, <span class="mono">studio_run_rejections</span>, <span class="mono">studio_idempotency</span>, <span class="mono">studio_allowed_hosts</span>, <span class="mono">studio_connections</span>, <span class="mono">studio_streams</span>, <span class="mono">studio_mappings</span>, <span class="mono">studio_oauth_states</span>, <span class="mono">studio_events</span>, <span class="mono">studio_webhooks</span>, <span class="mono">studio_deliveries</span>, <span class="mono">studio_inbound_endpoints</span>, <span class="mono">studio_inbound_receipts</span>, <span class="mono">studio_workflows</span>, <span class="mono">studio_workflow_fires</span>, <span class="mono">studio_notifications</span>, <span class="mono">studio_company_environments</span>, <span class="mono">studio_releases</span></td></tr>
           <tr><td>1 · Configure</td><td>Salary components with their PF/ESIC/PT/LWF/taxable flags. PT and LWF slabs seeded per state. Statutory rates default from config, editable per tenant. Company rules (<code>validation_rule_versions</code>) are data the engine evaluates, never code: nested AND/OR groups (three-valued — a missing input is unknown, not false), calculations through the whitelisted formula evaluator, last month's values, the employee master, narrowing by dimension, and a stated behaviour for missing inputs. Every change is a new version — drafted, tested on a whole month, published by someone entitled to, retired from a date or rolled back as a new draft. Contradictions and broken references block publication. Rules import from CSV/Excel as drafts after a preview, and copy to other companies as drafts; configuration copies between companies in the group with a preview; both are audited on both sides.</td><td><span class="mono">component_configs</span>, <span class="mono">pt_slabs</span>, <span class="mono">lwf_rates</span></td></tr>
           <tr><td>2 · Employee master</td><td>Uploaded once, then as it changes. Supplies reporting dimensions and the identity fields (PAN, UAN, ESIC IP) the checks need.</td><td><span class="mono">employee_master</span></td></tr>
           <tr><td>3 · Attendance</td><td>Days worked, days paid, loss of pay. Checked for internal consistency before it is accepted.</td><td><span class="mono">attendance_rows</span></td></tr>
@@ -404,8 +406,8 @@
           <tr><td class="mono">/invite</td><td>Accept an invitation</td><td><span class="pill p-info">Token</span></td></tr>
           <tr><td class="mono">/dashboard</td><td>Companies portfolio — every employer, ordered by what needs attention</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/upload</td><td>Upload and validate a register</td><td><span class="pill p-warn">Write roles</span></td></tr>
-          <tr><td class="mono">/payroll/validation</td><td>Validation jobs: progress of a queued validation (<code>?job=</code>), cancel and retry, or the recent list. Safe to close and return to</td><td><span class="pill p-ok">Any role</span> (cancel/retry: write roles)</td></tr>
-          <tr><td class="mono">/payroll/results</td><td>A validation run, read from the server by <code>?run=</code> (defaults to the latest current run). Paged employee and finding tables, a Coverage tab (five outcomes per check, the inputs that were missing, the employees who could not be fully checked), run history for the month, staleness banner, Excel export of the run as recorded</td><td><span class="pill p-ok">Any role</span></td></tr>
+          <tr><td class="mono">/payroll/validation</td><td>Validation jobs: progress of a queued validation (<code>?job=</code>), cancel and retry, or the recent list. Safe to close and return to. Under a job, how the month's inputs arrived through Studio (analyst and above)</td><td><span class="pill p-ok">Any role</span> (cancel/retry: write roles)</td></tr>
+          <tr><td class="mono">/payroll/results</td><td>A validation run, read from the server by <code>?run=</code> (defaults to the latest current run). Paged employee and finding tables, a Coverage tab (five outcomes per check, the inputs that were missing, the employees who could not be fully checked), run history for the month, staleness banner, Excel export of the run as recorded, and how the month's inputs arrived through Studio (analyst and above)</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/results/why</td><td>Why this result? One finding (<code>?run=&amp;finding=</code>) with the file, sheet, row and column it came from, the calculation, the tolerance, the rule in force, its review history and the month's approval</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/issues</td><td>Issues — the findings worklist across months, paged on the server: filter by state, severity, rule, owner, overdue, recurring; bulk decisions and assignment; owner, due date, comments, evidence and history per finding</td><td><span class="pill p-ok">Any role</span> (changes: write roles)</td></tr>
           <tr><td class="mono">/payroll/runs/compare</td><td>Two runs compared finding by finding: new, resolved, changed, unchanged, with rupee totals</td><td><span class="pill p-ok">Any role</span></td></tr>
@@ -415,12 +417,27 @@
           <tr><td class="mono">/ctc/upload</td><td>CTC structures</td><td><span class="pill p-warn">Write roles</span></td></tr>
           <tr><td class="mono">/ctc/history</td><td>CTC history</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/budget/upload</td><td>Budget, for variance reporting</td><td><span class="pill p-warn">Write roles</span></td></tr>
-          <tr><td class="mono">/reconciliation</td><td>Month close — bank and JV status, and the month's approval: readiness blockers, submit, approve, reopen, history, evidence pack</td><td><span class="pill p-ok">Any role</span> (submit: write roles; approve/reopen: owner / manager)</td></tr>
+          <tr><td class="mono">/reconciliation</td><td>Month close — bank and JV status, and the month's approval: readiness blockers, submit, approve, reopen, history, evidence pack; and how the month's inputs arrived through Studio — the latest import or sync per input, anything rejected or failed, failing connections, workflows that ran (analyst and above)</td><td><span class="pill p-ok">Any role</span> (submit: write roles; approve/reopen: owner / manager)</td></tr>
           <tr><td class="mono">/reconciliation/bank</td><td>Bank payments against the register</td><td><span class="pill p-warn">Write roles</span></td></tr>
           <tr><td class="mono">/reconciliation/jv</td><td>Journal voucher</td><td><span class="pill p-warn">Write roles</span></td></tr>
           <tr><td class="mono">/cost</td><td>Cost analysis and BI. Opens pre-filtered from a link (<code>?view=&amp;group_by=&amp;f_&lt;dimension&gt;=a|b</code>). Shows what the figures rest on: months with a register, months missing (absent, not zero), validation and sign-off by month, data freshness. Cost per head is monthly: CTC ÷ person-months</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/dashboards</td><td>Saved dashboards — private and shared, eight templates, custom KPIs (formulas over a dataset's metrics, evaluated by the whitelisted formula evaluator)</td><td><span class="pill p-ok">Any role</span> (sharing: write roles)</td></tr>
           <tr><td class="mono">/dashboards/[id]</td><td>One dashboard: period control, tiles computed on open, drill-through to the page behind each figure; edit with the tile builder (dataset → metric → breakdown → chart → filters)</td><td><span class="pill p-ok">Any role</span> (edit: owner; shared: also owner / manager)</td></tr>
+          <tr><td class="mono">/studio</td><td>PeopleOps Studio overview — service accounts, keys in use and expiring, runs in the last seven days, what needs attention, a setup checklist that ticks itself from what exists, and which Studio sections this release provides (the rest are marked, not linked)</td><td><span class="pill p-warn">Analyst and above</span></td></tr>
+          <tr><td class="mono">/studio/api</td><td>API Centre — service accounts and keys (create, issue, rotate with overlap, revoke, disable; the key is shown once), and the integration API documentation read live from its OpenAPI contract, with copyable synthetic examples</td><td><span class="pill p-warn">Analyst and above</span> (accounts and keys: owner / manager)</td></tr>
+          <tr><td class="mono">/studio/connections</td><td>Connections — the organisation's allowed outbound destinations (owner / manager), and every connection with its provider, environment, auth method, health, last success and last failure; create a REST or file connection</td><td><span class="pill p-warn">Analyst and above</span> (create, destinations: owner / manager)</td></tr>
+          <tr><td class="mono">/studio/connections/[id]</td><td>One connection: settings, credentials (masked, rotated by replacing), OAuth Connect, test, and its streams — object, schedule and timezone, match key, cursor, deletion handling, mapping; sync now, reset the checkpoint, and the connection's recent runs</td><td><span class="pill p-warn">Analyst and above</span> (test, sample, sync now: write roles; edit, streams, OAuth, reset checkpoint: owner / manager)</td></tr>
+          <tr><td class="mono">/studio/connections/oauth</td><td>Where the other system returns after an OAuth sign-in; finishes the authorisation-code exchange and returns to the connection</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
+          <tr><td class="mono">/studio/mapping</td><td>Data mapping — mapping profiles by data type, with their versions and which is in force</td><td><span class="pill p-warn">Analyst and above</span></td></tr>
+          <tr><td class="mono">/studio/mapping/[id]</td><td>One mapping version: field editor (source, aliases, type, format, default, lookup, formula, conditions, padding), sample from a file, a stream or pasted JSON, preview with row-referenced errors, compare with another version, publish (independently when policy says so), new version, retire, and import a file through the published version</td><td><span class="pill p-warn">Analyst and above</span> (create, edit, new version, import: write roles; publish, retire: owner / manager)</td></tr>
+          <tr><td class="mono">/studio/workflows</td><td>Workflows — each with its trigger, steps, version in force, unpublished changes, next scheduled run, last run and the last time a trigger was skipped and why; create from a template</td><td><span class="pill p-warn">Analyst and above</span> (create: write roles)</td></tr>
+          <tr><td class="mono">/studio/workflows/[id]</td><td>Workflow builder: trigger (manual, schedule, events, inputs ready), conditions on the event, ordered steps with retries and timeouts, a failure branch, run limits; a dry run against a sample event that does nothing; publish (independently where policy says), enable, disable, run now; recent runs</td><td><span class="pill p-warn">Analyst and above</span> (edit: write roles; publish, enable, run: owner / manager)</td></tr>
+          <tr><td class="mono">/studio/developer</td><td>Developer workspace — test a formula on sample rows with its meaning in words and every row's result or reason; test workflow conditions against sample events; test a lookup table with its unmatched policy; the reference of what is allowed; why scripting is disabled and what it would need</td><td><span class="pill p-warn">Analyst and above</span></td></tr>
+          <tr><td class="mono">/studio/releases</td><td>Versions and releases — this company's environment (set by owner / manager), the organisation's companies and theirs, releases to or from this company, and drafting a release upward (mappings and workflows only)</td><td><span class="pill p-warn">Analyst and above</span> (environment, drafting: owner / manager of both companies)</td></tr>
+          <tr><td class="mono">/studio/releases/[id]</td><td>One release: impact on the target (per item: create, update or unchanged, the diff, evidence of a run in the source, blocking problems and warnings), submit, approve or reject (someone other than the author), promote, draft a rollback, cancel</td><td><span class="pill p-warn">Analyst and above</span> (actions: owner / manager of the target)</td></tr>
+          <tr><td class="mono">/studio/webhooks</td><td>Webhooks — outbound subscriptions (events, payload version, secret shown once, rotation with overlap, test, delivery log, replay one or all failed) and inbound endpoints (secret shown once, receipts)</td><td><span class="pill p-warn">Analyst and above</span> (create, rotate, replay: owner / manager)</td></tr>
+          <tr><td class="mono">/studio/runs</td><td>Run history — every import and API-started validation for this company, searchable by batch, system, key or run id, filterable by status, kind, data and who started it</td><td><span class="pill p-warn">Analyst and above</span></td></tr>
+          <tr><td class="mono">/studio/runs/[id]</td><td>One run: reconciliation (received → accepted / rejected / skipped → created / updated / unchanged, with both identities checked), source and lineage, what it led to (validation run, results), every rejected or skipped record with row, field and reason; retry the rejected records; view a rejected record as received (owner / manager, audited)</td><td><span class="pill p-warn">Analyst and above</span> (retry, cancel: write roles)</td></tr>
           <tr><td class="mono">/reports</td><td>11 downloadable workbooks</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/audit</td><td>Audit trail</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/config/components</td><td>Salary components and their flags</td><td><span class="pill p-warn">Owner / manager</span></td></tr>
@@ -524,6 +541,47 @@ python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.
   </section>
 
   <!-- ============================================ -->
+  <section id="integration">
+    <h2>Integration API</h2>
+    <p class="sub">Version 1, at <code>/api/integration/v1</code> on the API service (or through the relay at <code>https://www.peopleopslab.in/api/proxy/api/integration/v1</code>). The contract is <code>/api/integration/v1/openapi.json</code>; its description states authentication, scopes, idempotency, pagination, limits, the error catalogue and the deprecation policy. Every endpoint below is checked against the code by <code>check_docs_current.py</code>.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Endpoint</th><th>Scope</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">GET /api/integration/v1/me</td><td>any key</td><td>The key's account, scopes, companies, expiry</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/scopes</td><td>any key</td><td>The scope catalogue</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/imports/{kind}</td><td>imports:write</td><td>202 with a run. <code>employee_master</code>, <code>ctc</code>, <code>attendance</code>, <code>salary_register</code>. Idempotency-Key required</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/imports/{kind}/check</td><td>imports:write</td><td>Dry run: the real checks and commit, rolled back</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/imports</td><td>imports:read</td><td>Paged list, by status, type, batch</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/imports/{run_id}</td><td>imports:read</td><td>Status, counts, error and recommended action, links</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/imports/{run_id}/rejections</td><td>imports:read</td><td>Rejected and skipped records — row, field, code, reason; never the record itself</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/imports/{run_id}/retry-rejected</td><td>imports:write</td><td>The retained rejected records as a new run. Idempotency-Key required</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/validation-jobs</td><td>validation:run</td><td>Queue a month; a live job is returned, not duplicated. Idempotency-Key required</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/validation-jobs/{job_id}</td><td>validation:read</td><td>Progress</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/validation-runs</td><td>validation:read</td><td>Paged</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/validation-runs/{run_id}</td><td>validation:read</td><td>Summary, coverage, freshness — the screen's own answer</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/validation-runs/{run_id}/findings</td><td>validation:read</td><td>Paged, filterable</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/validation-runs/{run_id}/employees</td><td>validation:read + results:employee</td><td>Per-employee pay detail needs its own scope</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/findings</td><td>validation:read</td><td>The worklist across months</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/findings/assignees</td><td>findings:write</td><td>People a finding can be assigned to</td></tr>
+          <tr><td class="mono">PATCH /api/integration/v1/findings/{fingerprint}/assignment</td><td>findings:write</td><td>Owner and due date</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/findings/{fingerprint}/comments</td><td>findings:write</td><td>Idempotency-Key optional</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/findings/{fingerprint}/decision</td><td>findings:write</td><td>Acknowledge or reopen only; waive/resolve answer <code>approval_required</code></td></tr>
+          <tr><td class="mono">GET /api/integration/v1/configuration</td><td>config:read</td><td>The configuration bundle</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/configuration/rules</td><td>config:read</td><td>Company validation rules, all versions</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/configuration/rules</td><td>config:propose</td><td>Draft and submit (<code>pending</code>); a person publishes. Idempotency-Key required</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/bi/datasets</td><td>bi:read</td><td>Datasets, metrics, breakdowns</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/bi/query</td><td>bi:read</td><td>The dashboard query service, with its data basis</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/periods/{period}/status</td><td>signoff:read</td><td>The month's stage — the screen's own answer</td></tr>
+          <tr><td class="mono">POST /api/integration/v1/hooks/{token}</td><td>none — the endpoint's signing secret</td><td>Inbound webhook. <code>X-PeopleOpsLab-Signature</code> (HMAC-SHA256 of <code>t.body</code>, five-minute tolerance) and a unique <code>X-PeopleOpsLab-Event-Id</code>; a repeated event id answers <code>200</code> with <code>duplicate: true</code> and does nothing</td></tr>
+          <tr><td class="mono">GET /api/integration/v1/periods/{period}/evidence</td><td>signoff:read</td><td>Sign-off state, digests, run reference and history — metadata, not the evidence pack</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Studio's own screens use <code>/api/studio/*</code> with a person's session: overview, scopes, service accounts, keys, runs, rejections, the rejected record (owner / manager, audited), retry, cancel; allowed destinations, connections (test, sample, OAuth start and callback), streams (sync, reset checkpoint), mappings (targets, versions, preview, compare, publish, retire, import a file), webhooks (events, subscriptions, rotate, test, deliveries, replay), inbound endpoints (receipts), workflows (catalogue, create, edit, publish, enable, disable, run, dry run), the caller's own notifications (list, mark read), and one month's integration picture for Month close and Validations (<code>/api/studio/period/{month}</code>), the developer workspace (reference, formula, conditions, lookup — nothing stored), the company's environment, and releases (candidates, draft, impact, submit, decide, promote, rollback, cancel). Outbound webhook payloads carry <code>id</code>, <code>type</code>, <code>version</code>, <code>occurred_at</code>, the company, and the object's ids, state and counts — never pay figures or names; the receiver fetches detail with a key.</p>
+  </section>
+
+  <!-- ============================================ -->
   <section id="manuals">
     <h2>The three manuals</h2>
     <p class="sub">All in <code>docs/</code> in the repository, and all readable on GitHub.</p>
@@ -536,25 +594,25 @@ python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.
             <td class="mono">IMPLEMENTATION_MANUAL.md</td>
             <td>Whoever sets up a new client</td>
             <td>Prerequisites, the order to configure things in, component flags, seeding PT and LWF, the first register, what "done" looks like at each step</td>
-            <td class="num">324</td>
+            <td class="num">432</td>
           </tr>
           <tr>
             <td class="mono">ADMIN_MANUAL.md</td>
             <td>You, running the platform</td>
             <td>Creating a client account, inviting users, the four roles and what each can do, support access and when to use it, reading the audit trail</td>
-            <td class="num">247</td>
+            <td class="num">489</td>
           </tr>
           <tr>
             <td class="mono">CLIENT_USER_MANUAL.md</td>
             <td>The client's payroll team</td>
             <td>Signing in, finding your way around, the monthly routine, step by step through upload → validate → reconcile → sign off, cost analysis and reports, questions people ask</td>
-            <td class="num">263</td>
+            <td class="num">493</td>
           </tr>
           <tr>
             <td class="mono">GO_LIVE.md</td>
             <td>Before the first paying client</td>
             <td>Six phases and three gates, from local pre-flight through staging, a seven-layer test plan, a parallel run, and cutover</td>
-            <td class="num">541</td>
+            <td class="num">559</td>
           </tr>
         </tbody>
       </table>
@@ -572,12 +630,12 @@ python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.
     <h2>Testing points</h2>
     <p class="sub">Five things you can run. The first four take minutes; the fifth is the one with a deadline.</p>
 
-    <h3>1 · The unit suite — 1,021 tests</h3>
+    <h3>1 · The unit suite — 1,107 tests</h3>
     <pre><code>cd backend
-python -m pytest tests/ -q                 # SQLite, ~2m45s
+python -m pytest tests/ -q                 # SQLite, ~4m15s
 
 DATABASE_URL=postgresql+psycopg2://user:pass@host/db \
-  python -m pytest tests/ -q               # PostgreSQL, ~2m56s</code></pre>
+  python -m pytest tests/ -q               # PostgreSQL, ~5m15s</code></pre>
     <p>Run it on <strong>both</strong>. They are not interchangeable: SQLite ignores foreign keys by default and has no <code>FOR UPDATE SKIP LOCKED</code>, and both differences have hidden real bugs in this codebase already.</p>
     <p class="mono" style="font-size:12.5px;color:var(--ink-3)">Note: run <code>pytest tests/</code>, not bare <code>pytest</code> — the backend root holds live-server scripts that pytest would try to collect and fail on.</p>
 
@@ -691,7 +749,15 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
           <tr><td class="mono">CORS_ORIGINS</td><td class="mono">localhost:3000, peopleopslab.in</td><td>Comma-separated. A browser calling from anywhere else is refused</td></tr>
           <tr><td class="mono">BACKEND_URL</td><td>—</td><td>Where the Next.js relay forwards. Server-side only, never <code>NEXT_PUBLIC_</code></td></tr>
           <tr><td class="mono">VALIDATION_WORKER_ENABLED</td><td class="mono">true</td><td>Starts background worker threads in the API container. On by default since the upload page validates through the queue — with it off and no separate <code>python -m app.worker</code>, validations wait forever (the progress page says so)</td></tr>
-          <tr><td class="mono">VALIDATION_WORKER_CONCURRENCY</td><td class="mono">1</td><td>How many</td></tr>
+          <tr><td class="mono">VALIDATION_WORKER_CONCURRENCY</td><td class="mono">1</td><td>How many. The same loop also processes Studio imports</td></tr>
+          <tr><td class="mono">INTEGRATION_RATE_LIMIT_PER_MINUTE</td><td class="mono">120</td><td>Requests per minute per integration key, counted in each API process (with more instances the effective ceiling multiplies)</td></tr>
+          <tr><td class="mono">INTEGRATION_MAX_REQUEST_MB</td><td class="mono">25</td><td>Largest request body the integration API accepts (<code>413 payload_too_large</code>)</td></tr>
+          <tr><td class="mono">INTEGRATION_MAX_RECORDS</td><td class="mono">50000</td><td>Most records one import batch may carry</td></tr>
+          <tr><td class="mono">STUDIO_REJECTION_RETENTION_DAYS</td><td class="mono">30</td><td>How long a rejected record's own copy is kept; the rejection (row, code, reason) stays with the run</td></tr>
+          <tr><td class="mono">STUDIO_SECRET_KEY</td><td>—</td><td><b>Required in production before any connection credential or webhook secret is stored.</b> A Fernet key (<code>Fernet.generate_key()</code>); a comma-separated list rotates — the first encrypts, all decrypt. Unset in production, storing a secret fails with a clear error rather than falling back. Outside production a key is derived from <code>JWT_SECRET</code>. Losing it makes stored secrets unreadable: connections must be re-entered</td></tr>
+          <tr><td class="mono">STUDIO_ALLOW_PRIVATE_DESTINATIONS</td><td class="mono">false</td><td>Lets connections and webhooks reach private addresses, for local development against a mock system. <b>Forced <code>false</code> in production.</b> Link-local and cloud-metadata addresses stay blocked even when on</td></tr>
+          <tr><td class="mono">STUDIO_HTTP_TIMEOUT_SECONDS</td><td class="mono">30</td><td>Per-request timeout for every outbound call (connections, OAuth, webhooks)</td></tr>
+          <tr><td class="mono">STUDIO_HTTP_MAX_RESPONSE_MB</td><td class="mono">50</td><td>Largest response body Studio reads from another system; a larger one is refused, not truncated</td></tr>
         </tbody>
       </table>
     </div>
