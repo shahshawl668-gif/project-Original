@@ -537,7 +537,7 @@ export function approveBudget(id: string): Promise<{ id: string; state: string }
 // ---------------------------------------------------------------------------
 // Reports and the audit trail
 // ---------------------------------------------------------------------------
-export type ReportMeta = { key: string; title: string; description: string };
+export type ReportMeta = { key: string; title: string; description: string; group: string; required_data: string; format: "xlsx" };
 
 export function fetchReports(): Promise<{ reports: ReportMeta[] }> {
   return apiFetch("/api/reports").then((r) =>
