@@ -84,8 +84,8 @@ export default function ReportsPage() {
     <div className="space-y-5">
       <PageHeader
         eyebrow="Reports"
-        title="Download a report"
-        description="Every workbook opens with where it came from: the period it covers, the filters applied, how fresh the registers were, and who generated it. Reports are built from the same figures as the dashboards, so the two can never disagree."
+        title="Report Centre"
+        description="Choose a standard report, set its company scope and period, then download a workbook with its data basis and generation details."
       />
 
       <Card>
@@ -196,13 +196,28 @@ export default function ReportsPage() {
         <AlertBanner variant="error" title="Could not generate that report">{error}</AlertBanner>
       )}
 
+      {!periods.isLoading && available.length === 0 && (
+        <AlertBanner variant="warning" title="No payroll periods available">
+          Upload a salary register for this company before generating a register-based report. Finding reports also require a validation run.
+        </AlertBanner>
+      )}
+      {reports.isError && (
+        <AlertBanner variant="error" title="Could not load reports">
+          {(reports.error as Error).message}
+        </AlertBanner>
+      )}
+
       {reports.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-28" />)}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(reports.data?.reports ?? []).map((report) => (
+        <div className="space-y-7">
+          {Array.from(new Set((reports.data?.reports ?? []).map((report) => report.group))).map((group) => (
+            <section key={group} aria-label={group}>
+              <h2 className="mb-3 text-base font-semibold text-ink-900 dark:text-white">{group}</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {(reports.data?.reports ?? []).filter((report) => report.group === group).map((report) => (
             <Card key={report.key}>
               <CardContent className="flex h-full flex-col gap-2 py-4">
                 <span className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white">
@@ -211,6 +226,9 @@ export default function ReportsPage() {
                 </span>
                 <p className="flex-1 text-xs text-ink-500 dark:text-ink-400">
                   {report.description}
+                </p>
+                <p className="text-xs text-ink-500 dark:text-ink-400">
+                  Required: {report.required_data}. Period: selected range above.
                 </p>
                 <button
                   type="button"
@@ -226,6 +244,9 @@ export default function ReportsPage() {
                 </button>
               </CardContent>
             </Card>
+              ))}
+              </div>
+            </section>
           ))}
         </div>
       )}

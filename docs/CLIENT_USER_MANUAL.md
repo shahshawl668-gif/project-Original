@@ -388,7 +388,19 @@ group never see this company's boards.
 
 ### Reports
 
-**Insights → Reports.** Excel exports for filing, evidence and review.
+**Insights → Reports.** Select the company first, then a reporting period,
+dimension and optional filters. The catalogue groups available reports by
+purpose and lists required input data. Choose **Mask names** when the workbook
+will be shared with someone who need not see employee identities. Download the
+Excel workbook and check its **About this report** and **Data basis** sheets
+before using its figures. An absent payroll month is not treated as a zero
+month. Finding reconciliation shows current finding state within the selected
+last-seen period; it does not reconstruct an earlier run.
+
+The workbook is generated from current stored data. Keep the downloaded file
+as evidence; generating the same report later may produce different values if
+source registers or configurations have changed. The current catalogue does
+not create an official statutory filing format.
 
 ![Reports](images/09-reports.png)
 

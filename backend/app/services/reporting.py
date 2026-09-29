@@ -39,6 +39,16 @@ def _openpyxl():
 
 HEADER_FILL = "1F2A44"
 SUBHEAD_FILL = "EEF1F6"
+EXCEL_MAX_ROWS = 1_048_576
+TEXT_COLUMNS = {"employee", "employee id", "employee code", "account code", "account number", "bank account", "ifsc", "pan", "uan"}
+
+def _excel_text(value: Any) -> Any:
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    if isinstance(value, str) and value.startswith(("\t", "\r", "\n")):
+        return "'" + value
+    return value
+
 
 
 def _style_header(ws, row: int, columns: int) -> None:
@@ -56,20 +66,44 @@ def _style_header(ws, row: int, columns: int) -> None:
 
 
 def _autosize(ws, minimum: int = 10, maximum: int = 46) -> None:
-    for column in ws.columns:
-        longest = max((len(str(c.value)) for c in column if c.value is not None), default=0)
-        letter = column[0].column_letter
-        ws.column_dimensions[letter].width = max(minimum, min(maximum, longest + 2))
+    widths: dict[int, int] = {}
+    for row in ws.iter_rows(max_row=min(ws.max_row, 250)):
+        for cell in row:
+            if cell.value is not None:
+                widths[cell.column] = max(widths.get(cell.column, 0), len(str(cell.value)))
+    for column, longest in widths.items():
+        ws.column_dimensions[ws.cell(1, column).column_letter].width = max(
+            minimum, min(maximum, longest + 2)
+        )
 
 
 def _sheet(wb, title: str, headers: list[str], rows: list[list[Any]]):
-    ws = wb.create_sheet(title[:31])
-    ws.append(headers)
-    _style_header(ws, 1, len(headers))
-    for row in rows:
-        ws.append(row)
-    _autosize(ws)
-    return ws
+    """Write all rows, splitting at Excel's limit instead of losing records."""
+    from openpyxl.utils import get_column_letter
+
+    first = None
+    capacity = EXCEL_MAX_ROWS - 1
+    for offset in range(0, max(len(rows), 1), capacity):
+        part = offset // capacity + 1
+        suffix = f" ({part})" if part > 1 else ""
+        ws = wb.create_sheet(title[:31 - len(suffix)] + suffix)
+        if first is None:
+            first = ws
+        ws.append([_excel_text(h) for h in headers])
+        _style_header(ws, 1, len(headers))
+        for row in rows[offset:offset + capacity]:
+            ws.append([_excel_text(value) for value in row])
+        for index, heading in enumerate(headers, 1):
+            if ws.max_row > 1 and heading.strip().lower() in TEXT_COLUMNS:
+                for cells in ws.iter_cols(min_col=index, max_col=index, min_row=2):
+                    for cell in cells:
+                        cell.number_format = "@"
+                        if cell.value is not None:
+                            cell.value = _excel_text(str(cell.value))
+        if headers:
+            ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{ws.max_row}"
+        _autosize(ws)
+    return first
 
 
 def _provenance_sheet(wb, meta: dict) -> None:
@@ -348,12 +382,12 @@ def _component_breakdown(db, entity_id, ctx, wb) -> None:
 def _reconciliation(db, entity_id, ctx, wb) -> None:
     from app.models import FindingState
 
-    states = (
-        db.query(FindingState)
-        .filter(FindingState.entity_id == entity_id)
-        .order_by(FindingState.last_seen_period.desc())
-        .all()
-    )
+    query = db.query(FindingState).filter(FindingState.entity_id == entity_id)
+    if ctx["date_from"]:
+        query = query.filter(FindingState.last_seen_period >= ctx["date_from"])
+    if ctx["date_to"]:
+        query = query.filter(FindingState.last_seen_period <= ctx["date_to"])
+    states = query.order_by(FindingState.last_seen_period.desc()).all()
     identity = ctx["identity"]
     _sheet(wb, "Exceptions",
            ["Rule", "Rule name", "Severity", "State", "Employee", "Component",
@@ -603,8 +637,25 @@ REPORTS: dict[str, tuple[str, str, Callable]] = {
 RESTRICTED_REPORTS = {"pay-equity"}
 
 
+REPORT_GROUPS = {
+    "management-summary": ("Finance and management", "Salary register"),
+    "department-cost": ("Finance and management", "Salary register"),
+    "headcount": ("CTC and salary", "Salary register"),
+    "compensation": ("CTC and salary", "Salary register"),
+    "statutory-cost": ("Configured statutory validation", "Salary register and statutory configuration"),
+    "budget-variance": ("Finance and management", "Salary register and approved budget"),
+    "component-breakdown": ("CTC and salary", "Salary register with mapped components"),
+    "reconciliation": ("Payroll validation", "Validation findings"),
+    "bank-jv-reconciliation": ("Finance and management", "Salary register, bank file and journal voucher"),
+    "employee-cost": ("CTC and salary", "Salary register"),
+    "pay-equity": ("Finance and management", "Salary register and authorised attribute"),
+}
+
+
 def catalogue() -> list[dict]:
-    return [{"key": key, "title": title, "description": description}
+    return [{"key": key, "title": title, "description": description,
+             "group": REPORT_GROUPS[key][0], "required_data": REPORT_GROUPS[key][1],
+             "format": "xlsx"}
             for key, (title, description, _) in REPORTS.items()]
 
 
