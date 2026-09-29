@@ -53,7 +53,7 @@ export function FormulaTester({ expression, conditions }: Props) {
   return (
     <Card>
       <CardHeader>
-        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="font-display text-[11px] font-semibold text-ink-500">
           Sandbox
         </p>
         <CardTitle>Formula tester</CardTitle>
@@ -85,7 +85,7 @@ export function FormulaTester({ expression, conditions }: Props) {
             {result.ok ? (
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+                  <p className="font-display text-[11px] font-semibold text-ink-500">
                     Computed value
                   </p>
                   <p className="font-display text-2xl font-bold tracking-tight text-ink-900">

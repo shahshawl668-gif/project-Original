@@ -298,7 +298,7 @@ function StateChip({ state }: { state: Invitation["state"] }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
         STATE_TONE[state],
       )}
     >
@@ -392,7 +392,7 @@ function InviteForm({
 
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[15rem] flex-1">
-            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+            <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
               Email
             </span>
             <input
@@ -503,7 +503,7 @@ function MemberRow({
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900">
           {member.email}
           {member.is_you && (
-            <span className="rounded-full bg-ink-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-600">
+            <span className="rounded-full bg-ink-500/10 px-2 py-0.5 text-[11px] font-semibold text-ink-600">
               You
             </span>
           )}

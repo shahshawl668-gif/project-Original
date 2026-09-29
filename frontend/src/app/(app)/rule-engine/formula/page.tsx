@@ -151,7 +151,7 @@ export default function FormulaPage() {
         actions={
           <div className="flex items-end gap-2">
             <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase tracking-[0.06em]">Rule type</Label>
+              <Label className="text-[11px]">Rule type</Label>
               <Select value={ruleType} onValueChange={handleRuleTypeChange}>
                 <SelectTrigger className="w-36">
                   <SelectValue />
@@ -173,7 +173,7 @@ export default function FormulaPage() {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+              <p className="font-display text-[11px] font-semibold text-ink-500">
                 Definition
               </p>
               <CardTitle>Expression</CardTitle>
@@ -212,7 +212,7 @@ export default function FormulaPage() {
 
           <Card>
             <CardHeader>
-              <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+              <p className="font-display text-[11px] font-semibold text-ink-500">
                 Eligibility
               </p>
               <CardTitle>Conditions</CardTitle>

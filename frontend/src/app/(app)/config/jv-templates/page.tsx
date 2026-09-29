@@ -204,7 +204,7 @@ export default function JvTemplatesPage() {
                       }`}
                     >
                       <span className="block truncate">{template.name}</span>
-                      <span className="block text-[10px] uppercase tracking-wide text-ink-400">
+                      <span className="block text-[11px] text-ink-400">
                         {template.is_current ? "current" : template.state} ·{" "}
                         {template.rule_count} rules
                       </span>
@@ -484,7 +484,7 @@ export default function JvTemplatesPage() {
                       </div>
 
                       <div className="pt-2">
-                        <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+                        <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
                           Measures this line posts
                         </span>
                         <div className="flex flex-wrap gap-1.5">
@@ -631,7 +631,7 @@ function Field({
 }) {
   return (
     <div>
-      <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
         {label}
       </span>
       {children}

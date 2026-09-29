@@ -263,7 +263,7 @@ export function TileBuilder({ catalogue, initial, onSave, onCancel }: {
         <button type="button" onClick={onCancel} className="px-3 py-2 text-sm text-ink-600">Cancel</button>
       </div>
       <div className="rounded-xl bg-white p-2">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Preview</p>
+        <p className="mb-1 text-[11px] font-semibold text-ink-400">Preview</p>
         <TileView tile={{ ...tile, title: tile.title || metricLabel || "Preview" }} period={{ preset: "last_6" }} />
       </div>
     </div>

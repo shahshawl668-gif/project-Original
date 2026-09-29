@@ -256,7 +256,7 @@ export default function SlabsPage() {
 
       <Card>
         <CardHeader>
-          <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+          <p className="font-display text-[11px] font-semibold text-ink-500">
             Selection
           </p>
           <CardTitle>Filters</CardTitle>
@@ -313,7 +313,7 @@ export default function SlabsPage() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+            <p className="font-display text-[11px] font-semibold text-ink-500">
               Editor
             </p>
             <CardTitle className="flex flex-wrap items-center gap-2">

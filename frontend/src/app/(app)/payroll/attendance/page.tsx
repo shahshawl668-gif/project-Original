@@ -115,7 +115,7 @@ export default function AttendancePage() {
         <CardContent className="space-y-4 py-5">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
                 Period
               </span>
               <input
@@ -348,7 +348,7 @@ function FindingRow({ finding }: { finding: AttendanceFinding }) {
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
             SEVERITY_TONE[finding.severity] ?? SEVERITY_TONE.INFO,
           )}
         >
@@ -378,7 +378,7 @@ function FindingRow({ finding }: { finding: AttendanceFinding }) {
 function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div>
-      <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="block text-[11px] font-semibold text-ink-400">
         {label}
       </span>
       <p className="font-display text-xl font-semibold tabular-nums text-ink-900">

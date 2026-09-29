@@ -20,6 +20,7 @@ import {
   type Rule, type RuleDraft, type RuleTemplate,
 } from "@/lib/matrix";
 import { cn } from "@/lib/utils";
+import { useUnsavedChanges } from "@/lib/unsaved";
 
 type Preference = { rule_id: string; suppressed: boolean };
 
@@ -134,6 +135,8 @@ function RuleEditor({ catalog, templates, onCreated }: {
   const [applies, setApplies] = useState<{ dim: string; values: string }[]>([]);
   const [onMissing, setOnMissing] = useState<OnMissing>("cannot_validate");
   const [err, setErr] = useState<string | null>(null);
+  // A half-drafted rule is work; leaving the page asks first. Nothing typed, nothing asked.
+  useUnsavedChanges(!!(name.trim() || reason.trim() || fix.trim() || source.trim() || conditions.length || group));
 
   const applyTemplate = (t: RuleTemplate) => {
     const r = t.rule;
@@ -164,7 +167,7 @@ function RuleEditor({ catalog, templates, onCreated }: {
       return matrixApi.create(draft);
     },
     onSuccess: (rule) => {
-      setErr(null); setName(""); setReason("");
+      setErr(null); setName(""); setReason(""); setFix(""); setSource(""); setConditions([]); setGroup(null);
       toast.success(`Drafted ${rule.rule_key} v${rule.version}`, { description: "Test it on a month, then submit it for approval." });
       onCreated();
     },
@@ -377,7 +380,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
           <div key={key} className="py-3">
             <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900">
               <History size={14} className="text-ink-400" /> {key}
-              {disabledRules.has(key) ? <span className="rounded bg-ink-200 px-1 text-[10px] uppercase text-ink-600">disabled</span> : null}
+              {disabledRules.has(key) ? <span className="rounded bg-ink-200 px-1 text-[11px] text-ink-600">disabled</span> : null}
             </p>
             <div className="space-y-2">
               {versions.map((r) => {
@@ -391,8 +394,8 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
                         <span className="min-w-0">
                           <span className="block text-sm text-ink-900">
                             v{r.version} · {r.name}{" "}
-                            <span className={cn("ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase", STATUS_TONE[r.status])}>{r.status}</span>
-                            {r.editor_mode === "advanced" ? <span className="ml-1 text-[10px] uppercase text-ink-400">advanced</span> : null}
+                            <span className={cn("ml-1 rounded px-1.5 py-0.5 text-[11px] font-semibold", STATUS_TONE[r.status])}>{r.status}</span>
+                            {r.editor_mode === "advanced" ? <span className="ml-1 text-[11px] text-ink-400">advanced</span> : null}
                           </span>
                           <span className="block text-xs text-ink-500">
                             {r.effective_from}{r.effective_to ? ` → ${r.effective_to}` : " onwards"} · {r.severity}{r.blocks_signoff ? " · blocks sign-off" : ""}

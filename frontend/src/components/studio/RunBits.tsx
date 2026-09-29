@@ -88,7 +88,7 @@ function Box({ label, value, tone }: { label: string; value: string; tone?: "ok"
   return (
     <div className={`min-w-[88px] rounded-lg border px-3 py-2 ${cls}`}>
       <div className="text-lg font-bold tabular-nums">{value}</div>
-      <div className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{label}</div>
+      <div className="text-[11px] font-semibold opacity-80">{label}</div>
     </div>
   );
 }

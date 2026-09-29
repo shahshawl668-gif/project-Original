@@ -117,7 +117,7 @@ function AuthorisationGate({ canChange }: { canChange: boolean }) {
         {canChange ? (
           <div className="flex max-w-[52ch] flex-col gap-2 pt-1">
             <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              <span className="text-[11px] font-semibold text-ink-400">
                 What authorises this? (optional, kept in the audit trail)
               </span>
               <input
@@ -211,7 +211,7 @@ function Analysis({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {coverage.by_gender.map((row) => (
             <div key={row.key} className="rounded-xl border border-ink-200/70 px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              <p className="text-[11px] font-semibold text-ink-400">
                 {row.label}
               </p>
               <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
@@ -220,7 +220,7 @@ function Analysis({
             </div>
           ))}
           <div className="rounded-xl border border-ink-200/70 px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+            <p className="text-[11px] font-semibold text-ink-400">
               Gender recorded
             </p>
             <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
@@ -312,7 +312,7 @@ function Analysis({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+              <tr className="border-b border-ink-200 text-[11px] text-ink-400">
                 <th className="py-2 text-left font-semibold">Band</th>
                 <th className="py-2 text-left font-semibold">Pay range</th>
                 <th className="py-2 text-right font-semibold">Employees</th>
@@ -415,7 +415,7 @@ function Analysis({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+              <tr className="border-b border-ink-200 text-[11px] text-ink-400">
                 <th className="py-2 text-left font-semibold">{data.group_by_label}</th>
                 <th className="py-2 text-right font-semibold">Women</th>
                 <th className="py-2 text-right font-semibold">Men</th>
@@ -488,7 +488,7 @@ function Analysis({
 }
 
 function withheld() {
-  return <span className="text-[11px] uppercase tracking-wide text-ink-400">withheld</span>;
+  return <span className="text-[11px] text-ink-400">withheld</span>;
 }
 
 function GapTile({
@@ -500,7 +500,7 @@ function GapTile({
 }) {
   return (
     <div className="rounded-xl border border-ink-200/70 px-3.5 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">{label}</p>
+      <p className="text-[11px] font-semibold text-ink-400">{label}</p>
       <p className={cn("font-display text-2xl font-semibold tabular-nums", toneClass(gap.tone))}>
         {gap.text}
       </p>
@@ -521,7 +521,7 @@ function GenderCard({
 }) {
   return (
     <div className="rounded-xl border border-ink-200/70 px-3.5 py-3">
-      <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <p className="flex items-center gap-2 text-[11px] font-semibold text-ink-400">
         <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: palette }} />
         {label}
       </p>

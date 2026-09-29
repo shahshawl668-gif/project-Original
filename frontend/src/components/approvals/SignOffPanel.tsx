@@ -6,8 +6,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowRight,
-  CheckCircle2,
-  Circle,
   FileDown,
   Loader2,
   RotateCcw,
@@ -29,6 +27,8 @@ import {
   type SignOffDetail,
 } from "@/lib/validation";
 import { cn } from "@/lib/utils";
+import { Stepper } from "@/components/ui/stepper";
+import { saveBlob } from "@/lib/download";
 
 /**
  * Approving a month.
@@ -74,7 +74,10 @@ function stepsDone(stage: string): number {
 
 const BLOCKER_ACTION: Record<string, { href: (runId: string | null) => string; label: string }> = {
   not_validated: { href: () => "/payroll/upload", label: "Upload & validate" },
-  revalidation_required: { href: () => "/payroll/validation", label: "Revalidate" },
+  revalidation_required: {
+    href: (runId) => (runId ? `/payroll/results?run=${encodeURIComponent(runId)}` : "/payroll/validation"),
+    label: "Revalidate",
+  },
   incomplete_coverage: {
     href: (runId) => (runId ? `/payroll/results?run=${encodeURIComponent(runId)}&tab=coverage` : "/payroll/results"),
     label: "See what could not be checked",
@@ -137,13 +140,7 @@ export function SignOffPanel({ period }: { period: string }) {
   const downloadPack = async () => {
     setBusy("pack");
     try {
-      const blob = await signoffApi.evidencePack(period);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `evidence-pack-${period.slice(0, 7)}.xlsx`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      saveBlob(await signoffApi.evidencePack(period), `evidence-pack-${period.slice(0, 7)}${state === "signed" ? "" : "-draft"}.xlsx`);
     } catch (e) {
       toast.error("Could not build the evidence pack", { description: e instanceof Error ? e.message : "" });
     } finally {
@@ -189,7 +186,7 @@ export function SignOffPanel({ period }: { period: string }) {
       <CardContent className="space-y-5 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="flex items-center gap-2 text-base font-semibold text-ink-900">
+            <h3 id="approval" className="flex items-center gap-2 text-[15px] font-semibold text-ink-900">
               <Stamp size={16} className="text-ink-400" /> Approval · {monthLabel(period)}
             </h3>
             <p className="text-xs text-ink-500">
@@ -211,38 +208,13 @@ export function SignOffPanel({ period }: { period: string }) {
           </Button>
         </div>
 
-        <ol className="grid grid-cols-5 gap-1" aria-label="Month progress">
-          {STEPS.map((step, i) => {
-            const complete = i < done;
-            const current = i === done;
-            return (
-              <li key={step.key} className="flex flex-col items-center gap-1 text-center">
-                {complete ? (
-                  <CheckCircle2 size={18} className="text-success-600" aria-hidden />
-                ) : (
-                  <Circle
-                    size={18}
-                    className={current ? "text-brand-600" : "text-ink-300"}
-                    aria-hidden
-                  />
-                )}
-                <span
-                  className={cn(
-                    "text-[11px] leading-tight",
-                    complete
-                      ? "text-ink-700"
-                      : current
-                        ? "font-semibold text-ink-900"
-                        : "text-ink-400",
-                  )}
-                >
-                  {step.label}
-                  <span className="sr-only">{complete ? " (done)" : current ? " (next)" : ""}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+        <Stepper
+          label="Month progress"
+          steps={STEPS.map((step, i) => ({
+            label: step.label,
+            state: i < done ? "done" : i === done ? (s.stage === "validation_failed" || s.stage === "revalidation_required" || s.stage === "incomplete" ? "error" : "current") : "todo",
+          }))}
+        />
 
         {state === "signed" && s.changed_since_signoff.length > 0 ? (
           <AlertBanner variant="warning" title="Changed since it was signed">

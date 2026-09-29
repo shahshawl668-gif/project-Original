@@ -18,7 +18,7 @@ export function SeverityChip({ severity }: { severity: Severity }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
         SEVERITY_TONE[severity],
       )}
     >
@@ -174,7 +174,7 @@ export function ExceptionList({ exceptions }: { exceptions: ReconException[] }) 
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-left text-[10px] uppercase tracking-wide text-ink-400">
+                      <tr className="text-left text-[11px] text-ink-400">
                         <th className="pb-1.5 pr-3 font-semibold">Detail</th>
                         <th className="pb-1.5 pr-3 text-right font-semibold">Expected</th>
                         <th className="pb-1.5 pr-3 text-right font-semibold">Actual</th>
@@ -241,7 +241,7 @@ export function Figure({
   return (
     <Card>
       <CardContent className="space-y-1 py-4">
-        <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+        <span className="block text-[11px] font-semibold text-ink-400">
           {label}
         </span>
         <p className={cn("font-display text-2xl font-semibold tabular-nums", tint)}>{value}</p>

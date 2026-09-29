@@ -164,7 +164,7 @@ export default function ReportBuilderPage() {
           <button type="button" onClick={runPreview} disabled={busy} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Calculating…" : "Generate preview"}</button>
           {preview && <div className="space-y-2">
             <p className="text-sm font-medium">{preview.status === "ok" ? `${preview.record_count} rows matched` : preview.status === "missing_data" ? "No salary register for this period" : "No records match these filters"}</p>
-            {preview.truncated_preview && <p className="text-xs text-amber-700">Preview shows the first 200 rows; the total matched count is shown above.</p>}
+            {preview.truncated_preview && <p className="text-xs text-warning-700">Preview shows the first 200 rows; the total matched count is shown above.</p>}
             {preview.control_totals && <p className="text-xs text-ink-500">Control total CTC: {Number(preview.control_totals.ctc).toLocaleString("en-IN")}. Grain: {preview.grain}.</p>}
             <div className="max-h-96 overflow-auto rounded-lg border"><table className="min-w-full text-left text-xs"><thead className="sticky top-0 bg-ink-50"><tr>{spec.fields.map((key) => <th key={key} className="whitespace-nowrap p-2">{fields.find((f) => f.key === key)?.label ?? key}</th>)}</tr></thead><tbody>{preview.rows.map((row, i) => <tr key={i} className="border-t">{spec.fields.map((key) => <td key={key} className="whitespace-nowrap p-2">{row[key] ?? "—"}</td>)}</tr>)}</tbody></table></div>
           </div>}

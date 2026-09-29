@@ -32,7 +32,7 @@ export function VariablePicker({ onInsert, variables = DEFAULT_VARIABLES }: Prop
   return (
     <Card>
       <CardHeader>
-        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="font-display text-[11px] font-semibold text-ink-500">
           Library
         </p>
         <CardTitle>Variables</CardTitle>
@@ -40,7 +40,7 @@ export function VariablePicker({ onInsert, variables = DEFAULT_VARIABLES }: Prop
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+          <p className="mb-2 font-display text-[11px] font-semibold text-ink-500">
             Inputs
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -59,7 +59,7 @@ export function VariablePicker({ onInsert, variables = DEFAULT_VARIABLES }: Prop
           </div>
         </div>
         <div>
-          <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+          <p className="mb-2 font-display text-[11px] font-semibold text-ink-500">
             Functions
           </p>
           <div className="flex flex-wrap gap-1.5">

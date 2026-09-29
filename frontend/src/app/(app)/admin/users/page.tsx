@@ -105,7 +105,7 @@ export default function AdminUsersPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="bg-ink-50/80 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+                <tr className="bg-ink-50/80 text-left text-[11px] font-semibold text-ink-500">
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Company</th>
                   <th className="px-4 py-3">Role</th>

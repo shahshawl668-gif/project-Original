@@ -205,7 +205,7 @@ export default function CtcUploadPage() {
           <div className="space-y-6 p-6 sm:p-8">
             <div className="grid gap-6 sm:grid-cols-2">
               <label className="block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+                <span className="text-[11px] font-semibold text-ink-500">
                   Default effective from
                 </span>
                 <input
@@ -303,7 +303,7 @@ export default function CtcUploadPage() {
           </CardContent>
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
-              <thead className="sticky top-0 bg-ink-50/95 text-left text-2xs font-semibold uppercase tracking-[0.06em] text-ink-500 backdrop-blur">
+              <thead className="sticky top-0 bg-ink-50/95 text-left text-2xs font-semibold tracking-[0.06em] text-ink-500 backdrop-blur">
                 <tr>
                   <th className="whitespace-nowrap px-4 py-3 font-semibold">employee_id</th>
                   <th className="whitespace-nowrap px-4 py-3 font-semibold">name</th>

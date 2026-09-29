@@ -151,7 +151,7 @@ export default function StudioRunPage() {
             </div>
           ) : null}
           {r.retries?.length ? (
-            <div className="pt-2"><p className="text-xs font-semibold uppercase text-ink-500">Retries</p>
+            <div className="pt-2"><p className="text-xs font-semibold text-ink-500">Retries</p>
               <ul className="text-xs">{r.retries.map((x) => <li key={x.id}><Link className="text-brand-700 underline" href={`/studio/runs/${x.id}`}>{fmtTime(x.queued_at)}</Link> — {x.status}</li>)}</ul></div>
           ) : null}
         </CardContent></Card>
@@ -175,7 +175,7 @@ export default function StudioRunPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-ink-500">
+                <thead className="text-left text-xs text-ink-500">
                   <tr><th className="py-1 pr-3">Row</th><th className="py-1 pr-3">Employee</th><th className="py-1 pr-3">Outcome</th>
                     <th className="py-1 pr-3">Field</th><th className="py-1 pr-3">Reason</th><th className="py-1 pr-3">Source record</th><th className="py-1" /></tr>
                 </thead>

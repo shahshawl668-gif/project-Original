@@ -85,7 +85,7 @@ export default function CtcHistoryPage() {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="bg-ink-50/80 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+              <tr className="bg-ink-50/80 text-left text-[11px] font-semibold text-ink-500">
                 <th className="px-4 py-3">Effective from</th>
                 <th className="px-4 py-3">File</th>
                 <th className="px-4 py-3">Employees</th>
@@ -180,7 +180,7 @@ export default function CtcHistoryPage() {
           </CardContent>
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
-              <thead className="bg-ink-50/80 text-left text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+              <thead className="bg-ink-50/80 text-left text-[11px] font-semibold text-ink-500">
                 <tr>
                   <th className="px-3 py-2.5">employee_id</th>
                   <th className="px-3 py-2.5">name</th>

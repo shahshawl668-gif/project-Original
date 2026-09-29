@@ -39,7 +39,7 @@ export function StudioNav() {
         ) : (
           <span key={s.key} title={s.summary} aria-disabled="true"
             className="cursor-not-allowed rounded-lg px-3 py-1.5 text-sm text-ink-400">
-            {s.label} <span className="text-[10px] uppercase tracking-wide">· not in this release</span>
+            {s.label} <span className="text-[11px]">· not in this release</span>
           </span>
         );
       })}

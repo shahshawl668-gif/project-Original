@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Dialog } from "@/components/ui/drawer";
+import { SaveBar } from "@/components/ui/save-bar";
+import { Tabs } from "@/components/ui/tabs";
+import { useEntity } from "@/context/EntityContext";
+import { dateTime, plural } from "@/lib/format";
+import { diffObjects, useUnsavedChanges } from "@/lib/unsaved";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
-  Shield, Settings2, CheckCircle2, RefreshCw,
-  Save, ChevronDown, ChevronUp, Beaker, Plus, Trash2,
+  Shield, Settings2, RefreshCw,
+  ChevronDown, ChevronUp, Beaker, Plus, Trash2,
   ToggleLeft, ToggleRight,
 } from "lucide-react";
 import {
@@ -27,14 +34,16 @@ function Section({ title, icon, children, defaultOpen = true }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03]">
+    <section className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-soft">
       <button
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-ink-50"
+        type="button"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-ink-50"
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-2">
           {icon}
-          <span className="font-display text-sm font-semibold text-ink-800">
+          <span className="text-[15px] font-semibold text-ink-900">
             {title}
           </span>
         </div>
@@ -49,19 +58,17 @@ function Section({ title, icon, children, defaultOpen = true }: {
           {children}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
 function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
-        {label}
-      </label>
+    <label className="flex flex-col gap-1">
+      <span className="text-[13px] font-medium text-ink-800">{label}</span>
       {children}
-      {help && <p className="text-xs text-ink-400">{help}</p>}
-    </div>
+      {help && <span className="text-xs text-ink-500">{help}</span>}
+    </label>
   );
 }
 
@@ -76,7 +83,7 @@ function NumberInput({ value, onChange, step = "0.0001", min = "0", max = "1" }:
       step={step}
       min={min}
       max={max}
-      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+      className="num h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-[13px] text-ink-900 shadow-soft transition-colors hover:border-ink-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -90,7 +97,7 @@ function TextInput({ value, onChange, placeholder = "" }: {
       type="text"
       value={value}
       placeholder={placeholder}
-      className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+      className="h-9 w-full rounded-lg border border-ink-200 bg-white px-3 font-mono text-[13px] text-ink-900 shadow-soft transition-colors placeholder:text-ink-400 hover:border-ink-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
       onChange={(e) => onChange(e.target.value)}
     />
   );
@@ -99,9 +106,12 @@ function TextInput({ value, onChange, placeholder = "" }: {
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
-        checked ? "text-brand-700" : "text-ink-500"
+      className={`inline-flex items-center gap-2 text-[13px] font-medium transition-colors ${
+        checked ? "text-ink-900" : "text-ink-600"
       }`}
     >
       {checked ? (
@@ -201,7 +211,7 @@ function ExprTester({ expression, sampleCtx }: { expression: string; sampleCtx: 
 
 // ─── PF Config section ────────────────────────────────────────────────────────
 
-function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfig) => void }) {
+function PFConfigPanel({ cfg, onChange, advanced }: { cfg: PFConfig; onChange: (c: PFConfig) => void; advanced: boolean }) {
   const set = <K extends keyof PFConfig>(key: K, val: PFConfig[K]) => onChange({ ...cfg, [key]: val });
   const setRates = (k: keyof PFConfig["rates"], v: string) => set("rates", { ...cfg.rates, [k]: v });
   const setWage  = (k: keyof PFConfig["wage"],  v: unknown) => set("wage",  { ...cfg.wage,  [k]: v });
@@ -212,13 +222,13 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
     <div className="space-y-5">
       {/* Rates */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           Contribution rates
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {(["employee_rate", "employer_rate", "eps_rate", "edli_rate", "admin_rate"] as const).map(
             (k) => (
-              <Field key={k} label={k.replace("_rate", "").toUpperCase()} help={pct(cfg.rates[k])}>
+              <Field key={k} label={({ employee_rate: "Employee", employer_rate: "Employer", eps_rate: "EPS", edli_rate: "EDLI", admin_rate: "Admin charges" } as const)[k]} help={pct(cfg.rates[k])}>
                 <NumberInput value={cfg.rates[k]} onChange={(v) => setRates(k, v)} />
               </Field>
             ),
@@ -228,11 +238,11 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Wage */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           PF wage computation
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Wage Ceiling (₹)" help="Statutory ceiling — ₹15,000">
+          <Field label="Wage ceiling (₹)" help="Statutory ceiling — ₹15,000">
             <NumberInput value={cfg.wage.wage_ceiling} onChange={v => setWage("wage_ceiling", v)} step="500" min="0" max="999999"/>
           </Field>
           <div className="flex flex-col gap-3 pt-1">
@@ -248,7 +258,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
             />
           </div>
         </div>
-        {!cfg.wage.use_pf_applicable_flag && (
+        {advanced && !cfg.wage.use_pf_applicable_flag && (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Include components" help="Only these components contribute to PF wage">
               <TagInput values={cfg.wage.include_components} onChange={v => setWage("include_components", v)} placeholder="basic"/>
@@ -258,7 +268,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
             </Field>
           </div>
         )}
-        {cfg.wage.use_pf_applicable_flag && cfg.wage.exclude_components.length > 0 && (
+        {advanced && cfg.wage.use_pf_applicable_flag && cfg.wage.exclude_components.length > 0 && (
           <div className="mt-3">
             <Field label="Force-exclude from PF wage" help="Even if marked pf_applicable=True">
               <TagInput values={cfg.wage.exclude_components} onChange={v => setWage("exclude_components", v)} placeholder="component name"/>
@@ -268,14 +278,15 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
       </div>
 
       {/* Above-ceiling mode */}
+      {advanced ? <>
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-2 text-xs font-semibold text-ink-500">
           Above-ceiling contributions
         </p>
         <select
           value={cfg.above_ceiling_mode}
           onChange={(e) => set("above_ceiling_mode", e.target.value as PFConfig["above_ceiling_mode"])}
-          className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+          className="num h-9 w-full rounded-lg border border-ink-200 bg-white px-3 text-[13px] text-ink-900 shadow-soft transition-colors hover:border-ink-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
         >
           <option value="none">None — always cap at ceiling</option>
           <option value="employee_choice">Employee choice — voluntary above ceiling</option>
@@ -285,7 +296,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Voluntary PF */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           Voluntary PF
         </p>
         <Toggle
@@ -304,7 +315,7 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
 
       {/* Eligibility */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           PF eligibility
         </p>
         <div className="space-y-3">
@@ -317,13 +328,14 @@ function PFConfigPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfi
           </Field>
         </div>
       </div>
+      </> : null}
     </div>
   );
 }
 
 // ─── ESIC Config section ──────────────────────────────────────────────────────
 
-function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESICConfig) => void }) {
+function ESICConfigPanel({ cfg, onChange, advanced }: { cfg: ESICConfig; onChange: (c: ESICConfig) => void; advanced: boolean }) {
   const set = <K extends keyof ESICConfig>(key: K, val: ESICConfig[K]) => onChange({ ...cfg, [key]: val });
   const setRates   = (k: keyof ESICConfig["rates"],   v: string)  => set("rates",   { ...cfg.rates,   [k]: v });
   const setWage    = (k: keyof ESICConfig["wage"],    v: unknown) => set("wage",    { ...cfg.wage,    [k]: v });
@@ -334,7 +346,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
     <div className="space-y-5">
       {/* Rates */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           Contribution rates
         </p>
         <div className="grid max-w-xs grid-cols-2 gap-3">
@@ -349,11 +361,11 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
 
       {/* Wage */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           ESIC wage computation
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Wage Ceiling (₹)" help="Employees above this are ESIC-exempt">
+          <Field label="Wage ceiling (₹)" help="Employees above this are ESIC-exempt">
             <NumberInput value={cfg.wage.wage_ceiling} onChange={v => setWage("wage_ceiling", v)} step="500" min="0" max="999999"/>
           </Field>
           <div className="pt-1">
@@ -364,7 +376,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
             />
           </div>
         </div>
-        {!cfg.wage.use_esic_applicable_flag && (
+        {advanced && !cfg.wage.use_esic_applicable_flag && (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Include components">
               <TagInput values={cfg.wage.include_components} onChange={v => setWage("include_components", v)} placeholder="basic"/>
@@ -378,7 +390,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
 
       {/* Rounding */}
       <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           Rounding
         </p>
         <div className="flex items-center gap-4">
@@ -399,19 +411,19 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
             </label>
           ))}
         </div>
-        <div className="mt-3">
+        {advanced ? <div className="mt-3">
           <Field label="Custom expression (optional)" help="Vars: esic_wage, rate_emp, rate_er, ceil, floor, round. Leave blank to use rate × wage.">
             <TextInput value={cfg.rounding.expression} onChange={v => setRound("expression", v)} placeholder="ceil(esic_wage * 0.0075)"/>
             {cfg.rounding.expression && (
               <ExprTester expression={cfg.rounding.expression} sampleCtx={{ esic_wage: 18000, rate_emp: 0.0075, rate_er: 0.0325 }}/>
             )}
           </Field>
-        </div>
+        </div> : null}
       </div>
 
       {/* Eligibility */}
-      <div>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+      {advanced ? <div>
+        <p className="mb-3 text-xs font-semibold text-ink-500">
           Eligibility & entry/exit
         </p>
         <div className="space-y-3">
@@ -427,7 +439,7 @@ function ESICConfigPanel({ cfg, onChange }: { cfg: ESICConfig; onChange: (c: ESI
             <Toggle checked={cfg.eligibility.continue_month_on_exit} onChange={v => setElig("continue_month_on_exit", v)} label="Continue ESIC in exit month"/>
           </div>
         </div>
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -454,7 +466,7 @@ function ComponentMappingPanel({ cfg, onChange }: {
       <div className="overflow-x-auto rounded-xl border border-ink-200/70">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-ink-50/80 text-[11px] uppercase tracking-[0.06em] text-ink-500">
+            <tr className="bg-ink-50/80 text-[11px] text-ink-500">
               {["Upload column", "Component name", "PF", "ESIC", "In wages", "Taxable", ""].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-semibold">
                   {h}
@@ -527,39 +539,61 @@ function ComponentMappingPanel({ cfg, onChange }: {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const EMPTY_CFG: TenantStatutoryConfig = {
+  pf: defaultPFConfig,
+  esic: defaultESICConfig,
+  component_mapping: { entries: [], ignore_columns: [] },
+};
+
 export default function StatutoryConfigPage() {
-  const [cfg, setCfg] = useState<TenantStatutoryConfig>({
-    pf: defaultPFConfig,
-    esic: defaultESICConfig,
-    component_mapping: { entries: [], ignore_columns: [] },
-  });
-  const [loading, setLoading]   = useState(true);
-  const [saving,  setSaving]    = useState(false);
-  const [saved,   setSaved]     = useState(false);
-  const [error,   setError]     = useState<string | null>(null);
+  const { activeRole } = useEntity();
+  const canWrite = activeRole !== "viewer";
+  const [cfg, setCfg] = useState<TenantStatutoryConfig>(EMPTY_CFG);
+  // What the server holds. Unsaved changes are the difference from this.
+  const [baseline, setBaseline] = useState<TenantStatutoryConfig>(EMPTY_CFG);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [advanced, setAdvanced] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
+    try { setAdvanced(localStorage.getItem("pol_statutory_mode") === "advanced"); } catch { /* default basic */ }
     setLoading(true);
     getStatutoryConfig()
-      .then(data => {
-        setCfg({ pf: data.pf, esic: data.esic, component_mapping: data.component_mapping });
+      .then((data) => {
+        const loaded = { pf: data.pf, esic: data.esic, component_mapping: data.component_mapping };
+        setCfg(loaded);
+        setBaseline(loaded);
         setUpdatedAt(data.updated_at);
       })
-      .catch(() => { /* use defaults */ })
+      // Never edit shipped defaults as though they were this company's saved
+      // configuration: say it did not load, and do not offer to save over it.
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, []);
 
+  const changes = useMemo(() => diffObjects(baseline, cfg), [baseline, cfg]);
+  useUnsavedChanges(changes.length > 0);
+
+  const setMode = (m: string) => {
+    const adv = m === "advanced";
+    setAdvanced(adv);
+    try { localStorage.setItem("pol_statutory_mode", adv ? "advanced" : "basic"); } catch { /* per-session only */ }
+  };
+
   const handleSave = async () => {
-    setSaving(true); setError(null); setSaved(false);
+    setSaving(true);
+    setError(null);
     try {
       const data = await saveStatutoryConfig(cfg);
+      const saved = { pf: data.pf, esic: data.esic, component_mapping: data.component_mapping };
+      setCfg(saved);
+      setBaseline(saved);
       setUpdatedAt(data.updated_at);
-      setSaved(true);
-      toast.success("Statutory configuration saved", {
-        description: "The next validation run will use these settings.",
-      });
-      setTimeout(() => setSaved(false), 3200);
+      toast.success("Statutory configuration saved", { description: "The next validation run uses it; the change is in the audit trail." });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -568,13 +602,16 @@ export default function StatutoryConfigPage() {
   };
 
   const handleReset = async () => {
-    if (!confirm("Reset to India statutory defaults? This will overwrite your current config.")) return;
+    setConfirmReset(false);
     setSaving(true);
+    setError(null);
     try {
       const data = await resetStatutoryConfig();
-      setCfg({ pf: data.pf, esic: data.esic, component_mapping: data.component_mapping });
+      const saved = { pf: data.pf, esic: data.esic, component_mapping: data.component_mapping };
+      setCfg(saved);
+      setBaseline(saved);
       setUpdatedAt(data.updated_at);
-      toast.success("Defaults restored", { description: "PF, ESIC, and mapping reset to India statutory baseline." });
+      toast.success("Shipped defaults restored");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Reset failed");
     } finally {
@@ -584,142 +621,103 @@ export default function StatutoryConfigPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-72" />
-            <Skeleton className="h-4 w-full max-w-lg" />
-            <Skeleton className="h-3 w-48" />
-          </div>
-          <div className="flex gap-2">
-            <Skeleton className="h-10 w-36 rounded-xl" />
-            <Skeleton className="h-10 w-36 rounded-xl" />
-          </div>
-        </div>
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-52 w-full rounded-2xl" />
-        ))}
+      <div className="mx-auto max-w-5xl space-y-4">
+        <Skeleton className="h-8 w-72" />
+        <Skeleton className="h-4 w-full max-w-lg" />
+        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-5">
+        <PageHeader title="Statutory configuration" />
+        <AlertBanner variant="error" title="This company's statutory configuration could not be loaded">
+          Nothing is shown rather than the shipped defaults, so that nobody edits — or saves — figures that are not this company&apos;s. Reload the page to try again.
+        </AlertBanner>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader
         title="Statutory configuration"
-        eyebrow="Statutory engine"
-        description={
-          <>
-            Tenant-scoped PF & ESIC engine: rates, wage rules, rounding, eligibility expressions, and upload
-            column overrides.
-            {updatedAt ? (
-              <span className="mt-2 block text-xs font-medium uppercase tracking-wide text-ink-400">
-                Last saved · {new Date(updatedAt).toLocaleString("en-IN")}
-              </span>
-            ) : null}
-          </>
-        }
-        actions={
-          <>
-            <Button variant="outline" type="button" onClick={handleReset} disabled={saving}>
-              <RefreshCw size={15} strokeWidth={2} /> Reset
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className={`min-w-[8.5rem] ${saved ? "!from-success-600 !to-success-500" : ""}`}
-            >
-              {saving ? <RefreshCw size={15} strokeWidth={2} className="animate-spin" /> : null}
-              {!saving && saved ? <CheckCircle2 size={15} strokeWidth={2} /> : null}
-              {!saving && !saved ? <Save size={15} strokeWidth={2} /> : null}
-              {saving ? "Saving…" : saved ? "Saved" : "Save"}
-            </Button>
-          </>
-        }
+        description="PF and ESIC rates, wage rules, rounding and eligibility for this company, and how register columns map onto them."
+        meta={updatedAt ? <span>Last saved {dateTime(updatedAt)} · <Link href="/audit" className="underline-offset-2 hover:underline">change history in the audit trail</Link></span> : null}
+        actions={canWrite ? (
+          <Button variant="destructive-outline" type="button" onClick={() => setConfirmReset(true)} disabled={saving}>
+            <RefreshCw size={14} strokeWidth={2} /> Reset to shipped defaults
+          </Button>
+        ) : null}
       />
 
-      {error ? (
-        <AlertBanner variant="error" title="Unable to save or load">
-          {error}
-        </AlertBanner>
-      ) : null}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <Tabs
+          label="Editor mode"
+          value={advanced ? "advanced" : "basic"}
+          onChange={setMode}
+          items={[{ id: "basic", label: "Basic" }, { id: "advanced", label: "Advanced" }]}
+          className="min-w-[12rem]"
+        />
+        <p className="max-w-xl text-xs text-ink-500">
+          {advanced
+            ? "Advanced shows everything: component lists, eligibility expressions with a tester, custom rounding and column overrides."
+            : "Basic shows rates, ceilings and the switches most companies change. Everything else keeps its value."}
+        </p>
+      </div>
 
-      {saved ? (
-        <AlertBanner variant="success" title="Configuration updated">
-          Your PF, ESIC, and mapping changes are stored. Running validations will pick them up automatically.
-        </AlertBanner>
-      ) : null}
+      {error ? <AlertBanner variant="error" title="Not saved">{error}</AlertBanner> : null}
 
-      <AlertBanner variant="info">
-        All changes here take effect on the <strong>next validation run</strong>. Expressions run in a safe sandbox —
-        no imports or shell access. Each tenant&apos;s config is isolated.
+      <AlertBanner variant="info" title="How a change takes effect">
+        It applies to the <b>next validation run</b>. Runs already made keep the configuration they were validated with, and a month validated before the change is marked <i>revalidation required</i>. Each save is recorded in the audit trail with every field before and after. Expressions run in a restricted sandbox — no imports, no attribute access.
       </AlertBanner>
 
-      {/* PF */}
-      <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-brand-500" />}>
-        {/* Quick summary */}
-        <div className="mb-5 flex flex-wrap gap-2">
-          {[
-            { label: "Emp rate", val: pct(cfg.pf.rates.employee_rate) },
-            { label: "Er rate", val: pct(cfg.pf.rates.employer_rate) },
-            { label: "EPS", val: pct(cfg.pf.rates.eps_rate) },
-            {
-              label: "Ceiling",
-              val: `₹${parseInt(cfg.pf.wage.wage_ceiling).toLocaleString("en-IN")}`,
-            },
-            { label: "Restricted", val: cfg.pf.wage.restrict_to_ceiling ? "Yes" : "No" },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-lg border border-brand-200/60 bg-brand-50 px-3 py-1.5 text-xs"
-            >
-              <span className="text-brand-700">{s.label}: </span>
-              <span className="font-semibold text-brand-900">{s.val}</span>
-            </div>
-          ))}
-        </div>
-        <PFConfigPanel cfg={cfg.pf} onChange={(pf) => setCfg((c) => ({ ...c, pf }))} />
-      </Section>
+      {!canWrite ? <AlertBanner variant="info">Your role can read this configuration but not change it.</AlertBanner> : null}
 
-      {/* ESIC */}
-      <Section
-        title="Employee State Insurance (ESIC)"
-        icon={<Shield size={16} className="text-success-500" />}
-      >
-        <div className="mb-5 flex flex-wrap gap-2">
-          {[
-            { label: "Emp rate", val: pct(cfg.esic.rates.employee_rate) },
-            { label: "Er rate", val: pct(cfg.esic.rates.employer_rate) },
-            {
-              label: "Ceiling",
-              val: `₹${parseInt(cfg.esic.wage.wage_ceiling).toLocaleString("en-IN")}`,
-            },
-            { label: "Rounding", val: cfg.esic.rounding.mode },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="rounded-lg border border-success-200/60 bg-success-50 px-3 py-1.5 text-xs"
-            >
-              <span className="text-success-700">{s.label}: </span>
-              <span className="font-semibold text-success-800">{s.val}</span>
-            </div>
-          ))}
-        </div>
-        <ESICConfigPanel cfg={cfg.esic} onChange={(esic) => setCfg((c) => ({ ...c, esic }))} />
-      </Section>
+      <fieldset disabled={!canWrite} className="space-y-5">
+        <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-ink-400" />}>
+          <PFConfigPanel cfg={cfg.pf} onChange={(pf) => setCfg((c) => ({ ...c, pf }))} advanced={advanced} />
+        </Section>
 
-      {/* Component mapping */}
-      <Section
-        title="Component mapping overrides"
-        icon={<Settings2 size={16} className="text-ink-500" />}
-        defaultOpen={false}
+        <Section title="Employee State Insurance (ESIC)" icon={<Shield size={16} className="text-ink-400" />}>
+          <ESICConfigPanel cfg={cfg.esic} onChange={(esic) => setCfg((c) => ({ ...c, esic }))} advanced={advanced} />
+        </Section>
+
+        {advanced ? (
+          <Section title="Component mapping overrides" icon={<Settings2 size={16} className="text-ink-400" />} defaultOpen={false}>
+            <ComponentMappingPanel
+              cfg={cfg.component_mapping}
+              onChange={(component_mapping) => setCfg((c) => ({ ...c, component_mapping }))}
+            />
+          </Section>
+        ) : null}
+      </fieldset>
+
+      <SaveBar
+        changes={changes}
+        saving={saving}
+        onSave={() => void handleSave()}
+        onDiscard={() => setCfg(baseline)}
+        note="applies to the next validation run"
+        canSave={canWrite}
+      />
+
+      <Dialog
+        open={confirmReset}
+        onClose={() => setConfirmReset(false)}
+        title="Reset to the shipped defaults?"
+        description="PF, ESIC and column mapping return to the defaults the product ships with. The shipped defaults are not a certification of current law. The reset is recorded in the audit trail; runs already made are unaffected."
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmReset(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => void handleReset()}>Reset configuration</Button>
+          </>
+        }
       >
-        <ComponentMappingPanel
-          cfg={cfg.component_mapping}
-          onChange={(component_mapping) => setCfg((c) => ({ ...c, component_mapping }))}
-        />
-      </Section>
+        {changes.length ? <p className="text-[13px] text-warning-800">Your {plural(changes.length, "unsaved change")} will be lost as well.</p> : null}
+      </Dialog>
     </div>
   );
 }

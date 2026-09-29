@@ -107,9 +107,9 @@ export default function MinimumWageSettings() {
 
     <section className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold">Required applicability decision</h2>
-      <p className="text-sm text-slate-600">Current: <strong>{current?.status === "applicable" ? "Yes" : current?.status === "not_applicable" ? "No" : "Not selected"}</strong>
+      <p className="text-sm text-ink-600">Current: <strong>{current?.status === "applicable" ? "Yes" : current?.status === "not_applicable" ? "No" : "Not selected"}</strong>
         {current?.effective_from ? ` (effective ${current.effective_from})` : ""}. A missing decision blocks the minimum-wage check; it does not silently assume Yes or No.</p>
-      <p className="text-xs text-amber-800">Selecting No skips this product&apos;s minimum-wage comparison. It is not a legal exemption decision; record the reason and review applicability with the client&apos;s labour adviser.</p>
+      <p className="text-xs text-warning-800">Selecting No skips this product&apos;s minimum-wage comparison. It is not a legal exemption decision; record the reason and review applicability with the client&apos;s labour adviser.</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-medium">Does the minimum-wage check apply to this entity?
           <select className="mt-1 w-full rounded-lg border p-2" value={choice} onChange={(e) => setChoice(e.target.value as "yes" | "no" | "")}>
@@ -128,7 +128,7 @@ export default function MinimumWageSettings() {
         <input className="mt-1 w-full rounded-lg border p-2" maxLength={512} value={reference} onChange={(e) => setReference(e.target.value)} />
       </label>
       <Button onClick={() => void saveDecision()} disabled={busy}>Save decision</Button>
-      {history.length > 0 && <div className="text-sm text-slate-600">
+      {history.length > 0 && <div className="text-sm text-ink-600">
         <h3 className="font-semibold">Decision history</h3>
         {history.map((item) => <p key={item.effective_from}>{item.effective_from}: {item.applicable ? "Yes" : "No"}{item.reason ? ` — ${item.reason}` : ""}</p>)}
       </div>}
@@ -137,7 +137,7 @@ export default function MinimumWageSettings() {
     {current?.applicable && <>
       <section className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Applicable rate schedule</h2>
-        <p className="text-sm text-slate-600">Add rates from the applicable official notification. State alone is insufficient: select the scheduled employment, zone and skill category. Rates are effective dated.</p>
+        <p className="text-sm text-ink-600">Add rates from the applicable official notification. State alone is insufficient: select the scheduled employment, zone and skill category. Rates are effective dated.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           {([
             ["state", "State"], ["scheduled_employment", "Scheduled employment"],
@@ -154,9 +154,9 @@ export default function MinimumWageSettings() {
           </label>)}
         </div>
         <Button onClick={() => void addRate()} disabled={busy}>Add notified rate</Button>
-        {coverage && <p className="text-sm text-slate-600">Workforce coverage: {coverage.covered.length} state/skill pairs covered; {coverage.missing.length} missing; {coverage.employees_without_classification} employees missing state or skill classification.</p>}
+        {coverage && <p className="text-sm text-ink-600">Workforce coverage: {coverage.covered.length} state/skill pairs covered; {coverage.missing.length} missing; {coverage.employees_without_classification} employees missing state or skill classification.</p>}
         <div className="overflow-x-auto"><table className="min-w-full text-left text-sm">
-          <thead><tr className="border-b text-slate-500"><th className="p-2">State</th><th className="p-2">Schedule / zone</th><th className="p-2">Skill</th><th className="p-2">Basic + VDA</th><th className="p-2">Effective</th><th className="p-2">Source</th></tr></thead>
+          <thead><tr className="border-b text-ink-500"><th className="p-2">State</th><th className="p-2">Schedule / zone</th><th className="p-2">Skill</th><th className="p-2">Basic + VDA</th><th className="p-2">Effective</th><th className="p-2">Source</th></tr></thead>
           <tbody>{rates.map((item) => <tr key={item.id} className="border-b">
             <td className="p-2">{item.state}</td><td className="p-2">{item.scheduled_employment} / {item.zone}</td>
             <td className="p-2">{item.skill_category}</td><td className="p-2">₹{item.basic_per_month} + ₹{item.vda_per_month}</td>

@@ -196,19 +196,19 @@ function CompanyCard({ row }: { row: CompanyRow }) {
 
       <dl className="grid grid-cols-3 gap-3 border-y border-ink-100 py-3">
         <div>
-          <dt className="text-[10.5px] font-medium uppercase tracking-wide text-ink-500">Period</dt>
+          <dt className="text-[11px] font-medium text-ink-500">Period</dt>
           <dd className="mt-0.5 truncate text-[13px] font-semibold text-ink-900">
             {period ?? "—"}
           </dd>
         </div>
         <div>
-          <dt className="text-[10.5px] font-medium uppercase tracking-wide text-ink-500">People</dt>
+          <dt className="text-[11px] font-medium text-ink-500">People</dt>
           <dd className="mt-0.5 text-[13px] font-semibold text-ink-900">
             {row.employee_count || "—"}
           </dd>
         </div>
         <div>
-          <dt className="text-[10.5px] font-medium uppercase tracking-wide text-ink-500">
+          <dt className="text-[11px] font-medium text-ink-500">
             Exposure
           </dt>
           <dd

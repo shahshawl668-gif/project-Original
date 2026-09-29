@@ -52,7 +52,7 @@ export function Menu({
 
   return (
     <div className="relative" ref={container}>
-      <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
         {label}
       </span>
       <button

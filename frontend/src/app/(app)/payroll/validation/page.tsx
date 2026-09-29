@@ -131,7 +131,7 @@ function JobProgress({ jobId }: { jobId: string }) {
       <div className="rounded-2xl border border-ink-200/70 bg-white p-6 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-ink-500">
+            <p className="text-2xs font-semibold tracking-[0.06em] text-ink-500">
               {monthLabel(job.period_month)} · job {job.id.slice(0, 8)}
             </p>
             <h2 className="mt-1 flex items-center gap-2 font-display text-xl font-bold text-ink-900">
@@ -271,7 +271,7 @@ function RecentJobs() {
   return (
     <div className="overflow-x-auto rounded-2xl border border-ink-200/70 bg-white shadow-soft">
       <table className="w-full text-sm">
-        <thead className="bg-ink-50/80 text-left text-[11px] uppercase tracking-[0.06em] text-ink-500">
+        <thead className="bg-ink-50/80 text-left text-[11px] text-ink-500">
           <tr>
             <th className="px-4 py-2.5">Month</th>
             <th className="px-4 py-2.5">Status</th>
@@ -306,10 +306,9 @@ function ValidationContent() {
   const params = useSearchParams();
   const jobId = params.get("job");
   return (
-    <div className="mx-auto max-w-3xl space-y-7">
+    <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader
-        eyebrow="Validation engine"
-        title={jobId ? "Validation progress" : "Validations"}
+        title={jobId ? "Validation progress" : "Validation runs"}
         description="Validation runs on the server. Close this page whenever you like — the result is kept and linked from here."
         actions={
           <Button variant="outline" asChild>

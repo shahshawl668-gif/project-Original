@@ -160,7 +160,7 @@ export default function RegisterHistoryContent() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="flex min-h-[22rem] flex-col overflow-hidden">
           <div className="border-b border-ink-100 px-5 py-4">
-            <p className="text-2xs font-bold uppercase tracking-[0.2em] text-ink-400">
+            <p className="text-2xs font-semibold tracking-[0.2em] text-ink-400">
               Registers
             </p>
             <p className="mt-1 text-sm font-semibold text-ink-900">
@@ -235,7 +235,7 @@ export default function RegisterHistoryContent() {
                       >
                         {fmtMonth(reg.period_month)}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium uppercase tracking-wide text-ink-400">
+                      <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium text-ink-400">
                         <Users size={11} aria-hidden /> {reg.employee_count ?? "—"} employees
                       </p>
                     </div>
@@ -316,7 +316,7 @@ export default function RegisterHistoryContent() {
               <div className="scrollbar-thin flex-1 overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="sticky top-0 z-10 bg-ink-50/95 text-left text-2xs font-semibold uppercase tracking-[0.06em] text-ink-500 backdrop-blur">
+                    <tr className="sticky top-0 z-10 bg-ink-50/95 text-left text-2xs font-semibold tracking-[0.06em] text-ink-500 backdrop-blur">
                       <th className="whitespace-nowrap px-5 py-3 font-semibold">Employee</th>
                       <th className="whitespace-nowrap px-5 py-3 font-semibold">Paid / LOP</th>
                       {compKeys.map((k) => (
@@ -414,7 +414,7 @@ export default function RegisterHistoryContent() {
                 </table>
               </div>
               {detail.rows.length > 0 ? (
-                <div className="border-t border-ink-100 px-6 py-2.5 text-2xs font-medium uppercase tracking-wide text-ink-400">
+                <div className="border-t border-ink-100 px-6 py-2.5 text-2xs font-medium text-ink-400">
                   Showing {filteredRows.length} of {detail.rows.length} employees
                 </div>
               ) : null}

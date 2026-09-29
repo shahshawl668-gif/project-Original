@@ -73,7 +73,7 @@ export function AuthShell({
           </div>
 
           <div className="relative z-10 mt-auto">
-            <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.06em] text-white/60">
+            <p className="mb-4 text-[11px] font-semibold text-white/60">
               For HR &amp; Finance teams in India
             </p>
             <h2 className="font-display text-balance text-[42px] font-bold leading-[1.05] tracking-tightest text-white">
@@ -82,7 +82,7 @@ export function AuthShell({
                   Audit-grade payroll
                   <br />
                   validation,{" "}
-                  <span className="bg-gradient-to-r from-sky-200 via-cyan-200 to-white bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-brand-200 via-cyan-200 to-white bg-clip-text text-transparent">
                     in one click.
                   </span>
                 </>
@@ -110,7 +110,7 @@ export function AuthShell({
           </div>
 
           <div className="relative z-10 mt-12 overflow-hidden">
-            <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-white/40">
+            <p className="mb-2.5 text-[11px] font-semibold text-white/40">
               Built for industries
             </p>
             <div className="relative">

@@ -60,7 +60,7 @@ export default function MappingListPage() {
           <p className="rounded-xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-500">No mappings yet. Without one, records are read by the field names the upload screens recognise.</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-ink-500"><tr><th className="py-1">Mapping</th><th>Maps</th><th>In force</th><th>Versions</th></tr></thead>
+            <thead className="text-left text-xs text-ink-500"><tr><th className="py-1">Mapping</th><th>Maps</th><th>In force</th><th>Versions</th></tr></thead>
             <tbody className="divide-y divide-ink-100">
               {list.data.map((m) => (
                 <tr key={m.key}>

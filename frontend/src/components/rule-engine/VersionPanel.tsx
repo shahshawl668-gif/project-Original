@@ -54,7 +54,7 @@ export function VersionPanel({ formulas, onChanged, onLoad }: Props) {
   return (
     <Card>
       <CardHeader>
-        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+        <p className="font-display text-[11px] font-semibold text-ink-500">
           History
         </p>
         <CardTitle>Versions</CardTitle>

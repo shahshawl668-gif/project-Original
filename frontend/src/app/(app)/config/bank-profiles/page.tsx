@@ -170,7 +170,7 @@ export default function BankProfilesPage() {
                     >
                       {profile.name}
                       {profile.is_default && (
-                        <span className="ml-1 text-[10px] uppercase text-ink-400">default</span>
+                        <span className="ml-1 text-[11px] text-ink-400">default</span>
                       )}
                     </button>
                     <button
@@ -449,7 +449,7 @@ export default function BankProfilesPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-ink-200 text-left text-[10px] uppercase tracking-wide text-ink-400">
+                        <tr className="border-b border-ink-200 text-left text-[11px] text-ink-400">
                           <th className="py-1.5 pr-3 font-semibold">Code</th>
                           <th className="py-1.5 pr-3 font-semibold">Name</th>
                           <th className="py-1.5 pr-3 font-semibold">Account</th>
@@ -507,7 +507,7 @@ function Field({
 }) {
   return (
     <div>
-      <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
         {label}
       </span>
       {children}

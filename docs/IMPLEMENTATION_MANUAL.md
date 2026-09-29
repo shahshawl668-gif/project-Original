@@ -148,8 +148,18 @@ Shipped defaults: PF 12% employee and employer, EPS 8.33%, ceiling ₹15,000,
 EDLI and admin 0.5% each, ESIC 0.75% employee / 3.25% employer. Restrict-to-
 ceiling is on by default.
 
+**Basic** shows the rates, ceilings and switches most companies change;
+**Advanced** adds component lists, eligibility expressions (with a tester),
+custom rounding and column overrides. Changes are not saved as you type: a bar
+at the foot of the page counts them, **Review changes** lists each field
+before and after, and **Save changes** writes them once the server confirms.
+Leaving the page with unsaved changes asks first.
+
 Everything here takes effect on the **next** validation run — never
-retroactively. A run already recorded stays exactly as it was reported.
+retroactively. A run already recorded stays exactly as it was reported, and a
+month validated before the change is marked *revalidation required*. Every
+save and reset is recorded in the **Audit trail** with each changed field
+before and after; a save that changes nothing writes nothing.
 
 ### Step 4 — PT and LWF slabs
 

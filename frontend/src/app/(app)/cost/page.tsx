@@ -964,7 +964,7 @@ function VarianceTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+          <tr className="border-b border-ink-200 text-[11px] text-ink-400">
             <th className="py-2 text-left font-semibold">Period</th>
             <th className="py-2 text-right font-semibold">Headcount</th>
             <th className="py-2 text-right font-semibold">Change</th>

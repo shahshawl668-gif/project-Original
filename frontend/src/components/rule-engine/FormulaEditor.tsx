@@ -94,8 +94,8 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
           },
           options: {
             isWholeLine: true,
-            className: "bg-red-100",
-            glyphMarginClassName: "bg-red-500",
+            className: "bg-danger-100",
+            glyphMarginClassName: "bg-danger-500",
           },
         },
       ]) || [];

@@ -329,7 +329,8 @@ export type Overview = {
   period_label?: string;
   ready?: boolean;
   message?: string;
-  periods: { key: string; label: string }[];
+  /** Months with a stored register, newest first. */
+  periods: { period: string; label: string }[];
   register?: { employees: number; net_due: number; stated_net_available: boolean };
   bank?: {
     files: BankFileMeta[];

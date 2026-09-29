@@ -190,7 +190,7 @@ export function BudgetView({
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-400">
                     <th className="py-2 text-left font-semibold">Period</th>
                     <th className="py-2 text-right font-semibold">Actual</th>
                     <th className="py-2 text-right font-semibold">Budget</th>
@@ -206,12 +206,12 @@ export function BudgetView({
                       <td className="py-2 pr-3 text-ink-800">
                         {period.label}
                         {!period.has_budget && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-warning-700">
+                          <span className="ml-2 text-[11px] text-warning-700">
                             unbudgeted
                           </span>
                         )}
                         {!period.has_actual && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-warning-700"
+                          <span className="ml-2 text-[11px] text-warning-700"
                             title="No register was uploaded for this month, so there is no actual to compare. It is left out of the totals.">
                             no register
                           </span>
@@ -248,7 +248,7 @@ export function BudgetView({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+                    <tr className="border-b border-ink-200 text-[11px] text-ink-400">
                       <th className="py-2 text-left font-semibold">Scope</th>
                       <th className="py-2 text-right font-semibold">Actual</th>
                       <th className="py-2 text-right font-semibold">Budget</th>
@@ -332,7 +332,7 @@ export function BudgetView({
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-400">
                     <th className="py-2 text-left font-semibold">Period</th>
                     <th className="py-2 text-right font-semibold">Forecast</th>
                     <th className="py-2 text-right font-semibold">Run rate</th>
@@ -406,7 +406,7 @@ export function BudgetView({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+                <tr className="border-b border-ink-200 text-[11px] text-ink-400">
                   <th className="py-2 text-left font-semibold">Name</th>
                   <th className="py-2 text-left font-semibold">Level</th>
                   <th className="py-2 text-left font-semibold">Measure</th>
@@ -478,7 +478,7 @@ function ScenarioField({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="text-[11px] font-semibold text-ink-400">
         {label}
       </span>
       <input

@@ -145,7 +145,7 @@ export default function ComponentsPage() {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="bg-ink-50/80 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+              <tr className="bg-ink-50/80 text-left text-[11px] font-semibold text-ink-500">
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">PF</th>
                 <th className="px-4 py-3">ESIC</th>
@@ -297,7 +297,7 @@ export default function ComponentsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
+      <span className="font-display text-[11px] font-semibold text-ink-600">
         {label}
       </span>
       {children}

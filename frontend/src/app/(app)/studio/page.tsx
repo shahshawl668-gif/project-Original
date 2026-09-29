@@ -142,7 +142,7 @@ function Stat({ icon: Icon, label, value, note, warn }: {
 }) {
   return (
     <Card><CardContent className="space-y-1 py-4">
-      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-500"><Icon size={14} /> {label}</p>
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-ink-500"><Icon size={14} /> {label}</p>
       <p className="text-2xl font-bold text-ink-900">{value}</p>
       <p className={warn ? "text-xs text-warning-700" : "text-xs text-ink-500"}>{note}</p>
     </CardContent></Card>

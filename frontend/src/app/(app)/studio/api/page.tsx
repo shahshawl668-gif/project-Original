@@ -272,8 +272,8 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
 // Documentation
 // ---------------------------------------------------------------------------
 const METHOD_TONE: Record<string, string> = {
-  get: "bg-sky-100 text-sky-800", post: "bg-emerald-100 text-emerald-800",
-  patch: "bg-amber-100 text-amber-800", put: "bg-amber-100 text-amber-800", delete: "bg-rose-100 text-rose-800",
+  get: "bg-brand-100 text-brand-800", post: "bg-success-100 text-success-800",
+  patch: "bg-warning-100 text-warning-800", put: "bg-warning-100 text-warning-800", delete: "bg-danger-100 text-danger-800",
 };
 
 function Docs() {
@@ -359,7 +359,7 @@ function Contract({ spec, base, companyId }: { spec: OpenApi; base: string; comp
             return (
               <details key={`${method}${path}`} className="rounded-lg border border-ink-200 px-3 py-2">
                 <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm">
-                  <span className={cn("rounded px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase", METHOD_TONE[method] ?? "bg-ink-100")}>{method}</span>
+                  <span className={cn("rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold", METHOD_TONE[method] ?? "bg-ink-100")}>{method}</span>
                   <code className="text-xs">{path}</code><span className="text-ink-600">{op.summary}</span>
                 </summary>
                 <div className="space-y-2 pt-2 text-sm">

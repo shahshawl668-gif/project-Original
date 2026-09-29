@@ -47,7 +47,7 @@ export default function ConnectionsPage() {
           </p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-ink-500"><tr>
+            <thead className="text-left text-xs text-ink-500"><tr>
               <th className="py-1">Connection</th><th>Kind</th><th>Authentication</th><th>Streams</th><th>Health</th><th>Last success</th><th>Last failure</th></tr></thead>
             <tbody className="divide-y divide-ink-100">
               {list.data.map((c) => (

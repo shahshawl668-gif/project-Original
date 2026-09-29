@@ -198,7 +198,7 @@ function InboundPanel({ canManage }: { canManage: boolean }) {
         </div>
       ) : null}
       {!list.data ? <Skeleton className="h-12 w-full" /> : list.data.length === 0 ? <p className="text-sm text-ink-500">No inbound endpoints.</p> : (
-        <table className="w-full text-sm"><thead className="text-left text-xs uppercase text-ink-500"><tr><th className="py-1">Endpoint</th><th>Imports</th><th>Last call</th><th>Status</th><th /></tr></thead>
+        <table className="w-full text-sm"><thead className="text-left text-xs text-ink-500"><tr><th className="py-1">Endpoint</th><th>Imports</th><th>Last call</th><th>Status</th><th /></tr></thead>
           <tbody className="divide-y divide-ink-100">{list.data.map((ep) => (
             <tr key={ep.id}><td className="py-2">{ep.name}<span className="block break-all font-mono text-[11px] text-ink-400">{ep.url}</span></td>
               <td className="text-xs">{OBJECT_LABEL[ep.action.object_type]}{ep.action.mapping_key ? ` via ${ep.action.mapping_key}` : ""}</td>

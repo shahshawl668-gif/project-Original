@@ -73,7 +73,7 @@ export default function RulePreferencesPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card>
           <CardHeader>
-            <p className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+            <p className="font-display text-[11px] font-semibold text-ink-500">
               Add rule id
             </p>
             <CardTitle>Suppress a finding</CardTitle>

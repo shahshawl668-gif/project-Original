@@ -350,7 +350,10 @@ Zoho.
 ### Step 6 — Month close
 
 **Reconciliation & approvals → Month close & approval** shows the period together: bank reconciliation, JV,
-and the month's **approval**.
+and the month's **approval**. It opens on the working period shown in the
+header; choosing another month here changes it everywhere. A month with no
+register stored says so, rather than showing empty figures as though the
+month were quiet, and a month with no bank file reads *No bank file*, not ₹0.
 
 ![Month close](images/05-month-close.png)
 

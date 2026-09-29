@@ -53,7 +53,7 @@ function Section({ title, icon, children, defaultOpen = true }: {
 function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
+      <label className="text-[11px] font-semibold text-ink-600">
         {label}
       </label>
       {children}
@@ -118,7 +118,7 @@ function BandTable<T extends { up_to: string | null; rate: string }>({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-500">
+          <tr className="text-left text-[11px] font-semibold text-ink-500">
             <th className="pb-2 pr-3">{upToLabel}</th>
             <th className="pb-2 pr-3">{rateLabel}</th>
             <th className="pb-2 w-10" />
@@ -141,7 +141,7 @@ function BandTable<T extends { up_to: string | null; rate: string }>({
               </td>
               <td className="py-2 text-right">
                 <button
-                  className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                  className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600"
                   onClick={() => onChange(rows.filter((_, j) => j !== i))}
                   title="Remove band"
                 >
@@ -178,7 +178,7 @@ function RegimeEditor({ regime, onChange, showChapterVia }: {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
+        <p className="mb-2 text-[11px] font-semibold text-ink-600">
           Tax slabs (₹ upper bound → rate %)
         </p>
         <BandTable rows={regime.slabs}
@@ -208,7 +208,7 @@ function RegimeEditor({ regime, onChange, showChapterVia }: {
         )}
       </div>
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
+        <p className="mb-2 text-[11px] font-semibold text-ink-600">
           Surcharge brackets (taxable income → % of tax)
         </p>
         <BandTable rows={regime.surcharge_brackets}
@@ -425,7 +425,7 @@ export default function TaxConfigPage() {
             <div className="flex flex-col gap-5">
               <RegimeEditor regime={year.old_regime} onChange={(r) => patchYear({ old_regime: r })} showChapterVia />
               <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
+                <p className="mb-2 text-[11px] font-semibold text-ink-600">
                   Chapter VI-A caps (₹)
                 </p>
                 <div className="grid gap-4 sm:grid-cols-4">
@@ -482,17 +482,17 @@ export default function TaxConfigPage() {
               {comparison && (
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-xl border border-ink-200/70 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink-500">Old regime</p>
+                    <p className="text-xs font-semibold text-ink-500">Old regime</p>
                     <p className="mt-1 text-lg font-semibold text-ink-900">₹{comparison.old.total_tax_annual.toLocaleString("en-IN")}</p>
                     <p className="text-xs text-ink-500">TDS ₹{comparison.old.monthly_tds.toLocaleString("en-IN")}/month</p>
                   </div>
                   <div className="rounded-xl border border-ink-200/70 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink-500">New regime</p>
+                    <p className="text-xs font-semibold text-ink-500">New regime</p>
                     <p className="mt-1 text-lg font-semibold text-ink-900">₹{comparison.new.total_tax_annual.toLocaleString("en-IN")}</p>
                     <p className="text-xs text-ink-500">TDS ₹{comparison.new.monthly_tds.toLocaleString("en-IN")}/month</p>
                   </div>
                   <div className="rounded-xl border border-brand-300/60 bg-brand-50/60 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-brand-700">Cheaper: {comparison.cheaper_regime} regime</p>
+                    <p className="text-xs font-semibold text-brand-700">Cheaper: {comparison.cheaper_regime} regime</p>
                     <p className="mt-1 text-lg font-semibold text-brand-800">saves ₹{comparison.annual_saving.toLocaleString("en-IN")}</p>
                     <p className="text-xs text-brand-700/80">FY {comparison.financial_year}</p>
                   </div>
@@ -571,7 +571,7 @@ export default function TaxConfigPage() {
             if (!group) return null;
             return (
               <div key={groupKey}>
-                <p className="mb-2 mt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-600">
+                <p className="mb-2 mt-2 text-[11px] font-semibold text-ink-600">
                   {title}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-3">

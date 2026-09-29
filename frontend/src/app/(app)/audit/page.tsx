@@ -124,7 +124,7 @@ export default function AuditPage() {
                         {event.detail?.masked === true && " · identities masked"}
                       </p>
                     </div>
-                    <span className="flex-shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500">
+                    <span className="flex-shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-500">
                       {event.action.split(".")[1] ?? event.action}
                     </span>
                   </li>

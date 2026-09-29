@@ -128,8 +128,8 @@ export function RulePacks({ entityId, canChange }: { entityId: string | undefine
                       <li key={c.rule_id} className="flex flex-wrap items-center gap-x-2">
                         <span className="w-24 shrink-0 font-mono text-ink-500">{c.rule_id}</span>
                         <span className="text-ink-800">{c.name}</span>
-                        {c.material ? <span className="rounded bg-ink-100 px-1 text-[10px] font-semibold uppercase text-ink-600">statutory</span> : null}
-                        {!c.enabled ? <span className="rounded bg-ink-200 px-1 text-[10px] font-semibold uppercase text-ink-600">disabled</span> : null}
+                        {c.material ? <span className="rounded bg-ink-100 px-1 text-[11px] font-semibold text-ink-600">statutory</span> : null}
+                        {!c.enabled ? <span className="rounded bg-ink-200 px-1 text-[11px] font-semibold text-ink-600">disabled</span> : null}
                         {!c.runs_in_validation ? <span className="text-ink-400">checked at upload</span> : null}
                         {c.last_run ? (
                           <span className="text-ink-500">

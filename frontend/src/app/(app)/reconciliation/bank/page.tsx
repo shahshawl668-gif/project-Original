@@ -140,7 +140,7 @@ export default function BankReconciliationPage() {
         <CardContent className="py-5">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
                 Period
               </span>
               <input

@@ -82,7 +82,7 @@ export function FilterMenu({
 
       {matching.map((dimension) => (
         <div key={dimension.key} className="pb-1">
-          <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+          <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold text-ink-400">
             {dimension.label}
           </p>
           {dimension.values.map((value) => {
@@ -152,7 +152,7 @@ export function ActiveFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="text-[11px] font-semibold text-ink-400">
         Showing only
       </span>
       {entries.map(({ key, value }) => (

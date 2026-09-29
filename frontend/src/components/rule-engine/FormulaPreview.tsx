@@ -31,7 +31,7 @@ export function FormulaPreview({
   if (!expression.trim()) return null;
   return (
     <div className="rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-sm text-brand-900 shadow-sm">
-      <span className="font-display text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-700">
+      <span className="font-display text-[11px] font-semibold text-brand-700">
         Preview
       </span>
       <span className="ml-2 align-middle">{describe(expression, ruleType)}</span>

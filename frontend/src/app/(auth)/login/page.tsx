@@ -54,7 +54,7 @@ export default function LoginPage() {
   return (
     <AuthShell>
       <div className="animate-fade-up">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-600">
+        <p className="text-[11px] font-semibold text-brand-600">
           Welcome back
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
@@ -66,7 +66,7 @@ export default function LoginPage() {
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5" aria-busy={busy}>
           {error && (
-            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div role="alert" className="rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700">
               <p>{error}</p>
               <button type="button" className="mt-2 font-semibold underline" onClick={async () => {
                 const health = await probeApiHealth();

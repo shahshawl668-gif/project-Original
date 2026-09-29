@@ -39,7 +39,7 @@ function DeltaTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400">
+          <tr className="border-b border-ink-200 text-[11px] text-ink-400">
             <th className="py-2 text-left font-semibold">{firstColumn}</th>
             <th className="py-2 text-right font-semibold">{aLabel}</th>
             <th className="py-2 text-right font-semibold">{bLabel}</th>
@@ -124,7 +124,7 @@ export function ComparePanel({
       >
         <div className="mb-5 grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-ink-200/70 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">{aLabel}</p>
+            <p className="text-[11px] font-semibold text-ink-400">{aLabel}</p>
             <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
               {formatINR(ctc?.a ?? 0, true)}
             </p>
@@ -142,7 +142,7 @@ export function ComparePanel({
             </p>
           </div>
           <div className="rounded-xl border border-ink-200/70 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">{bLabel}</p>
+            <p className="text-[11px] font-semibold text-ink-400">{bLabel}</p>
             <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
               {formatINR(ctc?.b ?? 0, true)}
             </p>
@@ -160,7 +160,7 @@ export function ComparePanel({
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+            <h4 className="text-xs font-semibold text-ink-500">
               Roll-ups
             </h4>
             <DeltaTable
@@ -170,7 +170,7 @@ export function ComparePanel({
               firstColumn="Total"
               emphasise={(row) => row.key === "ctc"}
             />
-            <h4 className="pt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">
+            <h4 className="pt-3 text-xs font-semibold text-ink-500">
               By {data.group_by_label.toLowerCase()}, on {data.measure_label}
             </h4>
             <DeltaTable
@@ -182,7 +182,7 @@ export function ComparePanel({
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+            <h4 className="text-xs font-semibold text-ink-500">
               Line by line
             </h4>
             <DeltaTable

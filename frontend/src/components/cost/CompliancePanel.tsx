@@ -104,7 +104,7 @@ export function CompliancePanel({
                     {obligation.authority} · {obligation.cadence}
                   </p>
                 </div>
-                <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold">
                   <Icon size={11} /> {status.label}
                 </span>
               </div>

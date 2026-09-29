@@ -79,7 +79,7 @@ function Runs() {
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-ink-200">
           <table className="w-full text-sm">
-            <thead className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
+            <thead className="bg-ink-50 text-left text-xs text-ink-500">
               <tr><th className="px-3 py-2">Queued</th><th className="px-3 py-2">Run</th><th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Started by</th><th className="px-3 py-2">Source / batch</th>
                 <th className="px-3 py-2 text-right">Received</th><th className="px-3 py-2 text-right">Accepted</th><th className="px-3 py-2 text-right">Rejected</th></tr>

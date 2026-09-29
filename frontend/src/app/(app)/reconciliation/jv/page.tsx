@@ -119,7 +119,7 @@ export default function JvPage() {
           <CardContent className="py-5">
             <div className="flex flex-wrap items-end gap-3">
               <div>
-                <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+                <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
                   Period
                 </span>
                 <input
@@ -285,7 +285,7 @@ export default function JvPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-ink-200 text-left text-[10px] uppercase tracking-wide text-ink-400">
+                      <tr className="border-b border-ink-200 text-left text-[11px] text-ink-400">
                         <th className="py-2 pr-3 font-semibold">Account</th>
                         <th className="py-2 pr-3 font-semibold">Cost centre</th>
                         <th className="py-2 pr-3 text-right font-semibold">Debit</th>
