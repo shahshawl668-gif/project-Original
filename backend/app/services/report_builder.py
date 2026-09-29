@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from app.services.analytics import cost_analysis
-from app.services.cost_model import ALL_MEASURE_KEYS, DERIVED_LABELS, MEASURE_BY_KEY
+from app.services.cost_model import DERIVED_LABELS
 from app.services.dimensions import DIMENSION_KEYS, DIMENSION_LABELS
 
 MEASURE_FIELDS = ("gross", "deductions", "net", "employer_cost", "ctc")
