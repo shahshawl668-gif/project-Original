@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 
 from app.services import report_builder
-from test_reports_and_audit import _dims, _register, workspace  # noqa: F401
+from tests.test_reports_and_audit import _dims, _register, workspace  # noqa: F401
 
 
 def _spec(**overrides):
