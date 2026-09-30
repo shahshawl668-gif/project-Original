@@ -34,6 +34,10 @@ DEFAULT_POLICY: dict[str, bool] = {
     "matrix_publish_requires_independent_approver": False,
     "studio_publish_requires_independent_approver": False,
     "statutory_publish_requires_independent_approver": False,
+    # Not an approval, but an owner's governance decision of the same kind:
+    # everyone in the organisation signs in with two steps. Members not yet
+    # enrolled may sign in only to enrol (app/services/auth_security.py).
+    "members_require_mfa": False,
 }
 
 

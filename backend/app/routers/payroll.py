@@ -24,7 +24,9 @@ from app.models import (
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
 from app.services import (
+    audit,
     coverage,
+    export_safety,
     finding_store,
     register_ingest,
     register_uploads,
@@ -626,9 +628,14 @@ def export_findings_excel(
     for col in ["A", "B", "C", "D"]:
         ws_r.column_dimensions[col].width = 25
 
+    export_safety.neutralise_workbook(wb)
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
+    audit.record(db, entity_id=entity.id, user=user, action="export.downloaded", object_type="validation_export",
+                 summary=f"Downloaded findings for {len(body.employees)} employees",
+                 detail={"format": "xlsx", "employees": len(body.employees)})
+    db.commit()
 
     return StreamingResponse(
         buf,

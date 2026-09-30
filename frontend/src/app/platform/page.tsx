@@ -32,6 +32,9 @@ export default function PlatformPage() {
   useEffect(() => {
     if (!loading && !user) router.replace("/platform/login");
     if (platformSession) {
+      // Staff required to use two-step sign-in, not yet enrolled, can do only that.
+      void apiFetch("/api/auth/mfa").then(parseEnvelopeResponse<{ enabled: boolean; required: boolean }>)
+        .then((m) => { if (m.required && !m.enabled) router.replace("/account/security"); }).catch(() => undefined);
       if (user.platform_role !== "support") void apiFetch("/api/admin/organizations").then(parseEnvelopeResponse<Workspace[]>).then(setRows).catch((e) => setError(String(e)));
       void apiFetch("/api/admin/support/organizations").then(parseEnvelopeResponse<SupportOrg[]>).then(setSupportOrgs).catch((e) => setError(String(e)));
       if (user.platform_role === "owner") void apiFetch("/api/admin/staff").then(parseEnvelopeResponse<Staff[]>).then(setStaff).catch((e) => setError(String(e)));
@@ -86,7 +89,7 @@ export default function PlatformPage() {
   if (loading || !user) return <main className="p-8">Checking platform session…</main>;
   if (!platformSession) return <main className="mx-auto max-w-md p-8"><h1 className="text-xl font-semibold">Platform sign-in required</h1><p className="mt-2">This session belongs to a client workspace.</p><Link className="mt-4 inline-block text-brand-700 underline" href="/platform/login">Sign in to the platform</Link></main>;
   return <main className="mx-auto max-w-4xl space-y-8 p-6 text-ink-900">
-    <header className="flex items-center justify-between"><h1 className="text-2xl font-bold">Peopleopslab platform</h1><button onClick={() => void logout().then(() => router.push("/platform/login"))}>Sign out</button></header>
+    <header className="flex items-center justify-between"><h1 className="text-2xl font-bold">Peopleopslab platform</h1><span className="flex gap-4"><Link className="text-brand-700 underline" href="/account/security">Sign-in &amp; security</Link><button onClick={() => void logout().then(() => router.push("/platform/login"))}>Sign out</button></span></header>
     {user.platform_role !== "support" && <section className="rounded-xl border p-6"><h2 className="mb-4 text-lg font-semibold">Create client workspace</h2>
       <form onSubmit={create} className="grid gap-3 sm:grid-cols-3"><input className="rounded border p-3" required placeholder="Company name" value={name} onChange={(e) => setName(e.target.value)} /><input className="rounded border p-3" type="email" required placeholder="Owner email" value={email} onChange={(e) => setEmail(e.target.value)} /><button className="rounded bg-brand-700 p-3 text-white disabled:opacity-50" disabled={busy}>{busy ? "Creating…" : "Create and invite"}</button></form>
       {error && <p role="alert" className="mt-3 text-danger-700">{error}</p>}

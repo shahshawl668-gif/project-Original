@@ -1,6 +1,8 @@
 import json
 from datetime import date
 
+import uuid
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -115,11 +117,15 @@ def list_uploads(db: Session = Depends(get_db), user: User = Depends(get_current
 
 @router.get("/uploads/{upload_id}")
 def list_records(
-    upload_id: str,
+    upload_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     entity: Entity = Depends(get_current_entity),
 ):
+    upload = db.get(CtcUpload, upload_id)
+    if upload is None or upload.entity_id != entity.id:
+        # Another company's upload and one that never existed get the same answer.
+        raise HTTPException(status_code=404, detail="Upload not found")
     rows = (
         db.query(CtcRecord)
         .filter(CtcRecord.entity_id == entity.id, CtcRecord.upload_id == upload_id)

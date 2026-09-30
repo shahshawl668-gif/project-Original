@@ -162,3 +162,34 @@ test("a rejected fresh token fails without starting another refresh", async () =
   assert.equal(calls.length, 2);
   assert.equal(h.api.getRefreshToken(), null);
 });
+
+test("a correct password on a two-step account stores no session and asks for the code", async () => {
+  const calls = [];
+  const h = harness(async (url) => {
+    calls.push(url);
+    return ok({ mfa_required: true, mfa_token: "challenge" });
+  });
+  await assert.rejects(h.signIn("test@example.com", "password"), (err) =>
+    err.name === "SecondStepRequired" && err.mfaToken === "challenge");
+  assert.equal(h.api.getAccessToken(), null);
+  assert.equal(h.storage.getItem("payroll_saas_refresh_token"), null);
+  assert.equal(calls.length, 1);          // no profile request with a challenge
+});
+
+test("the second step completes the session only after the profile loads", async () => {
+  const calls = [];
+  const h = harness(async (url, init) => {
+    calls.push({ url, init });
+    return url.endsWith("/mfa/verify") ? ok(tokens) : ok(user);
+  });
+  const actual = await h.completeSecondStep("challenge", " 123456 ");
+  assert.equal(actual.id, user.id);
+  assert.deepEqual(JSON.parse(calls[0].init.body), { mfa_token: "challenge", code: "123456" });
+  assert.equal(calls[1].init.headers.get("Authorization"), "Bearer new-access");
+});
+
+test("a wrong second-step code leaves no session", async () => {
+  const h = harness(async () => failure(401, "That code is not right, or has already been used."));
+  await assert.rejects(h.completeSecondStep("challenge", "000000"), /not right/);
+  assert.equal(h.api.getAccessToken(), null);
+});

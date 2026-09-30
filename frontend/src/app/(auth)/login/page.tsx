@@ -8,13 +8,17 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, probeApiHealth } from "@/lib/api";
+import { SecondStepRequired } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const pathname = usePathname();
   const slug = pathname.match(/^\/w\/([a-z0-9-]+)\/login\/?$/)?.[1];
   const platform = pathname.startsWith("/platform/login") || pathname === "/login";
-  const { login } = useAuth();
+  const { login, verifySecondStep } = useAuth();
+  // Held in memory only: a reload starts the sign-in again.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,9 +42,19 @@ export default function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      await login(email.trim(), password, slug, platform ? "platform" : "client");
+      if (challenge) await verifySecondStep(challenge, code);
+      else await login(email.trim(), password, slug, platform ? "platform" : "client");
+      setPassword("");
       router.replace(platform ? "/platform" : "/dashboard");
     } catch (err) {
+      if (err instanceof SecondStepRequired) {
+        setChallenge(err.mfaToken);
+        setCode("");
+        return;
+      }
+      if (challenge && err instanceof ApiError && err.status === 401 && /expired/i.test(err.message)) {
+        setChallenge(null);
+      }
       setError(err instanceof Error ? err.message : "Unable to sign in. Please try again.");
       if (err instanceof ApiError && err.status === 429 && err.retryAfterSeconds) {
         setRetryUntil(Date.now() + err.retryAfterSeconds * 1000);
@@ -61,7 +75,9 @@ export default function LoginPage() {
           Sign in to {platform ? "the platform" : <span className="text-gradient">{slug} workspace</span>}
         </h1>
         <p className="mt-2.5 text-sm leading-relaxed text-ink-500">
-          Enter your work email and password for this {platform ? "platform" : "client"} account.
+          {challenge
+            ? "Your password was right. Now the code from your authenticator app."
+            : <>Enter your work email and password for this {platform ? "platform" : "client"} account.</>}
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5" aria-busy={busy}>
@@ -75,50 +91,79 @@ export default function LoginPage() {
               {serviceStatus && <p className="mt-1">{serviceStatus}</p>}
             </div>
           )}
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-[12px] font-semibold text-ink-800">
-              Work email
-            </Label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium outline-none transition-all placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
-              placeholder="you@company.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-[12px] font-semibold text-ink-800">
-                Password
+          {challenge ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="otp" className="text-[12px] font-semibold text-ink-800">
+                Code from your authenticator app
               </Label>
-              <span className="text-[11px] text-ink-500">Forgot password? Contact your workspace administrator.</span>
-            </div>
-            <div className="relative">
               <input
-                id="password"
-                type={showPwd ? "text" : "password"}
-                autoComplete="current-password"
+                id="otp"
+                autoComplete="one-time-code"
+                inputMode="text"
+                autoFocus
                 required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 pr-11 text-sm font-medium outline-none transition-all focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
-                placeholder="••••••••••"
+                maxLength={32}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium tracking-widest outline-none transition-all focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+                placeholder="123456"
+                aria-describedby="otp-help"
               />
-              <button
-                type="button"
-                onClick={() => setShowPwd((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-500 transition-colors hover:text-ink-700"
-                aria-label={showPwd ? "Hide password" : "Show password"}
-              >
-                {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+              <p id="otp-help" className="text-[12px] text-ink-500">
+                Six digits from the app, or one of your recovery codes. Lost both? Your administrator can reset two-step sign-in after confirming who you are.
+              </p>
+              <button type="button" className="text-[12px] font-semibold text-brand-700 underline" onClick={() => { setChallenge(null); setCode(""); setError(null); }}>
+                Start again
               </button>
             </div>
-          </div>
+          ) : (
+            <>
+          <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-[12px] font-semibold text-ink-800">
+                Work email
+              </Label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium outline-none transition-all placeholder:text-ink-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+                placeholder="you@company.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-[12px] font-semibold text-ink-800">
+                  Password
+                </Label>
+                <span className="text-[11px] text-ink-500">Forgot password? Contact your workspace administrator.</span>
+              </div>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPwd ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-12 w-full rounded-xl border border-ink-200 bg-white px-4 pr-11 text-sm font-medium outline-none transition-all focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+                  placeholder="••••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-500 transition-colors hover:text-ink-700"
+                  aria-label={showPwd ? "Hide password" : "Show password"}
+                >
+                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+            </>
+          )}
 
           <button
             type="submit"
@@ -133,11 +178,11 @@ export default function LoginPage() {
               {busy ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in…
+                  {challenge ? "Checking…" : "Signing in…"}
                 </>
               ) : (
                 <>
-                  {secondsRemaining > 0 ? `Retry in ${secondsRemaining}s` : "Sign in"}
+                  {secondsRemaining > 0 ? `Retry in ${secondsRemaining}s` : challenge ? "Verify" : "Sign in"}
                   <ArrowRight
                     size={16}
                     strokeWidth={2.25}

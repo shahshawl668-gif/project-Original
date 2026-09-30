@@ -126,7 +126,7 @@ export type TokenPairData = {
 };
 
 /** Decode JWT payload (browser only; no crypto verification — used for expiry scheduling). */
-export function parseJwtPayload(token: string): { exp?: number; portal?: string } | null {
+export function parseJwtPayload(token: string): { exp?: number; portal?: string; enrol_mfa?: boolean } | null {
   try {
     const parts = token.split(".");
     if (parts.length < 2) return null;

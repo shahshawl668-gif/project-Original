@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import Entity, EntityAccess, User
-from app.services import tenancy
+from app.services import auth_security, tenancy
 from app.security import decode_token
 
 # Deliberately still carries the old product name. This is not branding — it is
@@ -64,6 +64,14 @@ def get_current_user(
     # session, whatever token names it; machines use the integration API.
     if user.role == "machine":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    # Ended by a password reset, "sign out everywhere", an administrator, or a
+    # detected refresh-token replay. Checked in every environment.
+    if not auth_security.session_current(user, payload):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ended. Sign in again.")
+    # Staff required to use two-step sign-in who have not yet enrolled may
+    # sign in only to enrol. Nothing else answers until they have.
+    if payload.get("enrol_mfa") and not request.url.path.startswith(("/api/auth/", "/api/v1/auth/")):
+        raise HTTPException(status_code=403, detail="Set up two-step sign-in before continuing")
     if settings.is_production and payload.get("portal") not in {"client", "platform", "support"}:
         raise HTTPException(status_code=401, detail="Please sign in again")
     if settings.is_production and payload.get("portal") == "client":

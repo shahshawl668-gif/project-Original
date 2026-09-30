@@ -115,6 +115,7 @@ trail with the before and after.
 | Validation rules need a second person to publish | The person who drafted a rule cannot publish it |
 | Studio mappings need a second person to publish | The person who drafted a data mapping cannot publish it |
 | Dated statutory changes need a second person to publish | The person who drafted a dated change to PF, ESIC or component mapping cannot put it in force |
+| Everyone signs in with two steps | Members without two-step sign-in can sign in only to set it up. You must have set it up yourself (Sign-in & security) before you can turn this on, so it can never leave the organisation with nobody able to administer it |
 
 All are **off** by default, so a one-person practice can still close a month.
 Whatever the setting, every sign-off records the preparer, the approver and
@@ -295,9 +296,31 @@ trail that can survive a rolled-back change records events that never happened.
   Waivers end by themselves for the same reason (90 days unless a date is
   given, at most 366) and reopen their finding when they lapse.
 
+### Sign-in security (platform owner and admin)
+
+- **Security event log** — `GET /api/admin/security/events` (filters `kind`,
+  `outcome`, `subject`): sign-ins, lockouts, two-step changes, session
+  revocations, replayed refresh tokens, support sessions. It stores no
+  password, token or code, and each read of it is itself logged. Look weekly
+  for `outcome=blocked` bursts and any `kind=refresh&outcome=detected`.
+- **A locked-out person** — locks lift by themselves after
+  `LOGIN_LOCKOUT_MINUTES`; `POST /api/admin/security/unlock` lifts one early.
+- **A lost phone** — the console cannot remove anyone's second factor. From a
+  shell on the API host, after confirming identity by a channel other than the
+  request's: `python -m app.auth_recovery reset-mfa person@example.com --reason "…"`.
+  The same tool has `unlock` and `end-sessions`.
+- **Staff two-step sign-in** — once every member of staff has enrolled, set
+  `REQUIRE_MFA_FOR_PLATFORM_STAFF=true`. Anyone not enrolled can then sign in
+  only to enrol; nobody is locked out.
+- **Rotating `STUDIO_SECRET_KEY`** — `new,old`, redeploy,
+  `python -m app.rotate_secrets --apply`, then `new` alone. It also seals
+  two-step secrets, so never drop the old key before re-sealing.
+- Incident procedures: `docs/security/INCIDENT_RUNBOOK.md`.
+
 ### On a change of staff
 
-- Remove the leaver's membership **before** their last day.
+- Remove the leaver's membership **before** their last day. For platform
+  staff, also `POST /api/admin/staff/{id}/revoke-sessions`.
 - Reassign entity access rather than sharing a login. There is no scenario in
   which two people sharing an account is the right answer in a system whose
   output is evidence.
@@ -479,6 +502,26 @@ decision for the client, not a housekeeping task.
   otherwise. No settings, no new dependencies.
 - **Rollback:** redeploy the previous release; everything a release promoted
   remains as ordinary mapping and workflow versions.
+
+### Upgrading to the sign-in security release
+
+- **Automatic on first start.** New columns on `users` (`session_version`,
+  `mfa_*`) and `refresh_tokens` (`rotated_at`); new tables `security_events`
+  and `login_throttles`; a trigger making `audit_events` and `security_events`
+  refuse edits. Additive and idempotent.
+- **Nobody is signed out** by the upgrade: tokens issued before it carry no
+  session version and read as version 0. **Nobody is locked out**: two-step
+  sign-in is off for everyone until they enrol, and both enforcement switches
+  are off.
+- **New settings, all with safe defaults:** `LOGIN_MAX_FAILURES`,
+  `LOGIN_FAILURE_WINDOW_MINUTES`, `LOGIN_LOCKOUT_MINUTES`,
+  `REFRESH_REUSE_GRACE_SECONDS`, `SESSION_ABSOLUTE_HOURS`,
+  `REQUIRE_MFA_FOR_PLATFORM_STAFF`, `EXPOSE_API_DOCS` (forced off in
+  production), `MAX_REQUEST_MB`, `MAX_WORKBOOK_EXPANDED_MB`.
+- **Rollback:** redeploy the previous release; it ignores the new columns and
+  tables. To remove the audit trigger too: `DROP TRIGGER append_only ON
+  audit_events; DROP TRIGGER append_only ON security_events;`. Anyone who had
+  enrolled signs in with the password alone under the old release.
 
 ---
 

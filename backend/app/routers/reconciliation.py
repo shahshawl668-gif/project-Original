@@ -948,6 +948,10 @@ def export_jv(
 
     body = jv_builder.export_csv(document, chosen, template.sign_convention)
     name = f"payroll-jv-{period_month:%Y-%m}-{chosen}.csv"
+    audit.record(db, entity_id=entity.id, user=user, action="export.downloaded", object_type="jv_export",
+                 object_id=str(template.id), summary=f"Downloaded the {chosen} journal voucher for {period_month:%b %Y}",
+                 detail={"format": chosen, "file": name})
+    db.commit()
     return StreamingResponse(
         io.BytesIO(body.encode("utf-8-sig")),
         media_type="text/csv",

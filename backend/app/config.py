@@ -34,6 +34,36 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
     allow_public_signup: bool = True  # local development only
+    # Wrong answers per sign-in identifier inside the window before it is
+    # refused for the lockout period. Locks expire on their own; see
+    # app/services/auth_security.py and `python -m app.auth_recovery`.
+    login_max_failures: int = 10
+    login_failure_window_minutes: int = 15
+    login_lockout_minutes: int = 15
+    # A rotated refresh token presented again within this many seconds is a
+    # second tab racing the first, not a replay. After it, the user's every
+    # session is ended.
+    refresh_reuse_grace_seconds: int = 60
+    # However often it is refreshed, a session ends this many hours after the
+    # sign-in that began it (OWASP ASVS 5.0 7.3.2). Idle sessions end sooner:
+    # a refresh token unused for REFRESH_TOKEN_EXPIRE_DAYS is dead.
+    session_absolute_hours: int = 12
+    # Platform staff without two-step sign-in may sign in, but only to set it
+    # up. Off by default so turning it on is a decision, taken after every
+    # member of staff has had the chance to enrol.
+    require_mfa_for_platform_staff: bool = False
+
+    # --- HTTP -----------------------------------------------------------------
+    # The interactive API reference (/docs, /redoc, /openapi.json). Forced off
+    # in production: a map of every route is for developers, not the internet.
+    # The integration API keeps its own published reference.
+    expose_api_docs: bool = True
+    # Largest request body any route accepts, in megabytes. Checked before the
+    # body is read. The integration API has its own, smaller, ceiling.
+    max_request_mb: int = 50
+    # Largest size an uploaded .xlsx may expand to when unzipped, in megabytes.
+    # Refused before parsing (app/services/upload_safety.py).
+    max_workbook_expanded_mb: int = 200
 
     # --- CORS ----------------------------------------------------------------
     cors_origins: str = (
@@ -139,6 +169,9 @@ if settings.is_production:
             "ALLOW_ANONYMOUS_API=true in production — refusing. Forcing False."
         )
         object.__setattr__(settings, "allow_anonymous_api", False)
+
+    if settings.expose_api_docs:
+        object.__setattr__(settings, "expose_api_docs", False)
 
     if settings.studio_allow_private_destinations:
         logger.warning("STUDIO_ALLOW_PRIVATE_DESTINATIONS=true in production — refusing. Forcing False.")

@@ -5,7 +5,9 @@ from datetime import datetime
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from app.services.password_policy import check as _password_policy
 
 
 class EntityCreate(BaseModel):
@@ -145,6 +147,8 @@ class InvitationRegister(BaseModel):
 
     token: str = Field(min_length=1, max_length=512)
     password: str = Field(min_length=8, max_length=128)
+
+    _policy = field_validator("password")(_password_policy)
 
 
 class MemberUpdate(BaseModel):

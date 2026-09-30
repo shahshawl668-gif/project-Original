@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.models import SalaryRegister
 from app.branding import REPORT_HEADING
+from app.services.export_safety import neutralise_workbook
 
 
 def _openpyxl():
@@ -739,6 +740,7 @@ def build(
     _basis_sheet(db, entity.id, ctx, wb)
 
     buffer = io.BytesIO()
+    neutralise_workbook(wb)
     wb.save(buffer)
     buffer.seek(0)
     stamp = date.today().isoformat()

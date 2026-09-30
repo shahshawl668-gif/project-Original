@@ -1,4 +1,5 @@
 from app.models.user import PasswordResetToken, PlatformInvitation, RefreshToken, User
+from app.models.security_event import LoginThrottle, SecurityEvent
 from app.models.org import (
     ORG_ROLE_RANK,
     ORG_ROLES,
@@ -102,6 +103,8 @@ from app.models.findings import (
 )
 
 __all__ = [
+    "LoginThrottle",
+    "SecurityEvent",
     "StatutoryConfigVersion",
     "ReportSchedule",
     "InputDigestCache",

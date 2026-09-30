@@ -6,7 +6,7 @@ import uuid
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
@@ -20,12 +20,13 @@ from app.models import (
     Entity,
     Organization,
     PlatformInvitation,
+    SecurityEvent,
     SupportAccessGrant,
     User,
 )
 from app.schemas.auth import AdminRoleUpdate, UserOut
 from app.security import token_fingerprint
-from app.services import audit, invitations, support_access, tenancy
+from app.services import audit, auth_security, invitations, support_access, tenancy
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -350,3 +351,73 @@ def end_support_grant(
     db.commit()
     db.refresh(grant)
     return ok(support_access.describe(grant))
+
+
+# ---------------------------------------------------------------------------
+# Security events and account protection
+# ---------------------------------------------------------------------------
+class UnlockRequest(BaseModel):
+    email: EmailStr
+
+
+def _security_officer(admin: User) -> None:
+    if admin.platform_role not in {"owner", "admin"}:
+        raise HTTPException(status_code=403, detail="Platform owner or admin only")
+
+
+@router.get("/security/events")
+def security_events(
+    request: Request,
+    kind: str | None = None,
+    outcome: str | None = None,
+    subject: str | None = None,
+    limit: int = Query(default=200, ge=1, le=1000),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Sign-ins, lockouts, two-step changes and session revocations — metadata
+    about accounts, never payroll. No password, token or code is ever stored.
+    """
+    _security_officer(admin)
+    q = db.query(SecurityEvent)
+    if kind:
+        q = q.filter(SecurityEvent.kind == kind)
+    if outcome:
+        q = q.filter(SecurityEvent.outcome == outcome)
+    if subject:
+        q = q.filter(SecurityEvent.subject == subject.strip().lower())
+    rows = q.order_by(SecurityEvent.created_at.desc()).limit(limit).all()
+    auth_security.event(db, request, kind="security_log_read", outcome="success", user=admin,
+                        detail={"filters": {"kind": kind, "outcome": outcome, "subject": bool(subject)}}, commit=True)
+    return ok([{
+        "id": str(r.id), "at": r.created_at.isoformat() if r.created_at else None, "kind": r.kind,
+        "outcome": r.outcome, "user_id": str(r.user_id) if r.user_id else None, "subject": r.subject,
+        "client_ip": r.client_ip, "request_id": r.request_id, "detail": r.detail or {},
+    } for r in rows])
+
+
+@router.post("/security/unlock")
+def security_unlock(body: UnlockRequest, request: Request, admin: User = Depends(require_admin),
+                    db: Session = Depends(get_db)):
+    """Lift a sign-in lock early. Locks expire on their own; this is for a caller on the phone."""
+    _security_officer(admin)
+    lifted = auth_security.unlock(db, body.email)
+    auth_security.event(db, request, kind="unlock", outcome="changed", subject=body.email,
+                        detail={"by": admin.email, "locks_lifted": lifted})
+    db.commit()
+    return ok({"locks_lifted": lifted})
+
+
+@router.post("/staff/{user_id}/revoke-sessions")
+def revoke_staff_sessions(user_id: uuid.UUID, request: Request, admin: User = Depends(require_admin),
+                          db: Session = Depends(get_db)):
+    """End every session a member of platform staff holds — a lost laptop, a departure."""
+    if admin.platform_role != "owner" and admin.id != user_id:
+        raise HTTPException(status_code=403, detail="Platform owner only")
+    target = db.get(User, user_id)
+    if target is None or target.platform_role is None:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    auth_security.end_all_sessions(db, request, target, reason="administrator", actor=admin)
+    db.commit()
+    return ok({"signed_out": True})

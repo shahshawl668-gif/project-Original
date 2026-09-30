@@ -58,6 +58,7 @@ from app.services.workforce_parse import (
     parse_decimal,
     parse_employee_master,
 )
+from app.services.upload_safety import check_workbook
 
 logger = logging.getLogger("payroll.studio")
 
@@ -878,6 +879,7 @@ def records_from_file(content: bytes, filename: str, max_rows: int | None = None
     if lower.endswith(".csv"):
         frame = pd.read_csv(io.BytesIO(content), dtype=str, keep_default_na=False)
     elif lower.endswith(".xlsx"):
+        check_workbook(content)
         frame = pd.read_excel(io.BytesIO(content), dtype=str, keep_default_na=False, engine="openpyxl")
     else:
         raise ValueError("Upload a .csv or .xlsx file.")

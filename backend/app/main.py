@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -28,6 +27,8 @@ from app.migrations import run_migrations
 from app.services import tenancy
 from app.deps import SYSTEM_USER_EMAIL
 from app.envelope import err_payload, ok
+from app.http_guard import BodyLimit, SecurityHeaders
+from app.security import safe_request_id
 from app.models import User
 from app.routers import api_router
 from app.seed import seed_reference_data
@@ -123,6 +124,10 @@ app = FastAPI(
     version="1.1.0",
     description="Statutory & payroll validation engine for India payroll teams.",
     lifespan=lifespan,
+    # Off in production (see config.expose_api_docs).
+    docs_url="/docs" if settings.expose_api_docs else None,
+    redoc_url="/redoc" if settings.expose_api_docs else None,
+    openapi_url="/openapi.json" if settings.expose_api_docs else None,
 )
 
 # ------------------ CORS ------------------
@@ -145,13 +150,17 @@ app.add_middleware(
     expose_headers=["X-Request-Id", "Content-Disposition"],
     max_age=600,
 )
+# Outermost last: the size ceiling runs before anything reads the body, and
+# the headers land on every answer, errors and CORS preflights included.
+app.add_middleware(SecurityHeaders)
+app.add_middleware(BodyLimit)
 
 
 # ------------------ REQUEST LOGGING ------------------
 
 @app.middleware("http")
 async def request_id_and_log(request: Request, call_next):
-    request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:12]
+    request_id = safe_request_id(request.headers.get("X-Request-Id"))
     request.state.request_id = request_id
     started = time.perf_counter()
     try:
@@ -180,7 +189,23 @@ async def http_exception_envelope(_, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"success": False, "data": None, "error": err_payload(exc.detail)},
+        # Retry-After on a 429, WWW-Authenticate on a 401: part of the answer.
+        headers=getattr(exc, "headers", None),
     )
+
+
+_SECRET_FIELDS = ("password", "token", "secret", "code", "key")
+
+
+def _redacted(errors: list) -> list:
+    """A refused password or token is not echoed back in the error that refuses it."""
+    out = []
+    for error in errors:
+        field = str((error.get("loc") or ("",))[-1]).lower()
+        if any(word in field for word in _SECRET_FIELDS):
+            error = {k: v for k, v in error.items() if k not in ("input", "ctx")}
+        out.append(error)
+    return out
 
 
 @app.exception_handler(RequestValidationError)
@@ -190,7 +215,7 @@ async def validation_exception_envelope(_, exc: RequestValidationError):
         content={
             "success": False,
             "data": None,
-            "error": err_payload(exc.errors(), code="validation_error"),
+            "error": err_payload(_redacted(exc.errors()), code="validation_error"),
         },
     )
 

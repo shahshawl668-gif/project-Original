@@ -427,6 +427,10 @@ def download_attachment(
     if attachment is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
     safe = "".join(ch for ch in attachment.filename if ch.isalnum() or ch in "._- ") or "attachment"
+    audit.record(db, entity_id=entity.id, user=user, action="export.downloaded", object_type="finding_attachment",
+                 object_id=str(attachment.id), summary=f"Downloaded evidence attachment {safe}",
+                 detail={"sha256": attachment.sha256, "size": attachment.size})
+    db.commit()
     return Response(
         content=attachment.data, media_type=attachment.content_type,
         headers={

@@ -17,6 +17,7 @@ from typing import Any
 
 from app.models import SalaryRegister
 from app.services import report_builder, reporting
+from app.services.export_safety import neutralise_workbook
 
 FORMATS = {
     "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"),
@@ -110,6 +111,7 @@ def _xlsx(db, entity, spec, result, about) -> bytes:
         "date_to": date.fromisoformat(spec["date_to"]),
     }, wb)
     payload = io.BytesIO()
+    neutralise_workbook(wb)
     wb.save(payload)
     return payload.getvalue()
 
