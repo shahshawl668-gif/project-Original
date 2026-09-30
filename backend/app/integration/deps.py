@@ -84,6 +84,10 @@ def get_company(
     if (entity is None or str(entity.id) not in principal.entity_ids
             or entity.org_id != principal.account.org_id or not entity.is_active):
         raise ApiError("not_found", "Company not found.")
+    from app.services.studio.releases import environment_of
+
+    if environment_of(db, entity.id) != principal.account.environment:
+        raise ApiError("not_found", "Company not found.")
     return entity
 
 
