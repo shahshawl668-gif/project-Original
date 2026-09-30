@@ -23,6 +23,15 @@ export type SavedReport = {
   visibility: "private" | "shared"; status: "draft" | "published";
   specification: Spec; updated_at: string | null; created_at: string | null;
 };
+/** A queued Excel generation. The file is fixed once made and kept until it expires. */
+export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelled" | "expired";
+export type ReportJob = {
+  id: string; definition_id: string; definition_name: string; definition_version: number;
+  state: JobState; stage: string; attempt: number; record_count: number | null;
+  artifact_bytes: number | null; queued_at: string | null; finished_at: string | null;
+  expires_at: string | null; error_message: string | null; cancel_requested: boolean;
+};
+export const JOB_ACTIVE: ReadonlySet<string> = new Set(["queued", "running"]);
 export type ReportVersion = { version: number; name: string; specification: Spec; created_at: string | null };
 
 /** The server shows at most this many rows in a preview; the export has no limit. */
@@ -44,6 +53,10 @@ export const builderApi = {
       method: id ? "PUT" : "POST", body: JSON.stringify(body),
     }),
   clone: (id: string) => apiJson<SavedReport>(`/api/reports/builder/saved/${id}/clone`, { method: "POST" }),
+  queue: (id: string) => apiJson<ReportJob>(`/api/reports/builder/saved/${id}/jobs`, { method: "POST" }),
+  jobs: () => apiJson<{ jobs: ReportJob[] }>("/api/reports/builder/jobs"),
+  cancel: (jobId: string) => apiJson<ReportJob>(`/api/reports/builder/jobs/${jobId}/cancel`, { method: "POST" }),
+  retry: (jobId: string) => apiJson<ReportJob>(`/api/reports/builder/jobs/${jobId}/retry`, { method: "POST" }),
 };
 
 /** Months between two ISO dates, inclusive of both ends. */

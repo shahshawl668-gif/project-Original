@@ -25,8 +25,8 @@ import { fetchDimensions, fetchPeriods } from "@/lib/cost-analysis";
 import { saveBlob } from "@/lib/download";
 import { count, dateTime, inr, plural } from "@/lib/format";
 import {
-  CALC_METRICS, MAX_CALCULATIONS, MAX_RANGE_MONTHS, MONEY_FIELDS, PREVIEW_LIMIT, builderApi, monthsBetween,
-  unknownMetrics, type BuilderField, type Preview, type SavedReport, type Spec,
+  CALC_METRICS, JOB_ACTIVE, MAX_CALCULATIONS, MAX_RANGE_MONTHS, MONEY_FIELDS, PREVIEW_LIMIT, builderApi, monthsBetween,
+  unknownMetrics, type BuilderField, type Preview, type ReportJob, type SavedReport, type Spec,
 } from "@/lib/report-builder";
 import { useUnsavedChanges } from "@/lib/unsaved";
 import { periodLabel } from "@/lib/workspace";
@@ -43,7 +43,6 @@ const INITIAL: Spec = {
 };
 type Meta = { name: string; description: string; visibility: "private" | "shared"; status: "draft" | "published" };
 const NEW_META: Meta = { name: "Payroll cost by department", description: "", visibility: "private", status: "draft" };
-type Export = { state: "running" } | { state: "done"; filename: string; bytes: number } | { state: "failed"; message: string };
 
 /**
  * Build a management report from the approved payroll cost dataset.
@@ -75,12 +74,21 @@ export default function ReportBuilderPage() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [exp, setExp] = useState<Export | null>(null);
+  const [queueing, setQueueing] = useState(false);
+  const [fileNote, setFileNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [openSaved, setOpenSaved] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const previewSeq = useRef(0);
 
   const versions = useQuery({ queryKey: ["rb-versions", entity?.id, active?.id, active?.version], queryFn: () => builderApi.versions(active!.id), enabled: !!active });
+
+  // Generated files: queued in the background, fixed once made, kept until they expire.
+  const jobs = useQuery({
+    queryKey: ["rb-jobs", entity?.id], queryFn: builderApi.jobs, enabled: !!entity && canUse,
+    refetchInterval: (q) => (q.state.data?.jobs.some((j) => JOB_ACTIVE.has(j.state)) ? 2000 : false),
+  });
+  const jobList = jobs.data?.jobs ?? [];
+  const latestJob = active ? jobList.find((j) => j.definition_id === active.id) : undefined;
 
   const specKey = JSON.stringify(spec);
   const dirty = JSON.stringify({ spec, meta }) !== baseline;
@@ -139,7 +147,6 @@ export default function ReportBuilderPage() {
   }
   function update(next: Partial<Spec>) {
     setSpec((s) => ({ ...s, ...next }));
-    setExp(null);
   }
 
   async function runPreview(target: Spec = spec) {
@@ -163,7 +170,6 @@ export default function ReportBuilderPage() {
     setSpec(s);
     setMeta(m);
     setBaseline(JSON.stringify({ spec: s, meta: m }));
-    setExp(null);
     setSaveError(null);
     return s;
   }
@@ -188,7 +194,6 @@ export default function ReportBuilderPage() {
     setMeta(NEW_META);
     setBaseline(JSON.stringify({ spec: INITIAL, meta: NEW_META }));
     setPreview(null);
-    setExp(null);
     setVisited(new Set([0]));
     go(0);
   }
@@ -223,15 +228,34 @@ export default function ReportBuilderPage() {
     }
   }
 
-  async function download() {
+  const refreshJobs = () => qc.invalidateQueries({ queryKey: ["rb-jobs", entity?.id] });
+  async function generate() {
     if (!active) return;
-    setExp({ state: "running" });
+    setQueueing(true);
+    setFileNote(null);
     try {
-      const { blob, filename, bytes } = await apiDownload(`/api/reports/builder/saved/${active.id}.xlsx`, `report-v${active.version}.xlsx`);
-      saveBlob(blob, filename);
-      setExp({ state: "done", filename, bytes });
+      await builderApi.queue(active.id);
+      await refreshJobs();
     } catch (e) {
-      setExp({ state: "failed", message: e instanceof Error ? e.message : "The workbook was not generated." });
+      setFileNote({ ok: false, text: e instanceof Error ? e.message : "Not queued." });
+    } finally {
+      setQueueing(false);
+    }
+  }
+  async function jobAction(job: ReportJob, action: "cancel" | "retry" | "download") {
+    setFileNote(null);
+    try {
+      if (action === "download") {
+        const { blob, filename, bytes } = await apiDownload(`/api/reports/builder/jobs/${job.id}/download`, `report-v${job.definition_version}.xlsx`);
+        saveBlob(blob, filename);
+        setFileNote({ ok: true, text: `Downloaded ${filename} · ${Math.max(1, Math.round(bytes / 1024))} KB` });
+      } else {
+        await (action === "cancel" ? builderApi.cancel(job.id) : builderApi.retry(job.id));
+      }
+    } catch (e) {
+      setFileNote({ ok: false, text: e instanceof Error ? e.message : "Refused." });
+    } finally {
+      await refreshJobs();
     }
   }
 
@@ -552,12 +576,16 @@ export default function ReportBuilderPage() {
                     <h3 className="text-[13px] font-semibold text-ink-900">Excel export</h3>
                     <p className="mt-1 text-xs text-ink-500">Every matched row — the preview&apos;s {PREVIEW_LIMIT}-row limit does not apply — with About, Summary, Details and Data basis sheets.</p>
                     {exportBlocker ? <p className="mt-2 text-xs text-ink-700">{exportBlocker}</p> : null}
-                    <Button className="mt-3" variant="outline" size="sm" disabled={!!exportBlocker || exp?.state === "running"} onClick={() => void download()}>
-                      {exp?.state === "running" ? <><Loader2 size={13} className="animate-spin" /> Generating…</> : <><Download size={13} /> {exp?.state === "failed" ? "Retry download" : exp?.state === "done" ? "Download again" : `Download version ${active?.version ?? ""}`.trim()}</>}
+                    <Button className="mt-3" variant="outline" size="sm"
+                      disabled={!!exportBlocker || queueing || (!!latestJob && JOB_ACTIVE.has(latestJob.state) && latestJob.definition_version === active?.version)}
+                      onClick={() => void generate()}>
+                      {queueing ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Generate Excel from version {active?.version ?? ""}
                     </Button>
+                    <p className="mt-2 text-xs text-ink-500">It is made in the background — you can leave this page — and the file stays fixed and downloadable until the date shown.</p>
+                    {latestJob ? <div className="mt-3 border-t border-ink-100 pt-3"><JobRow job={latestJob} onAction={jobAction} /></div> : null}
                     <div role="status" aria-live="polite" className="mt-2 text-xs">
-                      {exp?.state === "done" ? <span className="flex items-center gap-1.5 text-success-700"><CheckCircle2 size={13} aria-hidden /> Downloaded {exp.filename} · {Math.max(1, Math.round(exp.bytes / 1024))} KB</span> : null}
-                      {exp?.state === "failed" ? <span className="flex items-start gap-1.5 text-danger-700"><AlertCircle size={13} className="mt-px flex-shrink-0" aria-hidden /> Not generated: {exp.message}</span> : null}
+                      {fileNote ? <span className={cn("flex items-start gap-1.5", fileNote.ok ? "text-success-700" : "text-danger-700")}>
+                        {fileNote.ok ? <CheckCircle2 size={13} className="mt-px flex-shrink-0" aria-hidden /> : <AlertCircle size={13} className="mt-px flex-shrink-0" aria-hidden />} {fileNote.text}</span> : null}
                     </div>
                   </div>
 
@@ -618,7 +646,50 @@ export default function ReportBuilderPage() {
             ))}
           </ul>
         )}
+        <h3 className="mt-6 border-t border-ink-100 pt-4 text-[13px] font-semibold text-ink-900">Generated files</h3>
+        <p className="text-xs text-ink-500">Excel files you generated in this company, newest first. Each is fixed when made and downloadable until it expires.</p>
+        {jobs.isLoading ? <Skeleton className="mt-2 h-16 w-full" /> : jobList.length === 0 ? (
+          <p className="mt-2 text-[13px] text-ink-500">None yet.</p>
+        ) : (
+          <ul className="mt-1 divide-y divide-ink-100">{jobList.map((j) => <li key={j.id} className="py-2.5"><JobRow job={j} onAction={jobAction} showName /></li>)}</ul>
+        )}
       </Drawer>
+    </div>
+  );
+}
+
+const JOB_PILL: Record<string, { tone: "neutral" | "running" | "success" | "danger"; label: string }> = {
+  queued: { tone: "running", label: "Queued" },
+  running: { tone: "running", label: "Generating" },
+  succeeded: { tone: "success", label: "Ready" },
+  failed: { tone: "danger", label: "Failed" },
+  cancelled: { tone: "neutral", label: "Cancelled" },
+  expired: { tone: "neutral", label: "Expired" },
+};
+
+function JobRow({ job, onAction, showName }: { job: ReportJob; onAction: (job: ReportJob, action: "cancel" | "retry" | "download") => void; showName?: boolean }) {
+  const pill = JOB_PILL[job.state] ?? { tone: "neutral" as const, label: job.state };
+  const facts = [
+    `v${job.definition_version}`,
+    job.state === "running" && job.stage === "retrying" ? `retrying (attempt ${job.attempt})` : null,
+    job.record_count !== null ? plural(job.record_count, "row") : null,
+    job.artifact_bytes ? `${Math.max(1, Math.round(job.artifact_bytes / 1024))} KB` : null,
+    job.state === "succeeded" && job.expires_at ? `until ${dateTime(job.expires_at)}` : null,
+    job.state !== "succeeded" && job.finished_at ? dateTime(job.finished_at) : job.state === "queued" ? `queued ${dateTime(job.queued_at)}` : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-2 text-xs">
+      <div className="min-w-0">
+        {showName ? <p className="truncate text-[13px] font-medium text-ink-900">{job.definition_name}</p> : null}
+        <p className="flex flex-wrap items-center gap-1.5 text-ink-600"><StatusPill tone={pill.tone}>{pill.label}</StatusPill> {facts}</p>
+        {job.error_message ? <p className="mt-1 text-danger-700">{job.error_message}</p> : null}
+        {job.state === "expired" ? <p className="mt-1 text-ink-500">The file has been deleted; its record stays. Generate again for a new one.</p> : null}
+      </div>
+      <div className="flex gap-1.5">
+        {job.state === "succeeded" ? <Button size="sm" variant="outline" onClick={() => onAction(job, "download")}><Download size={13} /> Download</Button> : null}
+        {JOB_ACTIVE.has(job.state) && !job.cancel_requested ? <Button size="sm" variant="ghost" onClick={() => onAction(job, "cancel")}>Cancel</Button> : null}
+        {job.state === "failed" ? <Button size="sm" variant="outline" onClick={() => onAction(job, "retry")}>Retry</Button> : null}
+      </div>
     </div>
   );
 }

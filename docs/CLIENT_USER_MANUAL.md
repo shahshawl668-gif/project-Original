@@ -521,13 +521,20 @@ problem is marked in red with the reason.
    same scope.
 8. **Save & export** — name the report and save it; every save is a new
    version, and an earlier version can be loaded back and saved again. A
-   manager or owner can share a report with the company or publish it. **Excel
-   export** downloads a saved version with every matched row; it waits until
-   your changes are saved and both months are set, and says which it is
-   waiting for.
+   manager or owner can share a report with the company or publish it.
+   **Generate Excel** makes a file from the saved version with every matched
+   row. It waits until your changes are saved and both months are set, and
+   says which it is waiting for. The file is made in the background: its status
+   shows *Queued*, *Generating*, then *Ready* with the row count, size and the
+   date it is kept until, or *Failed* with the reason and **Retry**. You can
+   leave the page meanwhile. A ready file is fixed. Downloading it later gives
+   the same workbook even if the data has changed, and it is deleted when it
+   expires (30 days by default). Access is checked again at every download.
 
 **Saved reports** (top right) lists your drafts and the reports shared with
-the company; **Copy** makes a private draft of one. A saved report is a set of
+the company; **Copy** makes a private draft of one. Below them, **Generated
+files** lists every file you have generated in this company, with download,
+cancel and retry. A saved report is a set of
 choices, not a frozen result: it reads current data each time.
 
 ![Report Builder](images/36-report-builder.png)

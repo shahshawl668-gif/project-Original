@@ -8,6 +8,7 @@ import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
@@ -24,7 +25,7 @@ const MANAGE = new Set(["owner", "manager"]);
  * The setup checklist is computed from what exists, not ticked by hand.
  */
 export default function StudioOverviewPage() {
-  const { entity, activeRole } = useEntity();
+  const { entity, organization, activeRole } = useEntity();
   const q = useQuery({ queryKey: ["studio-overview", entity?.id], queryFn: studioApi.overview, enabled: !!entity, retry: false });
   const canManage = MANAGE.has(activeRole ?? "");
 
@@ -59,6 +60,20 @@ export default function StudioOverviewPage() {
         description={<>Send employee master, CTC, attendance and salary registers from your HRMS or payroll system, start validation, and read results — through a documented, versioned API. Studio never runs payroll: it moves data in and lets the validation engine judge it.</>}
       />
       <StudioNav />
+      {entity && (
+        <Card><CardContent className="space-y-3 py-5">
+          <p className="text-xs font-medium text-ink-500">Selected company</p>
+          <h2 className="text-lg font-semibold text-ink-900">{entity.name} <span className="text-sm font-normal text-ink-500">({entity.code})</span></h2>
+          <p className="text-sm text-ink-600">Workspace: {organization?.name ?? "—"}. Studio connections, mappings, workflows and runs on this page belong to the selected company. Switch company in the application header before setting up another client.</p>
+          <p className="text-xs text-ink-500">The integration API uses a shared address. A service account key is limited to its named companies; requests with more than one company on the key must supply X-Company-Id. Give each client and source system a separate key.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild><Link href="/studio/connections">Connect a source system</Link></Button>
+            <Button asChild variant="outline"><Link href="/studio/mapping">Map a client file</Link></Button>
+            <Button asChild variant="outline"><Link href="/studio/api">Create an API key</Link></Button>
+            <Button asChild variant="outline"><Link href="/studio/developer">Test custom logic</Link></Button>
+          </div>
+        </CardContent></Card>
+      )}
 
       {!data ? <Skeleton className="h-64 w-full rounded-2xl" /> : (
         <>

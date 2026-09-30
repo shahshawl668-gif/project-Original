@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import io
-from datetime import date
+import time
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -117,3 +118,72 @@ def test_report_name_cannot_inject_spreadsheet_formula(client, workspace):
     names = [row[1] for row in wb["About this report"].values if row[0] == "Report"]
     assert names[0].startswith("'=")
     assert all(cell.data_type != "f" for row in wb["About this report"] for cell in row)
+
+
+def test_generated_job_keeps_fixed_file_and_checks_company_on_download(client, workspace):
+    from app.services import report_jobs
+
+    entity, user, headers = workspace
+    _register(entity, user, date(2026, 4, 1), [
+        {"employee_id": "E1", "dimensions": _dims(department="A"), "components": {"basic": 10000}}
+    ])
+    created = client.post("/api/reports/builder/saved", json={
+        "name": "Monthly cost", "specification": _spec(), "visibility": "private"
+    }, headers=headers)
+    report_id = created.json()["data"]["id"]
+    queued = client.post(f"/api/reports/builder/saved/{report_id}/jobs", headers=headers)
+    assert queued.status_code == 200, queued.text
+    job_id = queued.json()["data"]["id"]
+    duplicate = client.post(f"/api/reports/builder/saved/{report_id}/jobs", headers=headers)
+    assert duplicate.status_code == 200 and duplicate.json()["data"]["id"] == job_id
+    for _ in range(40):
+        state = client.get(f"/api/reports/builder/jobs/{job_id}", headers=headers).json()["data"]
+        if state["state"] in ("succeeded", "failed"):
+            break
+        report_jobs.run_once()
+        time.sleep(0.05)
+    assert state["state"] == "succeeded", state
+    assert state["definition_version"] == 1
+    assert state["record_count"] == 1
+    assert state["source_references"] and state["artifact_sha256"]
+    first = client.get(f"/api/reports/builder/jobs/{job_id}/download", headers=headers)
+    assert first.status_code == 200
+    # A later register edit cannot rewrite an output already generated.
+    second = client.get(f"/api/reports/builder/jobs/{job_id}/download", headers=headers)
+    assert first.content == second.content
+    other = client.post("/api/org/entities", json={"name": "Other company"}, headers=headers).json()["data"]["id"]
+    assert client.get(f"/api/reports/builder/jobs/{job_id}/download",
+                      headers={**headers, "X-Entity-Id": other}).status_code == 404
+
+
+def test_generated_download_expires_even_if_bytes_remain(client, workspace):
+    from app.database import SessionLocal
+    from app.models import ReportJob
+    from app.services import report_jobs
+    import uuid
+
+    entity, user, headers = workspace
+    _register(entity, user, date(2026, 4, 1), [
+        {"employee_id": "E1", "dimensions": _dims(department="A")}
+    ])
+    created = client.post("/api/reports/builder/saved", json={
+        "name": "Expiry check", "specification": _spec(), "visibility": "private"
+    }, headers=headers).json()["data"]
+    job_id = client.post(f"/api/reports/builder/saved/{created['id']}/jobs",
+                         headers=headers).json()["data"]["id"]
+    for _ in range(40):
+        state = client.get(f"/api/reports/builder/jobs/{job_id}", headers=headers).json()["data"]["state"]
+        if state == "succeeded":
+            break
+        report_jobs.run_once()
+        time.sleep(0.05)
+    assert state == "succeeded"
+    db = SessionLocal()
+    try:
+        job = db.get(ReportJob, uuid.UUID(job_id))
+        job.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        db.commit()
+    finally:
+        db.close()
+    assert client.get(f"/api/reports/builder/jobs/{job_id}/download",
+                      headers=headers).status_code == 410

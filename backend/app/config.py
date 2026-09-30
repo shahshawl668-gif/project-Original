@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     validation_worker_enabled: bool = True
     validation_worker_concurrency: int = 1
 
+    # --- PeopleOps Reports ----------------------------------------------------
+    report_worker_enabled: bool = True
+    report_artifact_max_mb: int = 10
+    report_artifact_retention_days: int = 30
+
     # --- PeopleOps Studio: integration API -----------------------------------
     # Requests per minute per API key. Enforced in the API process: with more
     # than one API instance the effective ceiling multiplies (see ratelimit.py).

@@ -19,4 +19,23 @@ Deploy the preceding application commit to hide the new route. The two additive 
 
 ## Known limits
 
-The first approved builder dataset is aggregate payroll cost at period × dimension grain. Its preview returns up to 200 rows and the full matched count, and the screen says when it is showing only the first 200. The screen exports only a saved version, and only when there are no unsaved changes, so a file always matches a definition that can be reopened. Definitions evaluate current data and are not immutable report outputs. The saved aggregate workbook exports all matched rows with provenance, a summary and the data basis. Generation is synchronous and uses current data. No CSV, PDF, scheduled job, immutable artifact retention, external delivery or 8,000/20,000 employee benchmark is included in this increment.
+The first approved builder dataset is aggregate payroll cost at period × dimension grain. Its preview returns up to 200 rows and the full matched count, and the screen says when it is showing only the first 200. The screen exports only a saved version, and only when there are no unsaved changes, so a file always matches a definition that can be reopened. Definitions evaluate current data and are not immutable report outputs. A generated workbook contains all matched rows with provenance, a summary and the data basis; it is produced by a queued job (below) from the saved version. No CSV, PDF, scheduled delivery or external delivery is included in this increment.
+
+## Generated report jobs
+
+Aggregate report generation now queues a job with a fixed definition version.
+The output is retained for 30 days by default and is limited to 10 MB in the
+database; an oversized output fails explicitly. The job records the source
+register IDs, control totals, row count, checksum, requester and timestamps.
+Downloads check current company and report access again. A changed or revoked
+permission can remove access to a generated output. Expired output bytes are
+cleared while history metadata remains. This is a first bounded storage
+implementation; detail-scale exports require object storage and a separate
+worker capacity benchmark before their release.
+
+Rollback: deploy the previous application commit. Keep the additive
+`report_jobs` table so completed outputs and history remain intact. To remove
+it permanently, export and securely retain its contents first; dropping it
+deletes generated artifacts. The worker can be disabled with
+`REPORT_WORKER_ENABLED=false` while troubleshooting, but queued jobs then
+remain pending until a worker resumes.

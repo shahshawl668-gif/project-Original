@@ -1,9 +1,10 @@
 """PeopleOps Reports: approved dataset preview and company-scoped saved definitions."""
 from __future__ import annotations
 
+import hashlib
 import io
+from datetime import UTC, datetime
 import uuid
-from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,11 +12,12 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user
 from app.envelope import ok
-from app.models import Entity, ReportDefinition, ReportDefinitionVersion, User
-from app.services import audit, report_builder, reporting, tenancy
+from app.models import Entity, ReportDefinition, ReportDefinitionVersion, ReportJob, User
+from app.services import audit, report_builder, report_exports, report_jobs, tenancy
 
 router = APIRouter()
 
@@ -132,56 +134,147 @@ def create(body: DefinitionInput, db: Session = Depends(get_db),
 
 
 
-@router.get("/saved/{report_id}.xlsx")
-def export_saved(report_id: uuid.UUID, db: Session = Depends(get_db),
+def _job(db: Session, user: User, entity: Entity, job_id: uuid.UUID) -> ReportJob:
+    job = db.get(ReportJob, job_id)
+    if job is None or job.entity_id != entity.id or job.org_id != entity.org_id:
+        raise HTTPException(status_code=404, detail="Report job not found")
+    _get(db, user, entity, job.definition_id)
+    if job.requester_id != user.id and not tenancy.role_at_least(db, user, "manager", entity):
+        raise HTTPException(status_code=404, detail="Report job not found")
+    return job
+
+
+def _job_detail(job: ReportJob) -> dict:
+    expired = bool(job.expires_at and report_jobs._aware(job.expires_at) <= datetime.now(UTC))
+    return {
+        "id": str(job.id), "definition_id": str(job.definition_id),
+        "definition_name": job.definition_name, "definition_version": job.definition_version,
+        "state": "expired" if expired else job.state,
+        "stage": "expired" if expired else job.stage, "attempt": job.attempt,
+        "record_count": job.record_count, "control_totals": job.control_totals,
+        "source_references": job.source_references,
+        "artifact_bytes": job.artifact_bytes, "artifact_sha256": job.artifact_sha256,
+        "queued_at": job.queued_at.isoformat() if job.queued_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "expires_at": job.expires_at.isoformat() if job.expires_at else None,
+        "error_code": job.error_code, "error_message": job.error_message,
+        "cancel_requested": job.cancel_requested,
+    }
+
+
+@router.post("/saved/{report_id}/jobs")
+def queue_report(report_id: uuid.UUID, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
-    """Export all aggregate rows with definition and current-data provenance."""
     _reader(db, user, entity)
     report = _get(db, user, entity, report_id)
     spec = report_builder.validate(report.specification)
     if not spec["date_from"] or not spec["date_to"]:
-        raise HTTPException(status_code=422, detail="Choose both period bounds before export")
-    result = report_builder.preview(db, entity.id, spec, row_limit=None)
-    wb = reporting._openpyxl().Workbook()
-    reporting._provenance_sheet(wb, {
-        "Module": "PeopleOps Reports", "Report": report.name,
-        "Definition ID": str(report.id), "Definition version": report.version,
-        "Entity": entity.name, "Entity code": getattr(entity, "code", "") or "",
-        "Period from": spec["date_from"], "Period to": spec["date_to"],
-        "Breakdown": spec["dimension"], "Filters": str(spec["filters"]),
-        "Requested by": user.email, "Generated at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "Data basis": "Current stored data; not a signed historical snapshot",
-        "Outcome": result["status"], "Record count": result["record_count"],
-    })
-    reporting._sheet(wb, "Summary", ["Metric", "Value"], [
-        ["Matched records", result["record_count"]],
-        *[[key.replace("_", " ").title(), value] for key, value in (result["control_totals"] or {}).items()],
-    ])
-    headers = spec["fields"]
-    rows = [[date.fromisoformat(item[key]) if key == "period" and item[key]
-             else item[key] for key in headers] for item in result["rows"]]
-    reporting._sheet(wb, "Details", headers, rows)
-    if "period" in headers:
-        column = headers.index("period") + 1
-        for sheet in wb.worksheets:
-            if sheet.title.startswith("Details"):
-                for cells in sheet.iter_cols(min_col=column, max_col=column, min_row=2):
-                    for cell in cells:
-                        cell.number_format = "mmm yyyy"
-    reporting._basis_sheet(db, entity.id, {
-        "date_from": date.fromisoformat(spec["date_from"]),
-        "date_to": date.fromisoformat(spec["date_to"]),
-    }, wb)
-    payload = io.BytesIO()
-    wb.save(payload)
-    payload.seek(0)
+        raise HTTPException(status_code=422, detail="Choose both period bounds before generation")
+    job = report_jobs.enqueue(db, entity=entity, report=report, user=user)
+    audit.record(db, entity_id=entity.id, user=user, action="report.queued",
+                 object_type="report_job", object_id=str(job.id), summary="Queued aggregate report")
+    db.commit()
+    db.refresh(job)
+    return ok(_job_detail(job))
+
+
+@router.get("/jobs")
+def list_jobs(db: Session = Depends(get_db), user: User = Depends(get_current_user),
+              entity: Entity = Depends(get_current_entity)):
+    _reader(db, user, entity)
+    jobs = (db.query(ReportJob).filter(ReportJob.entity_id == entity.id,
+                                      ReportJob.org_id == entity.org_id,
+                                      ReportJob.requester_id == user.id)
+            .order_by(ReportJob.queued_at.desc()).limit(50).all())
+    # A report may have become private or retired since the job was generated.
+    visible = []
+    for job in jobs:
+        try:
+            _get(db, user, entity, job.definition_id)
+            visible.append(_job_detail(job))
+        except HTTPException:
+            continue
+    return ok({"jobs": visible})
+
+
+@router.get("/jobs/{job_id}")
+def get_job(job_id: uuid.UUID, db: Session = Depends(get_db),
+            user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    _reader(db, user, entity)
+    return ok(_job_detail(_job(db, user, entity, job_id)))
+
+
+@router.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: uuid.UUID, db: Session = Depends(get_db),
+               user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    _reader(db, user, entity)
+    job = _job(db, user, entity, job_id)
+    if job.state == "queued":
+        job.state, job.stage = "cancelled", "cancelled"
+    elif job.state == "running":
+        job.cancel_requested = True
+        job.stage = "cancelling"
+    else:
+        raise HTTPException(status_code=409, detail="The job has already finished")
+    db.commit()
+    return ok(_job_detail(job))
+
+
+@router.post("/jobs/{job_id}/retry")
+def retry_job(job_id: uuid.UUID, db: Session = Depends(get_db),
+              user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    _reader(db, user, entity)
+    old = _job(db, user, entity, job_id)
+    if old.state != "failed":
+        raise HTTPException(status_code=409, detail="Only failed jobs can be retried")
+    report = _get(db, user, entity, old.definition_id)
+    fresh = report_jobs.enqueue(db, entity=entity, report=report, user=user)
+    db.commit()
+    db.refresh(fresh)
+    return ok(_job_detail(fresh))
+
+
+@router.get("/jobs/{job_id}/download")
+def download_job(job_id: uuid.UUID, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    _reader(db, user, entity)
+    job = _job(db, user, entity, job_id)
+    if job.state != "succeeded":
+        raise HTTPException(status_code=409, detail="Report is not ready")
+    if not job.artifact or (job.expires_at and report_jobs._aware(job.expires_at) <= report_jobs._now()):
+        raise HTTPException(status_code=410, detail="Report download has expired")
+    if hashlib.sha256(job.artifact).hexdigest() != job.artifact_sha256:
+        raise HTTPException(status_code=500, detail="Stored report checksum mismatch")
+    audit.record(db, entity_id=entity.id, user=user, action="report.downloaded",
+                 object_type="report_job", object_id=str(job.id),
+                 summary="Downloaded generated report", detail={"version": job.definition_version})
+    db.commit()
+    filename = f"peopleops-report-{job.id.hex[:12]}-v{job.definition_version}.xlsx"
+    return StreamingResponse(io.BytesIO(job.artifact),
+                             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/saved/{report_id}.xlsx")
+def export_saved(report_id: uuid.UUID, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    """Compatibility download for current aggregate reports; generated jobs are preferred."""
+    _reader(db, user, entity)
+    report = _get(db, user, entity, report_id)
+    try:
+        payload, info = report_exports.build(db, entity, report, user)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if len(payload) > settings.report_artifact_max_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Report exceeds the configured export size")
     audit.record(db, entity_id=entity.id, user=user, action="report.downloaded",
                  object_type="report_definition", object_id=str(report.id),
                  summary="Downloaded a saved report",
-                 detail={"version": report.version, "rows": result["record_count"]})
+                 detail={"version": report.version, "rows": info["record_count"]})
     db.commit()
     filename = f"peopleops-report-{report.id.hex[:12]}-v{report.version}.xlsx"
-    return StreamingResponse(payload, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    return StreamingResponse(io.BytesIO(payload),
+                             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 

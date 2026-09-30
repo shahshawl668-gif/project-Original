@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Calculator, Filter, ListTree, Lock } from "lucide-react";
@@ -8,6 +9,7 @@ import { Calculator, Filter, ListTree, Lock } from "lucide-react";
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StudioNav } from "@/components/studio/StudioNav";
 import { TestButton } from "@/components/studio/Controls";
@@ -35,6 +37,16 @@ export default function DeveloperPage() {
       <PageHeader title="Developer workspace"
         description="Test formulas, conditions and lookups on sample rows before they go into a mapping, a rule or a workflow. The same evaluators the product runs; nothing is stored." />
       <StudioNav />
+      <Card><CardContent className="space-y-3 py-5">
+        <h2 className="text-base font-semibold text-ink-900">Build a client-specific integration</h2>
+        <p className="text-sm text-ink-600">Start with a connection, map the client&apos;s source fields, test a formula or condition here, then publish the mapping and automate it in a workflow. These configurations belong to the selected company.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline"><Link href="/studio/connections">1. Connect system</Link></Button>
+          <Button asChild variant="outline"><Link href="/studio/mapping">2. Map fields</Link></Button>
+          <Button asChild variant="outline"><Link href="/studio/workflows">3. Automate workflow</Link></Button>
+          <Button asChild variant="outline"><Link href="/studio/runs">4. Review runs</Link></Button>
+        </div>
+      </CardContent></Card>
       <FormulaTester />
       <div className="grid gap-4 lg:grid-cols-2">
         <ConditionTester />
@@ -50,7 +62,7 @@ export default function DeveloperPage() {
             <p className="mt-2 text-xs text-ink-500">{ref.data.variables} Up to {ref.data.max_length} characters.</p>
           </div>
           <div className="rounded-xl border border-ink-200 bg-ink-50/60 p-4 text-sm" data-testid="scripting">
-            <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink-900"><Lock size={16} /> Scripting — disabled</h2>
+            <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-ink-900"><Lock size={16} /> Custom Python — awaiting isolated runner</h2>
             <p className="text-xs">{ref.data.scripting.reason}</p>
             <p className="mt-2 text-xs font-semibold">It would need, first:</p>
             <ul className="list-disc pl-5 text-xs">{ref.data.scripting.requires.map((r) => <li key={r}>{r}</li>)}</ul>

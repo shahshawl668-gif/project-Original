@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 
 from app.branding import PRODUCT_NAME
 from app.config import settings
-from app.services import validation_worker
+from app.services import report_jobs, validation_worker
 from app.database import Base, SessionLocal, apply_column_patches, engine
 from app.migrations import run_migrations
 from app.services import tenancy
@@ -94,18 +94,22 @@ async def lifespan(app: FastAPI):
     # queue with no worker looks identical to a queue with a broken one, and the
     # boot log is where someone will look first.
     workers = validation_worker.start_in_thread()
+    report_worker = report_jobs.start_in_thread()
 
     logger.info(
         "API ready | env=%s | database=%s | cors_origins=%s | anonymous=%s | "
-        "validation_workers=%d",
+        "validation_workers=%d report_worker=%s",
         settings.env,
         _describe_database(),
         settings.cors_origins_list,
         settings.allow_anonymous_api,
         len(workers),
+        report_worker,
     )
     yield
 
+    if report_worker:
+        report_jobs.stop()
     if workers:
         # Ask them to stop, but do not block the shutdown on a job in flight.
         # Its lease simply expires and another worker picks it up — which is the

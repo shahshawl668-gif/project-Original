@@ -310,6 +310,8 @@ def revoke_key(
     cred = _credential(db, entity, credential_id)
     try:
         credentials.revoke(db, cred, actor=user, reason=body.reason)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     db.commit()
