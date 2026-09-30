@@ -140,6 +140,10 @@ class OrgMembership(Base):
     default_entity_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("entities.id", ondelete="SET NULL")
     )
+    # True once the member picked the company themselves. Until then the default
+    # is the product's guess, and may move from an empty company to one with a
+    # register (tenancy.default_entity); a choice they made never moves.
+    default_entity_chosen: Mapped[bool | None] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     org = relationship("Organization", back_populates="memberships")

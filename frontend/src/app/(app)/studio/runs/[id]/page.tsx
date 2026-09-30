@@ -102,7 +102,7 @@ export default function StudioRunPage() {
           ? "The workflow stops before its next step, and any import or validation it started is asked to stop too. Steps already finished are not undone."
           : r.status === "queued"
             ? "It is cancelled before it starts; nothing from this batch is stored. Send the batch again when ready."
-            : "An import that has already started is not interrupted: it finishes this batch and the request is recorded against the run. Nothing already stored is rolled back."}
+            : "The import stops before it stores anything: the whole batch, and its list of rejected records, is discarded. If it has already reached its final step it finishes instead, and the run shows what was stored."}
         confirmLabel="Cancel run"
         onConfirm={() => act(() => studioApi.cancel(r.id), "Cancellation requested")}
       />

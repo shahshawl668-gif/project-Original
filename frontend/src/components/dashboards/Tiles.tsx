@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpRight, Info, Pencil, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpRight, GripVertical, Info, Pencil, Search, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,9 +27,11 @@ const UNIT_LABEL: Record<Unit, string> = { inr: "₹", number: "count", pct: "%"
  * on — metric, breakdown, period, units, company and filters — so a figure
  * is never read without its basis.
  */
-export function TileView({ tile, period, onEdit, onRemove, onMoveUp, onMoveDown, position }: {
+export function TileView({ tile, period, onEdit, onRemove, onMoveUp, onMoveDown, position, draggable }: {
   tile: Tile; period: PeriodSpec; onEdit?: () => void; onRemove?: () => void;
   onMoveUp?: () => void; onMoveDown?: () => void; position?: string;
+  /** The tile can be dragged to a new place; shows the grip that says so. */
+  draggable?: boolean;
 }) {
   const { entity } = useEntity();
   const q = useQuery<QueryResult>({
@@ -47,7 +49,12 @@ export function TileView({ tile, period, onEdit, onRemove, onMoveUp, onMoveDown,
       className={cn("flex flex-col rounded-xl border border-ink-200 bg-white p-4 shadow-soft", tile.chart === "kpi" ? "min-h-[9rem]" : "h-full min-h-[19rem]")}
     >
       <header className="mb-2 flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        {draggable ? (
+          <span className="-ml-1 mt-0.5 shrink-0 text-ink-400" title="Drag to move this tile" aria-hidden>
+            <GripVertical size={14} />
+          </span>
+        ) : null}
+        <div className="min-w-0 flex-1">
           <h3 className="truncate text-[13px] font-semibold text-ink-900">{tile.title}</h3>
           {r ? (
             <p className="text-xs text-ink-500" title={r.metric.definition}>

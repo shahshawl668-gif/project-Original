@@ -204,3 +204,67 @@ def test_excel_export_includes_unmatched_findings(client, workspace, monkeypatch
     assert any(row[0] == "MISSING-001" for row in findings[1:])
     assert workbook["Summary"]["B2"].value == 2
     assert workbook["Summary"]["B3"].value == len(findings) - 1
+
+
+def _run_findings(run_id: str) -> set[tuple[str, str, str]]:
+    import uuid
+
+    from app.database import SessionLocal
+    from app.models import FindingRecord
+
+    db = SessionLocal()
+    try:
+        return {(f.employee_id, f.rule_id, f.status) for f in
+                db.query(FindingRecord).filter(FindingRecord.run_id == uuid.UUID(run_id))}
+    finally:
+        db.close()
+
+
+def test_a_register_too_large_for_one_request_is_queued_and_validated_the_same(
+    client, workspace, monkeypatch,
+):
+    """Past the limit the request would outlive the gateway. It is queued
+    instead, and the queued run finds exactly what the request would have."""
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.models import ValidationJob
+    from app.services import validation_worker
+
+    employees = _upload(client, workspace).json()["data"]["employees"]
+    body = {"employees": employees, "run_type": "regular",
+            "period_month": "2026-08-01", "as_of_date": "2026-08-31"}
+    inline = client.post("/api/payroll/validate", json=body, headers=workspace)
+    assert inline.status_code == 200, inline.text
+    inline_findings = _run_findings(inline.json()["data"]["lifecycle"]["run_id"])
+    assert inline_findings
+
+    monkeypatch.setattr(settings, "sync_validate_max_employees", 1)
+    queued = client.post("/api/payroll/validate", json=body, headers=workspace)
+    assert queued.status_code == 202, queued.text
+    data = queued.json()["data"]
+    assert data["queued"] is True and "limit is 1" in data["reason"]
+    assert data["follow"] == f"/api/validation/jobs/{data['job']['id']}"
+
+    db = SessionLocal()
+    try:
+        validation_worker.drain(db, "test-worker")
+    finally:
+        db.close()
+    job = client.get(data["follow"], headers=workspace).json()["data"]
+    assert job["state"] == "succeeded", job
+    assert _run_findings(job["run_id"]) == inline_findings
+
+    # Without a month there is nothing to queue it under: refused, and said why.
+    no_month = client.post("/api/payroll/validate", headers=workspace,
+                           json={"employees": employees, "run_type": "regular"})
+    assert no_month.status_code == 413
+    assert "period_month" in no_month.json()["error"]["detail"]
+    # The Excel export has no queued form of its own; it points to the run's.
+    excel = client.post("/api/payroll/validate/export-excel", json=body, headers=workspace)
+    assert excel.status_code == 413
+    assert "export.xlsx" in excel.json()["error"]["detail"]
+    db = SessionLocal()
+    try:
+        assert db.query(ValidationJob).filter(ValidationJob.period_month.isnot(None)).count() >= 1
+    finally:
+        db.close()

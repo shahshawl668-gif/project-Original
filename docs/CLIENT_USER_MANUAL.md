@@ -442,8 +442,9 @@ red, Warning amber, Info blue — with their names beside them.
 
 **Viewing and editing are separate.** A board opens in view mode, where nothing
 changes what is saved. **Edit** opens it for changes: rename it, choose who can
-see it, add, edit or remove tiles, and reorder them with the arrow buttons on
-each tile (they work from the keyboard). Nothing is saved until **Save**; leaving
+see it, add, edit or remove tiles, and reorder them: drag a tile by its grip
+onto another to put it in that place, or use the arrow buttons on each tile
+(they work from the keyboard and on a phone). Nothing is saved until **Save**; leaving
 with unsaved changes asks first, and **Discard changes** puts the board back.
 
 **Adding a tile:** type what you want in **Find a metric** — it searches every

@@ -21,7 +21,7 @@ from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from app.models import FindingState, SalaryRegister, SalaryRegisterRow
 
@@ -440,8 +440,16 @@ def _register_rows(
         return [], {}
 
     by_register = {r.id: r for r in registers}
+    # The pay amounts are read only to cost a register, and a costed register
+    # is stored (_Costing), so they are left in the database unless a caller
+    # touches them — at 8,000 employees they were most of this query's time.
     rows = (
         db.query(SalaryRegisterRow)
+        .options(load_only(
+            SalaryRegisterRow.id, SalaryRegisterRow.register_id, SalaryRegisterRow.period_month,
+            SalaryRegisterRow.employee_id, SalaryRegisterRow.employee_name,
+            SalaryRegisterRow.dimensions, SalaryRegisterRow.net_pay,
+        ))
         .filter(SalaryRegisterRow.register_id.in_(list(by_register)))
         .all()
     )
@@ -449,7 +457,12 @@ def _register_rows(
 
 
 class _Costing:
-    """Costs rows, resolving each employee's PF basis from the right month."""
+    """Costs rows, resolving each employee's PF basis from the right month.
+
+    A register's costing is stored with the basis it was worked out on and
+    reused while that basis holds (services/costing_store.py); a row the stored
+    costing does not cover means the register changed, and it is costed again.
+    """
 
     def __init__(self, db: Session, entity_id: uuid.UUID):
         from app.services.cost_model import CostContext
@@ -457,20 +470,44 @@ class _Costing:
         self.db = db
         self.entity_id = entity_id
         self.context = CostContext(db, entity_id)
-        self._masters: dict[date, dict] = {}
+        self._config_basis: str | None = None
+        self._flags: dict[date, dict] = {}
+        self._books: dict[uuid.UUID, dict] = {}
 
-    def _master_flag(self, period: date, employee_id: str) -> bool | None:
-        if period not in self._masters:
-            from app.services.workforce import master_as_of
+    def _pf_flags(self, period: date) -> dict:
+        if period not in self._flags:
+            from app.services.costing_store import pf_flags_as_of
 
-            self._masters[period] = master_as_of(self.db, self.entity_id, period)
-        record = self._masters[period].get(employee_id)
-        return getattr(record, "pf_restricted", None) if record is not None else None
+            self._flags[period] = pf_flags_as_of(self.db, self.entity_id, period)
+        return self._flags[period]
+
+    def _book(self, register_id: uuid.UUID, period: date, *, recost: bool = False) -> dict:
+        if register_id in self._books and not recost:
+            return self._books[register_id]
+        from app.services import costing_store
+
+        if self._config_basis is None:
+            self._config_basis = costing_store.configuration_basis(self.db, self.context)
+        flags = self._pf_flags(period)
+        basis = costing_store.register_basis(self._config_basis, flags)
+        book = None if recost else costing_store.load(self.db, register_id, basis)
+        if book is None:
+            costs = costing_store.cost_register(self.db, self.context, register_id, flags)
+            costing_store.store(self.db, register_id, basis, costs)
+            book = {row_id.hex: cost for row_id, cost in costs.items()}
+        self._books[register_id] = book
+        return book
 
     def cost(self, row):
-        return self.context.cost_row(
-            row, pf_restricted=self._master_flag(row.period_month, row.employee_id)
-        )
+        stored = self._book(row.register_id, row.period_month).get(row.id.hex)
+        if stored is None:
+            stored = self._book(row.register_id, row.period_month, recost=True).get(row.id.hex)
+        if stored is None:
+            # A row not yet in its register as stored — costed on its own.
+            return self.context.cost_row(
+                row, pf_restricted=self._pf_flags(row.period_month).get(row.employee_id)
+            )
+        return stored
 
 
 def _accumulate(into: dict[str, Decimal], measures: dict[str, Decimal]) -> None:

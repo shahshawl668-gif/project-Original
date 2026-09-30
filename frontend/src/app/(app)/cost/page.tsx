@@ -35,6 +35,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { DIRECT_LABEL_MARGIN, DirectLabels } from "@/components/charts/DirectLabels";
 import { BudgetView } from "@/components/cost/BudgetView";
 import { ComparePanel } from "@/components/cost/ComparePanel";
 import { CompensationView } from "@/components/cost/CompensationView";
@@ -592,7 +593,7 @@ function CostAnalysisContent() {
               >
                 <div className="h-[320px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={groupChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                    <AreaChart data={groupChartData} margin={{ top: 8, right: groups.length >= 2 && groups.length <= 4 ? DIRECT_LABEL_MARGIN : 16, left: 8, bottom: 0 }}>
                       <CartesianGrid stroke={gridColor} vertical={false} />
                       <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                       <YAxis
@@ -615,6 +616,8 @@ function CostAnalysisContent() {
                           fillOpacity={0.82}
                         />
                       ))}
+                      <DirectLabels data={groupChartData} xKey="period" stacked
+                        series={groups.map((g, i) => ({ key: g.group, label: g.group, color: colorFor(g.group, i) }))} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -687,7 +690,7 @@ function CostAnalysisContent() {
               >
                 <div className="h-[320px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={layerChartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                    <AreaChart data={layerChartData} margin={{ top: 8, right: layerMeasures.length >= 2 && layerMeasures.length <= 4 ? DIRECT_LABEL_MARGIN : 16, left: 8, bottom: 0 }}>
                       <CartesianGrid stroke={gridColor} vertical={false} />
                       <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                       <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
@@ -706,6 +709,8 @@ function CostAnalysisContent() {
                           fillOpacity={0.82}
                         />
                       ))}
+                      <DirectLabels data={layerChartData} xKey="period" stacked
+                        series={layerMeasures.map((m, i) => ({ key: m.label, label: m.label, color: palette[i % palette.length] }))} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>

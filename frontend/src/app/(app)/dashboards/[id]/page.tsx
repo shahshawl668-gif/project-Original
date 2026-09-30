@@ -42,6 +42,8 @@ export default function DashboardPage() {
   const [building, setBuilding] = useState<number | "new" | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [dropAt, setDropAt] = useState<number | null>(null);
   useEffect(() => { if (board.data) setDraft(board.data); }, [board.data]);
 
   const dirty = useMemo(() => editing && !!draft && !!board.data && JSON.stringify(draft) !== JSON.stringify(board.data), [editing, draft, board.data]);
@@ -76,6 +78,14 @@ export default function DashboardPage() {
     if (j < 0 || j >= tiles.length) return;
     const next = tiles.slice();
     [next[i], next[j]] = [next[j], next[i]];
+    setTiles(next);
+  };
+  // Dragging a tile onto another puts it in that tile's place.
+  const moveTo = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= tiles.length || to >= tiles.length) return;
+    const next = tiles.slice();
+    const [tile] = next.splice(from, 1);
+    next.splice(to, 0, tile);
     setTiles(next);
   };
   const canShare = WRITE_ROLES.has(activeRole ?? "");
@@ -142,7 +152,7 @@ export default function DashboardPage() {
       {editing ? (
         <section aria-label="Dashboard settings" className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
           <p className="text-[13px] text-ink-800">
-            <b>Editing.</b> {dirty ? "Changes are not saved until you press Save." : "Nothing changed yet."} Reorder tiles with the arrows on each tile.
+            <b>Editing.</b> {dirty ? "Changes are not saved until you press Save." : "Nothing changed yet."} Drag a tile onto another to move it there, or use the arrows on each tile.
           </p>
           <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
             <label className="text-xs font-medium text-ink-700">Name<input className={cn(FIELD, "mt-1 w-full")} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
@@ -198,12 +208,25 @@ export default function DashboardPage() {
               onSave={(nt) => { setTiles(tiles.map((x, j) => (j === i ? nt : x))); setBuilding(null); }} />
           </div>
         ) : (
-          <TileView key={t.id ?? i} tile={t} period={period}
-            position={`${i + 1} of ${tiles.length}`}
-            onMoveUp={editing && i > 0 ? () => move(i, -1) : undefined}
-            onMoveDown={editing && i < tiles.length - 1 ? () => move(i, 1) : undefined}
-            onEdit={editing ? () => setBuilding(i) : undefined}
-            onRemove={editing ? () => setTiles(tiles.filter((_, j) => j !== i)) : undefined} />
+          <div key={t.id ?? i}
+            draggable={editing && building === null}
+            onDragStart={(e) => { setDragging(i); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); }}
+            onDragOver={(e) => { if (dragging === null) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dropAt !== i) setDropAt(i); }}
+            onDragLeave={() => { if (dropAt === i) setDropAt(null); }}
+            onDrop={(e) => { e.preventDefault(); if (dragging !== null) moveTo(dragging, i); setDragging(null); setDropAt(null); }}
+            onDragEnd={() => { setDragging(null); setDropAt(null); }}
+            className={cn("h-full rounded-xl transition-shadow duration-fast",
+              editing && building === null && "cursor-grab active:cursor-grabbing",
+              dragging === i && "opacity-50",
+              dropAt === i && dragging !== null && dragging !== i && "ring-2 ring-brand-500 ring-offset-2")}>
+            <TileView tile={t} period={period}
+              position={`${i + 1} of ${tiles.length}`}
+              draggable={editing && building === null}
+              onMoveUp={editing && i > 0 ? () => move(i, -1) : undefined}
+              onMoveDown={editing && i < tiles.length - 1 ? () => move(i, 1) : undefined}
+              onEdit={editing ? () => setBuilding(i) : undefined}
+              onRemove={editing ? () => setTiles(tiles.filter((_, j) => j !== i)) : undefined} />
+          </div>
         ))}
       </div>
 

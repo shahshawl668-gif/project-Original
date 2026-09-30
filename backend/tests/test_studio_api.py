@@ -618,3 +618,44 @@ def test_upload_screens_record_lineage_too(client, company):
     finally:
         db.close()
     assert rec.employee_id == "0042" and rec.lineage["channel"] == "upload" and rec.lineage["source_object"] == "m.csv"
+
+
+@pytest.mark.skipif(
+    settings.database_url.startswith("sqlite"),
+    reason="SQLite has one writer: a cancel cannot be recorded while an import holds the database. "
+           "Production is PostgreSQL, where the two proceed side by side; run this suite there.",
+)
+def test_cancelling_a_running_import_stops_it_and_keeps_nothing(client, company, monkeypatch):
+    """The cancel arrives while the import is storing records. The import sees
+    it before committing, and rolls everything back — records and rejections."""
+    from app.models import EmployeeRecord, StudioRun, StudioRunRejection
+    from app.services import ingest
+
+    k = _key(client, company)
+    r = call(client, k["key"], "POST", "/imports/employee_master", idem=uuid.uuid4().hex,
+             json_body={"batch_id": "CANCEL-1", "effective_from": PERIOD, "records": MASTER})
+    run_id = ok_data(r, 202)["id"]
+
+    real = ingest.commit_master
+
+    def storing_then_cancelled(db, **kwargs):
+        out = real(db, **kwargs)
+        # A person presses Cancel from the run page, in their own request.
+        cancelled = client.post(f"/api/studio/runs/{run_id}/cancel", headers=company)
+        assert cancelled.status_code == 200, cancelled.text
+        return out
+
+    monkeypatch.setattr(ingest, "commit_master", storing_then_cancelled)
+    _studio_drain()
+
+    run = ok_data(call(client, k["key"], "GET", f"/imports/{run_id}"))
+    assert run["status"] == "cancelled"
+    assert "Nothing from this run was stored" in run["error"]["message"]
+    db = SessionLocal()
+    try:
+        entity_id = uuid.UUID(company["X-Entity-Id"])
+        assert db.query(EmployeeRecord).filter(EmployeeRecord.entity_id == entity_id).count() == 0
+        assert db.query(StudioRunRejection).filter(StudioRunRejection.run_id == uuid.UUID(run_id)).count() == 0
+        assert db.get(StudioRun, uuid.UUID(run_id)).payload_gz is None
+    finally:
+        db.close()

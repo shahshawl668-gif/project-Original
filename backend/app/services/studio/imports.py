@@ -320,7 +320,6 @@ def _workforce(db: Session, run: StudioRun, entity: Entity, user: User, records:
     if not kept:
         return {"counts": counts, "result": None}
 
-    run.stage = "committing"
     options = run.options or {}
     lineage = _lineage_base(run)
     if kind == "employee_master":
@@ -422,18 +421,16 @@ def _ctc(db: Session, run: StudioRun, entity: Entity, user: User, records: list[
     )
     rejected += dup_rejected
     counts = {"received": len(records), "rejected": rejected, "skipped": skipped, "accepted": len(kept)}
-    if ignored:
-        run.result_ref = {**(run.result_ref or {}), "ignored_columns": sorted(ignored)[:50]}
+    noted = {"ignored_columns": sorted(ignored)[:50]} if ignored else {}
     if not kept:
-        return {"counts": counts, "result": None}
-    run.stage = "committing"
+        return {"counts": counts, "result": noted or None}
     result = ingest.commit_ctc(
         db, entity=entity, user=user, records=kept,
         filename=run.source_object or f"api:{run.batch_id or run.id}",
         default_effective_from=default_eff_d, lineage=_lineage_base(run),
     )
     counts.update(result["counts"])
-    return {"counts": counts, "result": {"ctc_upload_id": str(result["upload"].id)}}
+    return {"counts": counts, "result": {**noted, "ctc_upload_id": str(result["upload"].id)}}
 
 
 def _register(db: Session, run: StudioRun, entity: Entity, user: User, records: list[Any],
@@ -556,6 +553,25 @@ def _register(db: Session, run: StudioRun, entity: Entity, user: User, records: 
     return {"counts": counts, "result": ref}
 
 
+class _Cancelled(Exception):
+    """A person cancelled the run while it was working."""
+
+
+def _stop_if_cancelled(db: Session, run: StudioRun) -> None:
+    """Raise if a cancel was requested since the run started.
+
+    Read fresh, not from ``run``: the request arrives in another transaction.
+    Nothing is committed until the run finishes, so stopping here keeps nothing.
+    The run's own row is left untouched until then, so the cancel request is
+    never kept waiting on this transaction's lock.
+    """
+    requested = (
+        db.query(StudioRun.cancel_requested_at).filter(StudioRun.id == run.id).scalar()
+    )
+    if requested is not None:
+        raise _Cancelled()
+
+
 class _AllOrNothing(Exception):
     def __init__(self, counts: dict[str, int], message: str):
         super().__init__(message)
@@ -622,6 +638,7 @@ def ingest_records(db: Session, run: StudioRun, records: list[Any], on_committed
     received = len(records)
     try:
         mapped, mapping_rejected = _apply_mapping(db, run, records)
+        _stop_if_cancelled(db, run)
         if mapping_rejected and run.object_type == "salary_register":
             raise _AllOrNothing(
                 {"received": received, "accepted": 0, "rejected": mapping_rejected, "skipped": 0},
@@ -635,6 +652,17 @@ def ingest_records(db: Session, run: StudioRun, records: list[Any], on_committed
             outcome = _register(db, run, entity, user, mapped)
         else:
             raise ImportRefused("input", f"Unknown import type {run.object_type}.")
+        _stop_if_cancelled(db, run)
+    except _Cancelled:
+        # Everything this run wrote is still uncommitted: roll it all back,
+        # rejections included, and record that nothing was kept.
+        db.rollback()
+        run = db.get(StudioRun, run.id)
+        runs.finish(db, run, "cancelled", counts={"received": received, "accepted": 0, "rejected": 0},
+                    error_category="cancelled",
+                    error_message="Cancelled while running. Nothing from this run was stored.")
+        db.commit()
+        return run
     except _AllOrNothing as exc:
         db.flush()
         runs.finish(db, run, "failed", counts=exc.counts, error_category="input", error_message=exc.message)

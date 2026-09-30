@@ -16,7 +16,7 @@ from decimal import Decimal
 from sqlalchemy import event
 
 from app.database import SessionLocal, engine
-from app.services import analytics, run_inputs
+from app.services import analytics, costing_store, run_inputs
 from app.services import validation as validation_service
 from app.services.validation import lookup_lwf, lookup_pt
 from tests.test_cost_analysis import _dims, _register, workspace  # noqa: F401
@@ -99,13 +99,27 @@ def test_costing_reads_the_slab_tables_a_bounded_number_of_times(client, workspa
     finally:
         db.close()
 
-    # And the figures are exactly those of the per-employee lookups.
+    # The costing is now stored. The next request reads each slab table once,
+    # whole, to confirm the stored costing's basis still holds — and looks up
+    # no slab for anyone.
+    db = SessionLocal()
+    try:
+        with _SlabQueries() as q:
+            again = analytics.cost_analysis(db, entity.id, group_by="department")
+        assert q.count == 3, q.count
+    finally:
+        db.close()
+    assert again["totals"] == cached["totals"] and again["matrix"] == cached["matrix"]
+
+    # And the figures are exactly those of per-employee lookups with nothing stored.
     monkeypatch.setattr(validation_service, "_slab_rows", lambda cache, key, load: load())
+    monkeypatch.setattr(costing_store, "load", lambda *a, **k: None)
+    monkeypatch.setattr(costing_store, "store", lambda *a, **k: None)
     db = SessionLocal()
     try:
         with _SlabQueries() as q:
             uncached = analytics.cost_analysis(db, entity.id, group_by="department")
-        assert q.count >= 120  # the patch really did turn the cache off: per-employee again
+        assert q.count >= 120  # the patch really did turn the caches off: per-employee again
     finally:
         db.close()
     assert cached["totals"] == uncached["totals"]

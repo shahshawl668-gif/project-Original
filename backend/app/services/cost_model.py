@@ -326,6 +326,7 @@ class CostContext:
         )
         from app.services.validation import _component_key_map
 
+        self.components = components
         self.comp_by_key = _component_key_map(components)
 
         service = ConfigService(db)

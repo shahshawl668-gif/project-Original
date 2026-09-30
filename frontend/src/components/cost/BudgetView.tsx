@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { BadgeCheck, CheckCircle2, Download, FileWarning, Target, TrendingUp } from "lucide-react";
 
+import { DIRECT_LABEL_MARGIN, DirectLabels } from "@/components/charts/DirectLabels";
 import { CostTooltip, Panel, StatTile } from "@/components/cost/pieces";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
@@ -172,7 +173,7 @@ export function BudgetView({
           >
             <div className="h-[320px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <BarChart data={chartData} margin={{ top: 8, right: DIRECT_LABEL_MARGIN, left: 8, bottom: 0 }}>
                   <CartesianGrid stroke={gridColor} vertical={false} />
                   <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                   <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
@@ -183,6 +184,8 @@ export function BudgetView({
                   <Bar dataKey="Budget" fill={palette[4]} fillOpacity={0.45}
                        radius={[4, 4, 0, 0]} barSize={26} />
                   <Bar dataKey="Actual" fill={palette[0]} radius={[4, 4, 0, 0]} barSize={26} />
+                  <DirectLabels data={chartData} xKey="period"
+                    series={[{ key: "Budget", label: "Budget", color: palette[4] }, { key: "Actual", label: "Actual", color: palette[0] }]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -311,7 +314,7 @@ export function BudgetView({
           <>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={forecastData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                <LineChart data={forecastData} margin={{ top: 8, right: DIRECT_LABEL_MARGIN, left: 8, bottom: 0 }}>
                   <CartesianGrid stroke={gridColor} vertical={false} />
                   <XAxis dataKey="period" tick={axisTick} tickLine={false} axisLine={false} />
                   <YAxis tick={axisTick} tickLine={false} axisLine={false} width={64}
@@ -325,6 +328,8 @@ export function BudgetView({
                       from a measurement without reading the legend. */}
                   <Line type="monotone" dataKey="Forecast" stroke={palette[2]} strokeWidth={2.5}
                         strokeDasharray="6 4" dot={{ r: 3 }} connectNulls />
+                  <DirectLabels data={forecastData} xKey="period"
+                    series={[{ key: "Actual", label: "Actual", color: palette[0] }, { key: "Forecast", label: "Forecast", color: palette[2] }]} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

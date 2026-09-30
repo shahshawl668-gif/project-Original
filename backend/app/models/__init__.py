@@ -88,6 +88,7 @@ from app.models.register_upload import RegisterUpload
 from app.models.dashboard import CustomKpi, Dashboard
 from app.models.report_definition import ReportDefinition, ReportDefinitionVersion
 from app.models.report_job import ReportJob
+from app.models.derived_cache import InputDigestCache, InputRevision, RegisterCosting
 from app.models.findings import (
     ENGINE_VERSION,
     RUN_STATUSES,
@@ -101,6 +102,9 @@ from app.models.findings import (
 )
 
 __all__ = [
+    "InputDigestCache",
+    "InputRevision",
+    "RegisterCosting",
     "ReportJob",
     "ReportDefinition",
     "ReportDefinitionVersion",
@@ -199,3 +203,7 @@ __all__ = [
     "StudioCompanyEnvironment",
     "StudioRelease",
 ]
+
+# Registers the listeners that move an input's revision on every write to it.
+# Imported last: it reads the classes above.
+from app.services import input_revisions as _input_revisions  # noqa: E402,F401
