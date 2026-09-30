@@ -35,6 +35,7 @@ from app.models import (
     CtcRecord,
     EmployeeRecord,
     Entity,
+    InputDigestCache,
     LwfRate,
     MinimumWageApplicability,
     MinimumWageRate,
@@ -130,6 +131,52 @@ def _table_digest(db: Session, model: Any, *criteria: Any) -> tuple[str, int]:
     return h.hexdigest(), len(lines)
 
 
+#: Code whose change alters a stored digest: how rows are digested, and the
+#: migrations — the one writer that bypasses the revision tokens.
+_DIGEST_SOURCES = ("services/run_inputs.py", "migrations.py", "database.py")
+
+
+def _cached_table_digest(
+    db: Session, entity_id: uuid.UUID, input_key: str, selection: str, model: Any, *criteria: Any
+) -> tuple[str, int]:
+    """``_table_digest``, reused while the input's revision is unchanged.
+
+    The revision is read *before* the rows, so a stored digest is never older
+    than the revision it is filed under. See services/input_revisions.py.
+    """
+    from app.database import write_aside
+    from app.services.input_revisions import revision, source_digest
+
+    current = f"{revision(db, entity_id, input_key)}:{source_digest(*_DIGEST_SOURCES)[:16]}"
+    stored = (
+        db.query(InputDigestCache.revision, InputDigestCache.digest, InputDigestCache.row_count)
+        .filter(
+            InputDigestCache.entity_id == entity_id,
+            InputDigestCache.input_key == input_key,
+            InputDigestCache.selection == selection,
+        )
+        .first()
+    )
+    if stored is not None and stored.revision == current:
+        return stored.digest, stored.row_count
+
+    value, count = _table_digest(db, model, *criteria)
+
+    def _store(side: Session) -> None:
+        side.query(InputDigestCache).filter(
+            InputDigestCache.entity_id == entity_id,
+            InputDigestCache.input_key == input_key,
+            InputDigestCache.selection == selection,
+        ).delete(synchronize_session=False)
+        side.add(InputDigestCache(
+            entity_id=entity_id, input_key=input_key, selection=selection,
+            revision=current, digest=value, row_count=count,
+        ))
+
+    write_aside(db, _store)
+    return value, count
+
+
 def _period_end(period: date) -> date:
     return period.replace(day=calendar.monthrange(period.year, period.month)[1])
 
@@ -154,7 +201,9 @@ def configuration_snapshot(db: Session, entity: Entity, period_month: date) -> d
     from app.services.validation import _get_or_default_settings
 
     settings = _get_or_default_settings(db, entity)
-    service = ConfigService(db)
+    # As in force for this month, so publishing a dated change marks exactly
+    # the months it covers as needing revalidation.
+    service = ConfigService(db, as_of=period_month)
     effective: dict[str, Any] = {
         "pf": service.get_pf_config(eid).model_dump(mode="json"),
         "esic": service.get_esic_config(eid).model_dump(mode="json"),
@@ -240,17 +289,21 @@ def input_digests(
     prior = _prev(period_month)
     config = config if config is not None else configuration_snapshot(db, entity, period_month)
 
-    master, n_master = _table_digest(
-        db, EmployeeRecord, EmployeeRecord.entity_id == eid, EmployeeRecord.effective_from <= end
+    master, n_master = _cached_table_digest(
+        db, eid, "master", f"to:{end.isoformat()}",
+        EmployeeRecord, EmployeeRecord.entity_id == eid, EmployeeRecord.effective_from <= end,
     )
-    attendance, n_attendance = _table_digest(
-        db, AttendanceRow, AttendanceRow.entity_id == eid, AttendanceRow.period_month == period_month
+    attendance, n_attendance = _cached_table_digest(
+        db, eid, "attendance", f"month:{period_month.isoformat()}",
+        AttendanceRow, AttendanceRow.entity_id == eid, AttendanceRow.period_month == period_month,
     )
-    ctc, n_ctc = _table_digest(
-        db, CtcRecord, CtcRecord.entity_id == eid, CtcRecord.effective_from <= end
+    ctc, n_ctc = _cached_table_digest(
+        db, eid, "ctc", f"to:{end.isoformat()}",
+        CtcRecord, CtcRecord.entity_id == eid, CtcRecord.effective_from <= end,
     )
-    prior_register, n_prior = _table_digest(
-        db, SalaryRegisterRow,
+    prior_register, n_prior = _cached_table_digest(
+        db, eid, "register_rows", f"month:{prior.isoformat()}",
+        SalaryRegisterRow,
         SalaryRegisterRow.entity_id == eid, SalaryRegisterRow.period_month == prior,
     )
     return {

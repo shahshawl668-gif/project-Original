@@ -161,6 +161,21 @@ month validated before the change is marked *revalidation required*. Every
 save and reset is recorded in the **Audit trail** with each changed field
 before and after; a save that changes nothing writes nothing.
 
+**Dated changes.** When a rate changes from a known month — a new ceiling
+from April, say — do not overwrite the configuration: make the edit and choose
+**Schedule from a month…** in the bar instead. It is kept as a draft that
+changes nothing. A manager or owner publishes it under **Dated changes** at the
+foot of the page (someone other than its author, if the owner has turned that
+control on under Team → Approval controls). From its month it applies to
+validation and costing until the next dated change; months before it keep the
+configuration above. Before publishing, the panel names every validated month
+it covers — those are marked *revalidation required* once it is published — and
+a published change is never edited: it is **withdrawn**, with a reason, and
+drafted again. **Save changes** still applies an edit straight away to every
+month that no dated change covers. When a dated change is in force this month,
+a notice at the top of the page says so. Income tax is not in dated changes: it
+is already kept per financial year.
+
 ### Step 4 — PT and LWF slabs
 
 **Configuration & admin → PT / LWF slabs.** Import the shipped defaults for every state the

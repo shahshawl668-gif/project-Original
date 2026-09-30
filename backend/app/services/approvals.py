@@ -33,6 +33,7 @@ DEFAULT_POLICY: dict[str, bool] = {
     "signoff_requires_independent_approver": False,
     "matrix_publish_requires_independent_approver": False,
     "studio_publish_requires_independent_approver": False,
+    "statutory_publish_requires_independent_approver": False,
 }
 
 

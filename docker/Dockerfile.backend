@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 curl \
+    && apt-get install -y --no-install-recommends libpq5 curl fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps. We always include psycopg2 for production Postgres

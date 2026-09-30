@@ -6,6 +6,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   Legend,
   Cell,
   ReferenceLine,
@@ -32,6 +33,7 @@ import {
   type GenderSummary,
   type PayEquity,
 } from "@/lib/cost-analysis";
+import { CHART } from "@/lib/chart-colors";
 import { cn } from "@/lib/utils";
 
 /** A gap against women reads as a problem; a gap the other way is still a gap. */
@@ -282,7 +284,7 @@ function Analysis({
         <div className="h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={quartileData} layout="vertical"
-                      margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+                      margin={{ top: 22, right: 16, left: 8, bottom: 0 }}>
               <CartesianGrid stroke={gridColor} horizontal={false} />
               <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false}
                      allowDecimals={false} />
@@ -301,10 +303,21 @@ function Analysis({
               {/* A 2px stroke in the surface colour, so adjacent segments are
                   separated by a gap rather than by hue alone — which is what
                   keeps them apart for a reader with colour-vision deficiency. */}
-              <Bar dataKey="Women" stackId="q" fill={palette[0]} stroke={chrome.surface} strokeWidth={2} />
-              <Bar dataKey="Men" stackId="q" fill={palette[4]} stroke={chrome.surface} strokeWidth={2} />
-              <Bar dataKey="Other / self-described" stackId="q" fill={palette[2]} stroke={chrome.surface} strokeWidth={2} />
-              <Bar dataKey="Not recorded" stackId="q" fill={OTHER_COLOR} stroke={chrome.surface} strokeWidth={2} />
+              {/* Each group's name above its segment of the first band, where
+                  the segment is wide enough to hold it — read without matching
+                  colours to the legend. */}
+              <Bar dataKey="Women" stackId="q" fill={palette[0]} stroke={chrome.surface} strokeWidth={2}>
+                <LabelList dataKey="Women" content={segmentName("Women")} />
+              </Bar>
+              <Bar dataKey="Men" stackId="q" fill={palette[4]} stroke={chrome.surface} strokeWidth={2}>
+                <LabelList dataKey="Men" content={segmentName("Men")} />
+              </Bar>
+              <Bar dataKey="Other / self-described" stackId="q" fill={palette[2]} stroke={chrome.surface} strokeWidth={2}>
+                <LabelList dataKey="Other / self-described" content={segmentName("Other")} />
+              </Bar>
+              <Bar dataKey="Not recorded" stackId="q" fill={OTHER_COLOR} stroke={chrome.surface} strokeWidth={2}>
+                <LabelList dataKey="Not recorded" content={segmentName("Not recorded")} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -575,4 +588,21 @@ function GapTooltip({
       </p>
     </div>
   );
+}
+
+
+/** A stacked segment's group name, above the first band only, and only where it fits. */
+function segmentName(name: string) {
+  function SegmentName(props: { x?: number | string; y?: number | string; width?: number | string; index?: number }) {
+    const x = Number(props.x ?? 0);
+    const y = Number(props.y ?? 0);
+    const width = Number(props.width ?? 0);
+    if (props.index !== 0 || width < name.length * 6.5 + 8) return null;
+    return (
+      <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fill={CHART.text}>
+        {name}
+      </text>
+    );
+  }
+  return SegmentName;
 }

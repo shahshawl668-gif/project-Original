@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # beside a dedicated `python -m app.worker`).
     validation_worker_enabled: bool = True
     validation_worker_concurrency: int = 1
+    # Most employees POST /api/payroll/validate checks inside the request. A
+    # larger register with a payroll month is queued instead (HTTP 202); one
+    # without a month is refused (413). Past a few thousand rows the request
+    # outlives the gateway and the work is thrown away.
+    sync_validate_max_employees: int = 1000
 
     # --- PeopleOps Reports ----------------------------------------------------
     report_worker_enabled: bool = True

@@ -5,9 +5,10 @@ import uuid
 from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
@@ -22,7 +23,14 @@ from app.models import (
     User,
 )
 from app.schemas.payroll import UploadParseResponse, ValidateRequest
-from app.services import coverage, finding_store, register_ingest, register_uploads, run_inputs
+from app.services import (
+    coverage,
+    finding_store,
+    register_ingest,
+    register_uploads,
+    run_inputs,
+    validation_jobs,
+)
 from app.services.payroll_parse import (
     allowed_destinations,
     check_mapping,
@@ -240,6 +248,8 @@ def validate_payroll(
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before validation.")
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
+    if len(body.employees) > settings.sync_validate_max_employees:
+        return _queue_instead(db, body, user, entity, period_month)
     started = datetime.now(UTC)
     # Fingerprinted before validation reads anything, like the worker does.
     config = run_inputs.configuration_snapshot(db, entity, period_month) if period_month else None
@@ -407,6 +417,68 @@ def get_salary_register(
     return ok(payload)
 
 
+def _too_large(count: int, *, what: str) -> str:
+    return (
+        f"{count:,} employees is more than {what} handles inside one request "
+        f"(the limit is {settings.sync_validate_max_employees:,}). Queue it instead: "
+        "POST /api/validation/jobs validates the month's upload in the background."
+    )
+
+
+def _queue_instead(db: Session, body: ValidateRequest, user: User, entity: Entity, period_month):
+    """Store a large request's rows as an upload and queue their validation.
+
+    The rows are kept exactly as posted, like any upload, so the run is as
+    reproducible as one started from the screen. The response is 202 with the
+    job; its run appears under /api/validation/runs when the job succeeds.
+    """
+    if period_month is None:
+        raise HTTPException(
+            status_code=413,
+            detail=_too_large(len(body.employees), what="validation")
+            + " A queued validation needs period_month.",
+        )
+    content = json.dumps(body.employees, default=str, sort_keys=True).encode("utf-8")
+    columns = sorted({str(k) for row in body.employees for k in row})
+    upload = register_uploads.record(
+        db, entity_id=entity.id, user_id=user.id, period_month=period_month,
+        run_type=body.run_type, filename="api-validate-request.json", content=content,
+        rows=body.employees, source_columns=columns, column_mapping=None,
+        missing_required=None, warnings=None,
+    )
+    params = {
+        "effective_month_from": body.effective_month_from.isoformat() if body.effective_month_from else None,
+        "effective_month_to": body.effective_month_to.isoformat() if body.effective_month_to else None,
+        "as_of_date": body.as_of_date.isoformat() if body.as_of_date else None,
+    }
+    try:
+        job, already = validation_jobs.submit_for_period(
+            db, entity_id=entity.id, user_id=user.id, period_month=period_month,
+            upload_id=upload.id, run_type=body.run_type, params=params,
+        )
+    except validation_jobs.SubmitError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
+    if already:
+        # Another validation of this month is live; the request's rows were not
+        # queued behind it, so nothing is kept and the caller is told why.
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"A validation of {period_month:%b %Y} is already running (job {job.id}). "
+            "Wait for it to finish, then send this register again.",
+        )
+    db.commit()
+    return JSONResponse(status_code=202, content=ok({
+        "queued": True,
+        "reason": _too_large(len(body.employees), what="validation"),
+        "job": {"id": str(job.id), "state": job.state, "period_month": period_month.isoformat()},
+        "upload_id": str(upload.id),
+        "follow": f"/api/validation/jobs/{job.id}",
+        "results": "/api/validation/runs?period_month=" + period_month.isoformat(),
+    }))
+
+
 @router.post("/validate/export-excel")
 def export_findings_excel(
     body: ValidateRequest,
@@ -424,6 +496,12 @@ def export_findings_excel(
     comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
     if not comps:
         raise HTTPException(status_code=400, detail="Configure salary components before export.")
+    if len(body.employees) > settings.sync_validate_max_employees:
+        raise HTTPException(
+            status_code=413,
+            detail=_too_large(len(body.employees), what="the Excel export")
+            + " The finished run downloads from /api/validation/runs/{run_id}/export.xlsx.",
+        )
     period_month = _to_first_of_month(body.period_month or body.effective_month_to)
     rows, findings_summary = validate_employees(
         db,

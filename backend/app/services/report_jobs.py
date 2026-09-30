@@ -5,7 +5,7 @@ import logging
 import socket
 import threading
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
 from sqlalchemy import update
@@ -13,8 +13,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import Entity, ReportDefinition, ReportJob, User
-from app.services import report_exports, tenancy
+from app.models import Entity, ReportDefinition, ReportJob, ReportSchedule, User
+from app.services import report_builder, report_exports, tenancy
 
 logger = logging.getLogger("payroll.report_worker")
 _stop = threading.Event()
@@ -31,7 +31,8 @@ def _aware(value):
     return value if value is None or value.tzinfo else value.replace(tzinfo=UTC)
 
 
-def enqueue(db, *, entity, report, user):
+def enqueue(db, *, entity, report, user, fmt: str = "xlsx", specification: dict | None = None,
+            origin: str = "person"):
     current = (db.query(ReportJob).filter(
         ReportJob.entity_id == entity.id, ReportJob.definition_id == report.id,
         ReportJob.requester_id == user.id, ReportJob.state.in_(("queued", "running"))
@@ -40,8 +41,8 @@ def enqueue(db, *, entity, report, user):
         return current
     job = ReportJob(org_id=entity.org_id, entity_id=entity.id, definition_id=report.id,
                     requester_id=user.id, definition_version=report.version,
-                    definition_name=report.name, specification=report.specification,
-                    state="queued", stage="queued", attempt=0)
+                    definition_name=report.name, specification=specification or report.specification,
+                    state="queued", stage="queued", attempt=0, format=fmt, origin=origin)
     db.add(job)
     try:
         db.flush()
@@ -115,14 +116,14 @@ def run_once() -> bool:
             job.stage = "generating"
             job.heartbeat_at = _now()
             db.commit()
-            payload, info = report_exports.build(db, entity, snapshot, user)
+            payload, info = report_exports.build(db, entity, snapshot, user, job.format or "xlsx")
             job = db.get(ReportJob, job_id)
             if job.cancel_requested:
                 job.state, job.stage, job.finished_at = "cancelled", "cancelled", _now()
             elif len(payload) > settings.report_artifact_max_mb * 1024 * 1024:
                 job.state, job.stage = "failed", "failed"
                 job.error_code = "output_too_large"
-                job.error_message = "The aggregate workbook exceeds the configured output limit"
+                job.error_message = "The generated file exceeds the configured output limit"
                 job.finished_at = _now()
             else:
                 job.artifact = payload
@@ -156,6 +157,71 @@ def run_once() -> bool:
         db.close()
 
 
+# ---------------------------------------------------------------------------
+# Schedules
+# ---------------------------------------------------------------------------
+IST = timedelta(hours=5, minutes=30)  # India has no daylight saving
+
+
+def next_run(frequency: str, day: int, hour: int, after: datetime) -> datetime:
+    """The first scheduled moment strictly after ``after``, in UTC."""
+    local = _aware(after) + IST
+    if frequency == "weekly":
+        candidate = local.replace(hour=hour, minute=0, second=0, microsecond=0)
+        candidate += timedelta(days=(day - candidate.weekday()) % 7)
+        if candidate <= local:
+            candidate += timedelta(days=7)
+    else:
+        candidate = local.replace(day=day, hour=hour, minute=0, second=0, microsecond=0)
+        if candidate <= local:
+            year, month = (local.year + 1, 1) if local.month == 12 else (local.year, local.month + 1)
+            candidate = candidate.replace(year=year, month=month)
+    return candidate - IST
+
+
+def rolling_window(months: int, when: datetime) -> tuple[str, str]:
+    """``months`` complete months ending with the month before ``when`` (India time)."""
+    local = _aware(when) + IST
+    end_year, end_month = (local.year - 1, 12) if local.month == 1 else (local.year, local.month - 1)
+    index = end_year * 12 + (end_month - 1) - (months - 1)
+    return date(index // 12, index % 12 + 1, 1).isoformat(), date(end_year, end_month, 1).isoformat()
+
+
+def schedule_due(db, now: datetime | None = None) -> int:
+    """Queue every schedule whose time has come. Commits. Returns how many ran."""
+    now = now or _now()
+    query = (db.query(ReportSchedule)
+             .filter(ReportSchedule.enabled.is_(True), ReportSchedule.next_run_at <= now)
+             .order_by(ReportSchedule.next_run_at))
+    if db.bind.dialect.name == "postgresql":
+        query = query.with_for_update(skip_locked=True)
+    ran = 0
+    for schedule in query.limit(20).all():
+        schedule.last_run_at = now
+        schedule.next_run_at = next_run(schedule.frequency, schedule.day, schedule.hour, now)
+        try:
+            user = db.get(User, schedule.owner_user_id)
+            entity = db.get(Entity, schedule.entity_id)
+            report = db.get(ReportDefinition, schedule.definition_id)
+            job = SimpleNamespace(requester_id=schedule.owner_user_id, entity_id=schedule.entity_id,
+                                  definition_id=schedule.definition_id, org_id=schedule.org_id)
+            _permission(db, job)
+            spec = dict(report_builder.validate(report.specification))
+            spec["date_from"], spec["date_to"] = rolling_window(schedule.months, now)
+            queued = enqueue(db, entity=entity, report=report, user=user, fmt=schedule.format,
+                             specification=report_builder.validate(spec), origin="schedule")
+            schedule.last_job_id = queued.id
+            schedule.last_error = None
+            ran += 1
+        except ValueError as exc:
+            # Access or the report itself went away: stop, and say why, rather
+            # than keep producing files nobody may open.
+            schedule.enabled = False
+            schedule.last_error = str(exc)[:500]
+    db.commit()
+    return ran
+
+
 def cleanup_expired() -> int:
     db = SessionLocal()
     try:
@@ -171,10 +237,19 @@ def cleanup_expired() -> int:
         db.close()
 
 
+def _run_schedules() -> None:
+    db = SessionLocal()
+    try:
+        schedule_due(db)
+    finally:
+        db.close()
+
+
 def _loop():
     while not _stop.is_set():
         try:
             if not run_once():
+                _run_schedules()
                 cleanup_expired()
                 _stop.wait(2)
         except Exception:

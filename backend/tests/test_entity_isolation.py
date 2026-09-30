@@ -8,7 +8,7 @@ from __future__ import annotations
 import uuid
 
 from app.database import SessionLocal
-from app.models import OrgMembership, User
+from app.models import Entity, OrgMembership, User
 
 
 def _signup(client, email: str, company: str) -> dict:
@@ -182,3 +182,46 @@ def test_selecting_an_entity_persists_it_as_the_default(client):
     client.post("/api/components", json=_component_payload("Special Allowance"), headers=h)
     scoped = client.get("/api/components", headers={**h, "X-Entity-Id": second}).json()["data"]
     assert [c["component_name"] for c in scoped] == ["Special Allowance"]
+
+
+def _store_register(entity_id: str) -> None:
+    from datetime import date
+
+    from app.models import SalaryRegister
+
+    db = SessionLocal()
+    try:
+        member = db.query(OrgMembership).join(Entity, Entity.org_id == OrgMembership.org_id).filter(
+            Entity.id == uuid.UUID(entity_id)).first()
+        db.add(SalaryRegister(user_id=member.user_id, entity_id=uuid.UUID(entity_id),
+                              period_month=date(2026, 6, 1), filename="r.csv", employee_count=1))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_an_unchosen_empty_default_gives_way_to_the_company_with_data(client):
+    """The company made at signup is often left empty while the real employer is
+    added beside it. Opening on the empty one reads as though the data were gone."""
+    h = _signup(client, "nine@ninth-example.com", "Signup Shell")
+    shell = _context(client, h)["active_entity"]["id"]
+    real = client.post("/api/org/entities", json={"name": "The Real Employer"},
+                       headers=h).json()["data"]["id"]
+    client.post("/api/org/entities", json={"name": "A Later Client"}, headers=h)
+    assert _context(client, h)["active_entity"]["id"] == shell   # nothing anywhere yet
+
+    _store_register(real)
+    assert _context(client, h)["active_entity"]["id"] == real
+
+    # Once the default has data it stays put, even when an older company gains some.
+    _store_register(shell)
+    assert _context(client, h)["active_entity"]["id"] == real
+
+
+def test_a_company_the_member_chose_is_never_second_guessed(client):
+    h = _signup(client, "ten@tenth-example.com", "Chosen Shell")
+    shell = _context(client, h)["active_entity"]["id"]
+    other = client.post("/api/org/entities", json={"name": "Has Data"}, headers=h).json()["data"]["id"]
+    assert client.post(f"/api/org/entities/{shell}/select", headers=h).status_code == 200
+    _store_register(other)
+    assert _context(client, h)["active_entity"]["id"] == shell

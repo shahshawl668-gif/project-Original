@@ -616,9 +616,16 @@ environment's own secrets live.
 **How the screens mark actions.** A test (a flask on a plain outline button)
 changes nothing. Anything that stops, replaces or publishes something opens a
 confirmation stating the consequence as the server implements it — for
-example, cancelling an import that has already started does not interrupt it
-(only a queued run is stopped; a workflow stops before its next step), and a
-disabled webhook still sends deliveries already queued. Secrets shown once are
+example, cancelling an import that has already started stops it before it
+stores anything and discards the batch with its rejections (an import already
+at its final commit finishes instead; a workflow stops before its next step),
+and a disabled webhook still sends deliveries already queued. Until 30
+September 2026 a started import was not interrupted; the import now checks for
+a cancel after mapping and again before its single commit
+(`imports._stop_if_cancelled`), and leaves its own run row untouched until then
+so the cancel request is never held behind the import's lock. On SQLite, which
+allows one writer, a cancel cannot be recorded while an import holds the
+database; the test for it runs on PostgreSQL. Secrets shown once are
 masked until revealed and copy in full either way. The section bar marks the
 current section; sections not in this release are listed, greyed, and are not
 links.

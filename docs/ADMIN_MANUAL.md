@@ -113,8 +113,10 @@ trail with the before and after.
 |---|---|
 | Month sign-off needs a second person | The person who submitted a month cannot approve it |
 | Validation rules need a second person to publish | The person who drafted a rule cannot publish it |
+| Studio mappings need a second person to publish | The person who drafted a data mapping cannot publish it |
+| Dated statutory changes need a second person to publish | The person who drafted a dated change to PF, ESIC or component mapping cannot put it in force |
 
-Both are **off** by default, so a one-person practice can still close a month.
+All are **off** by default, so a one-person practice can still close a month.
 Whatever the setting, every sign-off records the preparer, the approver and
 whether the approval was independent — so the record tells the truth either way.
 

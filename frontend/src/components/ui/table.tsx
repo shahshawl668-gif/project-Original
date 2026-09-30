@@ -10,9 +10,17 @@ import { cn } from "@/lib/utils";
 export const Table = ({
   className,
   containerClassName,
+  scrollLabel,
   ...props
-}: React.HTMLAttributes<HTMLTableElement> & { containerClassName?: string }) => (
-  <div className={cn("scrollbar-thin w-full overflow-auto", containerClassName)}>
+}: React.HTMLAttributes<HTMLTableElement> & {
+  containerClassName?: string;
+  /** Names a height-limited table's scroll box and lets the keyboard reach it. */
+  scrollLabel?: string;
+}) => (
+  <div
+    className={cn("scrollbar-thin w-full overflow-auto", scrollLabel && "focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600", containerClassName)}
+    {...(scrollLabel ? { tabIndex: 0, role: "region", "aria-label": scrollLabel } : {})}
+  >
     <table className={cn("w-full border-separate border-spacing-0 text-[13px] text-ink-700", className)} {...props} />
   </div>
 );

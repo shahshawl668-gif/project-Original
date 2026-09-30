@@ -159,30 +159,56 @@ def default_entity(db: Session, user: User) -> Entity | None:
     """
     The entity a request targets when it names none.
 
-    Deliberately the *oldest* accessible entity — the one provisioned at signup
-    — rather than the first by name. Ordering this by name would mean adding a
-    client called "Alpha" silently redirects every header-less request away
-    from the entity that had been receiving them.
+    A company the member chose is always the answer. Otherwise it is the
+    *oldest* accessible company — the one provisioned at signup — rather than
+    the first by name, so adding a client called "Alpha" cannot silently
+    redirect header-less requests. With one exception: if that company has no
+    payroll data and another one does, the one with data is opened instead. The
+    company made at signup is often left empty while the real employer is added
+    beside it, and opening on nothing reads as though the data were lost.
     """
     entities = accessible_entities(db, user)
     if not entities:
         return None
 
     membership = get_membership(db, user)
+    stored = None
     if membership is not None and membership.default_entity_id is not None:
-        chosen = next((e for e in entities if e.id == membership.default_entity_id), None)
-        if chosen is not None:
-            return chosen
+        stored = next((e for e in entities if e.id == membership.default_entity_id), None)
+    if stored is not None and (membership.default_entity_chosen or _has_payroll_data(db, [stored])):
+        return stored
 
-    # No stored default (or it points somewhere they can no longer reach):
-    # fall back to the oldest entity and remember it, so the answer is stable
-    # from here on.
-    fallback = min(entities, key=lambda e: (e.created_at is None, e.created_at, str(e.id)))
-    if membership is not None:
+    oldest_first = sorted(entities, key=lambda e: (e.created_at is None, e.created_at, str(e.id)))
+    with_data = _has_payroll_data(db, oldest_first)
+    fallback = next((e for e in oldest_first if e.id in with_data), None) or stored or oldest_first[0]
+    if membership is not None and membership.default_entity_id != fallback.id:
+        # Remembered at once, in its own transaction: this is usually a read,
+        # whose session never commits, and an unremembered default would move
+        # again the moment an older company gained data.
+        from app.database import write_aside
+
+        member_id, entity_id = membership.id, fallback.id
+        write_aside(db, lambda side: side.query(OrgMembership).filter(OrgMembership.id == member_id).update(
+            {"default_entity_id": entity_id, "default_entity_chosen": False}, synchronize_session=False,
+        ))
         membership.default_entity_id = fallback.id
-        db.add(membership)
-        db.flush()
+        membership.default_entity_chosen = False
     return fallback
+
+
+def _has_payroll_data(db: Session, entities: list[Entity]) -> set:
+    """The companies among these with at least one stored register or upload."""
+    from app.models import RegisterUpload, SalaryRegister
+
+    ids = [e.id for e in entities]
+    found = {eid for (eid,) in db.query(SalaryRegister.entity_id).filter(SalaryRegister.entity_id.in_(ids)).distinct()}
+    missing = [i for i in ids if i not in found]
+    if missing:
+        found |= {
+            eid for (eid,) in
+            db.query(RegisterUpload.entity_id).filter(RegisterUpload.entity_id.in_(missing)).distinct()
+        }
+    return found
 
 
 def set_default_entity(db: Session, user: User, entity: Entity) -> None:
@@ -191,6 +217,7 @@ def set_default_entity(db: Session, user: User, entity: Entity) -> None:
     if membership is None or membership.org_id != entity.org_id:
         return
     membership.default_entity_id = entity.id
+    membership.default_entity_chosen = True
     db.add(membership)
 
 

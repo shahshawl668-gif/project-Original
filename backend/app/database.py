@@ -1,6 +1,9 @@
-from collections.abc import Generator
+import logging
+from collections.abc import Callable, Generator
 
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Connection
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -42,6 +45,32 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def write_aside(db: Session, write: Callable[[Session], None]) -> None:
+    """Write in its own short transaction, best effort.
+
+    For values filled in from read paths — caches, a remembered default —
+    whose sessions never commit. A separate session leaves the caller's
+    transaction exactly as it was; if the write fails (a concurrent request
+    stored the same entry first, or a lock is held) the value is simply worked
+    out again next time.
+    """
+    bind = db.get_bind()
+    if isinstance(bind, Connection):
+        # A session bound to one connection has no second transaction to use.
+        return
+    side = Session(bind=bind)
+    try:
+        if side.connection().dialect.name == "postgresql":
+            side.execute(text("SET LOCAL lock_timeout = '2s'"))
+        write(side)
+        side.commit()
+    except SQLAlchemyError as exc:
+        side.rollback()
+        logging.getLogger("payroll.db").info("side write skipped: %s", exc.__class__.__name__)
+    finally:
+        side.close()
+
+
 # ---------------------------------------------------------------------------
 # Lightweight schema patcher
 # ---------------------------------------------------------------------------
@@ -78,6 +107,9 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("entities", "pay_equity_enabled", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("entities", "pay_equity_enabled_by", "VARCHAR(255)"),
     ("entities", "pay_equity_enabled_at", "TIMESTAMP"),
+    ("org_memberships", "default_entity_chosen", "BOOLEAN"),
+    ("report_jobs", "format", "VARCHAR(8) NOT NULL DEFAULT 'xlsx'"),
+    ("report_jobs", "origin", "VARCHAR(16) NOT NULL DEFAULT 'person'"),
 ]
 
 

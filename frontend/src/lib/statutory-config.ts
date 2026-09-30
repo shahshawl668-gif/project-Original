@@ -162,6 +162,33 @@ export async function saveStatutoryConfig(cfg: TenantStatutoryConfig): Promise<S
   });
 }
 
+/** A dated change: in force from the first of a month until the next one. */
+export type StatutoryVersion = {
+  id: string; number: number; status: "draft" | "published" | "withdrawn";
+  effective_from: string; covers_until: string | null; note: string | null;
+  config: TenantStatutoryConfig;
+  changes: { field: string; before: unknown; after: unknown }[];
+  created_by: string | null; created_at: string | null;
+  published_by: string | null; published_at: string | null;
+  withdrawn_by: string | null; withdrawn_at: string | null; withdraw_reason: string | null;
+  affected_months: string[];
+};
+export type VersionList = {
+  versions: StatutoryVersion[];
+  in_force_now: { version: number | null; id: string | null; effective_from: string | null } | null;
+  independent_publish: boolean;
+};
+
+export const statutoryVersionsApi = {
+  list: () => apiJson<VersionList>("/api/config/statutory/versions"),
+  draft: (body: { effective_from: string; config: TenantStatutoryConfig; note: string | null }) =>
+    apiJson<StatutoryVersion>("/api/config/statutory/versions", { method: "POST", body: JSON.stringify(body) }),
+  publish: (id: string) => apiJson<StatutoryVersion>(`/api/config/statutory/versions/${id}/publish`, { method: "POST" }),
+  withdraw: (id: string, reason: string) =>
+    apiJson<StatutoryVersion>(`/api/config/statutory/versions/${id}/withdraw`, { method: "POST", body: JSON.stringify({ reason }) }),
+  discard: (id: string) => apiJson<{ id: string }>(`/api/config/statutory/versions/${id}`, { method: "DELETE" }),
+};
+
 export async function resetStatutoryConfig(): Promise<StatutoryConfigResponse> {
   return apiJson<StatutoryConfigResponse>("/api/config/statutory/reset", { method: "POST" });
 }

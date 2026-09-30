@@ -41,7 +41,14 @@ from the server. Nothing is kept in browser storage any more.
 4. **The synchronous `/api/payroll/validate` was kept for API callers**
    (§12.3 said remove it). The release-gate runner and integrations post rows
    directly. It records runs through the same `record_run`, so it preserves
-   history too; the product's pages no longer call it.
+   history too; the product's pages no longer call it. **Since 30 September
+   2026 it no longer validates a large register inline:** above
+   `SYNC_VALIDATE_MAX_EMPLOYEES` (1,000) a request with a payroll month is
+   stored as an upload and queued — `202` with the job to follow — and one
+   without a month is refused with `413`. §1's table is why: past a few
+   thousand rows the request outlives the gateway and the work is discarded.
+   `test_validate_endpoint.py` proves the queued run finds exactly what the
+   inline one does.
 
 **Also added:** stages (`queued → loading → validating → recording`), cancel of
 a running job (the worker checks at each progress point and rolls back — a
@@ -400,7 +407,8 @@ reclaimed it after the lease expired, `attempts` went to 2, and it finished.
 
 **3. Switch the endpoint.** ✅ **Shipped, differently** — see §0. The product
 enqueues through `POST /api/validation/jobs` and polls; the synchronous
-`/api/payroll/validate` stays for API callers and records history the same way.
+`/api/payroll/validate` stays for API callers and records history the same way,
+and queues any register above `SYNC_VALIDATE_MAX_EMPLOYEES` (§0 item 4).
 Both paths are under test.
 
 **4. Separate worker service**, when close-week load justifies it. Configuration

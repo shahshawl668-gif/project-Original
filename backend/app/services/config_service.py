@@ -27,6 +27,7 @@ import math
 import operator as _op
 import uuid
 from decimal import Decimal
+from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -183,6 +184,32 @@ def safe_eval_expr(expression: str, context: dict[str, Any]) -> Any:
 
 # ─── ConfigService ────────────────────────────────────────────────────────────
 
+def version_in_force(db: Session, tenant_id: uuid.UUID, month: date):
+    """The published dated version covering ``month``, or ``None`` for the base."""
+    from app.models import StatutoryConfigVersion
+
+    return (
+        db.query(StatutoryConfigVersion)
+        .filter(StatutoryConfigVersion.entity_id == tenant_id,
+                StatutoryConfigVersion.status == "published",
+                StatutoryConfigVersion.effective_from <= month.replace(day=1))
+        .order_by(StatutoryConfigVersion.effective_from.desc())
+        .first()
+    )
+
+
+def published_versions(db: Session, tenant_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Every published version, as data — what a stored costing's basis names."""
+    from app.models import StatutoryConfigVersion
+
+    return [
+        {"id": str(v.id), "effective_from": v.effective_from.isoformat(), "config": v.config}
+        for v in db.query(StatutoryConfigVersion)
+        .filter(StatutoryConfigVersion.entity_id == tenant_id, StatutoryConfigVersion.status == "published")
+        .order_by(StatutoryConfigVersion.effective_from)
+    ]
+
+
 class ConfigService:
     """
     Tenant-isolated config loader for PF, ESIC, and component mapping.
@@ -191,9 +218,14 @@ class ConfigService:
     Results are memoised for the lifetime of the instance.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, as_of: date | None = None):
+        """``as_of`` reads the configuration in force for that month: the
+        published dated version covering it, or the base when none does.
+        Without it, the base — what the configuration screen edits."""
         self._db = db
+        self._as_of = as_of.replace(day=1) if as_of else None
         self._cache: dict[str, TenantStatutoryConfig] = {}
+        self.in_force: dict[str, Any] | None = None
 
     # ── private helpers ───────────────────────────────────────────────────────
 
@@ -214,12 +246,19 @@ class ConfigService:
         key = str(tenant_id)
         if key in self._cache:
             return self._cache[key]
-        row = self._load_row(tenant_id)
-        cfg = TenantStatutoryConfig(
-            pf=PFConfig.model_validate(row.pf_config or {}),
-            esic=ESICConfig.model_validate(row.esic_config or {}),
-            component_mapping=ComponentMappingConfig.model_validate(row.component_mapping_config or {}),
-        )
+        version = version_in_force(self._db, tenant_id, self._as_of) if self._as_of else None
+        if version is not None:
+            cfg = TenantStatutoryConfig.model_validate(version.config)
+            self.in_force = {"version": version.number, "id": str(version.id),
+                             "effective_from": version.effective_from.isoformat()}
+        else:
+            row = self._load_row(tenant_id)
+            cfg = TenantStatutoryConfig(
+                pf=PFConfig.model_validate(row.pf_config or {}),
+                esic=ESICConfig.model_validate(row.esic_config or {}),
+                component_mapping=ComponentMappingConfig.model_validate(row.component_mapping_config or {}),
+            )
+            self.in_force = {"version": None, "id": None, "effective_from": None}
         self._cache[key] = cfg
         return cfg
 

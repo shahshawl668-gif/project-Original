@@ -442,8 +442,9 @@ red, Warning amber, Info blue — with their names beside them.
 
 **Viewing and editing are separate.** A board opens in view mode, where nothing
 changes what is saved. **Edit** opens it for changes: rename it, choose who can
-see it, add, edit or remove tiles, and reorder them with the arrow buttons on
-each tile (they work from the keyboard). Nothing is saved until **Save**; leaving
+see it, add, edit or remove tiles, and reorder them: drag a tile by its grip
+onto another to put it in that place, or use the arrow buttons on each tile
+(they work from the keyboard and on a phone). Nothing is saved until **Save**; leaving
 with unsaved changes asks first, and **Discard changes** puts the board back.
 
 **Adding a tile:** type what you want in **Find a metric** — it searches every
@@ -503,38 +504,73 @@ an official statutory filing format.
 The steps are listed down the left; go to any of them directly. A step with a
 problem is marked in red with the reason.
 
-1. **Dataset** — payroll cost, one row per payroll month and breakdown value.
-   For one row per employee use *Employee payroll cost* in the Report Centre.
+1. **Dataset** — one of three:
+   - *Payroll cost* — one row per payroll month and breakdown value, costed as
+     on Cost analysis.
+   - *Workforce movement* — opening, joiners, exits, moves and closing per month
+     and group, from who was paid on each register. A joiner was not paid
+     anywhere the month before and an exit is not paid anywhere this month; a
+     move changed group. Opening + joiners + moved in − exits − moved out =
+     closing. A month whose previous month has no register shows closing only,
+     not zeros.
+   - *Validation findings* — findings, people affected and priced exposure per
+     month by severity, check or component, from each month's current run. A
+     person's overlapping findings count once, at their largest; findings a
+     check does not price are counted separately, never as ₹0.
+
+   Changing the dataset keeps your months and starts the columns and
+   calculations again. For one row per employee use *Employee payroll cost* in
+   the Report Centre.
 2. **Columns** — add columns, put them in order with the arrows, remove them.
-3. **Filters** — the months (up to 24) and employee filters.
+3. **Filters** — the months (up to 24) and employee filters. Validation
+   findings has no employee filters.
 4. **Calculations** — up to three calculated columns, such as
-   `ctc / headcount`. A name that is not a metric is flagged at once. Division
-   by zero leaves the cell blank, never zero.
+   `ctc / headcount`, each **shown as** rupees, a number or a percentage. Only
+   the dataset's own metrics can be used; any other name is flagged at once.
+   Division by zero leaves the cell blank, never zero.
 5. **Grouping** — the breakdown. Employees with no value appear as
-   *Unassigned*; a month with no one paid in a group has no row.
-6. **Layout** — sort column and order. The layout is a table; pivot and PDF
-   layouts are not available.
+   *Unassigned*; a month with no one in a group has no row.
+6. **Layout** — the sort, and how to lay the answer out: a **table** (one row
+   per month and group) or a **pivot** (groups down, months across, one number
+   of your choice), and optionally a **chart** — bars for each group in the
+   latest month, or a line per group over the months (the six largest; the
+   rest are named as left out). A pivot totals only what adds up: rupees over
+   months and groups, but not people paid over months or people affected over
+   checks, and it says so where a total is left out.
 7. **Preview** — generated when you arrive and whenever the definition has
    changed. It states how many rows matched and, above 200, that it shows the
-   first 200 while the export has them all. Control totals (CTC, gross, net,
-   employer contributions, people paid) should match Cost analysis for the
-   same scope.
+   first 200 while the file has them all. Control totals should match the
+   product's own page for the same scope. The chart and pivot appear above the
+   rows.
 8. **Save & export** — name the report and save it; every save is a new
    version, and an earlier version can be loaded back and saved again. A
    manager or owner can share a report with the company or publish it.
-   **Generate Excel** makes a file from the saved version with every matched
-   row. It waits until your changes are saved and both months are set, and
-   says which it is waiting for. The file is made in the background: its status
-   shows *Queued*, *Generating*, then *Ready* with the row count, size and the
-   date it is kept until, or *Failed* with the reason and **Retry**. You can
-   leave the page meanwhile. A ready file is fixed. Downloading it later gives
-   the same workbook even if the data has changed, and it is deleted when it
-   expires (30 days by default). Access is checked again at every download.
+   Choose **Excel** or **PDF** and **Generate** to make a file from the saved
+   version with every matched row. Excel has About, Summary, Details, the
+   pivot and a chart when chosen, and Data basis; the PDF shows the same for
+   reading and holds up to 3,000 rows. It waits until your changes are saved
+   and both months are set, and says which it is waiting for. The file is made
+   in the background: its status shows *Queued*, *Generating*, then *Ready*
+   with the row count, size and the date it is kept until, or *Failed* with the
+   reason and **Retry**. You can leave the page meanwhile. A ready file is
+   fixed. Downloading it later gives the same file even if the data has
+   changed, and it is deleted when it expires (30 days by default). Access is
+   checked again at every download.
+
+   **Schedule** makes the saved report for you on a timetable — monthly on a
+   day from 1 to 28, or weekly on a weekday, at an hour in India time —
+   covering the complete months before each run (last month, or the last 2, 3,
+   6 or 12). A monthly schedule on the 5th makes last month's report once last
+   month has closed. The files arrive in **Generated files**, marked
+   *scheduled*; **the product sends no email**. **Pause** keeps the schedule,
+   **Remove** deletes it. If you lose access to the report, the schedule stops
+   and says why rather than go on making files. Each person schedules for
+   themselves.
 
 **Saved reports** (top right) lists your drafts and the reports shared with
 the company; **Copy** makes a private draft of one. Below them, **Generated
-files** lists every file you have generated in this company, with download,
-cancel and retry. A saved report is a set of
+files** lists every file you have generated in this company, and every file your
+schedules made, with download, cancel and retry. A saved report is a set of
 choices, not a frozen result: it reads current data each time.
 
 ![Report Builder](images/36-report-builder.png)
