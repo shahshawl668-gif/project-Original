@@ -65,6 +65,7 @@ def configuration_basis(db: Session, context: Any) -> str:
     from app.services.input_revisions import source_digest
     from app.services.run_inputs import _rows, digest, row_as_data
 
+    from app.services.config_service import published_versions
     from app.services.input_revisions import revision
 
     eid = context.entity_id
@@ -81,6 +82,8 @@ def configuration_basis(db: Session, context: Any) -> str:
         "default_pt_state": context.default_pt_state,
         "default_lwf_state": context.default_lwf_state,
         "statutory_config": row_as_data(statutory) if statutory else None,
+        # Dated versions change a month's rates without touching the base.
+        "statutory_versions": published_versions(db, eid),
         "slab_rules": _rows(db.query(SlabRule).filter(SlabRule.entity_id == eid).all()),
         "reference_pt": _rows(db.query(PtSlab).all()),
         "reference_lwf": _rows(db.query(LwfRate).all()),
@@ -127,7 +130,7 @@ def decode(payload: bytes) -> dict[str, Any] | None:
     keys = data["keys"]
     return {
         row_hex: RowCost(
-            measures={k: Decimal(v) for k, v in zip(keys, values)},
+            measures={k: Decimal(v) for k, v in zip(keys, values, strict=True)},
             reported_keys=set(reported),
         )
         for row_hex, (values, reported) in data["rows"].items()

@@ -887,7 +887,9 @@ def validate_employees(
     # ── Load configs ──────────────────────────────────────────────────────────
     # ConfigService provides the config-driven PF/ESIC settings; we also keep
     # StatutorySettings for PT/LWF state lists which are not yet in ConfigService.
-    cfg_svc  = ConfigService(db)
+    # The configuration in force for this payroll month: a dated version
+    # published for it, or the base configuration.
+    cfg_svc  = ConfigService(db, as_of=period_month or as_of)
     pf_cfg   = cfg_svc.get_pf_config(entity.id)
     esic_cfg = cfg_svc.get_esic_config(entity.id)
     rule_thresholds = cfg_svc.get_rule_thresholds(entity.id)

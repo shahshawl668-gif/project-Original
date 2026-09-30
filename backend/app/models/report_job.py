@@ -49,3 +49,41 @@ class ReportJob(Base):
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    # "xlsx" or "pdf" — the file this job makes.
+    format: Mapped[str] = mapped_column(String(8), nullable=False, default="xlsx", server_default="xlsx")
+    # "person" when someone pressed Generate; "schedule" when a report schedule did.
+    origin: Mapped[str] = mapped_column(String(16), nullable=False, default="person", server_default="person")
+
+
+class ReportSchedule(Base):
+    """A saved report generated for its owner on a timetable.
+
+    Delivery is to the owner's Generated files in the product: the platform
+    sends no email. The file covers a rolling window of complete months ending
+    with the month before the run, so a monthly schedule on the 5th makes last
+    month's report once last month has closed.
+    """
+
+    __tablename__ = "report_schedules"
+    __table_args__ = (
+        Index("ux_report_schedules_owner", "definition_id", "owner_user_id", unique=True),
+        Index("ix_report_schedules_due", "enabled", "next_run_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    entity_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False, index=True)
+    definition_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("report_definitions.id", ondelete="CASCADE"), nullable=False)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    frequency: Mapped[str] = mapped_column(String(8), nullable=False)  # monthly | weekly
+    day: Mapped[int] = mapped_column(Integer, nullable=False)  # 1–28, or 0 (Mon)–6 (Sun)
+    hour: Mapped[int] = mapped_column(Integer, nullable=False, default=9)  # India time
+    months: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    format: Mapped[str] = mapped_column(String(8), nullable=False, default="xlsx")
+    enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())

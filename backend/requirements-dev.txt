@@ -15,3 +15,6 @@ httpx2>=2.13
 # hand-built migration SQL under review.
 ruff>=0.15
 bandit>=1.9
+
+# Reads generated PDFs back in the report tests, to check what they say.
+pypdf>=4.0

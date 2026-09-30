@@ -15,7 +15,7 @@ from app.models.minimum_wage import MinimumWageRate
 from app.models.minimum_wage_applicability import MinimumWageApplicability
 from app.models.payroll_run import PayrollRun
 from app.models.statutory import StatutorySettings
-from app.models.statutory_config import StatutoryConfig
+from app.models.statutory_config import StatutoryConfig, StatutoryConfigVersion
 from app.models.ctc import CtcUpload, CtcRecord
 from app.models.register import SalaryRegister, SalaryRegisterRow
 from app.models.workforce import (
@@ -87,7 +87,7 @@ from app.models.reconciliation import (
 from app.models.register_upload import RegisterUpload
 from app.models.dashboard import CustomKpi, Dashboard
 from app.models.report_definition import ReportDefinition, ReportDefinitionVersion
-from app.models.report_job import ReportJob
+from app.models.report_job import ReportJob, ReportSchedule
 from app.models.derived_cache import InputDigestCache, InputRevision, RegisterCosting
 from app.models.findings import (
     ENGINE_VERSION,
@@ -102,6 +102,8 @@ from app.models.findings import (
 )
 
 __all__ = [
+    "StatutoryConfigVersion",
+    "ReportSchedule",
     "InputDigestCache",
     "InputRevision",
     "RegisterCosting",

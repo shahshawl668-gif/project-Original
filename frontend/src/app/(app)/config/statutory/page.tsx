@@ -13,6 +13,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { periodLabel } from "@/lib/workspace";
+import { DatedChanges } from "@/components/config/DatedChanges";
 import {
   Shield, Settings2, RefreshCw,
   ChevronDown, ChevronUp, Beaker, Plus, Trash2,
@@ -22,7 +25,7 @@ import {
   type PFConfig, type ESICConfig, type ComponentMappingConfig,
   type TenantStatutoryConfig, type StatutoryConfigResponse,
   defaultPFConfig, defaultESICConfig,
-  getStatutoryConfig, saveStatutoryConfig, resetStatutoryConfig, testExpression,
+  getStatutoryConfig, saveStatutoryConfig, resetStatutoryConfig, testExpression, statutoryVersionsApi,
 } from "@/lib/statutory-config";
 
 // ─── small helpers ────────────────────────────────────────────────────────────
@@ -546,8 +549,14 @@ const EMPTY_CFG: TenantStatutoryConfig = {
 };
 
 export default function StatutoryConfigPage() {
-  const { activeRole } = useEntity();
+  const { activeRole, entity } = useEntity();
+  const qc = useQueryClient();
   const canWrite = activeRole !== "viewer";
+  const [scheduling, setScheduling] = useState(false);
+  const [fromMonth, setFromMonth] = useState("");
+  const [note, setNote] = useState("");
+  const versions = useQuery({ queryKey: ["statutory-versions", entity?.id], queryFn: statutoryVersionsApi.list, enabled: !!entity });
+  const inForce = versions.data?.in_force_now;
   const [cfg, setCfg] = useState<TenantStatutoryConfig>(EMPTY_CFG);
   // What the server holds. Unsaved changes are the difference from this.
   const [baseline, setBaseline] = useState<TenantStatutoryConfig>(EMPTY_CFG);
@@ -596,6 +605,25 @@ export default function StatutoryConfigPage() {
       toast.success("Statutory configuration saved", { description: "The next validation run uses it; the change is in the audit trail." });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Keep the edits as a draft that takes effect from a month; the form goes
+  // back to the configuration in force, which the draft does not change.
+  const handleSchedule = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const v = await statutoryVersionsApi.draft({ effective_from: `${fromMonth}-01`, config: cfg, note: note.trim() || null });
+      setScheduling(false);
+      setCfg(baseline);
+      setNote("");
+      await qc.invalidateQueries({ queryKey: ["statutory-versions", entity?.id] });
+      toast.success(`Drafted as change ${v.number}, from ${periodLabel(`${fromMonth}-01`)}`, { description: "Nothing is in force until a manager publishes it — see Dated changes." });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Not drafted");
     } finally {
       setSaving(false);
     }
@@ -671,8 +699,14 @@ export default function StatutoryConfigPage() {
       {error ? <AlertBanner variant="error" title="Not saved">{error}</AlertBanner> : null}
 
       <AlertBanner variant="info" title="How a change takes effect">
-        It applies to the <b>next validation run</b>. Runs already made keep the configuration they were validated with, and a month validated before the change is marked <i>revalidation required</i>. Each save is recorded in the audit trail with every field before and after. Expressions run in a restricted sandbox — no imports, no attribute access.
+        <b>Save changes</b> applies to every month that no dated change covers, from the <b>next validation run</b>. <b>Schedule from a month…</b> keeps them instead as a draft that takes effect from a month you choose, and changes nothing until a manager publishes it (Dated changes, below). Either way, runs already made keep the configuration they were validated with, and a validated month the change covers is marked <i>revalidation required</i>. Every save and publication is in the audit trail. Expressions run in a restricted sandbox — no imports, no attribute access.
       </AlertBanner>
+
+      {inForce?.version ? (
+        <AlertBanner variant="warning" title={`This month uses change ${inForce.version}, not the configuration below`}>
+          Change {inForce.version} has been in force since {periodLabel(inForce.effective_from!)}. The configuration below applies to months before any dated change; editing it does not alter a month a change covers. See Dated changes at the foot of the page.
+        </AlertBanner>
+      ) : null}
 
       {!canWrite ? <AlertBanner variant="info">Your role can read this configuration but not change it.</AlertBanner> : null}
 
@@ -695,14 +729,40 @@ export default function StatutoryConfigPage() {
         ) : null}
       </fieldset>
 
+      <DatedChanges />
+
       <SaveBar
         changes={changes}
         saving={saving}
         onSave={() => void handleSave()}
         onDiscard={() => setCfg(baseline)}
-        note="applies to the next validation run"
+        note="saving applies them to every month without a dated change"
         canSave={canWrite}
+        secondary={canWrite ? <Button variant="outline" disabled={saving} onClick={() => setScheduling(true)}>Schedule from a month…</Button> : null}
       />
+
+      <Dialog
+        open={scheduling}
+        onClose={() => setScheduling(false)}
+        title="Schedule these changes from a month"
+        description="They are kept as a draft — nothing changes until a manager publishes it. From its month they apply to validation and costing, until the next dated change."
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setScheduling(false)}>Cancel</Button>
+            <Button disabled={!fromMonth || saving} onClick={() => void handleSchedule()}>Save as a draft</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <label className="block text-xs font-medium text-ink-700">Takes effect from
+            <input type="month" className="mt-1 block h-9 rounded-lg border border-ink-200 bg-white px-2.5 text-[13px] text-ink-900" value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} />
+          </label>
+          <label className="block text-xs font-medium text-ink-700">Why (optional)
+            <textarea className="mt-1 block min-h-[56px] w-full rounded-lg border border-ink-200 bg-white px-2.5 py-2 text-[13px] text-ink-900" maxLength={2000} value={note} placeholder="e.g. EPFO notification of 1 April raising the wage ceiling" onChange={(e) => setNote(e.target.value)} />
+          </label>
+          <p className="text-xs text-ink-500">{plural(changes.length, "field")} will change from that month. The form then returns to the configuration in force.</p>
+        </div>
+      </Dialog>
 
       <Dialog
         open={confirmReset}

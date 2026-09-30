@@ -329,9 +329,12 @@ class CostContext:
         self.components = components
         self.comp_by_key = _component_key_map(components)
 
+        # The base configuration; a month covered by a published dated
+        # version is costed with that version instead (``_config_for``).
         service = ConfigService(db)
         self.pf_cfg = service.get_pf_config(self.entity_id)
         self.esic_cfg = service.get_esic_config(self.entity_id)
+        self._by_month: dict = {}
 
         settings = (
             db.query(StatutorySettings)
@@ -354,6 +357,14 @@ class CostContext:
         # employees; the slab rows behind every lookup are loaded once here.
         # At 8,000 employees this was ~30,000 queries and 30 s per request.
         self._slab_rows: dict = {}
+
+    def _config_for(self, month: date):
+        """PF and ESI configuration in force for ``month``."""
+        key = month.replace(day=1)
+        if key not in self._by_month:
+            service = ConfigService(self.db, as_of=key)
+            self._by_month[key] = (service.get_pf_config(self.entity_id), service.get_esic_config(self.entity_id))
+        return self._by_month[key]
 
     # -- slab lookups ----------------------------------------------------
     def _pt(self, state: str | None, wage: Decimal, as_of: date) -> Decimal:
@@ -417,16 +428,17 @@ class CostContext:
         )
 
         # ---- statutory: computed, then overridden by what was reported ---
-        pf_wage, vol_wage = compute_pf_wage(components, self.comp_by_key, self.pf_cfg)
+        pf_cfg, esic_cfg = self._config_for(as_of)
+        pf_wage, vol_wage = compute_pf_wage(components, self.comp_by_key, pf_cfg)
         row_flag = getattr(row, "pf_restricted", None)
         basis = resolve_pf_basis(
             {} if row_flag is None else {"pf_restricted": row_flag},
             pf_restricted,
-            self.pf_restrict_default,
+            pf_cfg.wage.restrict_to_ceiling,
         )
         pf = compute_pf(
             pf_wage,
-            self.pf_cfg,
+            pf_cfg,
             vol_wage,
             restrict_override=basis.restricted,
             employment_type=str(dims.get("employment_type") or "employee"),
@@ -435,10 +447,10 @@ class CostContext:
         measures["er_pf_admin"] = _dec(pf["pf_edli"]) + _dec(pf["pf_admin"])
         measures["ee_pf"] = _dec(pf["pf_employee"]) + _dec(pf["pf_voluntary_employee"])
 
-        esic_wage = compute_esic_wage(components, self.comp_by_key, self.esic_cfg)
+        esic_wage = compute_esic_wage(components, self.comp_by_key, esic_cfg)
         esic = compute_esic(
             esic_wage,
-            self.esic_cfg,
+            esic_cfg,
             employment_type=str(dims.get("employment_type") or "employee"),
         )
         measures["er_esi"] = _dec(esic["esic_employer"])

@@ -847,6 +847,7 @@ class ApprovalPolicyUpdate(BaseModel):
     signoff_requires_independent_approver: bool | None = None
     matrix_publish_requires_independent_approver: bool | None = None
     studio_publish_requires_independent_approver: bool | None = None
+    statutory_publish_requires_independent_approver: bool | None = None
 
 
 @router.get("/approval-policy")

@@ -201,7 +201,9 @@ def configuration_snapshot(db: Session, entity: Entity, period_month: date) -> d
     from app.services.validation import _get_or_default_settings
 
     settings = _get_or_default_settings(db, entity)
-    service = ConfigService(db)
+    # As in force for this month, so publishing a dated change marks exactly
+    # the months it covers as needing revalidation.
+    service = ConfigService(db, as_of=period_month)
     effective: dict[str, Any] = {
         "pf": service.get_pf_config(eid).model_dump(mode="json"),
         "esic": service.get_esic_config(eid).model_dump(mode="json"),

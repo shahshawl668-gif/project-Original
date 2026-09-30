@@ -13,3 +13,6 @@ email-validator>=2.2.0
 # PeopleOps Studio: outbound connections (guarded HTTP) and encrypted secrets.
 httpx>=0.27
 cryptography>=41.0
+# PeopleOps Reports: PDF output. Pure Python; needs the DejaVu font for ₹ and
+# non-Latin names, which docker/Dockerfile.backend installs.
+fpdf2>=2.8

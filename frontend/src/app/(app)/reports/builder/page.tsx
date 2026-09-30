@@ -25,9 +25,11 @@ import { fetchDimensions, fetchPeriods } from "@/lib/cost-analysis";
 import { saveBlob } from "@/lib/download";
 import { count, dateTime, inr, plural } from "@/lib/format";
 import {
-  CALC_METRICS, JOB_ACTIVE, MAX_CALCULATIONS, MAX_RANGE_MONTHS, MONEY_FIELDS, PREVIEW_LIMIT, builderApi, monthsBetween,
-  unknownMetrics, type BuilderField, type Preview, type ReportJob, type SavedReport, type Spec,
+  JOB_ACTIVE, MAX_CALCULATIONS, MAX_RANGE_MONTHS, PREVIEW_LIMIT, UNIT_LABEL, builderApi, monthsBetween,
+  unknownMetrics, type BuilderDataset, type BuilderField, type CalcUnit, type OutputFormat, type Preview,
+  type ReportJob, type SavedReport, type Spec, type Unit,
 } from "@/lib/report-builder";
+import { PreviewChart, PivotTable, ScheduleCard, formatValue } from "@/components/reports/BuilderParts";
 import { useUnsavedChanges } from "@/lib/unsaved";
 import { periodLabel } from "@/lib/workspace";
 import { cn } from "@/lib/utils";
@@ -40,17 +42,24 @@ const STEPS = ["Dataset", "Columns", "Filters", "Calculations", "Grouping", "Lay
 const INITIAL: Spec = {
   dataset: "payroll_cost", dimension: "department", fields: ["period", "dimension", "headcount", "gross", "ctc"],
   filters: {}, date_from: null, date_to: null, sort: "period", order: "asc", calculations: [],
+  layout: "table", pivot_value: null, chart: "none",
 };
+/** A fresh definition for a dataset, keeping the months already chosen. */
+function startFrom(d: BuilderDataset, keep: Spec): Spec {
+  return { ...INITIAL, dataset: d.key, dimension: d.default_breakdown, fields: d.default_fields,
+    sort: d.default_fields[0], date_from: keep.date_from, date_to: keep.date_to };
+}
 type Meta = { name: string; description: string; visibility: "private" | "shared"; status: "draft" | "published" };
 const NEW_META: Meta = { name: "Payroll cost by department", description: "", visibility: "private", status: "draft" };
 
 /**
- * Build a management report from the approved payroll cost dataset.
+ * Build a management report from one of the approved datasets: payroll cost,
+ * workforce movement or validation findings.
  *
  * Eight steps, each reachable directly and each stating its own validity. A
  * preview shows at most 200 rows and says so beside the full count; an export
- * contains every row. A saved report is a definition, not a frozen result, and
- * every save is a new version.
+ * contains every row, as Excel or PDF, now or on a schedule. A saved report is
+ * a definition, not a frozen result, and every save is a new version.
  */
 export default function ReportBuilderPage() {
   const { entity, activeRole } = useEntity();
@@ -75,6 +84,7 @@ export default function ReportBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [queueing, setQueueing] = useState(false);
+  const [format, setFormat] = useState<OutputFormat>("xlsx");
   const [fileNote, setFileNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [openSaved, setOpenSaved] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -94,15 +104,18 @@ export default function ReportBuilderPage() {
   const dirty = JSON.stringify({ spec, meta }) !== baseline;
   useUnsavedChanges(dirty);
 
-  const dataset = datasets.data?.datasets[0];
+  const allDatasets = datasets.data?.datasets ?? [];
+  const dataset = allDatasets.find((d) => d.key === spec.dataset) ?? allDatasets[0];
   const fields: (BuilderField & { calculated?: boolean })[] = useMemo(() => [
     ...(dataset?.fields ?? []),
-    ...spec.calculations.map((c) => ({ key: c.key, label: c.label || "Untitled calculation", numeric: true, calculated: true })),
+    ...spec.calculations.map((c) => ({ key: c.key, label: c.label || "Untitled calculation", numeric: true, unit: (c.unit ?? "number") as Unit, calculated: true })),
   ], [dataset, spec.calculations]);
-  const labelOf = (key: string) => fields.find((f) => f.key === key)?.label ?? key;
+  const calcMetrics = (dataset?.fields ?? []).filter((f) => f.calc).map((f) => f.key);
+  const labelOf = (key: string) => (key === "dimension" ? dimLabelOf(dataset, spec.dimension) : fields.find((f) => f.key === key)?.label ?? key);
+  const numericColumns = spec.fields.filter((k) => fields.find((f) => f.key === k)?.numeric);
   const available = periods.data?.periods ?? []; // newest first
   const dimensions = dims.data?.dimensions ?? [];
-  const dimLabel = dataset?.dimensions.find((d) => d.key === spec.dimension)?.label ?? spec.dimension;
+  const dimLabel = dimLabelOf(dataset, spec.dimension);
 
   // ── validity, per step ────────────────────────────────────────────────────
   const range = spec.date_from && spec.date_to ? monthsBetween(spec.date_from, spec.date_to) : null;
@@ -110,7 +123,7 @@ export default function ReportBuilderPage() {
   const calcErrors = spec.calculations.map((c) => {
     if (!c.label.trim()) return "Give it a column name.";
     if (!c.expression.trim()) return "Write an expression.";
-    const unknown = unknownMetrics(c.expression);
+    const unknown = unknownMetrics(c.expression, calcMetrics);
     if (unknown.length) return `Not a metric: ${unknown.join(", ")}.`;
     if (!/^[\sA-Za-z0-9_+\-*/().]+$/.test(c.expression)) return "Use metric names, numbers, brackets and + − × ÷ only.";
     return null;
@@ -121,7 +134,11 @@ export default function ReportBuilderPage() {
     rangeError,
     calcErrors.find(Boolean) ?? null,
     null,
-    spec.fields.includes(spec.sort) ? null : "Sort by a column that is in the report.",
+    !spec.fields.includes(spec.sort) ? "Sort by a column that is in the report."
+      : (spec.layout === "pivot" || (spec.chart ?? "none") !== "none") && !(spec.fields.includes("period") && spec.fields.includes("dimension"))
+        ? "A pivot or chart needs the period and the breakdown as columns."
+        : (spec.layout === "pivot" || (spec.chart ?? "none") !== "none") && !numericColumns.includes(spec.pivot_value ?? "")
+          ? "Choose which number the pivot or chart shows." : null,
     null,
     meta.name.trim() ? null : "Name the report.",
   ];
@@ -133,7 +150,7 @@ export default function ReportBuilderPage() {
     [spec.date_from || spec.date_to ? `${monthLabel(spec.date_from) ?? "Earliest"} – ${monthLabel(spec.date_to) ?? "latest"}` : "All months", Object.keys(spec.filters).length ? plural(Object.values(spec.filters).flat().length, "filter") : null].filter(Boolean).join(" · "),
     spec.calculations.length ? plural(spec.calculations.length, "calculation") : "None",
     `By ${dimLabel}`,
-    `${labelOf(spec.sort)}, ${spec.order === "asc" ? "ascending" : "descending"}`,
+    [spec.layout === "pivot" ? "Pivot" : "Table", (spec.chart ?? "none") !== "none" ? `${spec.chart} chart` : null, `sorted by ${labelOf(spec.sort).toLowerCase()}`].filter(Boolean).join(" · "),
     preview ? (preview.key === specKey ? "Up to date" : "Out of date") : "Not generated",
     active ? `v${active.version}${dirty ? " · unsaved changes" : ""}` : "Not saved",
   ];
@@ -234,7 +251,7 @@ export default function ReportBuilderPage() {
     setQueueing(true);
     setFileNote(null);
     try {
-      await builderApi.queue(active.id);
+      await builderApi.queue(active.id, format);
       await refreshJobs();
     } catch (e) {
       setFileNote({ ok: false, text: e instanceof Error ? e.message : "Not queued." });
@@ -246,7 +263,7 @@ export default function ReportBuilderPage() {
     setFileNote(null);
     try {
       if (action === "download") {
-        const { blob, filename, bytes } = await apiDownload(`/api/reports/builder/jobs/${job.id}/download`, `report-v${job.definition_version}.xlsx`);
+        const { blob, filename, bytes } = await apiDownload(`/api/reports/builder/jobs/${job.id}/download`, `report-v${job.definition_version}.${job.format ?? "xlsx"}`);
         saveBlob(blob, filename);
         setFileNote({ ok: true, text: `Downloaded ${filename} · ${Math.max(1, Math.round(bytes / 1024))} KB` });
       } else {
@@ -285,7 +302,7 @@ export default function ReportBuilderPage() {
       <BackLink fallback="/reports">Report Centre</BackLink>
       <PageHeader
         title={active ? meta.name || active.name : "New report"}
-        description="Payroll cost at one row per payroll month and breakdown value, from the same calculation as Cost analysis."
+        description={dataset ? `${dataset.label}: one row per ${dataset.grain.toLowerCase()}, from the same calculation the product's own pages use.` : "Management reports from approved datasets."}
         meta={
           <>
             {active ? <StatusPill tone={active.status === "published" ? "success" : "neutral"}>Version {active.version} · {active.status === "published" ? "Published" : "Draft"}</StatusPill> : <StatusPill tone="neutral">Not saved yet</StatusPill>}
@@ -359,18 +376,28 @@ export default function ReportBuilderPage() {
             ) : null}
 
             {dataset && step === 0 ? (
-              <div className="space-y-3">
-                <label className="flex cursor-default items-start gap-3 rounded-xl border border-brand-300 bg-brand-50/40 p-4">
-                  <input type="radio" checked readOnly className="mt-1 accent-brand-600" name="dataset" />
-                  <span>
-                    <span className="block text-[14px] font-semibold text-ink-900">{dataset.label}</span>
-                    <span className="mt-0.5 block text-[13px] text-ink-600">One row is {dataset.grain.toLowerCase()}. {dataset.note}</span>
-                  </span>
-                </label>
+              <fieldset className="space-y-2">
+                <legend className="sr-only">Dataset</legend>
+                {allDatasets.map((d) => (
+                  <label key={d.key} className={cn("flex items-start gap-3 rounded-xl border p-4",
+                    spec.dataset === d.key ? "border-brand-300 bg-brand-50/40" : "border-ink-200 hover:bg-ink-50")}>
+                    <input type="radio" name="dataset" className="mt-1 accent-brand-600" checked={spec.dataset === d.key}
+                      onChange={() => {
+                        if (spec.dataset === d.key) return;
+                        if (spec.calculations.length && !window.confirm("Changing the dataset starts the columns, breakdown and calculations again. Continue?")) return;
+                        setSpec(startFrom(d, spec));
+                        setPreview(null);
+                      }} />
+                    <span>
+                      <span className="block text-[14px] font-semibold text-ink-900">{d.label}</span>
+                      <span className="mt-0.5 block text-[13px] text-ink-600">One row is {d.grain.toLowerCase()}. {d.note}</span>
+                    </span>
+                  </label>
+                ))}
                 <p className="text-xs text-ink-500">
-                  This is the one dataset the builder offers. For one row per employee, use <Link href="/reports" className="font-medium text-brand-700 underline">Employee payroll cost</Link> in the Report Centre.
+                  Changing the dataset keeps the months you chose and starts the columns and calculations again. For one row per employee, use <Link href="/reports" className="font-medium text-brand-700 underline">Employee payroll cost</Link> in the Report Centre.
                 </p>
-              </div>
+              </fieldset>
             ) : null}
 
             {dataset && step === 1 ? (
@@ -390,7 +417,7 @@ export default function ReportBuilderPage() {
                       ))}
                     </ol>
                   ) : null}
-                  <p className="mt-2 text-xs text-ink-500">A report keeps at least one column. Employee names are not in this dataset.</p>
+                  <p className="mt-2 text-xs text-ink-500">A report keeps at least one column. Employee names are not in any builder dataset.</p>
                 </div>
                 <div>
                   <h3 className="text-xs font-medium text-ink-700">Available</h3>
@@ -429,7 +456,9 @@ export default function ReportBuilderPage() {
                     {!available.length && !periods.isLoading ? " No salary register is stored for this company yet." : ""}
                   </p>
                 </fieldset>
-                <div className="space-y-2">
+                {!dataset.filters ? (
+                  <p className="text-xs text-ink-500">{dataset.label} has no company-dimension filters: findings are grouped by severity, check or component, not by department.</p>
+                ) : <div className="space-y-2">
                   <div className="max-w-xs"><FilterMenu align="left" dimensions={dimensions} filters={spec.filters} onClear={() => update({ filters: {} })}
                     onToggle={(key, value) => {
                       const cur = spec.filters[key] ?? [];
@@ -446,7 +475,7 @@ export default function ReportBuilderPage() {
                       update({ filters: out });
                     }} />
                   <p className="text-xs text-ink-500">Values within one dimension are alternatives; different dimensions narrow each other.</p>
-                </div>
+                </div>}
               </div>
             ) : null}
 
@@ -457,9 +486,14 @@ export default function ReportBuilderPage() {
                   const setCalc = (patch: Partial<typeof c>) => update({ calculations: spec.calculations.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
                   return (
                     <div key={c.key} className="space-y-2 rounded-lg border border-ink-200 p-3">
-                      <div className="grid gap-3 sm:grid-cols-[1fr_2fr_auto] sm:items-end">
+                      <div className="grid gap-3 sm:grid-cols-[1fr_2fr_10rem_auto] sm:items-end">
                         <label className="text-xs font-medium text-ink-700">Column name<input className={cn(FIELD, "mt-1")} value={c.label} maxLength={80} onChange={(e) => setCalc({ label: e.target.value })} /></label>
-                        <label className="text-xs font-medium text-ink-700">Expression<input className={cn(FIELD, "mt-1 font-mono")} value={c.expression} maxLength={160} placeholder="ctc / headcount" aria-invalid={!!calcErrors[i]} onChange={(e) => setCalc({ expression: e.target.value })} /></label>
+                        <label className="text-xs font-medium text-ink-700">Expression<input className={cn(FIELD, "mt-1 font-mono")} value={c.expression} maxLength={160} placeholder={calcMetrics.length > 1 ? `${calcMetrics[0]} / ${calcMetrics[1]}` : ""} aria-invalid={!!calcErrors[i]} onChange={(e) => setCalc({ expression: e.target.value })} /></label>
+                        <label className="text-xs font-medium text-ink-700">Shown as
+                          <select className={cn(FIELD, "mt-1")} value={c.unit ?? "number"} onChange={(e) => setCalc({ unit: e.target.value as CalcUnit })}>
+                            {(Object.keys(UNIT_LABEL) as CalcUnit[]).map((u) => <option key={u} value={u}>{UNIT_LABEL[u]}</option>)}
+                          </select>
+                        </label>
                         <Button variant="ghost" size="sm" onClick={() => {
                           const f = spec.fields.filter((x) => x !== c.key);
                           update({ calculations: spec.calculations.filter((_, j) => j !== i), fields: f.length ? f : ["period"], sort: spec.sort === c.key ? (f[0] ?? "period") : spec.sort });
@@ -467,7 +501,7 @@ export default function ReportBuilderPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
                         Insert:
-                        {CALC_METRICS.map((m) => (
+                        {calcMetrics.map((m) => (
                           <button key={m} type="button" className="rounded border border-ink-200 px-1.5 py-0.5 font-mono text-[11px] text-ink-700 hover:bg-ink-50"
                             onClick={() => setCalc({ expression: `${c.expression}${c.expression && !/[\s(+\-*/]$/.test(c.expression) ? " " : ""}${m}` })}>{m}</button>
                         ))}
@@ -480,7 +514,7 @@ export default function ReportBuilderPage() {
                   <Button variant="outline" size="sm" onClick={() => {
                     const n = [1, 2, 3, 4].find((k) => !spec.calculations.some((c) => c.key === `calc_${k}`)) ?? 9;
                     const key = `calc_${n}`;
-                    update({ calculations: [...spec.calculations, { key, label: "", expression: "" }], fields: [...spec.fields, key] });
+                    update({ calculations: [...spec.calculations, { key, label: "", expression: "", unit: "number" }], fields: [...spec.fields, key] });
                   }}><Plus size={13} /> Add a calculated column</Button>
                 ) : <p className="text-xs text-ink-500">Three calculated columns is the most a report can hold.</p>}
                 {spec.calculations.length ? <p className="text-xs text-ink-500">A new calculation is added to the end of the columns; reorder it under Columns.</p> : null}
@@ -497,7 +531,9 @@ export default function ReportBuilderPage() {
                     </label>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-ink-500">Employees with no value appear as Unassigned rather than disappearing. A month with no one paid in a group has no row — a gap, not a zero.</p>
+                <p className="mt-2 text-xs text-ink-500">{dataset.filters
+                  ? "Employees with no value appear as Unassigned rather than disappearing. A month with nobody in a group has no row — a gap, not a zero."
+                  : "A month that was never validated has no rows — a gap, not a month without findings."}</p>
               </fieldset>
             ) : null}
 
@@ -518,7 +554,35 @@ export default function ReportBuilderPage() {
                     </div>
                   </fieldset>
                 </div>
-                <p className="text-xs text-ink-500">Layout is a table: the columns you chose, one row per month and group. Pivot, chart and PDF layouts are not available in the builder.</p>
+                <fieldset>
+                  <legend className="text-xs font-medium text-ink-700">Layout</legend>
+                  <div className="mt-1.5 flex flex-wrap gap-4 text-[13px]">
+                    {(["table", "pivot"] as const).map((l) => (
+                      <label key={l} className="flex items-center gap-1.5"><input type="radio" name="layout" className="accent-brand-600" checked={(spec.layout ?? "table") === l}
+                        onChange={() => update({ layout: l, pivot_value: spec.pivot_value ?? numericColumns[0] ?? null })} />
+                        {l === "table" ? "Table — one row per month and group" : "Pivot — groups down, months across, one number"}</label>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend className="text-xs font-medium text-ink-700">Chart</legend>
+                  <div className="mt-1.5 flex flex-wrap gap-4 text-[13px]">
+                    {(["none", "bar", "line"] as const).map((c) => (
+                      <label key={c} className="flex items-center gap-1.5"><input type="radio" name="chart" className="accent-brand-600" checked={(spec.chart ?? "none") === c}
+                        onChange={() => update({ chart: c, pivot_value: spec.pivot_value ?? numericColumns[0] ?? null })} />
+                        {c === "none" ? "No chart" : c === "bar" ? "Bars — each group, latest month" : "Lines — each group over the months"}</label>
+                    ))}
+                  </div>
+                </fieldset>
+                {spec.layout === "pivot" || (spec.chart ?? "none") !== "none" ? (
+                  <label className="block max-w-sm text-xs font-medium text-ink-700">The number shown
+                    <select className={cn(FIELD, "mt-1")} value={spec.pivot_value ?? ""} onChange={(e) => update({ pivot_value: e.target.value || null })}>
+                      <option value="">Choose a number column</option>
+                      {numericColumns.map((k) => <option key={k} value={k}>{labelOf(k)}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                <p className="text-xs text-ink-500">A pivot totals only what adds up: money over months and groups, but not people paid over months, nor people affected over checks — those totals are left out and the pivot says why. The Excel file carries the pivot and a native chart; the PDF draws the same.</p>
               </div>
             ) : null}
 
@@ -532,7 +596,7 @@ export default function ReportBuilderPage() {
                   {stale && !previewing ? <StatusPill tone="warning">Out of date — the definition changed since this preview</StatusPill> : null}
                 </div>
                 {previewError ? <AlertBanner variant="error" title="The preview was not generated">{previewError}</AlertBanner> : null}
-                {preview ? <PreviewResult preview={preview.data} spec={spec} labelOf={labelOf} dimLabel={dimLabel} busy={previewing} stale={stale} /> : !previewing ? (
+                {preview ? <PreviewResult preview={preview.data} spec={spec} labelOf={labelOf} busy={previewing} stale={stale} /> : !previewing ? (
                   <p className="text-[13px] text-ink-500">Nothing generated yet. A preview reads current data and changes nothing.</p>
                 ) : <Skeleton className="h-40 w-full" />}
               </div>
@@ -549,16 +613,16 @@ export default function ReportBuilderPage() {
                   </label>
                   <fieldset>
                     <legend className="text-xs font-medium text-ink-700">Who can open it</legend>
-                    <div className="mt-1.5 space-y-1 text-[13px]">
-                      <label className="flex items-center gap-1.5"><input type="radio" name="vis" className="accent-brand-600" checked={meta.visibility === "private"} onChange={() => setMeta({ ...meta, visibility: "private" })} /> Only me</label>
-                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="vis" className="accent-brand-600" disabled={!isManager} checked={meta.visibility === "shared"} onChange={() => setMeta({ ...meta, visibility: "shared" })} /> Analysts and above in this company</label>
+                    <div className="mt-1.5 space-y-2 text-[13px]">
+                      <label className="flex min-h-6 items-center gap-1.5"><input type="radio" name="vis" className="accent-brand-600" checked={meta.visibility === "private"} onChange={() => setMeta({ ...meta, visibility: "private" })} /> Only me</label>
+                      <label className={cn("flex min-h-6 items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="vis" className="accent-brand-600" disabled={!isManager} checked={meta.visibility === "shared"} onChange={() => setMeta({ ...meta, visibility: "shared" })} /> Analysts and above in this company</label>
                     </div>
                   </fieldset>
                   <fieldset>
                     <legend className="text-xs font-medium text-ink-700">Status</legend>
-                    <div className="mt-1.5 space-y-1 text-[13px]">
-                      <label className="flex items-center gap-1.5"><input type="radio" name="status" className="accent-brand-600" checked={meta.status === "draft"} onChange={() => setMeta({ ...meta, status: "draft" })} /> Draft</label>
-                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="status" className="accent-brand-600" disabled={!isManager} checked={meta.status === "published"} onChange={() => setMeta({ ...meta, status: "published" })} /> Published — only a manager can change it afterwards</label>
+                    <div className="mt-1.5 space-y-2 text-[13px]">
+                      <label className="flex min-h-6 items-center gap-1.5"><input type="radio" name="status" className="accent-brand-600" checked={meta.status === "draft"} onChange={() => setMeta({ ...meta, status: "draft" })} /> Draft</label>
+                      <label className={cn("flex min-h-6 items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="status" className="accent-brand-600" disabled={!isManager} checked={meta.status === "published"} onChange={() => setMeta({ ...meta, status: "published" })} /> Published — only a manager can change it afterwards</label>
                     </div>
                   </fieldset>
                   {!isManager ? <p className="text-xs text-ink-500">Sharing and publishing need a manager or owner.</p> : null}
@@ -573,13 +637,21 @@ export default function ReportBuilderPage() {
 
                 <aside className="space-y-4">
                   <div className="rounded-lg border border-ink-200 p-3.5">
-                    <h3 className="text-[13px] font-semibold text-ink-900">Excel export</h3>
-                    <p className="mt-1 text-xs text-ink-500">Every matched row — the preview&apos;s {PREVIEW_LIMIT}-row limit does not apply — with About, Summary, Details and Data basis sheets.</p>
+                    <h3 className="text-[13px] font-semibold text-ink-900">Generate a file</h3>
+                    <p className="mt-1 text-xs text-ink-500">Every matched row — the preview&apos;s {PREVIEW_LIMIT}-row limit does not apply. Excel has About, Summary, Details, the pivot and chart if chosen, and Data basis; a PDF shows the same for reading, up to 3,000 rows.</p>
                     {exportBlocker ? <p className="mt-2 text-xs text-ink-700">{exportBlocker}</p> : null}
+                    <fieldset className="mt-2">
+                      <legend className="sr-only">File format</legend>
+                      <div className="flex gap-4 text-[13px]">
+                        {(["xlsx", "pdf"] as const).map((f) => (
+                          <label key={f} className="flex items-center gap-1.5"><input type="radio" name="format" className="accent-brand-600" checked={format === f} onChange={() => setFormat(f)} /> {f === "xlsx" ? "Excel" : "PDF"}</label>
+                        ))}
+                      </div>
+                    </fieldset>
                     <Button className="mt-3" variant="outline" size="sm"
                       disabled={!!exportBlocker || queueing || (!!latestJob && JOB_ACTIVE.has(latestJob.state) && latestJob.definition_version === active?.version)}
                       onClick={() => void generate()}>
-                      {queueing ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Generate Excel from version {active?.version ?? ""}
+                      {queueing ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Generate {format === "pdf" ? "PDF" : "Excel"} from version {active?.version ?? ""}
                     </Button>
                     <p className="mt-2 text-xs text-ink-500">It is made in the background — you can leave this page — and the file stays fixed and downloadable until the date shown.</p>
                     {latestJob ? <div className="mt-3 border-t border-ink-100 pt-3"><JobRow job={latestJob} onAction={jobAction} /></div> : null}
@@ -588,6 +660,8 @@ export default function ReportBuilderPage() {
                         {fileNote.ok ? <CheckCircle2 size={13} className="mt-px flex-shrink-0" aria-hidden /> : <AlertCircle size={13} className="mt-px flex-shrink-0" aria-hidden />} {fileNote.text}</span> : null}
                     </div>
                   </div>
+
+                  {active ? <ScheduleCard reportId={active.id} blocked={dirty ? "Save your changes first: a schedule generates the saved version." : null} onChanged={refreshJobs} /> : null}
 
                   {active ? (
                     <div className="rounded-lg border border-ink-200 p-3.5">
@@ -647,7 +721,7 @@ export default function ReportBuilderPage() {
           </ul>
         )}
         <h3 className="mt-6 border-t border-ink-100 pt-4 text-[13px] font-semibold text-ink-900">Generated files</h3>
-        <p className="text-xs text-ink-500">Excel files you generated in this company, newest first. Each is fixed when made and downloadable until it expires.</p>
+        <p className="text-xs text-ink-500">Files you generated in this company, and files your schedules made, newest first. Each is fixed when made and downloadable until it expires.</p>
         {jobs.isLoading ? <Skeleton className="mt-2 h-16 w-full" /> : jobList.length === 0 ? (
           <p className="mt-2 text-[13px] text-ink-500">None yet.</p>
         ) : (
@@ -671,6 +745,8 @@ function JobRow({ job, onAction, showName }: { job: ReportJob; onAction: (job: R
   const pill = JOB_PILL[job.state] ?? { tone: "neutral" as const, label: job.state };
   const facts = [
     `v${job.definition_version}`,
+    (job.format ?? "xlsx") === "pdf" ? "PDF" : "Excel",
+    job.origin === "schedule" ? "scheduled" : null,
     job.state === "running" && job.stage === "retrying" ? `retrying (attempt ${job.attempt})` : null,
     job.record_count !== null ? plural(job.record_count, "row") : null,
     job.artifact_bytes ? `${Math.max(1, Math.round(job.artifact_bytes / 1024))} KB` : null,
@@ -703,58 +779,67 @@ function IconBtn({ label, disabled, onClick, children }: { label: string; disabl
   );
 }
 
-const TOTALS: [string, string][] = [["ctc", "Total CTC"], ["gross", "Gross pay"], ["net", "Net pay"], ["employer_cost", "Employer contributions"], ["headcount", "People paid"]];
+function dimLabelOf(dataset: BuilderDataset | undefined, key: string): string {
+  return dataset?.dimensions.find((d) => d.key === key)?.label ?? key;
+}
 
-function PreviewResult({ preview, spec, labelOf, dimLabel, busy, stale }: {
-  preview: Preview; spec: Spec; labelOf: (k: string) => string; dimLabel: string; busy: boolean; stale: boolean;
+const TOTAL_LABEL: Record<string, string> = {
+  ctc: "Total CTC", gross: "Gross pay", net: "Net pay", employer_cost: "Employer contributions",
+  deductions: "Deductions", headcount: "People paid", person_months: "Person-months",
+  joiners: "Joiners", exits: "Exits", findings: "Findings", runs: "Months validated",
+};
+
+function PreviewResult({ preview, spec, labelOf, busy, stale }: {
+  preview: Preview; spec: Spec; labelOf: (k: string) => string; busy: boolean; stale: boolean;
 }) {
   if (preview.status === "missing_data") {
-    return <EmptyState title="No salary register in this range" description="There is nothing to report on for these months — not a zero payroll. Upload the register, or widen the months under Filters." />;
+    return <EmptyState title="Nothing stored for these months" description={spec.dataset === "validation_findings"
+      ? "No month in this range has a validation run — not a month without findings. Validate the month, or widen the range under Filters."
+      : "There is no salary register in this range — not a zero payroll. Upload the register, or widen the months under Filters."} />;
   }
   if (preview.status === "no_matching_records") {
-    return <EmptyState title="No rows match" description="Registers exist for these months, but no one paid matches the filters. Loosen them under Filters." />;
+    return <EmptyState title="No rows match" description="Data exists for these months, but nothing matches the filters. Loosen them under Filters." />;
   }
   const shown = preview.rows.length;
+  const unitOf = (key: string): Unit => preview.columns?.find((c) => c.key === key)?.unit ?? (key === "period" ? "month" : key === "dimension" ? "text" : "number");
   const fmt = (key: string, v: string | number | null) => {
     if (v === null || v === undefined) return <span className="text-ink-500" title="Not available">—</span>;
-    if (key === "period") return periodLabel(String(v));
-    if (MONEY_FIELDS.has(key)) return inr(Number(v));
-    if (key === "headcount" || key === "person_months") return count(Number(v));
-    if (typeof v === "number") return v.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-    return v;
+    return formatValue(v, unitOf(key));
   };
+  const numeric = (key: string) => !["month", "text"].includes(unitOf(key));
+  const totals = Object.entries(preview.control_totals ?? {});
   return (
-    <div className={cn("space-y-3 transition-opacity duration-fast", (busy || stale) && "opacity-60")} aria-busy={busy}>
+    <div className={cn("space-y-4 transition-opacity duration-fast", (busy || stale) && "opacity-60")} aria-busy={busy}>
       <p className="text-[13px] text-ink-800" role="status">
         <b>{count(preview.record_count)} rows</b> matched.{" "}
         {preview.truncated_preview
-          ? <span className="text-warning-800">Showing the first {count(shown)}. The Excel export contains all {count(preview.record_count)}.</span>
+          ? <span className="text-warning-800">Showing the first {count(shown)}. The generated file contains all {count(preview.record_count)}.</span>
           : <span className="text-ink-500">Showing all of them.</span>}
       </p>
-      {preview.control_totals ? (
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-ink-50 px-3 py-2.5 sm:grid-cols-5">
-          {TOTALS.map(([k, l]) => (
+      {totals.length ? (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-ink-50 px-3 py-2.5 sm:grid-cols-4 lg:grid-cols-5">
+          {totals.map(([k, v]) => (
             <div key={k}>
-              <dt className="text-[11px] text-ink-500">{l}</dt>
-              <dd className="text-[13px] font-semibold tabular-nums text-ink-900">{k === "headcount" ? count(preview.control_totals![k]) : inr(preview.control_totals![k])}</dd>
+              <dt className="text-[11px] text-ink-500">{TOTAL_LABEL[k] ?? labelOf(k)}</dt>
+              <dd className="text-[13px] font-semibold tabular-nums text-ink-900">{["ctc", "gross", "net", "employer_cost", "deductions"].includes(k) ? inr(v) : count(v)}</dd>
             </div>
           ))}
-          <p className="col-span-full text-[11px] text-ink-500">Control totals for the whole range and filters, before the breakdown — they should match Cost analysis for the same scope.</p>
         </dl>
       ) : null}
-      <Table containerClassName="max-h-[480px] rounded-lg border border-ink-200">
+      {totals.length ? <p className="-mt-2 text-[11px] text-ink-500">Control totals for the whole range and filters, before the breakdown — they should match the product&apos;s own page for the same scope.</p> : null}
+      {preview.chart ? <PreviewChart chart={preview.chart} /> : null}
+      {preview.pivot ? <PivotTable pivot={preview.pivot} dimLabel={labelOf("dimension")} /> : null}
+      {preview.pivot ? <h3 className="text-[13px] font-semibold text-ink-900">Details</h3> : null}
+      <Table containerClassName="max-h-[480px] rounded-lg border border-ink-200" scrollLabel="Report rows">
         <TableHeader>
           <TableRow>
-            {spec.fields.map((k, i) => {
-              const numeric = !["period", "dimension"].includes(k);
-              return <TableHead key={k} numeric={numeric} pin={i === 0}>{k === "dimension" ? dimLabel : labelOf(k)}</TableHead>;
-            })}
+            {spec.fields.map((k, i) => <TableHead key={k} numeric={numeric(k)} pin={i === 0}>{labelOf(k)}</TableHead>)}
           </TableRow>
         </TableHeader>
         <TableBody>
           {preview.rows.map((row, r) => (
             <TableRow key={r}>
-              {spec.fields.map((k, i) => <TableCell key={k} numeric={!["period", "dimension"].includes(k)} pin={i === 0}>{fmt(k, row[k])}</TableCell>)}
+              {spec.fields.map((k, i) => <TableCell key={k} numeric={numeric(k)} pin={i === 0}>{fmt(k, row[k])}</TableCell>)}
             </TableRow>
           ))}
         </TableBody>

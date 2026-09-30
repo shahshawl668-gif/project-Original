@@ -108,6 +108,8 @@ _COLUMN_PATCHES: list[tuple[str, str, str]] = [
     ("entities", "pay_equity_enabled_by", "VARCHAR(255)"),
     ("entities", "pay_equity_enabled_at", "TIMESTAMP"),
     ("org_memberships", "default_entity_chosen", "BOOLEAN"),
+    ("report_jobs", "format", "VARCHAR(8) NOT NULL DEFAULT 'xlsx'"),
+    ("report_jobs", "origin", "VARCHAR(16) NOT NULL DEFAULT 'person'"),
 ]
 
 

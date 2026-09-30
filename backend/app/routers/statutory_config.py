@@ -5,16 +5,19 @@ All endpoints are entity-scoped — get_current_entity() provides isolation.
 """
 from __future__ import annotations
 
+import uuid as _uuid
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import Entity, User
+from app.models import Entity, StatutoryConfigVersion, User, ValidationRun
 from app.schemas.income_tax_config import IncomeTaxConfig, TaxYearUpsert
 from app.schemas.rule_thresholds import RuleThresholdsConfig
 from app.schemas.statutory_config import (
@@ -24,7 +27,7 @@ from app.schemas.statutory_config import (
     StatutoryConfigResponse,
     TenantStatutoryConfig,
 )
-from app.services import audit
+from app.services import approvals, audit, tenancy
 from app.services.config_service import ConfigService, safe_eval_expr
 
 router = APIRouter(prefix="/config/statutory", tags=["Statutory Config"])
@@ -346,3 +349,219 @@ def config_summary(
             },
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Dated versions: draft → publish → (withdraw)
+# ---------------------------------------------------------------------------
+
+
+class VersionInput(BaseModel):
+    effective_from: date
+    config: TenantStatutoryConfig
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class WithdrawInput(BaseModel):
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+def _prev_month(month: date) -> date:
+    return date(month.year - 1, 12, 1) if month.month == 1 else date(month.year, month.month - 1, 1)
+
+
+def _version(db: Session, entity: Entity, version_id: str) -> StatutoryConfigVersion:
+    try:
+        vid = _uuid.UUID(version_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Version not found")
+    row = db.get(StatutoryConfigVersion, vid)
+    if row is None or row.entity_id != entity.id:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return row
+
+
+def _manager(db: Session, user: User, entity: Entity) -> None:
+    if not tenancy.role_at_least(db, user, "manager", entity):
+        raise HTTPException(status_code=403, detail="Publishing or withdrawing a statutory change needs a manager or owner")
+
+
+def _covered_until(db: Session, entity: Entity, row: StatutoryConfigVersion) -> date | None:
+    """The first month of the next published version after this one, if any."""
+    later = (db.query(StatutoryConfigVersion.effective_from)
+             .filter(StatutoryConfigVersion.entity_id == entity.id,
+                     StatutoryConfigVersion.status == "published",
+                     StatutoryConfigVersion.id != row.id,
+                     StatutoryConfigVersion.effective_from > row.effective_from)
+             .order_by(StatutoryConfigVersion.effective_from).first())
+    return later[0] if later else None
+
+
+def _affected(db: Session, entity: Entity, row: StatutoryConfigVersion) -> list[str]:
+    """Validated months this version covers — the ones publishing it makes stale."""
+    until = _covered_until(db, entity, row)
+    q = db.query(ValidationRun.period_month).filter(
+        ValidationRun.entity_id == entity.id, ValidationRun.status == "current",
+        ValidationRun.period_month >= row.effective_from)
+    if until:
+        q = q.filter(ValidationRun.period_month < until)
+    return sorted({m.isoformat() for (m,) in q})
+
+
+def _describe_version(db: Session, entity: Entity, row: StatutoryConfigVersion) -> dict:
+    before = ConfigService(db, as_of=_prev_month(row.effective_from)).get_full_config(entity.id)
+    emails = {u.id: u.email for u in db.query(User).filter(
+        User.id.in_([i for i in (row.created_by, row.published_by, row.withdrawn_by) if i]))}
+    until = _covered_until(db, entity, row)
+    return {
+        "id": str(row.id), "number": row.number, "status": row.status,
+        "effective_from": row.effective_from.isoformat(),
+        "covers_until": until.isoformat() if until else None,
+        "note": row.note, "config": row.config,
+        "changes": _changes(before.model_dump(mode="json"), row.config),
+        "created_by": emails.get(row.created_by), "created_at": row.created_at.isoformat() if row.created_at else None,
+        "published_by": emails.get(row.published_by), "published_at": row.published_at.isoformat() if row.published_at else None,
+        "withdrawn_by": emails.get(row.withdrawn_by), "withdrawn_at": row.withdrawn_at.isoformat() if row.withdrawn_at else None,
+        "withdraw_reason": row.withdraw_reason,
+        "affected_months": _affected(db, entity, row) if row.status in ("draft", "published") else [],
+    }
+
+
+@router.get("/versions")
+def list_versions(
+    db: Session = Depends(get_db),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Every dated change, newest month first, and which one is in force this month."""
+    rows = (db.query(StatutoryConfigVersion)
+            .filter(StatutoryConfigVersion.entity_id == entity.id, StatutoryConfigVersion.status != "discarded")
+            .order_by(StatutoryConfigVersion.effective_from.desc(), StatutoryConfigVersion.number.desc()).all())
+    today = date.today().replace(day=1)
+    svc = ConfigService(db, as_of=today)
+    svc.get_full_config(entity.id)
+    return ok({"versions": [_describe_version(db, entity, r) for r in rows],
+               "in_force_now": svc.in_force,
+               "independent_publish": approvals.policy_for(db, entity.org_id)[
+                   "statutory_publish_requires_independent_approver"]})
+
+
+@router.post("/versions")
+def create_version(
+    body: VersionInput,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    """Draft a change that takes effect from the first of a month. Changes nothing until published."""
+    number = (db.query(StatutoryConfigVersion).filter(StatutoryConfigVersion.entity_id == entity.id).count()) + 1
+    row = StatutoryConfigVersion(entity_id=entity.id, number=number, status="draft",
+                                 effective_from=body.effective_from.replace(day=1),
+                                 config=body.config.model_dump(mode="json"), note=body.note, created_by=user.id)
+    db.add(row)
+    db.flush()
+    audit.record(db, entity_id=entity.id, user=user, action="statutory_version.drafted",
+                 object_type="statutory_config_version", object_id=str(row.id),
+                 summary=f"Drafted statutory change {number}, from {row.effective_from:%b %Y}")
+    db.commit()
+    return ok(_describe_version(db, entity, row))
+
+
+@router.put("/versions/{version_id}")
+def update_version(
+    version_id: str,
+    body: VersionInput,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    row = _version(db, entity, version_id)
+    if row.status != "draft":
+        raise HTTPException(status_code=409, detail="Only a draft can be changed. A published change is withdrawn and drafted again.")
+    row.effective_from = body.effective_from.replace(day=1)
+    row.config = body.config.model_dump(mode="json")
+    row.note = body.note
+    audit.record(db, entity_id=entity.id, user=user, action="statutory_version.edited",
+                 object_type="statutory_config_version", object_id=str(row.id),
+                 summary=f"Edited draft statutory change {row.number}")
+    db.commit()
+    return ok(_describe_version(db, entity, row))
+
+
+@router.delete("/versions/{version_id}")
+def discard_version(
+    version_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    row = _version(db, entity, version_id)
+    if row.status != "draft":
+        raise HTTPException(status_code=409, detail="Only a draft can be discarded")
+    row.status = "discarded"
+    audit.record(db, entity_id=entity.id, user=user, action="statutory_version.discarded",
+                 object_type="statutory_config_version", object_id=str(row.id),
+                 summary=f"Discarded draft statutory change {row.number}")
+    db.commit()
+    return ok({"id": str(row.id), "status": row.status})
+
+
+@router.post("/versions/{version_id}/publish")
+def publish_version(
+    version_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    """Put a draft in force from its month. The validated months it covers then
+    say revalidation is required, naming the configuration as what changed."""
+    _manager(db, user, entity)
+    row = _version(db, entity, version_id)
+    if row.status != "draft":
+        raise HTTPException(status_code=409, detail="Only a draft can be published")
+    clash = (db.query(StatutoryConfigVersion)
+             .filter(StatutoryConfigVersion.entity_id == entity.id, StatutoryConfigVersion.status == "published",
+                     StatutoryConfigVersion.effective_from == row.effective_from).first())
+    if clash is not None:
+        raise HTTPException(status_code=409, detail=(
+            f"Change {clash.number} already takes effect from {row.effective_from:%b %Y}. "
+            "Withdraw it first, or choose another month."))
+    try:
+        approvals.require_independent(db, entity.org_id, "statutory_publish_requires_independent_approver",
+                                      preparer_id=row.created_by, approver_id=user.id,
+                                      what="a statutory configuration change")
+    except approvals.ApprovalRefused as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    row.status = "published"
+    row.published_by, row.published_at = user.id, datetime.now(UTC)
+    affected = _affected(db, entity, row)
+    audit.record(db, entity_id=entity.id, user=user, action="statutory_version.published",
+                 object_type="statutory_config_version", object_id=str(row.id),
+                 summary=f"Published statutory change {row.number}, in force from {row.effective_from:%b %Y}",
+                 detail={"affected_months": affected, "author": str(row.created_by) if row.created_by else None})
+    db.commit()
+    return ok(_describe_version(db, entity, row))
+
+
+@router.post("/versions/{version_id}/withdraw")
+def withdraw_version(
+    version_id: str,
+    body: WithdrawInput,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    """Take a published change out of force. Its months fall back to the
+    version before it, or the base, and any validated among them become stale."""
+    _manager(db, user, entity)
+    row = _version(db, entity, version_id)
+    if row.status != "published":
+        raise HTTPException(status_code=409, detail="Only a published change can be withdrawn")
+    affected = _affected(db, entity, row)
+    row.status = "withdrawn"
+    row.withdrawn_by, row.withdrawn_at, row.withdraw_reason = user.id, datetime.now(UTC), body.reason
+    audit.record(db, entity_id=entity.id, user=user, action="statutory_version.withdrawn",
+                 object_type="statutory_config_version", object_id=str(row.id),
+                 summary=f"Withdrew statutory change {row.number} ({row.effective_from:%b %Y})",
+                 detail={"reason": body.reason, "affected_months": affected})
+    db.commit()
+    return ok(_describe_version(db, entity, row))

@@ -16,7 +16,7 @@ from app.config import settings
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user
 from app.envelope import ok
-from app.models import Entity, ReportDefinition, ReportDefinitionVersion, ReportJob, User
+from app.models import Entity, ReportDefinition, ReportDefinitionVersion, ReportJob, ReportSchedule, User
 from app.services import audit, report_builder, report_exports, report_jobs, tenancy
 
 router = APIRouter()
@@ -32,6 +32,19 @@ class DefinitionInput(BaseModel):
 
 class PreviewInput(BaseModel):
     specification: dict[str, Any]
+
+
+class QueueInput(BaseModel):
+    format: str = "xlsx"
+
+
+class ScheduleInput(BaseModel):
+    frequency: str = Field(pattern="^(monthly|weekly)$")
+    day: int = Field(ge=0, le=28)
+    hour: int = Field(default=9, ge=0, le=23)
+    months: int = Field(default=1, ge=1, le=24)
+    format: str = Field(default="xlsx", pattern="^(xlsx|pdf)$")
+    enabled: bool = True
 
 
 def _reader(db: Session, user: User, entity: Entity) -> None:
@@ -159,18 +172,22 @@ def _job_detail(job: ReportJob) -> dict:
         "expires_at": job.expires_at.isoformat() if job.expires_at else None,
         "error_code": job.error_code, "error_message": job.error_message,
         "cancel_requested": job.cancel_requested,
+        "format": job.format or "xlsx", "origin": job.origin or "person",
     }
 
 
 @router.post("/saved/{report_id}/jobs")
-def queue_report(report_id: uuid.UUID, db: Session = Depends(get_db),
+def queue_report(report_id: uuid.UUID, body: QueueInput | None = None, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
     _reader(db, user, entity)
     report = _get(db, user, entity, report_id)
+    fmt = (body.format if body else "xlsx")
+    if fmt not in report_exports.FORMATS:
+        raise HTTPException(status_code=422, detail="Output must be Excel (xlsx) or PDF (pdf)")
     spec = report_builder.validate(report.specification)
     if not spec["date_from"] or not spec["date_to"]:
         raise HTTPException(status_code=422, detail="Choose both period bounds before generation")
-    job = report_jobs.enqueue(db, entity=entity, report=report, user=user)
+    job = report_jobs.enqueue(db, entity=entity, report=report, user=user, fmt=fmt)
     audit.record(db, entity_id=entity.id, user=user, action="report.queued",
                  object_type="report_job", object_id=str(job.id), summary="Queued aggregate report")
     db.commit()
@@ -228,7 +245,7 @@ def retry_job(job_id: uuid.UUID, db: Session = Depends(get_db),
     if old.state != "failed":
         raise HTTPException(status_code=409, detail="Only failed jobs can be retried")
     report = _get(db, user, entity, old.definition_id)
-    fresh = report_jobs.enqueue(db, entity=entity, report=report, user=user)
+    fresh = report_jobs.enqueue(db, entity=entity, report=report, user=user, fmt=old.format or "xlsx")
     db.commit()
     db.refresh(fresh)
     return ok(_job_detail(fresh))
@@ -249,9 +266,9 @@ def download_job(job_id: uuid.UUID, db: Session = Depends(get_db),
                  object_type="report_job", object_id=str(job.id),
                  summary="Downloaded generated report", detail={"version": job.definition_version})
     db.commit()
-    filename = f"peopleops-report-{job.id.hex[:12]}-v{job.definition_version}.xlsx"
-    return StreamingResponse(io.BytesIO(job.artifact),
-                             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    media_type, extension = report_exports.FORMATS[job.format or "xlsx"]
+    filename = f"peopleops-report-{job.id.hex[:12]}-v{job.definition_version}.{extension}"
+    return StreamingResponse(io.BytesIO(job.artifact), media_type=media_type,
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
@@ -344,3 +361,78 @@ def preview_saved(report_id: uuid.UUID, db: Session = Depends(get_db),
     _reader(db, user, entity)
     report = _get(db, user, entity, report_id)
     return ok(report_builder.preview(db, entity.id, report.specification))
+
+
+# ---------------------------------------------------------------------------
+# Schedules
+# ---------------------------------------------------------------------------
+def _schedule_detail(row: ReportSchedule | None) -> dict | None:
+    if row is None:
+        return None
+    return {
+        "id": str(row.id), "frequency": row.frequency, "day": row.day, "hour": row.hour,
+        "months": row.months, "format": row.format, "enabled": row.enabled,
+        "next_run_at": row.next_run_at.isoformat() if row.next_run_at else None,
+        "last_run_at": row.last_run_at.isoformat() if row.last_run_at else None,
+        "last_job_id": str(row.last_job_id) if row.last_job_id else None,
+        "last_error": row.last_error,
+        "delivery": "Generated files in this product, for you. The platform sends no email.",
+    }
+
+
+def _own_schedule(db: Session, user: User, report: ReportDefinition) -> ReportSchedule | None:
+    return (db.query(ReportSchedule)
+            .filter(ReportSchedule.definition_id == report.id, ReportSchedule.owner_user_id == user.id)
+            .first())
+
+
+@router.get("/saved/{report_id}/schedule")
+def get_schedule(report_id: uuid.UUID, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    """Your schedule for this report, if you have one. Each person schedules for themselves."""
+    _reader(db, user, entity)
+    return ok({"schedule": _schedule_detail(_own_schedule(db, user, _get(db, user, entity, report_id)))})
+
+
+@router.put("/saved/{report_id}/schedule")
+def put_schedule(report_id: uuid.UUID, body: ScheduleInput, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    _reader(db, user, entity)
+    report = _get(db, user, entity, report_id)
+    if body.frequency == "monthly" and not 1 <= body.day <= 28:
+        raise HTTPException(status_code=422, detail="A monthly schedule runs on day 1 to 28")
+    if body.frequency == "weekly" and not 0 <= body.day <= 6:
+        raise HTTPException(status_code=422, detail="A weekly schedule runs on a weekday, 0 (Monday) to 6 (Sunday)")
+    row = _own_schedule(db, user, report)
+    if row is None:
+        row = ReportSchedule(org_id=entity.org_id, entity_id=entity.id, definition_id=report.id,
+                             owner_user_id=user.id, frequency=body.frequency, day=body.day)
+        db.add(row)
+    row.frequency, row.day, row.hour = body.frequency, body.day, body.hour
+    row.months, row.format, row.enabled = body.months, body.format, body.enabled
+    row.last_error = None
+    row.next_run_at = report_jobs.next_run(body.frequency, body.day, body.hour, report_jobs._now()) if body.enabled else None
+    audit.record(db, entity_id=entity.id, user=user, action="report.scheduled",
+                 object_type="report_definition", object_id=str(report.id),
+                 summary=("Scheduled" if body.enabled else "Paused the schedule of") + " a saved report",
+                 detail={"frequency": body.frequency, "day": body.day, "hour": body.hour,
+                         "months": body.months, "format": body.format})
+    db.commit()
+    db.refresh(row)
+    return ok({"schedule": _schedule_detail(row)})
+
+
+@router.delete("/saved/{report_id}/schedule")
+def delete_schedule(report_id: uuid.UUID, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    _reader(db, user, entity)
+    report = _get(db, user, entity, report_id)
+    row = _own_schedule(db, user, report)
+    if row is None:
+        raise HTTPException(status_code=404, detail="This report has no schedule of yours")
+    db.delete(row)
+    audit.record(db, entity_id=entity.id, user=user, action="report.unscheduled",
+                 object_type="report_definition", object_id=str(report.id),
+                 summary="Removed the schedule of a saved report")
+    db.commit()
+    return ok({"schedule": None})

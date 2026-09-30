@@ -20,6 +20,9 @@ os.environ["ENV"] = "dev"
 # Tests drive the worker directly (drain/run_once). A background thread racing
 # them for jobs would make every queue test nondeterministic.
 os.environ["VALIDATION_WORKER_ENABLED"] = "false"
+# The same for report jobs and schedules: a background thread would claim jobs
+# and run schedules against the real clock while tests drive them by hand.
+os.environ["REPORT_WORKER_ENABLED"] = "false"
 # Studio connection tests talk to a mock system on 127.0.0.1. Production forces
 # this off; the tests that prove private addresses are refused switch it off.
 os.environ["STUDIO_ALLOW_PRIVATE_DESTINATIONS"] = "true"

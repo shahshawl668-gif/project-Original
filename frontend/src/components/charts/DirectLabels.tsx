@@ -51,9 +51,11 @@ export function DirectLabels({
       if (mid !== undefined && v > 0) points.push({ label: s.label, color: s.color, at: mid });
     }
   } else {
+    // Only a line that reaches the last period is named at the edge; one that
+    // stops earlier would be labelled where it is not. The legend names it.
+    const last = data[data.length - 1];
     for (const s of series) {
-      const row = [...data].reverse().find((r) => num(r[s.key]) !== null);
-      const at = row ? y(num(row[s.key])) : undefined;
+      const at = num(last[s.key]) !== null ? y(num(last[s.key])) : undefined;
       if (at !== undefined) points.push({ label: s.label, color: s.color, at });
     }
   }

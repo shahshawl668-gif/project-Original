@@ -61,7 +61,7 @@ def build_snapshot(db: Session, entity: Entity, period_month: date) -> dict:
     from app.services.issues import expire_waivers
 
     period_month = period_month.replace(day=1)
-    config_service = ConfigService(db)
+    config_service = ConfigService(db, as_of=period_month)
     # A waiver that has lapsed is not an accepted finding any more; it is open.
     expire_waivers(db, entity.id)
 

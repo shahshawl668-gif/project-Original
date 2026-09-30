@@ -31,9 +31,9 @@ PRIOR = date(2026, 5, 1)
 
 def _components(client, headers) -> dict:
     out = {}
-    for name, flags in (("Basic", dict(pf_applicable=True, esic_applicable=True, pt_applicable=True,
-                                       lwf_applicable=True)),
-                        ("HRA", dict(pf_applicable=False, esic_applicable=True))):
+    for name, flags in (("Basic", {"pf_applicable": True, "esic_applicable": True, "pt_applicable": True,
+                                   "lwf_applicable": True}),
+                        ("HRA", {"pf_applicable": False, "esic_applicable": True})):
         r = client.post("/api/components", headers=headers, json={
             "component_name": name, "included_in_wages": True, "taxable": True, **flags})
         assert r.status_code == 201, r.text

@@ -24,6 +24,7 @@ export function SaveBar({
   label,
   note,
   canSave = true,
+  secondary,
 }: {
   changes: Change[];
   saving: boolean;
@@ -32,6 +33,8 @@ export function SaveBar({
   label?: (field: string) => string;
   note?: ReactNode;
   canSave?: boolean;
+  /** Another way to keep the changes, shown before Save (e.g. "Schedule from a month…"). */
+  secondary?: ReactNode;
 }) {
   const [review, setReview] = useState(false);
   if (!changes.length) return null;
@@ -50,6 +53,7 @@ export function SaveBar({
           </button>
           <div className="ml-auto flex gap-2">
             <Button variant="ghost" onClick={onDiscard} disabled={saving}>Discard</Button>
+            {secondary}
             <Button onClick={onSave} disabled={saving || !canSave}>
               {saving ? <Loader2 size={14} className="animate-spin" /> : null}
               {saving ? "Saving…" : "Save changes"}

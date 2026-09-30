@@ -23,10 +23,11 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from functools import lru_cache
+from functools import cache
 from itertools import chain
 from pathlib import Path
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from sqlalchemy import event, func
 from sqlalchemy.orm import Session
@@ -60,7 +61,7 @@ INPUT_KEYS = tuple(sorted(set(TRACKED.values())))
 ANY_COMPANY = "*"
 
 
-@lru_cache(maxsize=None)
+@cache
 def source_digest(*relative_paths: str) -> str:
     """Digest of source files under ``app/``, so a release that changes how a
     cached value is computed invalidates what the old code stored."""
