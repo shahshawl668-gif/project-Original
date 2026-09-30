@@ -143,7 +143,7 @@ export function ExceptionList({ exceptions }: { exceptions: ReconException[] }) 
               <ChevronRight
                 size={15}
                 className={cn(
-                  "mt-1 shrink-0 text-ink-400 transition-transform",
+                  "mt-1 shrink-0 text-ink-500 transition-transform",
                   expanded && "rotate-90",
                 )}
               />
@@ -174,7 +174,7 @@ export function ExceptionList({ exceptions }: { exceptions: ReconException[] }) 
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-left text-[11px] text-ink-400">
+                      <tr className="text-left text-[11px] text-ink-500">
                         <th className="pb-1.5 pr-3 font-semibold">Detail</th>
                         <th className="pb-1.5 pr-3 text-right font-semibold">Expected</th>
                         <th className="pb-1.5 pr-3 text-right font-semibold">Actual</th>
@@ -241,7 +241,7 @@ export function Figure({
   return (
     <Card>
       <CardContent className="space-y-1 py-4">
-        <span className="block text-[11px] font-semibold text-ink-400">
+        <span className="block text-[11px] font-semibold text-ink-500">
           {label}
         </span>
         <p className={cn("font-display text-2xl font-semibold tabular-nums", tint)}>{value}</p>

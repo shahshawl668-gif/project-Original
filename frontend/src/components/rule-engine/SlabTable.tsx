@@ -299,7 +299,7 @@ export function SlabTable({ slabs, onChange, errors, showEmployer = false }: Pro
                   {monthErr ? (
                     <p className="mt-1 text-xs text-danger-600">{monthErr}</p>
                   ) : (
-                    <p className="mt-1 text-[10px] text-ink-400">
+                    <p className="mt-1 text-[10px] text-ink-500">
                       e.g. 2 (Feb only)
                     </p>
                   )}

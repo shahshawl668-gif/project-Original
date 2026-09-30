@@ -146,7 +146,7 @@ function InviteInner() {
 
         <dl className="mt-5 space-y-2 rounded-xl border border-ink-200 bg-white/60 p-4 text-[13px]">
           <div className="flex items-start gap-2">
-            <Building2 size={14} className="mt-0.5 shrink-0 text-ink-400" />
+            <Building2 size={14} className="mt-0.5 shrink-0 text-ink-500" />
             <div>
               <dt className="font-medium text-ink-800">
                 {preview.entity_names.length === 0
@@ -157,7 +157,7 @@ function InviteInner() {
             </div>
           </div>
           <div className="flex items-start gap-2">
-            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-ink-400" />
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-ink-500" />
             <div>
               <dt className="font-medium text-ink-800">
                 Expires {formatWhen(preview.expires_at)}

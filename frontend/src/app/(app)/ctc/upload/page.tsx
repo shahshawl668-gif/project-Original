@@ -343,7 +343,7 @@ export default function CtcUploadPage() {
         </Card>
       ) : !busy && file && columns.length === 0 && records.length === 0 && !error ? (
         <EmptyState
-          icon={<FileSpreadsheet className="h-6 w-6 text-ink-400" />}
+          icon={<FileSpreadsheet className="h-6 w-6 text-ink-500" />}
           title="Ready to parse"
           description="Run “Parse & preview” to validate column mapping and preview rows before committing."
         />

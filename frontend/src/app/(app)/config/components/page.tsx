@@ -119,7 +119,7 @@ export default function ComponentsPage() {
     v ? (
       <Badge variant="success">Yes</Badge>
     ) : (
-      <span className="text-xs text-ink-400">No</span>
+      <span className="text-xs text-ink-500">No</span>
     );
 
   return (

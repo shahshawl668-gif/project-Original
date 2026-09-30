@@ -90,10 +90,10 @@ function PeriodPicker() {
         aria-label={`Period: ${periodLabel(period)}${source === "chosen" ? "" : " (latest)"}. Change period`}
         className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 text-[13px] font-medium text-ink-800 shadow-soft transition-colors hover:border-ink-300 hover:bg-ink-50"
       >
-        <CalendarRange size={14} className="text-ink-400" aria-hidden />
+        <CalendarRange size={14} className="text-ink-500" aria-hidden />
         <span className="num">{periodLabel(period)}</span>
-        {source !== "chosen" ? <span className="text-xs font-normal text-ink-400">latest</span> : null}
-        <ChevronDown size={13} className="text-ink-400" aria-hidden />
+        {source !== "chosen" ? <span className="text-xs font-normal text-ink-500">latest</span> : null}
+        <ChevronDown size={13} className="text-ink-500" aria-hidden />
       </button>
       {open ? (
         <div role="listbox" aria-label="Period" className="absolute right-0 z-50 mt-1.5 max-h-80 w-60 animate-fade-up overflow-y-auto rounded-xl border border-ink-200 bg-white p-1 shadow-elevated">
@@ -117,7 +117,7 @@ function PeriodPicker() {
               )}
             >
               <span className="num flex-1">{periodLabel(p)}</span>
-              <span className="text-xs text-ink-400">{n ? `${n} run${n > 1 ? "s" : ""}` : "no runs"}</span>
+              <span className="text-xs text-ink-500">{n ? `${n} run${n > 1 ? "s" : ""}` : "no runs"}</span>
               {p === period ? <Check size={13} className="text-brand-700" aria-hidden /> : null}
             </button>
           ))}
@@ -164,7 +164,7 @@ function RunChip() {
         stale ? "border-warning-200 bg-warning-50 text-warning-900 hover:bg-warning-100" : "border-ink-200 bg-white text-ink-800 hover:bg-ink-50",
       )}
     >
-      <Hash size={13} className="text-ink-400" aria-hidden />
+      <Hash size={13} className="text-ink-500" aria-hidden />
       <span className="num">Run {s.current_run.run_number}</span>
       <span className="text-xs font-normal text-ink-500">{stale ? "· out of date" : "· current"}</span>
     </Link>

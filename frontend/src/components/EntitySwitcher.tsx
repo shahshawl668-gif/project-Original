@@ -50,7 +50,7 @@ export function EntitySwitcher() {
         className="inline-flex max-w-[15rem] items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] font-medium text-ink-800"
         title={entity.legal_name ?? entity.name}
       >
-        <Building2 size={14} className="flex-shrink-0 text-ink-400" aria-hidden />
+        <Building2 size={14} className="flex-shrink-0 text-ink-500" aria-hidden />
         <span className="truncate">{entity.name}</span>
       </span>
     );
@@ -86,10 +86,10 @@ export function EntitySwitcher() {
         {switching ? (
           <Loader2 size={14} className="flex-shrink-0 animate-spin text-brand-600" aria-hidden />
         ) : (
-          <Building2 size={14} className="flex-shrink-0 text-ink-400" aria-hidden />
+          <Building2 size={14} className="flex-shrink-0 text-ink-500" aria-hidden />
         )}
         <span className="truncate">{entity.name}</span>
-        <ChevronDown size={13} className="flex-shrink-0 text-ink-400" aria-hidden />
+        <ChevronDown size={13} className="flex-shrink-0 text-ink-500" aria-hidden />
       </button>
 
       {open && (

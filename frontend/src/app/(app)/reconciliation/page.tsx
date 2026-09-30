@@ -201,7 +201,7 @@ export default function ReconciliationOverviewPage() {
                       className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
                     >
                       <span className="flex items-center gap-2 text-ink-800">
-                        <Users size={13} className="text-ink-400" />
+                        <Users size={13} className="text-ink-500" />
                         {run.kind === "bank" ? "Bank payments" : "Journal voucher"} ·{" "}
                         {run.period_label}
                       </span>
@@ -244,7 +244,7 @@ function StepCard({
     <Card>
       <CardContent className="space-y-3 py-5">
         <h3 className="flex items-center gap-2 text-[15px] font-semibold text-ink-900">
-          <Icon size={16} className="text-ink-400" /> {title}
+          <Icon size={16} className="text-ink-500" /> {title}
         </h3>
         {children}
         <Link

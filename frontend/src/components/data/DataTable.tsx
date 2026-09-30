@@ -153,7 +153,8 @@ export function DataTable<T>({
             type="button"
             onClick={() => setPrefs(density === "compact" ? "comfortable" : "compact", hidden)}
             aria-pressed={density === "compact"}
-            title={density === "compact" ? "Comfortable rows" : "Compact rows"}
+            aria-label="Compact rows"
+            title="Compact rows"
             className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-ink-600 hover:bg-ink-100"
           >
             <Rows3 size={14} aria-hidden />
@@ -166,6 +167,7 @@ export function DataTable<T>({
                 onClick={() => setMenu((v) => !v)}
                 aria-expanded={menu}
                 aria-haspopup="true"
+                aria-label="Choose columns"
                 className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-ink-600 hover:bg-ink-100"
               >
                 <Columns3 size={14} aria-hidden />
@@ -197,7 +199,9 @@ export function DataTable<T>({
             <div className="h-full w-1/3 animate-indeterminate bg-brand-500" />
           </div>
         ) : null}
-        <div className="scrollbar-thin overflow-auto" style={maxHeight ? { maxHeight } : undefined}>
+        {/* Rows that open are the keyboard's way in; a read-only table's scroll area takes focus itself (WCAG 2.1.1). */}
+        <div className="scrollbar-thin overflow-auto" style={maxHeight ? { maxHeight } : undefined}
+          {...(onRowOpen || selectable ? {} : { tabIndex: 0, role: "region", "aria-label": caption })}>
           <table className="w-full border-separate border-spacing-0 text-[13px]" style={{ minWidth }} aria-busy={loading || refreshing}>
             <caption className="sr-only">{caption}</caption>
             <thead>
@@ -256,7 +260,9 @@ export function DataTable<T>({
               {error ? (
                 <tr><td colSpan={colCount} className="px-4 py-8">{error}</td></tr>
               ) : loading && !rows ? (
-                Array.from({ length: 6 }).map((_, i) => (
+                // Enough placeholder rows to push anything below the table out of view,
+                // so the first page of data does not shove it down (layout shift).
+                Array.from({ length: 12 }).map((_, i) => (
                   <tr key={i}>
                     <td colSpan={colCount} className="border-b border-ink-100 px-3 py-2.5">
                       <div className="h-3 w-full animate-pulse-soft rounded bg-ink-100" />

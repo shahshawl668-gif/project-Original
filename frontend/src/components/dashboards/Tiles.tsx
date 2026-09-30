@@ -54,7 +54,7 @@ export function TileView({ tile, period, onEdit, onRemove, onMoveUp, onMoveDown,
               {r.metric.label}
               {r.breakdown.key !== "period" || tile.chart !== "kpi" ? ` · by ${r.breakdown.label.toLowerCase()}` : ""}
               {" · "}{r.period.label}
-              {" · "}<span className="text-ink-400">{UNIT_LABEL[r.metric.unit]}</span>
+              {" · "}<span className="text-ink-500">{UNIT_LABEL[r.metric.unit]}</span>
             </p>
           ) : <Skeleton className="mt-1 h-3 w-40" />}
           {filters.length ? (
@@ -65,7 +65,7 @@ export function TileView({ tile, period, onEdit, onRemove, onMoveUp, onMoveDown,
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {r ? (
-            <span title={`${r.metric.definition}\nSource: ${r.dataset.source}${entity ? `\nCompany: ${entity.name}` : ""}`} className="p-1 text-ink-400">
+            <span title={`${r.metric.definition}\nSource: ${r.dataset.source}${entity ? `\nCompany: ${entity.name}` : ""}`} className="p-1 text-ink-500">
               <Info size={13} aria-hidden /><span className="sr-only">How this is calculated: {r.metric.definition}. Source: {r.dataset.source}.</span>
             </span>
           ) : null}
@@ -144,7 +144,7 @@ function Answer({ r, chart }: { r: QueryResult; chart: Chart }) {
                 <td className="pr-2 text-ink-700">
                   {row.drill ? <Link href={row.drill} className="inline-flex items-center gap-1 hover:underline">{row.label} <ArrowUpRight size={11} aria-hidden /></Link> : row.label}
                 </td>
-                <td className="num text-right text-ink-900">{row.value === null ? <span className="text-ink-400">no data</span> : formatValue(row.value, unit)}</td>
+                <td className="num text-right text-ink-900">{row.value === null ? <span className="text-ink-500">no data</span> : formatValue(row.value, unit)}</td>
               </tr>
             ))}
             {r.total !== null ? (
@@ -297,7 +297,7 @@ export function TileBuilder({ catalogue, initial, onSave, onCancel, period }: {
       <div className="relative">
         <label className="text-xs font-medium text-ink-700" htmlFor="metric-search">Find a metric</label>
         <div className="relative mt-1">
-          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" aria-hidden />
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" aria-hidden />
           <input id="metric-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} autoComplete="off"
             placeholder="Search every dataset's metrics and your custom KPIs — e.g. overdue, employer, headcount"
             className="h-9 w-full rounded-lg border border-ink-200 bg-white pl-8 pr-2 text-[13px] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
@@ -372,7 +372,7 @@ export function TileBuilder({ catalogue, initial, onSave, onCancel, period }: {
                 if (!opts.length) return null;
                 return (
                   <label key={f} className="text-[11px] text-ink-600">
-                    {f.replaceAll("_", " ")} <span className="text-ink-400">(Ctrl/⌘-click for several)</span>
+                    {f.replaceAll("_", " ")} <span className="text-ink-500">(Ctrl/⌘-click for several)</span>
                     <select multiple aria-label={`Filter ${f}`} className={cn(FIELD, "mt-0.5 h-20")} value={tile.filters[f] ?? []}
                       onChange={(e) => set({ filters: { ...tile.filters, [f]: Array.from(e.target.selectedOptions).map((o) => o.value) } })}>
                       {opts.map((o) => <option key={o} value={o}>{o}</option>)}

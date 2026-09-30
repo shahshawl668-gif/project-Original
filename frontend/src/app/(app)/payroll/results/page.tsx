@@ -74,7 +74,7 @@ function Impact({ f }: { f: Pick<RunFinding, "impact_calculated" | "financial_im
   return f.impact_calculated && f.financial_impact !== null ? (
     <span className="num">{inr(f.financial_impact)}</span>
   ) : (
-    <span className="text-xs italic text-ink-400" title="This check does not price its effect. It is not a ₹0 finding.">Not calculated</span>
+    <span className="text-xs italic text-ink-500" title="This check does not price its effect. It is not a ₹0 finding.">Not calculated</span>
   );
 }
 
@@ -149,7 +149,7 @@ function FindingsView({ runId, rulePrefix, prefix = "f" }: { runId: string; rule
       cell: (f) => (
         <span className="whitespace-nowrap text-xs text-ink-600">
           {f.was_waived ? "Waived" : STATE_LABEL[f.state ?? "open"] ?? f.state}
-          {f.occurrence_count && f.occurrence_count > 1 ? <span className="text-ink-400"> · {f.occurrence_count} months</span> : null}
+          {f.occurrence_count && f.occurrence_count > 1 ? <span className="text-ink-500"> · {f.occurrence_count} months</span> : null}
         </span>
       ),
     },
@@ -166,7 +166,7 @@ function FindingsView({ runId, rulePrefix, prefix = "f" }: { runId: string; rule
   const toolbar = (
     <>
       <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" aria-hidden />
+        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" aria-hidden />
         <input
           type="search"
           value={search}
@@ -221,7 +221,7 @@ function FindingsView({ runId, rulePrefix, prefix = "f" }: { runId: string; rule
             { id: "severity", header: "Severity", cell: (r) => <StatusPill tone={SEVERITY_TONE[r.severity] ?? "neutral"}>{SEVERITY_LABEL[r.severity] ?? r.severity}</StatusPill> },
             { id: "count", header: "Findings", numeric: true, cell: (r) => count(r.count) },
             { id: "employees", header: "Employees", numeric: true, cell: (r) => count(r.employees ?? null) },
-            { id: "impact", header: "Impact", numeric: true, cell: (r) => r.financial_impact === null || r.financial_impact === undefined ? <span className="text-xs italic text-ink-400">Not priced</span> : inr(r.financial_impact) },
+            { id: "impact", header: "Impact", numeric: true, cell: (r) => r.financial_impact === null || r.financial_impact === undefined ? <span className="text-xs italic text-ink-500">Not priced</span> : inr(r.financial_impact) },
             { id: "open", header: <span className="sr-only">Show</span>, cell: () => <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-700">Show <ArrowRight size={12} aria-hidden /></span> },
           ]}
           rows={groups}
@@ -354,7 +354,7 @@ function EmployeeView({ runId, mode }: { runId: string; mode: EmployeeMode }) {
     cell: (r) => (
       <span className="inline-flex items-center gap-1.5 text-xs text-ink-700">
         <span className={cn("h-2 w-2 rounded-full", RISK_TONE[r.risk_level])} aria-hidden />
-        {RISK_LABEL[r.risk_level]} <span className="num text-ink-400">{r.risk_score}</span>
+        {RISK_LABEL[r.risk_level]} <span className="num text-ink-500">{r.risk_score}</span>
       </span>
     ),
   };
@@ -376,7 +376,7 @@ function EmployeeView({ runId, mode }: { runId: string; mode: EmployeeMode }) {
       },
       { id: "gross", header: "Gross", numeric: true, hideable: true, cell: (r) => inr(r.gross) },
       { id: "net", header: "Net pay", numeric: true, hideable: true, defaultHidden: true, cell: (r) => inr(r.net_pay) },
-      { id: "impact", header: "Impact", numeric: true, cell: (r) => r.financial_impact ? inr(r.financial_impact) : r.failed_checks ? <span className="text-xs italic text-ink-400">Not priced</span> : <span className="text-ink-300">—</span> },
+      { id: "impact", header: "Impact", numeric: true, cell: (r) => r.financial_impact ? inr(r.financial_impact) : r.failed_checks ? <span className="text-xs italic text-ink-500">Not priced</span> : <span className="text-ink-300">—</span> },
     ],
     risk: [
       identity, risk,
@@ -430,7 +430,7 @@ function EmployeeView({ runId, mode }: { runId: string; mode: EmployeeMode }) {
         toolbar={
           <>
             <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" aria-hidden />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" aria-hidden />
               <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Employee ID or name" aria-label="Search employees"
                 className="h-8 w-full rounded-lg border border-ink-200 bg-white pl-8 pr-2 text-[13px] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
             </div>
@@ -503,7 +503,7 @@ const OUTCOME_BAR: Record<Outcome, string> = {
   passed: "bg-success-500", failed: "bg-danger-500", cannot_validate: "bg-warning-400", not_applicable: "bg-ink-200", disabled: "bg-ink-100",
 };
 const OUTCOME_TEXT: Record<Outcome, string> = {
-  passed: "text-success-700", failed: "text-danger-700", cannot_validate: "text-warning-800", not_applicable: "text-ink-500", disabled: "text-ink-400",
+  passed: "text-success-700", failed: "text-danger-700", cannot_validate: "text-warning-800", not_applicable: "text-ink-500", disabled: "text-ink-500",
 };
 
 /** Outcomes beside the issues, never merged into them: "no failures" means nothing if nothing ran. */
@@ -581,7 +581,7 @@ function CoverageTab({ runId, coverage, exposure }: { runId: string; coverage: C
               <span>
                 <span className="font-mono text-xs text-ink-500">{r.rule_id}</span> <span className="text-ink-900">{r.name}</span>
                 {r.material ? <Badge variant="secondary" className="ml-2">Statutory</Badge> : null}
-                {!r.runs_in_validation ? <span className="ml-2 text-xs text-ink-400">runs outside validation</span> : null}
+                {!r.runs_in_validation ? <span className="ml-2 text-xs text-ink-500">runs outside validation</span> : null}
               </span>
             ),
           },

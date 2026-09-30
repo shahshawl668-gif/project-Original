@@ -22,7 +22,7 @@ export default function GlobalError({
           {error.message || "An unexpected error occurred while rendering this page."}
         </p>
         {error.digest ? (
-          <p className="mt-2 text-xs text-ink-400">Reference: {error.digest}</p>
+          <p className="mt-2 text-xs text-ink-500">Reference: {error.digest}</p>
         ) : null}
         <div className="mt-5 flex gap-3">
           <button

@@ -64,7 +64,7 @@ export function SupportBanner() {
                 {pending
                   ? `${grant.admin_email} has asked for read-only support access`
                   : `${grant.admin_email} can read this organization right now`}
-                <span className="ml-2 font-normal opacity-80">{timeLeft(grant.expires_at)}</span>
+                <span className="ml-2 font-normal">{timeLeft(grant.expires_at)}</span>
               </p>
               <p className="text-xs text-ink-700">
                 &ldquo;{grant.reason}&rdquo; — read-only, employee identities masked.

@@ -39,7 +39,7 @@ function DeltaTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+          <tr className="border-b border-ink-200 text-[11px] text-ink-500">
             <th className="py-2 text-left font-semibold">{firstColumn}</th>
             <th className="py-2 text-right font-semibold">{aLabel}</th>
             <th className="py-2 text-right font-semibold">{bLabel}</th>
@@ -124,7 +124,7 @@ export function ComparePanel({
       >
         <div className="mb-5 grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-ink-200/70 p-3">
-            <p className="text-[11px] font-semibold text-ink-400">{aLabel}</p>
+            <p className="text-[11px] font-semibold text-ink-500">{aLabel}</p>
             <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
               {formatINR(ctc?.a ?? 0, true)}
             </p>
@@ -133,7 +133,7 @@ export function ComparePanel({
             </p>
           </div>
           <div className="flex flex-col items-center justify-center rounded-xl border border-ink-200/70 p-3 text-center">
-            <ArrowRight size={16} className="mb-1 text-ink-400" />
+            <ArrowRight size={16} className="mb-1 text-ink-500" />
             <p className={cn("font-display text-xl font-semibold tabular-nums", toneFor(ctc?.delta ?? 0))}>
               {formatDelta(ctc?.delta ?? 0)}
             </p>
@@ -142,7 +142,7 @@ export function ComparePanel({
             </p>
           </div>
           <div className="rounded-xl border border-ink-200/70 p-3">
-            <p className="text-[11px] font-semibold text-ink-400">{bLabel}</p>
+            <p className="text-[11px] font-semibold text-ink-500">{bLabel}</p>
             <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
               {formatINR(ctc?.b ?? 0, true)}
             </p>

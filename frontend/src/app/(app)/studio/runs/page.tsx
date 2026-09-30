@@ -78,7 +78,7 @@ function Runs() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-ink-200">
-          <table className="w-full text-sm">
+          <div className="scrollbar-thin overflow-x-auto"><table className="w-full text-sm">
             <thead className="bg-ink-50 text-left text-xs text-ink-500">
               <tr><th className="px-3 py-2">Queued</th><th className="px-3 py-2">Run</th><th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Started by</th><th className="px-3 py-2">Source / batch</th>
@@ -89,7 +89,7 @@ function Runs() {
                 <tr key={r.id} className="hover:bg-ink-50/60">
                   <td className="whitespace-nowrap px-3 py-2 text-ink-600">{fmtTime(r.queued_at)}</td>
                   <td className="px-3 py-2"><Link href={`/studio/runs/${r.id}`} className="font-medium text-brand-700 hover:underline">{runTitle(r)}</Link>
-                    <span className="block text-[11px] text-ink-400">{r.period_month ? `for ${r.period_month.slice(0, 7)}` : r.effective_from ? `from ${r.effective_from}` : ""} {r.trigger !== "api" ? `· ${r.trigger}` : ""}</span></td>
+                    <span className="block text-[11px] text-ink-500">{r.period_month ? `for ${r.period_month.slice(0, 7)}` : r.effective_from ? `from ${r.effective_from}` : ""} {r.trigger !== "api" ? `· ${r.trigger}` : ""}</span></td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                   <td className="px-3 py-2 text-xs text-ink-600">{r.actor.type === "machine" ? "🔑 " : ""}{r.actor.label}</td>
                   <td className="px-3 py-2 text-xs text-ink-600">{[r.source.system, r.source.batch_id].filter(Boolean).join(" · ") || "—"}</td>
@@ -99,7 +99,7 @@ function Runs() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
       {q.data && q.data.pages > 1 ? (

@@ -19,14 +19,14 @@ export function Stepper({ steps, className, label }: { steps: Step[]; className?
               s.state === "done" && "bg-success-600 text-white",
               s.state === "current" && "bg-brand-600 text-white",
               s.state === "error" && "bg-danger-600 text-white",
-              s.state === "todo" && "border border-ink-200 bg-white text-ink-400",
+              s.state === "todo" && "border border-ink-200 bg-white text-ink-500",
             )}
             aria-hidden
           >
             {s.state === "done" ? <Check size={13} strokeWidth={3} /> : s.state === "error" ? <X size={13} strokeWidth={3} /> : i + 1}
           </span>
           <span className="min-w-0">
-            <span className={cn("block truncate text-[13px] font-medium", s.state === "todo" ? "text-ink-400" : "text-ink-900")}>
+            <span className={cn("block truncate text-[13px] font-medium", s.state === "todo" ? "text-ink-500" : "text-ink-900")}>
               <span className="sr-only">
                 {s.state === "done" ? "Completed: " : s.state === "current" ? "Current: " : s.state === "error" ? "Failed: " : "Not started: "}
               </span>

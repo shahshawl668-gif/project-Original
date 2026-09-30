@@ -345,7 +345,7 @@ export default function UploadPage() {
                 </div>
               ) : (
                 <>
-                  <UploadCloud className="h-7 w-7 text-ink-400" strokeWidth={1.5} aria-hidden />
+                  <UploadCloud className="h-7 w-7 text-ink-500" strokeWidth={1.5} aria-hidden />
                   <p className="mt-2 text-sm text-ink-700">Drop the register here, or</p>
                   <label className="mt-2 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3.5 text-[13px] font-medium text-ink-800 shadow-soft hover:bg-ink-50 focus-within:outline focus-within:outline-2 focus-within:outline-brand-600">
                     Choose a file
@@ -443,7 +443,7 @@ export default function UploadPage() {
             <div className="min-w-0 border-ink-100 lg:border-r">
               <div className="flex flex-wrap items-center gap-2 border-b border-ink-100 px-4 py-2.5">
                 <div className="relative min-w-[12rem] flex-1">
-                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" aria-hidden />
+                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" aria-hidden />
                   <input
                     type="search"
                     value={query}
@@ -481,7 +481,7 @@ export default function UploadPage() {
                           <td className="max-w-[14rem]"><span className="block truncate font-medium text-ink-900" title={source}>{source}</span></td>
                           <td className="max-w-[12rem]">
                             <span className="block truncate font-mono text-xs text-ink-600" title={samples.map(String).join(", ")}>
-                              {samples.length ? samples.map(String).join(", ") : <span className="font-sans text-ink-400">empty in the first rows</span>}
+                              {samples.length ? samples.map(String).join(", ") : <span className="font-sans text-ink-500">empty in the first rows</span>}
                             </span>
                           </td>
                           <td>
@@ -504,7 +504,7 @@ export default function UploadPage() {
                               <Badge variant={origin[source] === "exact" || origin[source] === "profile" ? "success" : origin[source] === "alias" ? "primary" : "secondary"}>
                                 {ORIGIN_LABEL[origin[source] ?? "manual"]}
                               </Badge>
-                            ) : <span className="text-xs text-ink-400">Ignored</span>}
+                            ) : <span className="text-xs text-ink-500">Ignored</span>}
                           </td>
                         </tr>
                       );
@@ -525,7 +525,7 @@ export default function UploadPage() {
                     <li key={r} className="flex items-center gap-2 text-xs">
                       {mappedTo[r] ? <Check size={13} className="text-success-600" aria-label="Mapped" /> : <CircleDashed size={13} className="text-danger-600" aria-label="Not mapped" />}
                       <span className={cn(mappedTo[r] ? "text-ink-700" : "font-medium text-danger-700")}>{human(r)}</span>
-                      {mappedTo[r] ? <span className="ml-auto truncate text-ink-400" title={mappedTo[r]}>{mappedTo[r]}</span> : <span className="ml-auto text-danger-700">missing</span>}
+                      {mappedTo[r] ? <span className="ml-auto truncate text-ink-500" title={mappedTo[r]}>{mappedTo[r]}</span> : <span className="ml-auto text-danger-700">missing</span>}
                     </li>
                   ))}
                 </ul>

@@ -48,7 +48,7 @@ function ImpactCell({ i }: { i: Pick<Issue, "impact_calculated" | "last_financia
   return i.impact_calculated ? (
     <span className="num">{inr(i.last_financial_impact)}</span>
   ) : (
-    <span className="text-xs italic text-ink-400" title="This check does not price its effect. It is not a ₹0 finding.">Not calculated</span>
+    <span className="text-xs italic text-ink-500" title="This check does not price its effect. It is not a ₹0 finding.">Not calculated</span>
   );
 }
 
@@ -155,7 +155,7 @@ function IssuesContent() {
         : <span className="whitespace-nowrap text-xs text-ink-600">{monthLabel(i.first_seen_period)}</span>,
     },
     { id: "impact", header: "Impact", numeric: true, cell: (i) => <ImpactCell i={i} /> },
-    { id: "owner", header: "Owner", hideable: true, cell: (i) => i.owner_email ? <span className="block max-w-[12rem] truncate text-xs text-ink-700" title={i.owner_email}>{i.owner_email}</span> : <span className="text-xs text-ink-400">Unassigned</span> },
+    { id: "owner", header: "Owner", hideable: true, cell: (i) => i.owner_email ? <span className="block max-w-[12rem] truncate text-xs text-ink-700" title={i.owner_email}>{i.owner_email}</span> : <span className="text-xs text-ink-500">Unassigned</span> },
     {
       id: "due", header: "Due", hideable: true,
       cell: (i) => <span className={cn("whitespace-nowrap text-xs", i.overdue ? "font-medium text-danger-700" : "text-ink-600")}>{i.due_date ? date(i.due_date) : "—"}{i.overdue ? " · overdue" : ""}</span>,
@@ -192,14 +192,17 @@ function IssuesContent() {
           <span className="mx-1 h-5 w-px bg-ink-200" aria-hidden />
           <button type="button" aria-pressed={!!params.overdue} onClick={() => set({ state: null, overdue: !params.overdue })}
             className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px]", params.overdue ? "border-danger-600 bg-danger-600 text-white" : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")}>
-            Overdue <span className="num text-xs opacity-80">{count(data.overdue)}</span>
+            Overdue <span className="num text-xs">{count(data.overdue)}</span>
           </button>
           <button type="button" aria-pressed={params.owner === "none"} onClick={() => set({ state: null, owner: params.owner === "none" ? null : "none" })}
             className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px]", params.owner === "none" ? "border-ink-900 bg-ink-900 text-white" : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50")}>
-            Unassigned <span className="num text-xs opacity-80">{count(data.unassigned)}</span>
+            Unassigned <span className="num text-xs">{count(data.unassigned)}</span>
           </button>
         </nav>
-      ) : null}
+      ) : (
+        // Holds the chips' height while counts load, so the table does not jump down when they arrive.
+        <div className="flex h-8 gap-1.5" aria-hidden>{[148, 72, 96, 84, 72].map((w, i) => <div key={i} className="h-8 animate-pulse-soft rounded-lg bg-ink-100" style={{ width: w }} />)}</div>
+      )}
 
       {canWrite && selected.size > 0 ? (
         <BulkBar
@@ -228,7 +231,7 @@ function IssuesContent() {
         toolbar={
           <>
             <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" aria-hidden />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500" aria-hidden />
               <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Employee or check" aria-label="Search issues"
                 className="h-8 w-full rounded-lg border border-ink-200 bg-white pl-8 pr-2 text-[13px] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
             </div>

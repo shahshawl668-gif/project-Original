@@ -94,7 +94,7 @@ function FindingRow({ f, whyHref }: { f: Finding; whyHref: string | null }) {
           <div className="flex gap-1"><dt className="text-ink-500">Actual</dt><dd className="num font-medium text-ink-900">{f.actual_value || "—"}</dd></div>
           <div className="flex gap-1"><dt className="text-ink-500">Expected</dt><dd className="num font-medium text-ink-900">{f.expected_value || "—"}</dd></div>
           {f.difference && f.difference !== "0.00" ? <div className="flex gap-1"><dt className="text-ink-500">Difference</dt><dd className="num font-medium text-ink-900">{f.difference}</dd></div> : null}
-          {!pass ? <div className="flex gap-1"><dt className="text-ink-500">Impact</dt><dd className="font-medium text-ink-900">{f.financial_impact > 0 ? <span className="num">{inr(f.financial_impact)}</span> : <span className="italic text-ink-400">not calculated</span>}</dd></div> : null}
+          {!pass ? <div className="flex gap-1"><dt className="text-ink-500">Impact</dt><dd className="font-medium text-ink-900">{f.financial_impact > 0 ? <span className="num">{inr(f.financial_impact)}</span> : <span className="italic text-ink-500">not calculated</span>}</dd></div> : null}
         </dl>
       ) : null}
       {f.suggested_fix && !pass ? <p className="mt-1.5 rounded-md bg-brand-50 px-2.5 py-1.5 text-xs text-ink-800"><span className="font-medium text-brand-800">Suggested correction: </span>{f.suggested_fix}</p> : null}
@@ -267,7 +267,7 @@ function EmployeeDrilldown() {
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-3 py-1.5">
                   <dt className="text-ink-500">{k}</dt>
-                  <dd className={cn("num text-right font-medium", v === "Not supplied" ? "font-normal text-ink-400" : "text-ink-900")}>{v}</dd>
+                  <dd className={cn("num text-right font-medium", v === "Not supplied" ? "font-normal text-ink-500" : "text-ink-900")}>{v}</dd>
                 </div>
               ))}
             </dl>

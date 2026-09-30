@@ -76,7 +76,7 @@ export default function DashboardsPage() {
               className="rounded-xl border border-ink-200 p-3 text-left transition hover:border-brand-400 hover:bg-brand-50/40">
               <span className="block text-sm font-semibold text-ink-900">{t.name}</span>
               <span className="block pt-0.5 text-xs text-ink-500">{t.description}</span>
-              <span className="block pt-1 text-[11px] text-ink-400">{t.tiles} tiles</span>
+              <span className="block pt-1 text-[11px] text-ink-500">{t.tiles} tiles</span>
             </button>
           ))}
         </div>
@@ -93,7 +93,7 @@ function BoardList({ title, icon: Icon, boards, loading, empty }: {
 }) {
   return (
     <Card><CardContent className="py-5">
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900"><Icon size={14} className="text-ink-400" /> {title}</h2>
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900"><Icon size={14} className="text-ink-500" /> {title}</h2>
       {loading ? <Skeleton className="h-20 w-full" /> : boards.length === 0 ? <p className="text-sm text-ink-500">{empty}</p> : (
         <ul className="divide-y divide-ink-100">
           {boards.map((d) => (
@@ -152,7 +152,7 @@ function KpiPanel({ catalogue, canShare }: { catalogue: Catalogue; canShare: boo
           {catalogue.kpis.map((k) => (
             <li key={k.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <span><strong>{k.name}</strong> <span className="font-mono text-xs text-ink-500">= {k.formula}</span>
-                <span className="ml-2 text-xs text-ink-400">{catalogue.datasets.find((d) => d.key === k.dataset)?.label} · {k.unit} · {k.visibility}</span></span>
+                <span className="ml-2 text-xs text-ink-500">{catalogue.datasets.find((d) => d.key === k.dataset)?.label} · {k.unit} · {k.visibility}</span></span>
               {k.can_edit ? <button type="button" onClick={() => void remove(k)} className="text-xs text-ink-500 hover:text-danger-700">Delete</button> : null}
             </li>
           ))}

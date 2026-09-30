@@ -59,20 +59,20 @@ export default function MappingListPage() {
         {!list.data ? <Skeleton className="h-24 w-full" /> : list.data.length === 0 ? (
           <p className="rounded-xl border border-dashed border-ink-200 px-4 py-6 text-center text-sm text-ink-500">No mappings yet. Without one, records are read by the field names the upload screens recognise.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="scrollbar-thin overflow-x-auto"><table className="w-full text-sm">
             <thead className="text-left text-xs text-ink-500"><tr><th className="py-1">Mapping</th><th>Maps</th><th>In force</th><th>Versions</th></tr></thead>
             <tbody className="divide-y divide-ink-100">
               {list.data.map((m) => (
                 <tr key={m.key}>
                   <td className="py-2"><Link href={`/studio/mapping/${m.versions[0].id}`} className="font-medium text-brand-700 hover:underline">{m.name}</Link>
-                    <span className="block font-mono text-xs text-ink-400">{m.key}</span></td>
+                    <span className="block font-mono text-xs text-ink-500">{m.key}</span></td>
                   <td className="text-xs">{OBJECT_LABEL[m.object_type] ?? m.object_type}</td>
                   <td>{m.in_force ? <Badge variant="success">v{m.in_force.version}</Badge> : <Badge variant="secondary">nothing published</Badge>}</td>
                   <td className="text-xs">{m.versions.map((v) => <Link key={v.id} href={`/studio/mapping/${v.id}`} className="mr-2 underline">v{v.version} {v.status}</Link>)}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </CardContent></Card>
     </div>

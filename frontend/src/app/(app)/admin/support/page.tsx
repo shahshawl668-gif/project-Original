@@ -132,7 +132,7 @@ export default function SupportAccessPage() {
           </div>
 
           <div>
-            <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
+            <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
               Why — the client reads this
             </span>
             <textarea

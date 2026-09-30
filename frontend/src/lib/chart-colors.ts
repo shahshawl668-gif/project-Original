@@ -15,7 +15,7 @@ import { OTHER_COLOR, OTHER_LABEL, SERIES } from "@/lib/cost-analysis";
 export const CHART = {
   primary: SERIES[0],
   grid: "#eef0f3",
-  axis: "#8a93a4",
+  axis: "#636c7e", // tick labels are text: 4.5:1 or better on white
   text: "#474f61",
 } as const;
 

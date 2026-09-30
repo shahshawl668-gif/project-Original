@@ -87,7 +87,7 @@ export function RulePacks({ entityId, canChange }: { entityId: string | undefine
                       {pack.last_run.coverage_pct != null ? `${pack.last_run.coverage_pct}% checked` : "not applicable"} ·{" "}
                       {pack.last_run.totals.failed} failed · {pack.last_run.totals.cannot_validate} could not run
                     </span>
-                  ) : pack.checks.length ? <span className="text-ink-400">no run yet</span> : null}
+                  ) : pack.checks.length ? <span className="text-ink-500">no run yet</span> : null}
                   {canChange && pack.checks.length ? (
                     <button type="button" className="rounded-lg border border-ink-200 px-2.5 py-1 font-semibold text-ink-700 hover:bg-ink-50"
                       onClick={() => { setPending({ key: pack.key, enabled: pack.state !== "on" }); setReason(""); }}>
@@ -130,7 +130,7 @@ export function RulePacks({ entityId, canChange }: { entityId: string | undefine
                         <span className="text-ink-800">{c.name}</span>
                         {c.material ? <span className="rounded bg-ink-100 px-1 text-[11px] font-semibold text-ink-600">statutory</span> : null}
                         {!c.enabled ? <span className="rounded bg-ink-200 px-1 text-[11px] font-semibold text-ink-600">disabled</span> : null}
-                        {!c.runs_in_validation ? <span className="text-ink-400">checked at upload</span> : null}
+                        {!c.runs_in_validation ? <span className="text-ink-500">checked at upload</span> : null}
                         {c.last_run ? (
                           <span className="text-ink-500">
                             {(["passed", "failed", "cannot_validate", "not_applicable"] as Outcome[])

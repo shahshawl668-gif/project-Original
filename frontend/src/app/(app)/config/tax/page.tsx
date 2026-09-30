@@ -36,9 +36,9 @@ function Section({ title, icon, children, defaultOpen = true }: {
           </span>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-ink-400" />
+          <ChevronUp size={16} className="text-ink-500" />
         ) : (
-          <ChevronDown size={16} className="text-ink-400" />
+          <ChevronDown size={16} className="text-ink-500" />
         )}
       </button>
       {open && (
@@ -57,7 +57,7 @@ function Field({ label, help, children }: { label: string; help?: string; childr
         {label}
       </label>
       {children}
-      {help && <p className="text-xs text-ink-400">{help}</p>}
+      {help && <p className="text-xs text-ink-500">{help}</p>}
     </div>
   );
 }
@@ -85,7 +85,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       {checked ? (
         <ToggleRight size={20} className="text-brand-600" />
       ) : (
-        <ToggleLeft size={20} className="text-ink-400" />
+        <ToggleLeft size={20} className="text-ink-500" />
       )}
       {label}
     </button>
@@ -141,7 +141,7 @@ function BandTable<T extends { up_to: string | null; rate: string }>({
               </td>
               <td className="py-2 text-right">
                 <button
-                  className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-danger-50 hover:text-danger-600"
+                  className="rounded-lg p-1.5 text-ink-500 transition-colors hover:bg-danger-50 hover:text-danger-600"
                   onClick={() => onChange(rows.filter((_, j) => j !== i))}
                   title="Remove band"
                 >

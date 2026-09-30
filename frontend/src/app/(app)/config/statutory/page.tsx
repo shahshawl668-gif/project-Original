@@ -48,9 +48,9 @@ function Section({ title, icon, children, defaultOpen = true }: {
           </span>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-ink-400" />
+          <ChevronUp size={16} className="text-ink-500" />
         ) : (
-          <ChevronDown size={16} className="text-ink-400" />
+          <ChevronDown size={16} className="text-ink-500" />
         )}
       </button>
       {open && (
@@ -117,7 +117,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       {checked ? (
         <ToggleRight size={20} className="text-brand-600" />
       ) : (
-        <ToggleLeft size={20} className="text-ink-400" />
+        <ToggleLeft size={20} className="text-ink-500" />
       )}
       {label}
     </button>
@@ -677,16 +677,16 @@ export default function StatutoryConfigPage() {
       {!canWrite ? <AlertBanner variant="info">Your role can read this configuration but not change it.</AlertBanner> : null}
 
       <fieldset disabled={!canWrite} className="space-y-5">
-        <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-ink-400" />}>
+        <Section title="Provident Fund (PF)" icon={<Shield size={16} className="text-ink-500" />}>
           <PFConfigPanel cfg={cfg.pf} onChange={(pf) => setCfg((c) => ({ ...c, pf }))} advanced={advanced} />
         </Section>
 
-        <Section title="Employee State Insurance (ESIC)" icon={<Shield size={16} className="text-ink-400" />}>
+        <Section title="Employee State Insurance (ESIC)" icon={<Shield size={16} className="text-ink-500" />}>
           <ESICConfigPanel cfg={cfg.esic} onChange={(esic) => setCfg((c) => ({ ...c, esic }))} advanced={advanced} />
         </Section>
 
         {advanced ? (
-          <Section title="Component mapping overrides" icon={<Settings2 size={16} className="text-ink-400" />} defaultOpen={false}>
+          <Section title="Component mapping overrides" icon={<Settings2 size={16} className="text-ink-500" />} defaultOpen={false}>
             <ComponentMappingPanel
               cfg={cfg.component_mapping}
               onChange={(component_mapping) => setCfg((c) => ({ ...c, component_mapping }))}

@@ -161,7 +161,7 @@ export default function BudgetUploadPage() {
             </Menu>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-semibold text-ink-400">
+              <span className="text-[11px] font-semibold text-ink-500">
                 Name this version
               </span>
               <input
@@ -194,7 +194,7 @@ export default function BudgetUploadPage() {
             >
               <Download size={14} /> Template
             </a>
-            {busy && <Loader2 size={16} className="animate-spin text-ink-400" />}
+            {busy && <Loader2 size={16} className="animate-spin text-ink-500" />}
           </div>
 
           <p className="text-xs text-ink-500">
@@ -248,7 +248,7 @@ export default function BudgetUploadPage() {
             <div className="max-h-72 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white">
-                  <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                     <th className="py-2 text-left font-semibold">Month</th>
                     <th className="py-2 text-left font-semibold">Scope</th>
                     <th className="py-2 text-right font-semibold">Amount</th>
@@ -309,7 +309,7 @@ export default function BudgetUploadPage() {
 function Fact({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
   return (
     <div className="rounded-xl border border-ink-200/70 px-3 py-2">
-      <p className="text-[11px] font-semibold text-ink-400">{label}</p>
+      <p className="text-[11px] font-semibold text-ink-500">{label}</p>
       <p
         className={
           tone === "warn"

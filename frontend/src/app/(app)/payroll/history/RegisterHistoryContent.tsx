@@ -160,7 +160,7 @@ export default function RegisterHistoryContent() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="flex min-h-[22rem] flex-col overflow-hidden">
           <div className="border-b border-ink-100 px-5 py-4">
-            <p className="text-2xs font-semibold tracking-[0.2em] text-ink-400">
+            <p className="text-2xs font-semibold tracking-[0.2em] text-ink-500">
               Registers
             </p>
             <p className="mt-1 text-sm font-semibold text-ink-900">
@@ -184,7 +184,7 @@ export default function RegisterHistoryContent() {
             ) : registers.length === 0 ? (
               <div className="p-4">
                 <EmptyState
-                  icon={<CalendarDays className="h-6 w-6 text-ink-400" />}
+                  icon={<CalendarDays className="h-6 w-6 text-ink-500" />}
                   title="No registers stored"
                   description="Upload payroll with an explicit period so we can normalize rows for auditing."
                   action={
@@ -235,7 +235,7 @@ export default function RegisterHistoryContent() {
                       >
                         {fmtMonth(reg.period_month)}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium text-ink-400">
+                      <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium text-ink-500">
                         <Users size={11} aria-hidden /> {reg.employee_count ?? "—"} employees
                       </p>
                     </div>
@@ -255,7 +255,7 @@ export default function RegisterHistoryContent() {
           {!activeId ? (
             <CardContent className="flex min-h-[20rem] flex-col items-center justify-center p-8">
               <EmptyState
-                icon={<FileText className="h-7 w-7 text-ink-400" strokeWidth={1.5} />}
+                icon={<FileText className="h-7 w-7 text-ink-500" strokeWidth={1.5} />}
                 title="Select a register"
                 description="Choose a pay month on the left to inspect validated rows and export CSV."
                 className="border-0 bg-transparent"
@@ -300,7 +300,7 @@ export default function RegisterHistoryContent() {
                 <div className="relative">
                   <Search
                     size={16}
-                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400"
+                    className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500"
                     aria-hidden
                   />
                   <input
@@ -378,7 +378,7 @@ export default function RegisterHistoryContent() {
                                   {row.paid_days}
                                 </span>
                                 {row.lop_days != null ? (
-                                  <span className="text-ink-400">
+                                  <span className="text-ink-500">
                                     {" "}
                                     / {row.lop_days} LOP
                                   </span>
@@ -414,7 +414,7 @@ export default function RegisterHistoryContent() {
                 </table>
               </div>
               {detail.rows.length > 0 ? (
-                <div className="border-t border-ink-100 px-6 py-2.5 text-2xs font-medium text-ink-400">
+                <div className="border-t border-ink-100 px-6 py-2.5 text-2xs font-medium text-ink-500">
                   Showing {filteredRows.length} of {detail.rows.length} employees
                 </div>
               ) : null}

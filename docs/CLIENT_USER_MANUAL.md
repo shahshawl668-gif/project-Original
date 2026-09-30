@@ -319,7 +319,8 @@ role, and only people who can work this company can be given one.
 ### Step 4 — Bank payments
 
 **Reconciliation & approvals → Bank payments.** Upload the payment advice you send the bank, or
-the statement you get back.
+the statement you get back. The page opens on the month shown in the header; changing the month
+here changes it for the rest of the month's work too.
 
 ![Bank payments](images/06-bank-payments.png)
 

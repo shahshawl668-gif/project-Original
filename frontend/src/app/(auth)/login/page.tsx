@@ -112,7 +112,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPwd((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-400 transition-colors hover:text-ink-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-500 transition-colors hover:text-ink-700"
                 aria-label={showPwd ? "Hide password" : "Show password"}
               >
                 {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}

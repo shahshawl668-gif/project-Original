@@ -55,7 +55,7 @@ export function NotificationBell() {
                     <span className="flex items-center gap-2"><span className={cn("h-2 w-2 flex-shrink-0 rounded-full", n.read ? "bg-ink-200" : DOT[n.severity])} />
                       <span className={cn("text-sm", n.read ? "text-ink-500" : "font-semibold text-ink-900")}>{n.title}</span></span>
                     {n.body ? <span className="block pl-4 text-xs text-ink-500">{n.body}</span> : null}
-                    <span className="block pl-4 text-[11px] text-ink-400">{n.created_at ? new Date(n.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                    <span className="block pl-4 text-[11px] text-ink-500">{n.created_at ? new Date(n.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span>
                   </>
                 );
                 return (

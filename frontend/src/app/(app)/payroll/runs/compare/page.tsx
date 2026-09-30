@@ -105,7 +105,7 @@ function CompareContent() {
               </thead>
               <tbody className="divide-y divide-ink-100">
                 {data.items[group].length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-ink-400">Nothing in this group.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-10 text-center text-ink-500">Nothing in this group.</td></tr>
                 ) : data.items[group].map((f) => <Row key={f.fingerprint} f={f} />)}
               </tbody>
             </table>

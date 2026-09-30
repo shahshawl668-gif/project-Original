@@ -277,6 +277,17 @@ def _dated_slab_cohort(rows: list[SlabRule], as_of: date) -> list[SlabRule]:
     return [r for r in active if r.effective_from == latest]
 
 
+def _slab_rows(cache: dict | None, key: tuple, load):
+    """The slab rows a lookup reads, loaded once per ``cache`` (a request's
+    worth of lookups) instead of once per employee. Only the query is shared;
+    which row matches is still decided per call, exactly as before."""
+    if cache is None:
+        return load()
+    if key not in cache:
+        cache[key] = load()
+    return cache[key]
+
+
 def lookup_pt(
     db: Session,
     state: str | None,
@@ -285,6 +296,7 @@ def lookup_pt(
     entity_id: Any | None = None,
     gender: str | None = None,
     run_month: int | None = None,
+    rows_cache: dict | None = None,
 ) -> tuple[Decimal, str | None]:
     """Return *monthly-equivalent* PT deduction and a slab label.
 
@@ -309,7 +321,7 @@ def lookup_pt(
     month = run_month if run_month is not None else as_of.month
 
     if entity_id is not None:
-        tenant_rows = (
+        tenant_rows = _slab_rows(rows_cache, ("PT", entity_id, state), lambda: (
             db.query(SlabRule)
             .filter(
                 SlabRule.entity_id == entity_id,
@@ -318,7 +330,7 @@ def lookup_pt(
             )
             .order_by(SlabRule.sort_order, SlabRule.min_salary)
             .all()
-        )
+        ))
         if tenant_rows:
             tenant_rows = _dated_slab_cohort(tenant_rows, as_of)
             best: tuple[int, int, SlabRule, Decimal, str] | None = None
@@ -352,14 +364,14 @@ def lookup_pt(
             # through to seed reference (would be misleading).
             return Decimal("0"), None
 
-    slabs = (
+    slabs = _slab_rows(rows_cache, ("PT-seed", state, as_of), lambda: (
         db.query(PtSlab)
         .filter(PtSlab.state == state)
         .filter(PtSlab.effective_from <= as_of)
         .filter((PtSlab.effective_to.is_(None)) | (PtSlab.effective_to >= as_of))
         .order_by(PtSlab.slab_min)
         .all()
-    )
+    ))
     w = float(wage)
     for s in slabs:
         smin, smax = float(s.slab_min), float(s.slab_max)
@@ -375,6 +387,7 @@ def lookup_lwf(
     wage: Decimal,
     as_of: date,
     entity_id: Any | None = None,
+    rows_cache: dict | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
     """Return (employee_per_period, employer_per_period, employee_monthly, employer_monthly).
 
@@ -394,7 +407,7 @@ def lookup_lwf(
         return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
     if entity_id is not None:
-        tenant_rows = (
+        tenant_rows = _slab_rows(rows_cache, ("LWF", entity_id, state), lambda: (
             db.query(SlabRule)
             .filter(
                 SlabRule.entity_id == entity_id,
@@ -403,7 +416,7 @@ def lookup_lwf(
             )
             .order_by(SlabRule.sort_order, SlabRule.min_salary)
             .all()
-        )
+        ))
         if tenant_rows:
             tenant_rows = _dated_slab_cohort(tenant_rows, as_of)
             for r in tenant_rows:
@@ -426,13 +439,13 @@ def lookup_lwf(
                     return emp_period, er_period, emp_monthly, er_monthly
             return Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0")
 
-    bands = (
+    bands = _slab_rows(rows_cache, ("LWF-seed", state, as_of), lambda: (
         db.query(LwfRate)
         .filter(LwfRate.state == state)
         .filter(LwfRate.effective_from <= as_of)
         .filter((LwfRate.effective_to.is_(None)) | (LwfRate.effective_to >= as_of))
         .all()
-    )
+    ))
     w = float(wage)
     for b in bands:
         if float(b.wage_band_min) <= w <= float(b.wage_band_max):

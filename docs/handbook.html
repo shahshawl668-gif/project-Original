@@ -312,6 +312,7 @@
         <div class="tname">Browser</div>
         <div class="tbody"><b>Next.js 14 App Router</b> · React 18 · TypeScript · Tailwind · TanStack Query · Recharts. Light-only. Signed out, the shell renders a brand frame and a Sign in button and nothing else — no nav, no settings labels, no entity names.
         <br><b>Design system</b> (since 29 September 2026): tokens in <code>tailwind.config.ts</code> and <code>globals.css</code> — one typeface (Inter), a neutral canvas, one action colour, status colours that mean one thing each, 120–220&nbsp;ms motion switched off under reduced-motion. Shared primitives in <code>components/ui/</code> (button, card, badge, status pill, stat, table, tabs, drawer and dialog with focus trapping, alert, empty state, skeleton); <code>lib/format.ts</code> formats rupees and dates and never renders a missing value as zero.
+        <br><b>Contrast</b> (30 September 2026): anything a person reads is <code>ink-500</code> or darker (4.6:1 or better on every surface the product uses); <code>ink-400</code> is for borders, placeholders, disabled states and icons only. The action colour <code>brand-600</code> is <code>#0275b3</code>: white on it is 5.0:1, and it as text is 4.67:1 on the canvas. The stock <code>#0284c7</code> it replaced reached 4.1, and an axe scan caught it on every page with a primary button. Chart axis labels use the same text colour.
         <br><b>Navigation</b> is defined once in <code>lib/navigation.ts</code>, grouped by task: Overview, Data &amp; imports, Validation &amp; findings, Reconciliation &amp; approvals, Analytics &amp; dashboards, Reports, Studio, Configuration &amp; admin. The header always shows the company; on month pages the <em>working period</em> (<code>lib/workspace.ts</code>, per company, per browser session) and the month's current run; in Studio the company's environment. Switching company empties the query cache and remounts the page, so no number, filter or selection from the previous company survives the switch.</div>
       </div>
       <div class="arrow">↓ same-origin <code>/api/proxy/…</code></div>
@@ -634,7 +635,7 @@ python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.
     <h2>Testing points</h2>
     <p class="sub">Five things you can run. The first four take minutes; the fifth is the one with a deadline.</p>
 
-    <h3>1 · The unit suite — 1,107 tests</h3>
+    <h3>1 · The unit suite — 1,126 tests</h3>
     <pre><code>cd backend
 python -m pytest tests/ -q                 # SQLite, ~4m15s
 
@@ -669,6 +670,27 @@ DATABASE_URL=postgresql://…/throwaway_db \
 npx tsc --noEmit      # types
 npm run lint          # eslint
 npm run build         # production build</code></pre>
+
+    <h3>3b · Accessibility, screen sizes and page speed — what was measured, 30 September 2026</h3>
+    <p>Run against a production build (<code>next start</code>) and the API on PostgreSQL, in Chromium through Playwright. These are measurements on one machine, not a certification.</p>
+    <ul>
+      <li><b>Automated WCAG checks.</b> axe-core 4.11, rule tags WCAG 2.0/2.1/2.2 A and AA, on 36 page states: 26 pages, 8 detail pages (Why this result, employee, dashboard, Studio run, connection, mapping, workflow, release), an open issue drawer and the saved-reports drawer. Run at 1440&nbsp;px and again at 390&nbsp;px: <b>0 violations at both</b>. The first pass found 21 failing states: colour contrast (the two token problems above, plus text faded with <code>opacity-80</code>), a month input with no label, scroll areas a keyboard could not reach, 14&nbsp;px workflow buttons (WCAG 2.5.8 asks for 24&nbsp;px), and at 390&nbsp;px two icon-only table buttons with no name. All were fixed. axe finds roughly a third of WCAG issues; it does not judge reading order, meaning or whether text alternatives are right.</li>
+      <li><b>Keyboard.</b> The first Tab reaches “Skip to content”, which moves focus into the page. Focus shows as a 2&nbsp;px brand outline. Table rows open with Enter, and Esc closes the drawer and returns focus to the row. Dialogs trap focus. With reduced motion requested, animations and transitions drop to 0.01&nbsp;ms.</li>
+      <li><b>Screen sizes.</b> 20 routes at 390, 1366, 1440 and 1920&nbsp;px. None scrolls sideways, measured on <code>&lt;main&gt;</code> (the page's scroll container) as well as the window. At 390&nbsp;px, wide Studio tables scroll within their own box.</li>
+      <li><b>Page speed at 8,000 employees.</b> A synthetic company: 8,000 employees, May and June registers, and a June run with 11,384 findings. Largest Contentful Paint (LCP), layout shift (CLS, summed over the whole load, which overstates the standard measure) and the slowest interaction (as a stand-in for INP), on a fresh page load:
+        <table style="margin-top:6px">
+          <tr><th>Page</th><th>LCP</th><th>LCP, CPU 4× slower</th><th>CLS</th><th>Slowest interaction</th></tr>
+          <tr><td>Results — findings (11,384)</td><td>2.2 s</td><td>2.9 s</td><td>0.008</td><td>48 ms · 200 ms</td></tr>
+          <tr><td>Results — overview / coverage</td><td>2.5 s / 2.2 s</td><td>3.3 s / 3.2 s</td><td>≤0.005</td><td>—</td></tr>
+          <tr><td>Issues (11,384)</td><td>0.7 s</td><td>1.2 s</td><td>0.03 <i>(was 0.35)</i></td><td>80 ms · 248 ms</td></tr>
+          <tr><td>Control Centre</td><td>3.2 s</td><td>3.8 s</td><td>0.007</td><td>—</td></tr>
+          <tr><td>Month close</td><td>4.5 s <i>(was 20 s)</i></td><td>5.5 s</td><td>0.066</td><td>—</td></tr>
+          <tr><td>Cost analysis</td><td>5.4 s <i>(was 33 s)</i></td><td>6.6 s</td><td>0.001</td><td>—</td></tr>
+          <tr><td>Report Centre, Builder, Dashboards, Studio</td><td>0.2–0.4 s</td><td>0.9–1.2 s</td><td>≤0.016</td><td>≤88 ms</td></tr>
+        </table>
+        Targets are LCP ≤2.5&nbsp;s, INP ≤200&nbsp;ms and CLS ≤0.1. Four pages miss the LCP target at this scale, all waiting on the API; see Open items. Numbers are local, so there is no network latency and no Render free-tier cold start.</li>
+      <li><b>Regression walks.</b> Six scripted browser walks, 92 checks in all: upload mapping, findings filters and drawers, the Why page, company switching without stale data, statutory save and leave guard, month-close period, dashboard edit mode, Report Centre and Builder, Studio confirmations and masked secrets, keyboard and reduced motion. All pass.</li>
+    </ul>
 
     <h3>4 · Health endpoints</h3>
     <div class="tw">
@@ -778,8 +800,15 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
     </div>
 
     <div class="note warn">
-      <h4>Validation still runs on the HTTP request path</h4>
-      <p>The queue exists and the worker that drains it is built, tested and merged — verified live at 5,000 employees in 25 seconds, and a job abandoned mid-run was reclaimed and finished. But nothing enqueues yet: <code>/api/payroll/validate</code> is still synchronous, so a large register still times out. <strong>PR 3</strong> switches the endpoint to return <code>202 {job_id}</code> and moves the upload page to polling. That is the one that removes the timeout.</p>
+      <h4>Four pages are slow at 8,000 employees</h4>
+      <p>Measured locally (Testing §3b): Cost analysis 5.4&nbsp;s to its largest paint, Month close 4.5&nbsp;s, Control Centre 3.2&nbsp;s, and the results overview at the 2.5&nbsp;s target. They had been 33&nbsp;s and 20&nbsp;s. The cause was costing that looked up PT and LWF slabs from the database once per employee, about 30,000 queries. Slab rows are now loaded once per request, and the month's status no longer hashes its inputs twice (<code>tests/test_scale_queries.py</code>). Two costs remain:
+      <br>• Costing 8,000 employees over two months takes about 4.6&nbsp;s of CPU per request. The fix is to store each register row's costing when the register is stored, rather than recompute it on every read.
+      <br>• Checking whether a run is still current hashes every input row, about 1.2&nbsp;s at this size, and the run page and the month status both do it. The fix is to record each input's digest when it is written. That touches the rule that decides “out of date”, so it was not changed as part of interface work.</p>
+    </div>
+
+    <div class="note warn">
+      <h4>The synchronous validate endpoint still exists</h4>
+      <p>The product no longer uses it: the upload page and the Control Centre queue validation through <code>/api/validation/jobs</code> and follow its progress. <code>POST /api/payroll/validate</code> is still served, and <code>e2e_deployed.py</code> calls it. On a large register it still runs inside the HTTP request and can time out. Retire it, or point it at the queue, once nothing outside the product depends on it.</p>
     </div>
 
     <div class="note warn">
@@ -789,7 +818,13 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
 
     <div class="note">
       <h4>Smaller things</h4>
-      <p>Both web services are on Render free tier and sleep after 15 minutes idle — a prospect clicking your demo link waits 30–50 seconds. The company picker defaults to an entity with no data when another in the same organisation has some. Bank payments defaults to the current calendar month rather than the latest month with data. Charts with two to four series still rely on a legend rather than direct labels. The Financial impact tile on the results page truncates its value to <code>₹3,19,…</code>. The old indigo <code>#6366f1</code> survives in the KPI card, the employee-detail chart and the keyboard focus outline — none of which appear in the manuals, so they were left rather than widening a documentation change into a palette sweep.</p>
+      <p>Both web services are on Render free tier and sleep after 15 minutes idle — a prospect clicking your demo link waits 30–50 seconds. The company picker defaults to the entity the server marks active, which can be one with no data when another in the same organisation has some. Dashboard tiles with two to four series rely on a legend rather than direct labels.</p>
+      <p><b>Interface limits, stated so nobody demos around them:</b>
+      <br>• Statutory configuration saves immediately. It has no draft/publish step or effective dates; the save bar and review dialog show exactly what will change, and every save is audited.
+      <br>• Dashboard tiles are reordered with arrow buttons, not drag and drop. The buttons are the keyboard-accessible way to do it, and dragging was not built.
+      <br>• Report Builder offers one dataset (payroll cost at month × one breakdown). It has no pivot, chart, PDF or scheduled delivery, and calculated columns show plain numbers because their unit is unknown.
+      <br>• Cancelling a Studio import that has already started does not interrupt it; only a queued import, or a workflow between steps, is stopped. The confirmation says so.
+      <br><i>Resolved since the last edit of this list:</i> the old indigo <code>#6366f1</code> is gone (the focus outline, stat tiles and employee page use the design tokens), the results page's Financial impact tile no longer truncates, Bank payments now opens on the header's working month instead of the calendar month, and the site has a favicon (<code>app/icon.svg</code>) instead of a 404 on every page load.</p>
     </div>
   </section>
 

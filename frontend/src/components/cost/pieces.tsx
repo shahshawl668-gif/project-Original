@@ -35,7 +35,7 @@ export function StatTile({
   return (
     <Card>
       <CardContent className="space-y-1 py-4">
-        <span className="flex items-center gap-2 text-[11px] font-semibold text-ink-400">
+        <span className="flex items-center gap-2 text-[11px] font-semibold text-ink-500">
           <Icon size={13} /> {label}
         </span>
         <p className="font-display text-2xl font-semibold tabular-nums text-ink-900">
@@ -44,7 +44,7 @@ export function StatTile({
         {delta !== undefined ? (
           <p className={cn("text-xs font-medium tabular-nums", deltaTone)}>
             {formatDelta(delta)}
-            {deltaPct !== undefined && <span className="ml-1.5 opacity-80">{formatPct(deltaPct)}</span>}
+            {deltaPct !== undefined && <span className="ml-1.5">{formatPct(deltaPct)}</span>}
             {hint && <span className="ml-1.5 font-normal text-ink-500">{hint}</span>}
           </p>
         ) : (
@@ -109,7 +109,7 @@ export function MeasureTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+          <tr className="border-b border-ink-200 text-[11px] text-ink-500">
             <th className="py-2 text-left font-semibold">Component</th>
             <th className="py-2 text-right font-semibold">Amount</th>
             <th className="py-2 text-right font-semibold">Share</th>

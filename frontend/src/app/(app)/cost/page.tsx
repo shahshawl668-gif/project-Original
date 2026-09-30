@@ -969,7 +969,7 @@ function VarianceTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+          <tr className="border-b border-ink-200 text-[11px] text-ink-500">
             <th className="py-2 text-left font-semibold">Period</th>
             <th className="py-2 text-right font-semibold">Headcount</th>
             <th className="py-2 text-right font-semibold">Change</th>
@@ -1049,7 +1049,7 @@ function DataBasisStrip({ basis }: { basis: DataBasis }) {
         </span>
       ) : null}
       {basis.last_uploaded_at ? <span>Data as of {new Date(basis.last_uploaded_at).toLocaleString("en-IN")}</span> : null}
-      <span className="text-ink-400">{basis.source}</span>
+      <span className="text-ink-500">{basis.source}</span>
     </div>
   );
 }

@@ -110,7 +110,7 @@ export default function StudioRunPage() {
       {r.error ? (
         <AlertBanner variant={r.status === "failed" ? "error" : "warning"} title={r.error.message}>
           {r.error.recommended_action ? <><strong>What to do:</strong> {r.error.recommended_action}</> : null}
-          <span className="block pt-1 text-xs opacity-80">Error category: {r.error.category}{r.attempts > 1 ? ` · ${r.attempts} attempts` : ""}</span>
+          <span className="block pt-1 text-xs">Error category: {r.error.category}{r.attempts > 1 ? ` · ${r.attempts} attempts` : ""}</span>
         </AlertBanner>
       ) : null}
 
@@ -200,7 +200,7 @@ export default function StudioRunPage() {
                       <td className="py-1.5 pr-3 font-mono text-xs">{x.record_key ?? "—"}</td>
                       <td className="py-1.5 pr-3 text-xs">{x.disposition === "skipped" ? "Skipped" : "Rejected"} · {x.code.replace(/_/g, " ")}</td>
                       <td className="py-1.5 pr-3 font-mono text-xs">{x.field ?? "—"}</td>
-                      <td className="py-1.5 pr-3 text-xs">{x.message}{x.retried_in_run_id ? <span className="block text-ink-400">retried in <Link className="underline" href={`/studio/runs/${x.retried_in_run_id}`}>a later run</Link></span> : null}</td>
+                      <td className="py-1.5 pr-3 text-xs">{x.message}{x.retried_in_run_id ? <span className="block text-ink-500">retried in <Link className="underline" href={`/studio/runs/${x.retried_in_run_id}`}>a later run</Link></span> : null}</td>
                       <td className="py-1.5 pr-3 font-mono text-xs">{x.source_ref?.record_id ?? "—"}</td>
                       <td className="py-1.5 text-right">
                         {MANAGE.has(activeRole ?? "") && x.payload_retained ? (

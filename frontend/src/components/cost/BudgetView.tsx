@@ -190,7 +190,7 @@ export function BudgetView({
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                     <th className="py-2 text-left font-semibold">Period</th>
                     <th className="py-2 text-right font-semibold">Actual</th>
                     <th className="py-2 text-right font-semibold">Budget</th>
@@ -248,7 +248,7 @@ export function BudgetView({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+                    <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                       <th className="py-2 text-left font-semibold">Scope</th>
                       <th className="py-2 text-right font-semibold">Actual</th>
                       <th className="py-2 text-right font-semibold">Budget</th>
@@ -332,7 +332,7 @@ export function BudgetView({
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                     <th className="py-2 text-left font-semibold">Period</th>
                     <th className="py-2 text-right font-semibold">Forecast</th>
                     <th className="py-2 text-right font-semibold">Run rate</th>
@@ -406,7 +406,7 @@ export function BudgetView({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+                <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                   <th className="py-2 text-left font-semibold">Name</th>
                   <th className="py-2 text-left font-semibold">Level</th>
                   <th className="py-2 text-left font-semibold">Measure</th>
@@ -478,7 +478,7 @@ function ScenarioField({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold text-ink-400">
+      <span className="text-[11px] font-semibold text-ink-500">
         {label}
       </span>
       <input

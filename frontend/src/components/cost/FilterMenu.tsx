@@ -63,7 +63,7 @@ export function FilterMenu({
     >
       <div className="sticky top-0 z-10 bg-white p-1">
         <div className="relative">
-          <Search size={13} className="absolute left-2.5 top-2.5 text-ink-400" />
+          <Search size={13} className="absolute left-2.5 top-2.5 text-ink-500" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -84,7 +84,7 @@ export function FilterMenu({
 
       {matching.map((dimension) => (
         <div key={dimension.key} className="pb-1">
-          <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold text-ink-400">
+          <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold text-ink-500">
             {dimension.label}
           </p>
           {dimension.values.map((value) => {
@@ -154,7 +154,7 @@ export function ActiveFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px] font-semibold text-ink-400">
+      <span className="text-[11px] font-semibold text-ink-500">
         Showing only
       </span>
       {entries.map(({ key, value }) => (

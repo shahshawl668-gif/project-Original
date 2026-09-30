@@ -379,7 +379,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
         {byKey.map(([key, versions]) => (
           <div key={key} className="py-3">
             <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900">
-              <History size={14} className="text-ink-400" /> {key}
+              <History size={14} className="text-ink-500" /> {key}
               {disabledRules.has(key) ? <span className="rounded bg-ink-200 px-1 text-[11px] text-ink-600">disabled</span> : null}
             </p>
             <div className="space-y-2">
@@ -395,7 +395,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
                           <span className="block text-sm text-ink-900">
                             v{r.version} · {r.name}{" "}
                             <span className={cn("ml-1 rounded px-1.5 py-0.5 text-[11px] font-semibold", STATUS_TONE[r.status])}>{r.status}</span>
-                            {r.editor_mode === "advanced" ? <span className="ml-1 text-[11px] text-ink-400">advanced</span> : null}
+                            {r.editor_mode === "advanced" ? <span className="ml-1 text-[11px] text-ink-500">advanced</span> : null}
                           </span>
                           <span className="block text-xs text-ink-500">
                             {r.effective_from}{r.effective_to ? ` → ${r.effective_to}` : " onwards"} · {r.severity}{r.blocks_signoff ? " · blocks sign-off" : ""}
@@ -406,7 +406,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
                             {r.condition ? `When ${describeCondition(r.condition)}, expect` : "Expect"} {describeComparison(r.assertion)}.
                             {r.on_missing !== "cannot_validate" ? ` Missing input: ${r.on_missing === "skip" ? "skip" : "fail"}.` : ""}
                           </span>
-                          <span className="block text-[11px] text-ink-400">{r.change_reason}{r.retire_reason ? ` · retired: ${r.retire_reason}` : ""}</span>
+                          <span className="block text-[11px] text-ink-500">{r.change_reason}{r.retire_reason ? ` · retired: ${r.retire_reason}` : ""}</span>
                         </span>
                       </label>
                       {canDraft ? (

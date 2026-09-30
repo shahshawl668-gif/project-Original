@@ -883,7 +883,7 @@ def period_status(
         elif run is not None and fresh and signed_digests:
             changed_since_signoff.extend(fresh["changes"])
 
-    ready = approvals.readiness(db, entity, month)
+    ready = approvals.readiness(db, entity, month, known_freshness=(run.id, fresh) if run and fresh else None)
     if signoff is not None and signoff.state == "signed":
         stage = "signed_off"
     elif upload is None:

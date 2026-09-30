@@ -134,7 +134,7 @@ export default function MappingEditorPage() {
               <button key={s.id} type="button" className="rounded border border-ink-200 px-2 py-1 font-normal" onClick={async () => {
                 try { const r = await studioConnApi.sample(c.id, s.id); setSample(r.records); setPreview(null); } catch (err) { toast.error("Could not fetch a sample", { description: err instanceof Error ? err.message : "" }); }
               }}>{c.name} · {s.name}</button>)))}
-              {!(connections.data ?? []).some((c) => c.streams.some((s) => s.object_type === v.object_type)) ? <span className="font-normal text-ink-400">No stream of this kind</span> : null}</div></div>
+              {!(connections.data ?? []).some((c) => c.streams.some((s) => s.object_type === v.object_type)) ? <span className="font-normal text-ink-500">No stream of this kind</span> : null}</div></div>
           <label className="text-xs font-semibold text-ink-700">Or paste JSON records
             <textarea className={cn(FIELD, "mt-1 h-16 font-mono text-xs")} value={json} onChange={(e) => setJson(e.target.value)} placeholder='[{"EmpNo": "00123", "Hired": "15/04/2024"}]' />
             <button type="button" className="mt-1 text-xs underline" onClick={() => { try { const p = JSON.parse(json); setSample(Array.isArray(p) ? p : [p]); setPreview(null); } catch { toast.error("That is not valid JSON"); } }}>Use</button></label>
@@ -151,7 +151,7 @@ export default function MappingEditorPage() {
         <p className="text-xs text-ink-500">An empty or missing source value leaves the field absent — never zero — unless you set a default here, where anyone can read it. A value that cannot be read rejects the record, naming the field and the row.</p>
         <datalist id="sample-fields">{sampleFields.map((s) => <option key={s} value={s} />)}</datalist>
         <datalist id="target-fields">{(targets.data?.targets ?? []).map((t) => <option key={t.target} value={t.target} />)}</datalist>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Field mapping">
           <table className="w-full min-w-[1100px] text-xs">
             <thead className="text-left text-ink-500 [&_th]:font-medium"><tr><th className="py-1 pr-2">Product field</th><th className="pr-2">From</th><th className="pr-2">Read as</th><th className="pr-2">Required</th><th className="pr-2">Default</th><th className="pr-2">Format / pad / codes</th><th className="pr-2">Lookup (from=to per line)</th><th className="pr-2">Formula or condition</th><th /></tr></thead>
             <tbody className="divide-y divide-ink-100 align-top">
@@ -182,7 +182,7 @@ export default function MappingEditorPage() {
                     {f.cases ? <input aria-label="Otherwise" disabled={!editable} className={cn(FIELD, "mt-1")} value={String(f.else ?? "")} onChange={(e) => setField(i, { else: e.target.value || undefined })} placeholder="otherwise → value" /> : null}
                     {editable && !f.formula ? <button type="button" className="mt-1 text-[11px] underline" onClick={() => setField(i, { cases: [...(f.cases ?? []), { when: { source: "", op: "eq", value: "" }, value: "" }], source: undefined })}>+ condition</button> : null}
                   </td>
-                  <td>{editable ? <button type="button" aria-label="Remove field" onClick={() => removeField(i)} className="text-ink-400 hover:text-danger-700"><Trash2 size={14} /></button> : null}</td>
+                  <td>{editable ? <button type="button" aria-label="Remove field" onClick={() => removeField(i)} className="text-ink-500 hover:text-danger-700"><Trash2 size={14} /></button> : null}</td>
                 </tr>
               ))}
             </tbody>
@@ -210,7 +210,7 @@ export default function MappingEditorPage() {
                   {preview.results.map((r) => (
                     <tr key={r.row} className={r.errors.length ? "bg-danger-50/50" : ""}>
                       <td className="px-2 py-1 tabular-nums">{r.row}</td>
-                      <td className="px-2">{r.errors.length ? "Rejected" : "Mapped"}{r.defaults_used.length ? <span className="block text-ink-400">default: {r.defaults_used.join(", ")}</span> : null}</td>
+                      <td className="px-2">{r.errors.length ? "Rejected" : "Mapped"}{r.defaults_used.length ? <span className="block text-ink-500">default: {r.defaults_used.join(", ")}</span> : null}</td>
                       <td className="px-2 font-mono">{r.errors.length ? r.errors.map((e) => <span key={e.field + e.message} className="block text-danger-700">{e.message}</span>) : JSON.stringify(r.output)}</td>
                     </tr>
                   ))}

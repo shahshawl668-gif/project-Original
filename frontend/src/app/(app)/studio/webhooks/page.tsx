@@ -50,7 +50,7 @@ export default function WebhooksPage() {
       <Card><CardContent className="space-y-2 py-5">
         <h2 className="text-base font-semibold text-ink-900">Verifying a signature</h2>
         <p className="text-xs text-ink-500">Header <code>X-PeopleOpsLab-Signature: t=&lt;unix seconds&gt;,v1=&lt;hex&gt;</code>, where hex is HMAC-SHA256 of <code>&lt;t&gt;.&lt;raw body&gt;</code> with the webhook&apos;s secret. During a secret rotation a second <code>v1</code> is included until the overlap ends. Inbound endpoints expect exactly the same scheme from you, plus a unique <code>X-PeopleOpsLab-Event-Id</code>.</p>
-        <div className="relative"><pre className="overflow-x-auto rounded-lg bg-ink-900 p-3 pr-20 text-[11px] text-ink-100">{VERIFY_SNIPPET}</pre>
+        <div className="relative"><pre tabIndex={0} aria-label="Signature verification example" className="overflow-x-auto rounded-lg bg-ink-900 p-3 pr-20 text-[11px] text-ink-100">{VERIFY_SNIPPET}</pre>
           <CopyButton value={VERIFY_SNIPPET} what="Snippet copied" dark className="absolute right-2 top-2" /></div>
       </CardContent></Card>
     </div>
@@ -133,13 +133,13 @@ function Outbound({ canManage }: { canManage: boolean }) {
               <select aria-label="Delivery status" className="rounded-lg border border-ink-200 px-2 py-1 text-xs" value={filter} onChange={(e) => setFilter(e.target.value)}>
                 <option value="">All</option><option value="pending">Pending</option><option value="delivered">Delivered</option><option value="failed">Failed queue</option><option value="replayed">Replayed</option></select>
               {!deliveries.data ? <Skeleton className="h-10 w-full" /> : deliveries.data.items.length === 0 ? <p className="text-xs text-ink-500">None.</p> : (
-                <table className="w-full text-xs"><thead className="text-left text-ink-500"><tr><th className="py-1 font-medium">Event</th><th>Status</th><th>Attempts</th><th>Last answer</th><th>Next attempt</th><th /></tr></thead>
+                <div className="scrollbar-thin overflow-x-auto"><table className="w-full text-xs"><thead className="text-left text-ink-500"><tr><th className="py-1 font-medium">Event</th><th>Status</th><th>Attempts</th><th>Last answer</th><th>Next attempt</th><th /></tr></thead>
                   <tbody className="divide-y divide-ink-100">{deliveries.data.items.map((d) => (
-                    <tr key={d.id}><td className="py-1"><code>{d.event_type}</code><span className="block font-mono text-ink-400">{d.event_id.slice(0, 8)}{d.replay_of_id ? " · replay" : ""}</span></td>
+                    <tr key={d.id}><td className="py-1"><code>{d.event_type}</code><span className="block font-mono text-ink-500">{d.event_id.slice(0, 8)}{d.replay_of_id ? " · replay" : ""}</span></td>
                       <td><Badge variant={d.status === "delivered" ? "success" : d.status === "failed" ? "destructive" : "secondary"}>{d.status}</Badge></td>
                       <td>{d.attempts}</td><td>{d.last_status_code ?? "—"} {d.last_error ?? ""}{d.last_response_ms !== null ? ` · ${d.last_response_ms} ms` : ""}</td>
                       <td>{fmtTime(d.next_attempt_at)}</td>
-                      <td className="text-right">{canManage && d.status !== "pending" ? <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => void act(() => studioHookApi.replay(d.id), "Replay queued")}>Replay</button> : null}</td></tr>))}</tbody></table>
+                      <td className="text-right">{canManage && d.status !== "pending" ? <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => void act(() => studioHookApi.replay(d.id), "Replay queued")}>Replay</button> : null}</td></tr>))}</tbody></table></div>
               )}
             </div>
           ) : null}
@@ -211,14 +211,14 @@ function InboundPanel({ canManage }: { canManage: boolean }) {
         </div>
       ) : null}
       {!list.data ? <Skeleton className="h-12 w-full" /> : list.data.length === 0 ? <p className="text-sm text-ink-500">No inbound endpoints.</p> : (
-        <table className="w-full text-sm"><thead className="text-left text-xs text-ink-500"><tr><th className="py-1">Endpoint</th><th>Imports</th><th>Last call</th><th>Status</th><th /></tr></thead>
+        <div className="scrollbar-thin overflow-x-auto"><table className="w-full text-sm"><thead className="text-left text-xs text-ink-500"><tr><th className="py-1">Endpoint</th><th>Imports</th><th>Last call</th><th>Status</th><th /></tr></thead>
           <tbody className="divide-y divide-ink-100">{list.data.map((ep) => (
-            <tr key={ep.id}><td className="py-2">{ep.name}<span className="block break-all font-mono text-[11px] text-ink-400">{ep.url}</span></td>
+            <tr key={ep.id}><td className="py-2">{ep.name}<span className="block break-all font-mono text-[11px] text-ink-500">{ep.url}</span></td>
               <td className="text-xs">{OBJECT_LABEL[ep.action.object_type]}{ep.action.mapping_key ? ` via ${ep.action.mapping_key}` : ""}</td>
               <td className="text-xs">{fmtTime(ep.last_received_at)}</td>
               <td><Badge variant={ep.status === "active" ? "success" : "secondary"}>{ep.status}</Badge></td>
               <td className="text-right text-xs"><button type="button" className="underline" onClick={() => setReceiptsFor(receiptsFor === ep.id ? null : ep.id)}>Calls</button>
-                {canManage ? <button type="button" className="ml-2 underline" onClick={() => void studioHookApi.updateInbound(ep.id, ep.status === "active" ? "disabled" : "active").then(() => qc.invalidateQueries({ queryKey: ["studio-inbound", entity?.id] }))}>{ep.status === "active" ? "Disable" : "Enable"}</button> : null}</td></tr>))}</tbody></table>
+                {canManage ? <button type="button" className="ml-2 underline" onClick={() => void studioHookApi.updateInbound(ep.id, ep.status === "active" ? "disabled" : "active").then(() => qc.invalidateQueries({ queryKey: ["studio-inbound", entity?.id] }))}>{ep.status === "active" ? "Disable" : "Enable"}</button> : null}</td></tr>))}</tbody></table></div>
       )}
       {receiptsFor && receipts.data ? (
         <ul className="text-xs">{receipts.data.length === 0 ? <li className="text-ink-500">No calls yet.</li> : receipts.data.map((r) => (

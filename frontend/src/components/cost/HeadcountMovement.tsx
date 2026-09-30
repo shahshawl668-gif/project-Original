@@ -38,7 +38,7 @@ export function HeadcountMovement({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-ink-200 text-[11px] text-ink-400">
+            <tr className="border-b border-ink-200 text-[11px] text-ink-500">
               <th className="py-2 text-left font-semibold">Period</th>
               <th className="py-2 text-right font-semibold">Opening</th>
               <th className="py-2 text-right font-semibold">Joiners</th>
@@ -58,11 +58,11 @@ export function HeadcountMovement({
                   {point.opening ?? "—"}
                 </td>
                 <td className={cn("py-2 text-right",
-                  point.joiners ? "font-medium text-success-700" : "text-ink-400")}>
+                  point.joiners ? "font-medium text-success-700" : "text-ink-500")}>
                   {point.joiners || "—"}
                 </td>
                 <td className={cn("py-2 text-right",
-                  point.exits ? "font-medium text-danger-600" : "text-ink-400")}>
+                  point.exits ? "font-medium text-danger-600" : "text-ink-500")}>
                   {point.exits || "—"}
                 </td>
                 <td className="py-2 text-right font-medium text-ink-900">
@@ -79,7 +79,7 @@ export function HeadcountMovement({
                 </td>
                 <td className="py-2 text-right">
                   {point.opening === null ? (
-                    <span className="text-ink-400">—</span>
+                    <span className="text-ink-500">—</span>
                   ) : point.master_agrees ? (
                     <span className="text-success-700">agrees</span>
                   ) : (

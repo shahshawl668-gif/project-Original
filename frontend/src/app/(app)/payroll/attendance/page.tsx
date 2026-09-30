@@ -115,7 +115,7 @@ export default function AttendancePage() {
         <CardContent className="space-y-4 py-5">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
+              <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
                 Period
               </span>
               <input
@@ -167,7 +167,7 @@ export default function AttendancePage() {
               </>
             ) : (
               <>
-                <UploadCloud size={22} className="text-ink-400" />
+                <UploadCloud size={22} className="text-ink-500" />
                 <span className="text-sm font-medium text-ink-800">
                   Drop the attendance file, or choose one
                 </span>
@@ -277,7 +277,7 @@ export default function AttendancePage() {
       <Card>
         <CardContent className="py-5">
           <h3 className="flex items-center gap-2 pb-3 text-base font-semibold text-ink-900">
-            <CalendarDays size={16} className="text-ink-400" /> Stored months
+            <CalendarDays size={16} className="text-ink-500" /> Stored months
           </h3>
           {registers?.length ? (
             <div className="divide-y divide-ink-200/70">
@@ -378,7 +378,7 @@ function FindingRow({ finding }: { finding: AttendanceFinding }) {
 function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div>
-      <span className="block text-[11px] font-semibold text-ink-400">
+      <span className="block text-[11px] font-semibold text-ink-500">
         {label}
       </span>
       <p className="font-display text-xl font-semibold tabular-nums text-ink-900">

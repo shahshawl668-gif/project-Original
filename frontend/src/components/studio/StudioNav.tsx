@@ -41,7 +41,7 @@ export function StudioNav() {
                 </Link>
               ) : (
                 <span title={s.summary} aria-disabled="true"
-                  className="-mb-px inline-flex h-10 cursor-not-allowed items-center border-b-2 border-transparent px-3 text-[13px] text-ink-400">
+                  className="-mb-px inline-flex h-10 cursor-not-allowed items-center border-b-2 border-transparent px-3 text-[13px] text-ink-500">
                   {s.label}<span className="ml-1 text-[11px]">· not in this release</span>
                 </span>
               )}

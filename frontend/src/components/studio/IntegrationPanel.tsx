@@ -48,9 +48,9 @@ export function IntegrationPanel({ period }: { period: string | null | undefined
                     <Link href={`/studio/runs/${r.id}`} className="mt-1 flex flex-wrap items-center gap-1.5 hover:underline">
                       <StatusBadge status={r.status} />
                       <span>{r.counts ? `${r.counts.accepted ?? 0} of ${r.counts.received ?? 0} stored` : ""}</span>
-                      <span className="text-ink-400">{fmtTime(r.finished_at ?? r.queued_at)}</span>
+                      <span className="text-ink-500">{fmtTime(r.finished_at ?? r.queued_at)}</span>
                     </Link>
-                  ) : <p className="mt-1 text-ink-400">Not through Studio this month</p>}
+                  ) : <p className="mt-1 text-ink-500">Not through Studio this month</p>}
                 </div>
               );
             })}
@@ -64,7 +64,7 @@ export function IntegrationPanel({ period }: { period: string | null | undefined
           {failing.length ? <p className="text-sm text-danger-700">Failing: {failing.map((c) => <Link key={c.id} href={`/studio/connections/${c.id}`} className="mr-2 underline">{c.name}</Link>)}</p> : null}
           {flows.length ? (
             <ul className="text-xs text-ink-600">{flows.slice(0, 5).map((r) => (
-              <li key={r.id} className="flex items-center gap-2 py-0.5"><Link href={`/studio/runs/${r.id}`} className="underline">{runTitle(r)}</Link> <StatusBadge status={r.status} /> <span className="text-ink-400">{fmtTime(r.queued_at)}</span></li>))}</ul>
+              <li key={r.id} className="flex items-center gap-2 py-0.5"><Link href={`/studio/runs/${r.id}`} className="underline">{runTitle(r)}</Link> <StatusBadge status={r.status} /> <span className="text-ink-500">{fmtTime(r.queued_at)}</span></li>))}</ul>
           ) : null}
         </>
       )}

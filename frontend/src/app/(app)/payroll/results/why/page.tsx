@@ -56,7 +56,7 @@ function Rows({ rows }: { rows: [string, ReactNode][] }) {
 }
 
 const show = (v: unknown): ReactNode =>
-  v === null || v === undefined || v === "" ? <span className="text-ink-400">not supplied</span> : typeof v === "object" ? JSON.stringify(v) : String(v);
+  v === null || v === undefined || v === "" ? <span className="text-ink-500">not supplied</span> : typeof v === "object" ? JSON.stringify(v) : String(v);
 
 function Explanation({ e, runId }: { e: FindingExplanation; runId: string }) {
   const policy = e.rule.policy ?? null;
@@ -79,7 +79,7 @@ function Explanation({ e, runId }: { e: FindingExplanation; runId: string }) {
           ].map(([k, v]) => (
             <div key={k} className="rounded-lg bg-ink-50 px-3 py-2">
               <dt className="text-xs text-ink-500">{k}</dt>
-              <dd className="num mt-0.5 text-lg font-semibold text-ink-900">{v ?? <span className="text-sm font-normal text-ink-400">not recorded</span>}</dd>
+              <dd className="num mt-0.5 text-lg font-semibold text-ink-900">{v ?? <span className="text-sm font-normal text-ink-500">not recorded</span>}</dd>
             </div>
           ))}
           <div className="rounded-lg bg-ink-50 px-3 py-2">
@@ -118,7 +118,7 @@ function Explanation({ e, runId }: { e: FindingExplanation; runId: string }) {
             <ol className="space-y-1.5 text-[13px] text-ink-900">
               {e.calculation.steps.map((step, i) => (
                 <li key={i} className="flex gap-2.5">
-                  <span className="num mt-0.5 w-5 flex-shrink-0 text-right text-xs text-ink-400">{i + 1}.</span>
+                  <span className="num mt-0.5 w-5 flex-shrink-0 text-right text-xs text-ink-500">{i + 1}.</span>
                   <span className="font-mono text-[12.5px] leading-relaxed">{step}</span>
                 </li>
               ))}
@@ -129,7 +129,7 @@ function Explanation({ e, runId }: { e: FindingExplanation; runId: string }) {
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-ink-100 pt-2 text-xs text-ink-600">
             <span>Tolerance: {e.calculation.tolerance != null ? <b className="num">₹{String(e.calculation.tolerance)}</b> : "none — exact comparison"}</span>
             {basis.map(([k, v]) => <span key={k}>{k.replace(/_/g, " ")}: <b>{String(v)}</b></span>)}
-            <span className="text-ink-400">Restated from {e.calculation.reconstructed_from}.</span>
+            <span className="text-ink-500">Restated from {e.calculation.reconstructed_from}.</span>
           </div>
         </Section>
 

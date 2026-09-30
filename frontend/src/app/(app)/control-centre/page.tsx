@@ -123,7 +123,7 @@ export default function ControlCentrePage() {
         description={
           <>
             {entity?.name ?? "This company"} · {period ? periodLabel(period) : "…"}
-            {source !== "chosen" && period ? <span className="text-ink-400"> (the latest month with a run — change it from the period menu above)</span> : null}
+            {source !== "chosen" && period ? <span className="text-ink-500"> (the latest month with a run — change it from the period menu above)</span> : null}
           </>
         }
         actions={s ? <StatusPill tone={monthState(s).tone} size="lg">{monthState(s).label}</StatusPill> : null}
@@ -524,7 +524,7 @@ function Steps({ s, reconciled }: { s: PeriodStatus; reconciled: boolean | null 
               step.state === "done" && "bg-success-600 text-white",
               step.state === "current" && "bg-brand-600 text-white",
               step.state === "attention" && "bg-warning-500 text-white",
-              step.state === "todo" && "border border-ink-200 text-ink-400",
+              step.state === "todo" && "border border-ink-200 text-ink-500",
             )}
             aria-hidden
           >
@@ -559,7 +559,7 @@ function Panel({
   return (
     <section className="flex flex-col rounded-xl border border-ink-200 bg-white shadow-soft">
       <header className="flex items-center gap-2 border-b border-ink-100 px-4 py-2.5">
-        <Icon size={15} className="text-ink-400" aria-hidden />
+        <Icon size={15} className="text-ink-500" aria-hidden />
         <h2 className="flex-1 text-[13px] font-semibold text-ink-900">{title}</h2>
         {href ? (
           <Link href={href} className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-700 hover:text-brand-800">
@@ -578,8 +578,8 @@ function Row({ label, state, children }: { label: string; state: "ok" | "warn" |
   const icon =
     state === "ok" ? <Check size={13} className="text-success-600" aria-label="Present" /> :
     state === "warn" ? <TriangleAlert size={13} className="text-warning-600" aria-label="Needs attention" /> :
-    state === "unknown" ? <CircleDashed size={13} className="text-ink-400" aria-label="Unknown" /> :
-    <CircleDashed size={13} className="text-ink-400" aria-label="Missing" />;
+    state === "unknown" ? <CircleDashed size={13} className="text-ink-500" aria-label="Unknown" /> :
+    <CircleDashed size={13} className="text-ink-500" aria-label="Missing" />;
   return (
     <div className="flex gap-2.5 text-[13px]">
       <span className="mt-0.5 flex-shrink-0">{icon}</span>

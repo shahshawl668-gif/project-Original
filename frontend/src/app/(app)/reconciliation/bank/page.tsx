@@ -27,6 +27,7 @@ import {
   uploadBankFile,
   type BankFileMeta,
 } from "@/lib/reconciliation";
+import { useWorkingPeriod } from "@/lib/workspace";
 
 /**
  * Bank payments against the register.
@@ -38,7 +39,11 @@ import {
  */
 export default function BankReconciliationPage() {
   const queryClient = useQueryClient();
-  const [period, setPeriod] = useState(currentPeriod());
+  // The month in the header's period picker, so this page and the rest of the
+  // month's work agree on which month is open (it used to start on the calendar month).
+  const working = useWorkingPeriod();
+  const period = working.period ?? currentPeriod();
+  const setPeriod = (value: string) => { if (value) working.setPeriod(value); };
   const [profileId, setProfileId] = useState<string>("");
   const [fileId, setFileId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +56,7 @@ export default function BankReconciliationPage() {
   const { data: files, isLoading: loadingFiles } = useQuery({
     queryKey: ["bank-files", period],
     queryFn: () => fetchBankFiles(period),
+    enabled: !working.loading,
   });
 
   useEffect(() => {
@@ -139,8 +145,8 @@ export default function BankReconciliationPage() {
       <Card>
         <CardContent className="py-5">
           <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
+            <label>
+              <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
                 Period
               </span>
               <input
@@ -149,7 +155,7 @@ export default function BankReconciliationPage() {
                 onChange={(event) => setPeriod(event.target.value)}
                 className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
               />
-            </div>
+            </label>
 
             <Menu
               label="Read with"
@@ -227,7 +233,7 @@ export default function BankReconciliationPage() {
                   <button
                     type="button"
                     onClick={() => remove.mutate(file.id)}
-                    className="text-ink-400 transition hover:text-danger-600"
+                    className="text-ink-500 transition hover:text-danger-600"
                     aria-label={`Delete ${file.filename}`}
                   >
                     <Trash2 size={14} />

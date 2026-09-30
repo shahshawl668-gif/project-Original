@@ -124,7 +124,7 @@ export default function ReportsPage() {
 
       <div className="sr-only" role="status" aria-live="polite">{announce}</div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside aria-labelledby="scope-heading" className="space-y-4 rounded-xl border border-ink-200 bg-white p-4 lg:sticky lg:top-20">
           <div>
             <h2 id="scope-heading" className="text-sm font-semibold text-ink-900">Report scope</h2>
@@ -199,7 +199,7 @@ export default function ReportsPage() {
                     const note = ignores(report);
                     return (
                       <li key={report.key} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-start">
-                        <FileSpreadsheet size={18} className="mt-0.5 hidden flex-shrink-0 text-ink-400 sm:block" aria-hidden />
+                        <FileSpreadsheet size={18} className="mt-0.5 hidden flex-shrink-0 text-ink-500 sm:block" aria-hidden />
                         <div className="min-w-0 flex-1">
                           <h3 className="text-[14px] font-semibold text-ink-900">{report.title}</h3>
                           <p className="mt-0.5 text-[13px] text-ink-600">{report.description}</p>

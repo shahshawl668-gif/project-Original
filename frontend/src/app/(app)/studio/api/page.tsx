@@ -217,14 +217,14 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
         </div>
       </div>
       {account.credentials.length ? (
-        <table className="mt-3 w-full text-xs">
+        <div className="scrollbar-thin overflow-x-auto" tabIndex={0} role="region" aria-label={`Keys for ${account.name}`}><table className="mt-3 w-full text-xs">
           <thead className="text-left text-ink-500"><tr><th className="py-1 font-medium">Key</th><th>State</th><th>Expires</th><th>Last used</th><th /></tr></thead>
           <tbody className="divide-y divide-ink-100">
             {account.credentials.map((c) => (
               <tr key={c.id}>
-                <td className="py-1.5 font-mono">{c.prefix}…<span className="block font-sans text-ink-400">{c.label}</span></td>
+                <td className="py-1.5 font-mono">{c.prefix}…<span className="block font-sans text-ink-500">{c.label}</span></td>
                 <td><Badge variant={c.state === "active" ? "success" : c.state === "rotating" ? "warning" : "secondary"}>{c.state}</Badge>
-                  {c.revoke_reason ? <span className="block text-ink-400">{c.revoke_reason}</span> : null}</td>
+                  {c.revoke_reason ? <span className="block text-ink-500">{c.revoke_reason}</span> : null}</td>
                 <td>{new Date(c.expires_at).toLocaleDateString("en-IN")}</td>
                 <td>{c.last_used_at ? fmtTime(c.last_used_at) : "never"}</td>
                 <td className="text-right">
@@ -240,7 +240,7 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       ) : <p className="pt-2 text-xs text-ink-500">No keys yet.</p>}
 
       <ConfirmAction
@@ -314,7 +314,7 @@ function curl(base: string, companyId: string, method: string, path: string, bod
 function Snippet({ code }: { code: string }) {
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-lg bg-ink-900 p-3 pr-16 text-[11px] leading-relaxed text-ink-100">{code}</pre>
+      <pre tabIndex={0} aria-label="Example command" className="overflow-x-auto rounded-lg bg-ink-900 p-3 pr-16 text-[11px] leading-relaxed text-ink-100">{code}</pre>
       <CopyButton value={code} what="Command copied" dark className="absolute right-2 top-2" />
     </div>
   );
@@ -371,10 +371,10 @@ function Contract({ spec, base, companyId }: { spec: OpenApi; base: string; comp
                 <div className="space-y-2 pt-2 text-sm">
                   {op.description ? <Markdown text={op.description} /> : null}
                   {op.parameters?.length ? (
-                    <table className="w-full text-xs"><tbody>{op.parameters.filter((p) => !["authorization"].includes(p.name.toLowerCase())).map((p) => (
+                    <div className="scrollbar-thin overflow-x-auto" tabIndex={0} role="region" aria-label="Parameters"><table className="w-full text-xs"><tbody>{op.parameters.filter((p) => !["authorization"].includes(p.name.toLowerCase())).map((p) => (
                       <tr key={`${p.in}${p.name}`} className="border-b border-ink-100">
                         <td className="py-1 pr-2 font-mono">{p.name}</td><td className="pr-2 text-ink-500">{p.in}{p.required ? " · required" : ""}</td>
-                        <td className="text-ink-600">{p.description ?? p.schema?.pattern ?? ""}</td></tr>))}</tbody></table>
+                        <td className="text-ink-600">{p.description ?? p.schema?.pattern ?? ""}</td></tr>))}</tbody></table></div>
                   ) : null}
                   {examples.length ? examples.map(([k, ex]) => (
                     <div key={k}><p className="pb-1 text-xs font-semibold text-ink-700">{"summary" in ex && ex.summary ? ex.summary : "Example"}</p>

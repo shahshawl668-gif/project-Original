@@ -176,7 +176,7 @@ export default function TeamPage() {
       <Card>
         <CardContent className="py-5">
           <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
-            <Users size={16} className="text-ink-400" /> Members
+            <Users size={16} className="text-ink-500" /> Members
           </h3>
           <p className="pb-3 text-xs text-ink-500">
             You cannot change your own role or remove yourself — both directions are how an
@@ -213,7 +213,7 @@ export default function TeamPage() {
       <Card>
         <CardContent className="py-5">
           <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
-            <Mail size={16} className="text-ink-400" /> Invitations
+            <Mail size={16} className="text-ink-500" /> Invitations
           </h3>
           <p className="pb-3 text-xs text-ink-500">
             An unaccepted invitation is an outstanding key to this organization&apos;s payroll.
@@ -255,7 +255,7 @@ export default function TeamPage() {
                     <button
                       type="button"
                       onClick={() => revoke.mutate(invitation.id)}
-                      className="text-ink-400 transition hover:text-danger-600"
+                      className="text-ink-500 transition hover:text-danger-600"
                       aria-label={`Revoke the invitation to ${invitation.email}`}
                     >
                       <Trash2 size={14} />
@@ -384,7 +384,7 @@ function InviteForm({
     <Card>
       <CardContent className="py-5">
         <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
-          <UserPlus size={16} className="text-ink-400" /> Invite someone
+          <UserPlus size={16} className="text-ink-500" /> Invite someone
         </h3>
         <p className="pb-4 text-xs text-ink-500">
           Choose a role and company access. All companies also includes companies added later.
@@ -392,7 +392,7 @@ function InviteForm({
 
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[15rem] flex-1">
-            <span className="mb-1.5 block text-[11px] font-semibold text-ink-400">
+            <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
               Email
             </span>
             <input
@@ -576,7 +576,7 @@ function MemberRow({
               type="button"
               onClick={onRemove}
               disabled={busy}
-              className="text-ink-400 transition hover:text-danger-600 disabled:opacity-50"
+              className="text-ink-500 transition hover:text-danger-600 disabled:opacity-50"
               aria-label={`Remove ${member.email}`}
             >
               <Trash2 size={14} />
@@ -646,7 +646,7 @@ function SupportPanel() {
     <Card>
       <CardContent className="py-5">
         <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
-          <ShieldCheck size={16} className="text-ink-400" /> Support access
+          <ShieldCheck size={16} className="text-ink-500" /> Support access
         </h3>
         <p className="pb-3 text-xs text-ink-500">
           Whether the people who build this product may read your data to help you, and
@@ -792,7 +792,7 @@ function ApprovalPanel({ isOwner }: { isOwner: boolean }) {
     <Card>
       <CardContent className="py-5">
         <h3 className="flex items-center gap-2 pb-1 text-base font-semibold text-ink-900">
-          <ShieldCheck size={16} className="text-ink-400" /> Approval controls
+          <ShieldCheck size={16} className="text-ink-500" /> Approval controls
         </h3>
         <p className="pb-3 text-xs text-ink-500">
           Whether approvals must come from someone other than the person who prepared the work.

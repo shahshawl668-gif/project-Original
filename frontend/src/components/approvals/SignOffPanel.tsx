@@ -187,7 +187,7 @@ export function SignOffPanel({ period }: { period: string }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 id="approval" className="flex items-center gap-2 text-[15px] font-semibold text-ink-900">
-              <Stamp size={16} className="text-ink-400" /> Approval · {monthLabel(period)}
+              <Stamp size={16} className="text-ink-500" /> Approval · {monthLabel(period)}
             </h3>
             <p className="text-xs text-ink-500">
               {s.stage_label}

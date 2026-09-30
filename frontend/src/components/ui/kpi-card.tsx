@@ -69,13 +69,13 @@ export function Stat({
     <>
       <div className="flex items-center gap-1.5 text-xs font-medium text-ink-500">
         <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", TONE_DOT[tone])} aria-hidden />
-        {Icon ? <Icon size={13} className="text-ink-400" aria-hidden /> : null}
+        {Icon ? <Icon size={13} className="text-ink-500" aria-hidden /> : null}
         <span className="truncate">{label}</span>
         {href ? <ChevronRight size={13} className="ml-auto flex-shrink-0 text-ink-300 transition-colors group-hover:text-ink-500" aria-hidden /> : null}
       </div>
       <div className="mt-1.5 flex items-baseline gap-2">
         {value === null || value === undefined ? (
-          <span className="text-sm font-medium text-ink-400">Not available</span>
+          <span className="text-sm font-medium text-ink-500">Not available</span>
         ) : (
           <span className={cn("num text-[22px] font-semibold leading-none tracking-tight", TONE_VALUE[tone])}>
             {typeof value === "number" ? value.toLocaleString("en-IN") : value}
@@ -85,11 +85,11 @@ export function Stat({
           <span className={cn("inline-flex items-center gap-0.5 text-xs font-medium", trendTone)}>
             <TrendIcon size={12} aria-hidden />
             {trend.value}
-            {trend.label ? <span className="font-normal text-ink-400">{trend.label}</span> : null}
+            {trend.label ? <span className="font-normal text-ink-500">{trend.label}</span> : null}
           </span>
         ) : null}
       </div>
-      {qualifier ? <p className="mt-1 text-[11.5px] text-ink-400">{qualifier}</p> : null}
+      {qualifier ? <p className="mt-1 text-[11.5px] text-ink-500">{qualifier}</p> : null}
       {hint ? <div className="mt-1.5 text-xs leading-relaxed text-ink-500">{hint}</div> : null}
       {footer ? <div className="mt-3 border-t border-ink-100 pt-2.5 text-xs">{footer}</div> : null}
     </>

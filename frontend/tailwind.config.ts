@@ -50,6 +50,8 @@ const config: Config = {
           100: "#eef0f3",
           200: "#dfe2e8",
           300: "#b7bdc9",
+          // 400 is for borders, placeholders, disabled states and icons —
+          // never text a person must read (3.1:1 on white). Text starts at 500.
           400: "#8a93a4",
           500: "#636c7e",
           600: "#474f61",
@@ -58,9 +60,10 @@ const config: Config = {
           900: "#111522",
           950: "#080a12",
         },
-        // Sky blue on white. 600 is the action colour: it clears 4.5:1 against
-        // white for button text, which 500 does not, so the darker step is the
-        // one that gets used for anything a person has to read.
+        // Sky blue on white. 600 is the action colour and is set so that white
+        // button text on it, and it as text on white, the canvas or brand-50,
+        // all clear 4.5:1 (5.0, 4.67, 4.69). The stock sky-600 (#0284c7) only
+        // reached 4.1 — an axe pass caught it — so this step is darker.
         brand: {
           50: "#f0f9ff",
           100: "#e0f2fe",
@@ -68,7 +71,7 @@ const config: Config = {
           300: "#7dd3fc",
           400: "#38bdf8",
           500: "#0ea5e9",
-          600: "#0284c7",
+          600: "#0275b3",
           700: "#0369a1",
           800: "#075985",
           900: "#0c4a6e",

@@ -163,7 +163,7 @@ export default function WorkflowBuilderPage() {
             <select aria-label="Operator" disabled={!editable} className={FIELD} value={c.op} onChange={(e) => setDef({ ...def, conditions: def.conditions.map((x, j) => (j === i ? { ...x, op: e.target.value } : x)) })}>
               {cat.data.ops.map((o) => <option key={o} value={o}>{o.replace("_", " ")}</option>)}</select>
             <input aria-label="Value" disabled={!editable || ["present", "absent"].includes(c.op)} className={FIELD} value={String(c.value ?? "")} onChange={(e) => setDef({ ...def, conditions: def.conditions.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })} placeholder={["in", "not_in"].includes(c.op) ? "a, b, c" : "value"} />
-            {editable ? <button type="button" aria-label="Remove condition" onClick={() => setDef({ ...def, conditions: def.conditions.filter((_, j) => j !== i) })}><Trash2 size={14} /></button> : <span />}
+            {editable ? <button type="button" aria-label={`Remove condition ${i + 1}`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30" onClick={() => setDef({ ...def, conditions: def.conditions.filter((_, j) => j !== i) })}><Trash2 size={14} /></button> : <span />}
           </div>
         ))}
         <p className="text-xs text-ink-500">A value that cannot be compared (text against a number, or missing) makes the condition false — never true by accident.</p>
@@ -252,9 +252,9 @@ function StepsEditor({ title, catalogue, steps, editable, failureBranch, onChang
             <label className="text-[11px] text-ink-500">Retries<input aria-label="Retries" disabled={!editable} className={FIELD} value={s.retries ?? 0} onChange={(e) => set(i, { retries: Number(e.target.value) || 0 })} /></label>
             <label className="text-[11px] text-ink-500">Timeout (min)<input aria-label="Timeout" disabled={!editable} className={FIELD} value={s.timeout_minutes ?? 60} onChange={(e) => set(i, { timeout_minutes: Number(e.target.value) || 60 })} /></label>
             {editable ? <span className="flex items-start gap-1 pt-1">
-              <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={14} /></button>
-              <button type="button" aria-label="Move down" disabled={i === steps.length - 1} onClick={() => move(i, 1)}><ArrowDown size={14} /></button>
-              <button type="button" aria-label="Remove step" onClick={() => onChange(steps.filter((_, j) => j !== i))}><Trash2 size={14} /></button></span> : <span />}
+              <button type="button" aria-label={`Move step ${i + 1} up`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={14} /></button>
+              <button type="button" aria-label={`Move step ${i + 1} down`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30" disabled={i === steps.length - 1} onClick={() => move(i, 1)}><ArrowDown size={14} /></button>
+              <button type="button" aria-label={`Remove step ${i + 1}`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-danger-700 disabled:opacity-30" onClick={() => onChange(steps.filter((_, j) => j !== i))}><Trash2 size={14} /></button></span> : <span />}
           </div>
           <p className="text-xs text-ink-500">{catalogue.actions[s.type]?.help}</p>
           <ParamsEditor action={s} catalogue={catalogue} disabled={!editable} onChange={(params) => set(i, { params })} />

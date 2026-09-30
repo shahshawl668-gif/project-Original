@@ -84,7 +84,7 @@ function NavSection({ group, onNavigate }: { group: NavGroup; onNavigate?: () =>
                     size={15}
                     strokeWidth={active ? 2.1 : 1.8}
                     aria-hidden
-                    className={cn("flex-shrink-0", active ? "text-brand-600" : "text-ink-400 group-hover:text-ink-600")}
+                    className={cn("flex-shrink-0", active ? "text-brand-600" : "text-ink-500 group-hover:text-ink-600")}
                   />
                   <span className="truncate">{item.label}</span>
                 </Link>
@@ -181,7 +181,7 @@ function ProfileMenu() {
         className="flex h-8 items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 text-ink-700 transition-colors hover:bg-ink-100"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-800 text-[11px] font-semibold text-white">{initial}</span>
-        <ChevronDown size={13} className="text-ink-400" aria-hidden />
+        <ChevronDown size={13} className="text-ink-500" aria-hidden />
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-full z-50 mt-1.5 w-64 animate-fade-up rounded-xl border border-ink-200 bg-white p-1 shadow-elevated">

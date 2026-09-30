@@ -285,8 +285,8 @@ export default function ReportBuilderPage() {
         </AlertBanner>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[232px_minmax(0,1fr)]">
-        <nav aria-label="Report steps" className="lg:sticky lg:top-20">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[232px_minmax(0,1fr)]">
+        <nav aria-label="Report steps" className="min-w-0 lg:sticky lg:top-20">
           <ol className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
             {STEPS.map((label, i) => {
               const err = visited.has(i) ? stepError[i] : null;
@@ -357,7 +357,7 @@ export default function ReportBuilderPage() {
                     <ol className="mt-2 divide-y divide-ink-100 rounded-lg border border-ink-200">
                       {spec.fields.map((key, i) => (
                         <li key={key} className="flex items-center gap-2 px-3 py-1.5 text-[13px]">
-                          <span className="w-5 text-xs tabular-nums text-ink-400">{i + 1}</span>
+                          <span className="w-5 text-xs tabular-nums text-ink-500">{i + 1}</span>
                           <span className="min-w-0 flex-1 truncate text-ink-900">{labelOf(key)}</span>
                           <IconBtn label={`Move ${labelOf(key)} earlier`} disabled={i === 0} onClick={() => { const f = spec.fields.slice(); [f[i - 1], f[i]] = [f[i], f[i - 1]]; update({ fields: f }); }}><ArrowUp size={13} /></IconBtn>
                           <IconBtn label={`Move ${labelOf(key)} later`} disabled={i === spec.fields.length - 1} onClick={() => { const f = spec.fields.slice(); [f[i + 1], f[i]] = [f[i], f[i + 1]]; update({ fields: f }); }}><ArrowDown size={13} /></IconBtn>
@@ -527,14 +527,14 @@ export default function ReportBuilderPage() {
                     <legend className="text-xs font-medium text-ink-700">Who can open it</legend>
                     <div className="mt-1.5 space-y-1 text-[13px]">
                       <label className="flex items-center gap-1.5"><input type="radio" name="vis" className="accent-brand-600" checked={meta.visibility === "private"} onChange={() => setMeta({ ...meta, visibility: "private" })} /> Only me</label>
-                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-400")}><input type="radio" name="vis" className="accent-brand-600" disabled={!isManager} checked={meta.visibility === "shared"} onChange={() => setMeta({ ...meta, visibility: "shared" })} /> Analysts and above in this company</label>
+                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="vis" className="accent-brand-600" disabled={!isManager} checked={meta.visibility === "shared"} onChange={() => setMeta({ ...meta, visibility: "shared" })} /> Analysts and above in this company</label>
                     </div>
                   </fieldset>
                   <fieldset>
                     <legend className="text-xs font-medium text-ink-700">Status</legend>
                     <div className="mt-1.5 space-y-1 text-[13px]">
                       <label className="flex items-center gap-1.5"><input type="radio" name="status" className="accent-brand-600" checked={meta.status === "draft"} onChange={() => setMeta({ ...meta, status: "draft" })} /> Draft</label>
-                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-400")}><input type="radio" name="status" className="accent-brand-600" disabled={!isManager} checked={meta.status === "published"} onChange={() => setMeta({ ...meta, status: "published" })} /> Published — only a manager can change it afterwards</label>
+                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="status" className="accent-brand-600" disabled={!isManager} checked={meta.status === "published"} onChange={() => setMeta({ ...meta, status: "published" })} /> Published — only a manager can change it afterwards</label>
                     </div>
                   </fieldset>
                   {!isManager ? <p className="text-xs text-ink-500">Sharing and publishing need a manager or owner.</p> : null}
@@ -645,7 +645,7 @@ function PreviewResult({ preview, spec, labelOf, dimLabel, busy, stale }: {
   }
   const shown = preview.rows.length;
   const fmt = (key: string, v: string | number | null) => {
-    if (v === null || v === undefined) return <span className="text-ink-400" title="Not available">—</span>;
+    if (v === null || v === undefined) return <span className="text-ink-500" title="Not available">—</span>;
     if (key === "period") return periodLabel(String(v));
     if (MONEY_FIELDS.has(key)) return inr(Number(v));
     if (key === "headcount" || key === "person_months") return count(Number(v));

@@ -101,7 +101,7 @@ export default function RulePreferencesPage() {
 
         <Card className="overflow-hidden">
           <div className="flex items-center gap-2 border-b border-ink-100 px-5 py-4 text-sm font-semibold text-ink-800">
-            <Ban size={16} className="text-ink-400" />
+            <Ban size={16} className="text-ink-500" />
             Active suppressions
             {list.data?.length ? (
               <span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-ink-100 px-1.5 font-display text-[11px] font-bold text-ink-700">

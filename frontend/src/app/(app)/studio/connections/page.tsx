@@ -46,14 +46,14 @@ export default function ConnectionsPage() {
             No connections yet. A connection can fetch from a REST API on a schedule, or receive files you upload through a mapping.
           </p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="scrollbar-thin overflow-x-auto"><table className="w-full text-sm">
             <thead className="text-left text-xs text-ink-500"><tr>
               <th className="py-1">Connection</th><th>Kind</th><th>Authentication</th><th>Streams</th><th>Health</th><th>Last success</th><th>Last failure</th></tr></thead>
             <tbody className="divide-y divide-ink-100">
               {list.data.map((c) => (
                 <tr key={c.id}>
                   <td className="py-2"><Link href={`/studio/connections/${c.id}`} className="font-medium text-brand-700 hover:underline">{c.name}</Link>
-                    <span className="block text-xs text-ink-400">{c.provider === "rest" ? c.base_url : "File uploads"} · {c.environment}{c.status !== "active" ? " · disabled" : ""}</span></td>
+                    <span className="block text-xs text-ink-500">{c.provider === "rest" ? c.base_url : "File uploads"} · {c.environment}{c.status !== "active" ? " · disabled" : ""}</span></td>
                   <td className="text-xs">{c.system_kind.replace("_", " ")}</td>
                   <td className="text-xs">{c.auth_method.replace(/_/g, " ")}</td>
                   <td className="text-xs">{c.streams.length}</td>
@@ -63,7 +63,7 @@ export default function ConnectionsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </CardContent></Card>
     </div>
@@ -94,7 +94,7 @@ function Destinations({ canManage }: { canManage: boolean }) {
       <div className="flex flex-wrap gap-2">
         {(q.data?.hosts ?? []).map((h) => (
           <span key={h.id} className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-2.5 py-1 font-mono text-xs">
-            {h.host}{h.note ? <span className="font-sans text-ink-400">· {h.note}</span> : null}
+            {h.host}{h.note ? <span className="font-sans text-ink-500">· {h.note}</span> : null}
             {canManage ? <button type="button" aria-label={`Remove ${h.host}`} onClick={() => void studioConnApi.removeDestination(h.id).then(refresh)}><Trash2 size={11} /></button> : null}
           </span>
         ))}

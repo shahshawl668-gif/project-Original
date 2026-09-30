@@ -140,7 +140,7 @@ function JobProgress({ jobId }: { jobId: string }) {
               ) : job.state === "failed" ? (
                 <XCircle className="text-danger-600" size={22} />
               ) : job.state === "cancelled" ? (
-                <XCircle className="text-ink-400" size={22} />
+                <XCircle className="text-ink-500" size={22} />
               ) : (
                 <Loader2 className="animate-spin text-brand-600" size={22} />
               )}
@@ -201,7 +201,7 @@ function JobProgress({ jobId }: { jobId: string }) {
                     ? "border-success-200 bg-success-50 text-success-700"
                     : current
                       ? "border-brand-300 bg-brand-50 text-brand-800"
-                      : "border-ink-200 text-ink-400"
+                      : "border-ink-200 text-ink-500"
                 }`}
               >
                 {STAGE_TEXT[stage]}
@@ -261,7 +261,7 @@ function RecentJobs() {
   if (jobs.length === 0) {
     return (
       <EmptyState
-        icon={<ShieldCheck className="h-7 w-7 text-ink-400" strokeWidth={1.5} />}
+        icon={<ShieldCheck className="h-7 w-7 text-ink-500" strokeWidth={1.5} />}
         title="No validations yet"
         description="Upload a salary register to queue its validation."
         action={<Button asChild><Link href="/payroll/upload" className="gap-2"><UploadCloud size={15} /> Upload register</Link></Button>}
