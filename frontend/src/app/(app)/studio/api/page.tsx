@@ -158,6 +158,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
 
   return (
     <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4 dark:border-brand-500/30 dark:bg-brand-500/5">
+      {companyEnvironment.error && <AlertBanner variant="error" title="Company environment could not be loaded">Reload Studio before issuing a key.</AlertBanner>}
       <div className="grid gap-3 md:grid-cols-[1fr_1fr_12rem]">
         <label className="text-xs font-semibold text-ink-700">Name — the system that will use it
           <input className={cn(FIELD, "mt-1")} placeholder="e.g. HRMS nightly feed" value={name} onChange={(e) => setName(e.target.value)} /></label>
