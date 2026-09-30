@@ -72,11 +72,22 @@ def require_independent(
         )
 
 
-def readiness(db: Session, entity: Entity, period_month: date) -> dict[str, Any]:
+def readiness(
+    db: Session,
+    entity: Entity,
+    period_month: date,
+    *,
+    known_freshness: tuple[Any, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """What stands between this month and approval.
 
     Each blocker says what to do. ``acceptable`` blockers may be accepted with
     a stated reason (recorded in the snapshot); the others must be fixed.
+
+    ``known_freshness`` is ``(run id, run_freshness(...))`` already worked out
+    in this request. Freshness hashes every input row — about a second at
+    8,000 employees — so a caller that has it passes it rather than paying
+    twice. It is used only if it is for the run this function finds current.
     """
     period_month = period_month.replace(day=1)
     run: ValidationRun | None = current_run(db, entity.id, period_month)
@@ -90,7 +101,10 @@ def readiness(db: Session, entity: Entity, period_month: date) -> dict[str, Any]
             "acceptable": False,
         })
     else:
-        fresh = run_inputs.run_freshness(db, entity, run)
+        if known_freshness is not None and known_freshness[0] == run.id:
+            fresh = known_freshness[1]
+        else:
+            fresh = run_inputs.run_freshness(db, entity, run)
         if fresh["revalidation_required"]:
             blockers.append({
                 "code": "revalidation_required",

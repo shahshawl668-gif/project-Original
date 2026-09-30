@@ -54,7 +54,7 @@ export default function LoginPage() {
   return (
     <AuthShell>
       <div className="animate-fade-up">
-        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600">
+        <p className="text-[11px] font-semibold text-brand-600">
           Welcome back
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
@@ -66,7 +66,7 @@ export default function LoginPage() {
 
         <form onSubmit={onSubmit} className="mt-8 space-y-5" aria-busy={busy}>
           {error && (
-            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div role="alert" className="rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700">
               <p>{error}</p>
               <button type="button" className="mt-2 font-semibold underline" onClick={async () => {
                 const health = await probeApiHealth();
@@ -112,7 +112,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPwd((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-400 transition-colors hover:text-ink-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-500 transition-colors hover:text-ink-700"
                 aria-label={showPwd ? "Hide password" : "Show password"}
               >
                 {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -123,7 +123,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={busy || secondsRemaining > 0}
-            className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(2,132,199,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(2,132,199,0.7)] disabled:opacity-60"
+            className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-brand-600 hover:bg-brand-700 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(2,132,199,0.55)] transition-all hover:shadow-[0_12px_32px_-8px_rgba(2,132,199,0.7)] disabled:opacity-60"
           >
             <span
               aria-hidden

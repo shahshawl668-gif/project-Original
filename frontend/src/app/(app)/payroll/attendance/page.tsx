@@ -115,7 +115,7 @@ export default function AttendancePage() {
         <CardContent className="space-y-4 py-5">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
                 Period
               </span>
               <input
@@ -125,13 +125,13 @@ export default function AttendancePage() {
                   setPeriod(event.target.value);
                   setCheck(null);
                 }}
-                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-900 dark:text-white"
+                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
               />
             </div>
             <a
               href={`data:text/csv;charset=utf-8,${encodeURIComponent(ATTENDANCE_TEMPLATE)}`}
               download="attendance-template.csv"
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50"
             >
               <Download size={14} /> Template
             </a>
@@ -151,27 +151,27 @@ export default function AttendancePage() {
             className={cn(
               "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition",
               drag
-                ? "border-brand-500 bg-brand-50/60 dark:bg-brand-500/10"
-                : "border-ink-200 hover:border-ink-300 dark:border-ink-700",
+                ? "border-brand-500 bg-brand-50/60"
+                : "border-ink-200 hover:border-ink-300",
             )}
           >
             {file ? (
               <>
-                <FileSpreadsheet size={22} className="text-brand-600 dark:text-brand-300" />
-                <span className="text-sm font-medium text-ink-900 dark:text-white">
+                <FileSpreadsheet size={22} className="text-brand-600" />
+                <span className="text-sm font-medium text-ink-900">
                   {file.name}
                 </span>
-                <span className="text-xs text-ink-500 dark:text-ink-400">
+                <span className="text-xs text-ink-500">
                   Choose another to replace it
                 </span>
               </>
             ) : (
               <>
-                <UploadCloud size={22} className="text-ink-400" />
-                <span className="text-sm font-medium text-ink-800 dark:text-ink-100">
+                <UploadCloud size={22} className="text-ink-500" />
+                <span className="text-sm font-medium text-ink-800">
                   Drop the attendance file, or choose one
                 </span>
-                <span className="text-xs text-ink-500 dark:text-ink-400">
+                <span className="text-xs text-ink-500">
                   .csv or .xlsx — present, paid, loss of pay, overtime
                 </span>
               </>
@@ -202,7 +202,7 @@ export default function AttendancePage() {
               type="button"
               onClick={() => commit.mutate()}
               disabled={!file || !check || commit.isPending}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50"
             >
               {commit.isPending ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -212,7 +212,7 @@ export default function AttendancePage() {
               Store for {period}
             </button>
             {check && !check.clean && (
-              <span className="text-xs text-ink-500 dark:text-ink-400">
+              <span className="text-xs text-ink-500">
                 You can store it anyway — the problems stay on the record.
               </span>
             )}
@@ -245,7 +245,7 @@ export default function AttendancePage() {
               </div>
 
               {check.unmapped_columns.length > 0 && (
-                <p className="pt-4 text-xs text-ink-500 dark:text-ink-400">
+                <p className="pt-4 text-xs text-ink-500">
                   Columns this product did not recognise and will ignore:{" "}
                   <span className="font-medium">{check.unmapped_columns.join(", ")}</span>
                 </p>
@@ -256,10 +256,10 @@ export default function AttendancePage() {
           {check.findings.length > 0 && (
             <Card>
               <CardContent className="py-5">
-                <h3 className="pb-1 text-base font-semibold text-ink-900 dark:text-white">
+                <h3 className="pb-1 text-base font-semibold text-ink-900">
                   What does not add up
                 </h3>
-                <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+                <p className="pb-3 text-xs text-ink-500">
                   Judged on the file alone. Pay is checked against these days when the
                   salary register for the month is validated.
                 </p>
@@ -276,27 +276,27 @@ export default function AttendancePage() {
 
       <Card>
         <CardContent className="py-5">
-          <h3 className="flex items-center gap-2 pb-3 text-base font-semibold text-ink-900 dark:text-white">
-            <CalendarDays size={16} className="text-ink-400" /> Stored months
+          <h3 className="flex items-center gap-2 pb-3 text-base font-semibold text-ink-900">
+            <CalendarDays size={16} className="text-ink-500" /> Stored months
           </h3>
           {registers?.length ? (
-            <div className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+            <div className="divide-y divide-ink-200/70">
               {registers.map((register) => (
                 <div
                   key={register.id}
                   className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
                 >
-                  <span className="text-ink-800 dark:text-ink-100">
+                  <span className="text-ink-800">
                     {register.period_month.slice(0, 7)} · {register.filename}
                   </span>
-                  <span className="text-xs tabular-nums text-ink-500 dark:text-ink-400">
+                  <span className="text-xs tabular-nums text-ink-500">
                     {register.employee_count} employees
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-ink-500 dark:text-ink-400">
+            <p className="text-sm text-ink-500">
               None yet. Until a month is stored, the attendance rules stay silent rather
               than reporting every employee as unverifiable.
             </p>
@@ -310,13 +310,13 @@ export default function AttendancePage() {
 function Verdict({ check }: { check: AttendanceCheck }) {
   if (check.clean) {
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-success-200/80 bg-success-50/60 px-4 py-3 dark:border-success-500/25 dark:bg-success-500/10">
-        <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-success-700 dark:text-success-300" />
+      <div className="flex items-start gap-3 rounded-xl border border-success-200/80 bg-success-50/60 px-4 py-3">
+        <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-success-700" />
         <div className="space-y-0.5">
-          <p className="text-sm font-semibold text-success-700 dark:text-success-300">
+          <p className="text-sm font-semibold text-success-700">
             The file adds up
           </p>
-          <p className="text-xs text-ink-600 dark:text-ink-300">
+          <p className="text-xs text-ink-600">
             Every row reconciles against the month. This says nothing yet about whether
             pay followed from it — that is checked when the register is validated.
           </p>
@@ -326,14 +326,14 @@ function Verdict({ check }: { check: AttendanceCheck }) {
   }
   const critical = check.counts.by_severity.CRITICAL ?? 0;
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-danger-200/80 bg-danger-50/60 px-4 py-3 dark:border-danger-500/25 dark:bg-danger-500/10">
-      <AlertTriangle size={17} className="mt-0.5 shrink-0 text-danger-700 dark:text-danger-300" />
+    <div className="flex items-start gap-3 rounded-xl border border-danger-200/80 bg-danger-50/60 px-4 py-3">
+      <AlertTriangle size={17} className="mt-0.5 shrink-0 text-danger-700" />
       <div className="space-y-0.5">
-        <p className="text-sm font-semibold text-danger-700 dark:text-danger-300">
+        <p className="text-sm font-semibold text-danger-700">
           {check.counts.total} problem(s) in this file
           {critical > 0 && `, ${critical} critical`}
         </p>
-        <p className="text-xs text-ink-600 dark:text-ink-300">
+        <p className="text-xs text-ink-600">
           A file that does not add up cannot be reconciled against payroll. Fix it and
           re-check, or store it and carry the problems on the record.
         </p>
@@ -344,32 +344,32 @@ function Verdict({ check }: { check: AttendanceCheck }) {
 
 function FindingRow({ finding }: { finding: AttendanceFinding }) {
   return (
-    <div className="rounded-xl border border-ink-200/70 px-4 py-3 dark:border-ink-700/60">
+    <div className="rounded-xl border border-ink-200/70 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
             SEVERITY_TONE[finding.severity] ?? SEVERITY_TONE.INFO,
           )}
         >
           {finding.severity}
         </span>
-        <span className="text-sm font-semibold text-ink-900 dark:text-white">
+        <span className="text-sm font-semibold text-ink-900">
           {finding.rule_name}
         </span>
-        <span className="text-xs text-ink-500 dark:text-ink-400">
+        <span className="text-xs text-ink-500">
           {finding.employee_id}
           {finding.employee_name ? ` · ${finding.employee_name}` : ""}
         </span>
         {finding.financial_impact > 0 && (
-          <span className="ml-auto text-xs font-semibold tabular-nums text-danger-600 dark:text-danger-400">
+          <span className="ml-auto text-xs font-semibold tabular-nums text-danger-600">
             {formatINR(finding.financial_impact)}
           </span>
         )}
       </div>
-      <p className="pt-1 text-xs text-ink-600 dark:text-ink-300">{finding.reason}</p>
+      <p className="pt-1 text-xs text-ink-600">{finding.reason}</p>
       {finding.suggested_fix && (
-        <p className="pt-1 text-xs text-ink-500 dark:text-ink-400">{finding.suggested_fix}</p>
+        <p className="pt-1 text-xs text-ink-500">{finding.suggested_fix}</p>
       )}
     </div>
   );
@@ -378,13 +378,13 @@ function FindingRow({ finding }: { finding: AttendanceFinding }) {
 function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div>
-      <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="block text-[11px] font-semibold text-ink-500">
         {label}
       </span>
-      <p className="font-display text-xl font-semibold tabular-nums text-ink-900 dark:text-white">
+      <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
         {value}
       </p>
-      {hint && <p className="pt-0.5 text-xs text-ink-500 dark:text-ink-400">{hint}</p>}
+      {hint && <p className="pt-0.5 text-xs text-ink-500">{hint}</p>}
     </div>
   );
 }

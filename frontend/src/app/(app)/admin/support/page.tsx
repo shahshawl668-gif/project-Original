@@ -132,7 +132,7 @@ export default function SupportAccessPage() {
           </div>
 
           <div>
-            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+            <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
               Why — the client reads this
             </span>
             <textarea
@@ -140,9 +140,9 @@ export default function SupportAccessPage() {
               onChange={(event) => setReason(event.target.value)}
               rows={2}
               placeholder="Investigating ticket 412 — cost dashboard shows no June data"
-              className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 dark:border-ink-700 dark:bg-ink-900 dark:text-white"
+              className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400"
             />
-            <p className="pt-1 text-[11px] text-ink-500 dark:text-ink-400">
+            <p className="pt-1 text-[11px] text-ink-500">
               At least 12 characters. {reason.trim().length} so far.
             </p>
           </div>
@@ -168,20 +168,20 @@ export default function SupportAccessPage() {
       {live.length > 0 && (
         <Card>
           <CardContent className="py-5">
-            <h3 className="flex items-center gap-2 pb-3 text-base font-semibold text-ink-900 dark:text-white">
+            <h3 className="flex items-center gap-2 pb-3 text-base font-semibold text-ink-900">
               <ShieldAlert size={16} className="text-danger-500" /> Open right now
             </h3>
-            <div className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+            <div className="divide-y divide-ink-200/70">
               {live.map((grant) => (
                 <div
                   key={grant.id}
                   className="flex flex-wrap items-center justify-between gap-2 py-3"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink-900 dark:text-white">
+                    <p className="text-sm font-medium text-ink-900">
                       {grant.organization} · {grant.state} · {timeLeft(grant.expires_at)}
                     </p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">
+                    <p className="text-xs text-ink-500">
                       &ldquo;{grant.reason}&rdquo; · used {grant.use_count ?? 0} time(s)
                     </p>
                   </div>
@@ -189,7 +189,7 @@ export default function SupportAccessPage() {
                     type="button"
                     onClick={() => close.mutate({ id: grant.id, why: "finished" })}
                     disabled={close.isPending}
-                    className="inline-flex h-8 items-center rounded-lg border border-ink-200 px-2.5 text-xs font-semibold text-ink-700 transition hover:bg-ink-50 disabled:opacity-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+                    className="inline-flex h-8 items-center rounded-lg border border-ink-200 px-2.5 text-xs font-semibold text-ink-700 transition hover:bg-ink-50 disabled:opacity-50"
                   >
                     End now
                   </button>
@@ -202,14 +202,14 @@ export default function SupportAccessPage() {
 
       <Card>
         <CardContent className="py-5">
-          <h3 className="pb-3 text-base font-semibold text-ink-900 dark:text-white">
+          <h3 className="pb-3 text-base font-semibold text-ink-900">
             Your past sessions
           </h3>
           {past.length ? (
-            <div className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+            <div className="divide-y divide-ink-200/70">
               {past.slice(0, 30).map((grant) => (
-                <p key={grant.id} className="py-2 text-xs text-ink-500 dark:text-ink-400">
-                  <span className="font-medium text-ink-700 dark:text-ink-200">
+                <p key={grant.id} className="py-2 text-xs text-ink-500">
+                  <span className="font-medium text-ink-700">
                     {grant.organization}
                   </span>{" "}
                   · {grant.state} · {formatWhen(grant.requested_at ?? null)} · used{" "}
@@ -218,7 +218,7 @@ export default function SupportAccessPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-ink-500 dark:text-ink-400">None yet.</p>
+            <p className="text-sm text-ink-500">None yet.</p>
           )}
         </CardContent>
       </Card>

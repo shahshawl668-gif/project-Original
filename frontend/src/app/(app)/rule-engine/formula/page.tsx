@@ -151,7 +151,7 @@ export default function FormulaPage() {
         actions={
           <div className="flex items-end gap-2">
             <div className="space-y-1.5">
-              <Label className="text-[11px] uppercase tracking-[0.12em]">Rule type</Label>
+              <Label className="text-[11px]">Rule type</Label>
               <Select value={ruleType} onValueChange={handleRuleTypeChange}>
                 <SelectTrigger className="w-36">
                   <SelectValue />
@@ -173,11 +173,11 @@ export default function FormulaPage() {
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+              <p className="font-display text-[11px] font-semibold text-ink-500">
                 Definition
               </p>
               <CardTitle>Expression</CardTitle>
-              <p className="text-xs text-ink-500 dark:text-ink-400">
+              <p className="text-xs text-ink-500">
                 Allowed: <span className="font-mono">+ - * / %</span>, parentheses,{" "}
                 <span className="font-mono">min</span>, <span className="font-mono">max</span>,{" "}
                 <span className="font-mono">round</span>,{" "}
@@ -212,11 +212,11 @@ export default function FormulaPage() {
 
           <Card>
             <CardHeader>
-              <p className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-300">
+              <p className="font-display text-[11px] font-semibold text-ink-500">
                 Eligibility
               </p>
               <CardTitle>Conditions</CardTitle>
-              <p className="text-xs text-ink-500 dark:text-ink-400">
+              <p className="text-xs text-ink-500">
                 If set, all conditions (AND) must pass for the formula to apply. Otherwise the
                 contribution is 0.
               </p>

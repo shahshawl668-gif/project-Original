@@ -5,12 +5,15 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowDown, ArrowLeft, ArrowUp, Ban, FlaskConical, PlayCircle, Plus, Save, Send, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Ban, FlaskConical, PlayCircle, Plus, Save, Send, Trash2 } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/layout/BackLink";
+import { ConfirmAction, TestButton } from "@/components/studio/Controls";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
@@ -28,7 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900";
 const MANAGE = new Set(["owner", "manager"]);
 const WRITE = new Set(["owner", "manager", "analyst"]);
 
@@ -66,6 +69,7 @@ export default function WorkflowBuilderPage() {
   const [def, setDef] = useState<WorkflowDefinition | null>(null);
   const [limits, setLimits] = useState({ max_runs_per_hour: 20, timeout_minutes: 120 });
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<"publish" | "disable" | null>(null);
   const [month, setMonth] = useState("");
   const [sample, setSample] = useState("");
   const [dry, setDry] = useState<DryRun | null>(null);
@@ -100,6 +104,7 @@ export default function WorkflowBuilderPage() {
 
   return (
     <div className="space-y-5">
+      <BackLink fallback="/studio/workflows">All workflows</BackLink>
       <PageHeader eyebrow="PeopleOps Studio · workflow"
         title={<span className="flex flex-wrap items-center gap-3">{w.name}
           <Badge variant={w.status === "active" ? "success" : w.status === "draft" ? "warning" : "secondary"}>{w.status}</Badge>
@@ -107,18 +112,36 @@ export default function WorkflowBuilderPage() {
           {w.has_changes && w.active_version ? <Badge variant="warning">unpublished changes</Badge> : null}</span>}
         description={w.description ?? undefined}
         actions={<div className="flex flex-wrap gap-2">
-          <Link href="/studio/workflows" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-sm"><ArrowLeft size={14} /> All</Link>
-          {editable ? <button type="button" disabled={busy} onClick={() => void save()} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-300 px-3 text-sm font-semibold text-brand-700"><Save size={14} /> Save</button> : null}
-          {canManage ? <button type="button" disabled={busy} onClick={() => void act(async () => { await studioFlowApi.update(w.id, { definition: def, ...limits }); return studioFlowApi.publish(w.id); }, "Published — now in force")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white"><Send size={14} /> Publish</button> : null}
-          {canManage && w.active_version ? <button type="button" disabled={busy} onClick={() => void act(() => studioFlowApi.enable(w.id, w.status !== "active"), w.status === "active" ? "Disabled" : "Enabled")} className="h-9 rounded-lg border border-ink-200 px-3 text-sm">{w.status === "active" ? "Disable" : "Enable"}</button> : null}
+          {editable ? <Button variant="outline" disabled={busy} onClick={() => void save()}><Save size={14} /> Save draft</Button> : null}
+          {canManage ? <Button disabled={busy} onClick={() => setConfirm("publish")}><Send size={14} /> Publish</Button> : null}
+          {canManage && w.active_version ? (w.status === "active"
+            ? <Button variant="destructive-outline" disabled={busy} onClick={() => setConfirm("disable")}>Disable</Button>
+            : <Button variant="outline" disabled={busy} onClick={() => void act(() => studioFlowApi.enable(w.id, true), "Enabled")}>Enable</Button>) : null}
         </div>} />
       <StudioNav />
+      <ConfirmAction
+        open={confirm === "publish"}
+        onClose={() => setConfirm(null)}
+        tone="primary"
+        title={`Publish ${w.name} as version ${(w.active_version ?? 0) + 1}?`}
+        consequence={<>The editor&apos;s current definition is saved, checked again, and put in force, and the workflow is enabled: from now its trigger starts runs with this version. Where your organisation requires it, the publisher must be someone other than the last editor.</>}
+        confirmLabel="Publish and enable"
+        onConfirm={() => act(async () => { await studioFlowApi.update(w.id, { definition: def, ...limits }); return studioFlowApi.publish(w.id); }, "Published — now in force")}
+      />
+      <ConfirmAction
+        open={confirm === "disable"}
+        onClose={() => setConfirm(null)}
+        title={`Disable ${w.name}?`}
+        consequence="Its trigger stops starting runs, and a schedule is cleared, until it is enabled again. The published version is kept."
+        confirmLabel="Disable workflow"
+        onConfirm={() => act(() => studioFlowApi.enable(w.id, false), "Disabled")}
+      />
 
       {w.last_skip ? <AlertBanner variant="warning" title={`Last skipped ${fmtTime(w.last_skip.at)}`}>{w.last_skip.reason}</AlertBanner> : null}
       {!w.active_version ? <AlertBanner variant="info" title="Draft">Nothing runs until an owner or manager publishes it. Publishing re-checks every stream, webhook and person it names.</AlertBanner> : null}
 
       <Card><CardContent className="space-y-3 py-5">
-        <h2 className="text-base font-semibold text-ink-900 dark:text-white">1 · When</h2>
+        <h2 className="text-base font-semibold text-ink-900">1 · When</h2>
         <select aria-label="Trigger" disabled={!editable} className={cn(FIELD, "max-w-md")} value={def.trigger.type}
           onChange={(e) => setDef({ ...def, trigger: { type: e.target.value, ...(e.target.value === "schedule" ? { schedule: { every: "day", at: "07:00", timezone: "Asia/Kolkata" } } : {}), ...(e.target.value === "inputs.ready" ? { required: ["register", "master"] } : {}) } })}>
           {Object.entries(cat.data.triggers).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
@@ -130,7 +153,7 @@ export default function WorkflowBuilderPage() {
       </CardContent></Card>
 
       <Card><CardContent className="space-y-3 py-5">
-        <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900 dark:text-white">2 · Only if</h2>
+        <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900">2 · Only if</h2>
           {editable && EVENT_FIELDS[def.trigger.type] ? <button type="button" onClick={() => setDef({ ...def, conditions: [...def.conditions, { field: EVENT_FIELDS[def.trigger.type][0], op: "eq", value: "" }] })} className="inline-flex items-center gap-1 rounded-lg border border-brand-300 px-2.5 py-1 text-xs text-brand-700"><Plus size={12} /> Condition</button> : null}</div>
         {def.conditions.length === 0 ? <p className="text-sm text-ink-500">Always — every time the trigger happens.</p> : null}
         <datalist id="event-fields">{(EVENT_FIELDS[def.trigger.type] ?? []).map((f) => <option key={f} value={f} />)}</datalist>
@@ -140,7 +163,7 @@ export default function WorkflowBuilderPage() {
             <select aria-label="Operator" disabled={!editable} className={FIELD} value={c.op} onChange={(e) => setDef({ ...def, conditions: def.conditions.map((x, j) => (j === i ? { ...x, op: e.target.value } : x)) })}>
               {cat.data.ops.map((o) => <option key={o} value={o}>{o.replace("_", " ")}</option>)}</select>
             <input aria-label="Value" disabled={!editable || ["present", "absent"].includes(c.op)} className={FIELD} value={String(c.value ?? "")} onChange={(e) => setDef({ ...def, conditions: def.conditions.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })} placeholder={["in", "not_in"].includes(c.op) ? "a, b, c" : "value"} />
-            {editable ? <button type="button" aria-label="Remove condition" onClick={() => setDef({ ...def, conditions: def.conditions.filter((_, j) => j !== i) })}><Trash2 size={14} /></button> : <span />}
+            {editable ? <button type="button" aria-label={`Remove condition ${i + 1}`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30" onClick={() => setDef({ ...def, conditions: def.conditions.filter((_, j) => j !== i) })}><Trash2 size={14} /></button> : <span />}
           </div>
         ))}
         <p className="text-xs text-ink-500">A value that cannot be compared (text against a number, or missing) makes the condition false — never true by accident.</p>
@@ -156,18 +179,18 @@ export default function WorkflowBuilderPage() {
       </CardContent></Card>
 
       <Card><CardContent className="space-y-3 py-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><FlaskConical size={16} /> Dry run and run now</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><FlaskConical size={16} /> Dry run and run now</h2>
         <div className="grid gap-3 md:grid-cols-[1fr_12rem]">
           <label className="text-xs font-semibold text-ink-700">Sample event (what the trigger would carry)
             <textarea aria-label="Sample event" className={cn(FIELD, "mt-1 h-28 font-mono text-xs")} value={sample} onChange={(e) => setSample(e.target.value)} /></label>
           <div className="space-y-2">
             <label className="block text-xs font-semibold text-ink-700">Month<input type="month" aria-label="Month" className={cn(FIELD, "mt-1")} value={month} onChange={(e) => setMonth(e.target.value)} /></label>
-            <button type="button" onClick={() => void runDry()} className="w-full rounded-lg border border-brand-300 px-3 py-1.5 text-sm font-semibold text-brand-700">Dry run — does nothing</button>
+            <TestButton className="w-full" onClick={() => void runDry()}>Dry run — changes nothing</TestButton>
             {canManage && w.status === "active" ? <button type="button" disabled={busy} onClick={() => void act(() => studioFlowApi.run(w.id, month ? `${month}-01` : undefined), "Run started")} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white"><PlayCircle size={14} /> Run now (v{w.active_version})</button> : null}
           </div>
         </div>
         {dry ? (
-          <div className="rounded-xl border border-ink-200 p-3 text-sm dark:border-white/10" data-testid="dry-run">
+          <div className="rounded-xl border border-ink-200 p-3 text-sm" data-testid="dry-run">
             <p className="font-semibold">{dry.would_run ? "It would run." : "It would not run: a condition is false."}</p>
             {dry.conditions.map((c, i) => <p key={i} className="text-xs">{c.holds ? "✓" : "✗"} {c.field} {c.op} {String(c.value ?? "")} — the event has <code>{JSON.stringify(c.actual)}</code></p>)}
             <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs">{dry.steps.map((s) => (
@@ -180,8 +203,8 @@ export default function WorkflowBuilderPage() {
       </CardContent></Card>
 
       <Card><CardContent className="py-5">
-        <h2 className="text-base font-semibold text-ink-900 dark:text-white">Runs</h2>
-        {w.recent_runs?.length ? <ul className="divide-y divide-ink-100 dark:divide-white/5">{w.recent_runs.map((r) => <RunLine key={r.id} run={r} />)}</ul> : <p className="text-sm text-ink-500">Not run yet.</p>}
+        <h2 className="text-base font-semibold text-ink-900">Runs</h2>
+        {w.recent_runs?.length ? <ul className="divide-y divide-ink-100">{w.recent_runs.map((r) => <RunLine key={r.id} run={r} />)}</ul> : <p className="text-sm text-ink-500">Not run yet.</p>}
       </CardContent></Card>
     </div>
   );
@@ -216,11 +239,11 @@ function StepsEditor({ title, catalogue, steps, editable, failureBranch, onChang
   const move = (i: number, d: number) => { const next = [...steps]; const [x] = next.splice(i, 1); next.splice(i + d, 0, x); onChange(next); };
   return (
     <Card><CardContent className="space-y-3 py-5">
-      <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900 dark:text-white">{title}</h2>
+      <div className="flex items-center justify-between"><h2 className="text-base font-semibold text-ink-900">{title}</h2>
         {editable ? <button type="button" onClick={() => onChange([...steps, { type: failureBranch ? "notify" : types[0][0], params: failureBranch ? { roles: ["owner"], title: "{{workflow}} failed", severity: "error" } : {} }])} className="inline-flex items-center gap-1 rounded-lg border border-brand-300 px-2.5 py-1 text-xs text-brand-700"><Plus size={12} /> Step</button> : null}</div>
       {steps.length === 0 ? <p className="text-sm text-ink-500">{failureBranch ? "Nothing — the run fails and says which step and why." : "No steps."}</p> : null}
       {steps.map((s, i) => (
-        <div key={i} className="space-y-2 rounded-xl border border-ink-200 p-3 dark:border-white/10" data-testid={failureBranch ? "failure-step" : "step"}>
+        <div key={i} className="space-y-2 rounded-xl border border-ink-200 p-3" data-testid={failureBranch ? "failure-step" : "step"}>
           <div className="grid gap-2 md:grid-cols-[2rem_1fr_1fr_6rem_7rem_auto]">
             <span className="pt-1.5 text-sm font-semibold text-ink-500">{i + 1}</span>
             <select aria-label="Action" disabled={!editable} className={FIELD} value={s.type} onChange={(e) => set(i, { type: e.target.value, params: {} })}>
@@ -229,9 +252,9 @@ function StepsEditor({ title, catalogue, steps, editable, failureBranch, onChang
             <label className="text-[11px] text-ink-500">Retries<input aria-label="Retries" disabled={!editable} className={FIELD} value={s.retries ?? 0} onChange={(e) => set(i, { retries: Number(e.target.value) || 0 })} /></label>
             <label className="text-[11px] text-ink-500">Timeout (min)<input aria-label="Timeout" disabled={!editable} className={FIELD} value={s.timeout_minutes ?? 60} onChange={(e) => set(i, { timeout_minutes: Number(e.target.value) || 60 })} /></label>
             {editable ? <span className="flex items-start gap-1 pt-1">
-              <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={14} /></button>
-              <button type="button" aria-label="Move down" disabled={i === steps.length - 1} onClick={() => move(i, 1)}><ArrowDown size={14} /></button>
-              <button type="button" aria-label="Remove step" onClick={() => onChange(steps.filter((_, j) => j !== i))}><Trash2 size={14} /></button></span> : <span />}
+              <button type="button" aria-label={`Move step ${i + 1} up`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={14} /></button>
+              <button type="button" aria-label={`Move step ${i + 1} down`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30" disabled={i === steps.length - 1} onClick={() => move(i, 1)}><ArrowDown size={14} /></button>
+              <button type="button" aria-label={`Remove step ${i + 1}`} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-600 hover:bg-ink-100 hover:text-danger-700 disabled:opacity-30" onClick={() => onChange(steps.filter((_, j) => j !== i))}><Trash2 size={14} /></button></span> : <span />}
           </div>
           <p className="text-xs text-ink-500">{catalogue.actions[s.type]?.help}</p>
           <ParamsEditor action={s} catalogue={catalogue} disabled={!editable} onChange={(params) => set(i, { params })} />

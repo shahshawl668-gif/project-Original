@@ -27,7 +27,9 @@ from app.services.payroll_parse import (
     allowed_destinations,
     check_mapping,
     parse_payroll_file,
+    required_fields,
     suggested_mapping,
+    suggestion_basis,
     normalize_col,
 )
 from app.services.validation import (
@@ -115,7 +117,11 @@ async def preview_register(
     return ok({
         "columns": columns,
         "mapping": suggested_mapping(columns, names),
+        "match": suggestion_basis(columns, names),
         "destinations": sorted(allowed_destinations(names)),
+        # Required under the strict header check; with it off only Employee ID is.
+        "required": required_fields(names, strict=True),
+        "components": sorted({normalize_col(n) for n in names}),
         "preview": df.head(5).fillna("").astype(str).to_dict(orient="records"),
         "employee_count": len(df),
     })

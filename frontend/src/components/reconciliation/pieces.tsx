@@ -18,7 +18,7 @@ export function SeverityChip({ severity }: { severity: Severity }) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
         SEVERITY_TONE[severity],
       )}
     >
@@ -46,18 +46,18 @@ export function Verdict({
   const look = {
     clean: {
       icon: CheckCircle2,
-      wrap: "border-success-200/80 bg-success-50/60 dark:border-success-500/25 dark:bg-success-500/10",
-      tint: "text-success-700 dark:text-success-300",
+      wrap: "border-success-200/80 bg-success-50/60",
+      tint: "text-success-700",
     },
     exceptions: {
       icon: AlertTriangle,
-      wrap: "border-danger-200/80 bg-danger-50/60 dark:border-danger-500/25 dark:bg-danger-500/10",
-      tint: "text-danger-700 dark:text-danger-300",
+      wrap: "border-danger-200/80 bg-danger-50/60",
+      tint: "text-danger-700",
     },
     "not-compared": {
       icon: Info,
-      wrap: "border-warning-200/80 bg-warning-50/60 dark:border-warning-500/30 dark:bg-warning-500/10",
-      tint: "text-warning-800 dark:text-warning-200",
+      wrap: "border-warning-200/80 bg-warning-50/60",
+      tint: "text-warning-800",
     },
   }[state];
   const Icon = look.icon;
@@ -67,7 +67,7 @@ export function Verdict({
       <Icon size={17} className={cn("mt-0.5 shrink-0", look.tint)} />
       <div className="space-y-0.5">
         <p className={cn("text-sm font-semibold", look.tint)}>{title}</p>
-        {detail && <p className="text-xs text-ink-600 dark:text-ink-300">{detail}</p>}
+        {detail && <p className="text-xs text-ink-600">{detail}</p>}
       </div>
     </div>
   );
@@ -77,7 +77,7 @@ export function Verdict({
 export function SeverityCounts({ counts }: { counts: ExceptionCounts }) {
   const order: Severity[] = ["high", "medium", "low"];
   if (!counts.total) {
-    return <span className="text-xs text-ink-500 dark:text-ink-400">No exceptions</span>;
+    return <span className="text-xs text-ink-500">No exceptions</span>;
   }
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -111,7 +111,7 @@ export function ExceptionList({ exceptions }: { exceptions: ReconException[] }) 
 
   if (!exceptions.length) {
     return (
-      <p className="py-6 text-center text-sm text-ink-500 dark:text-ink-400">
+      <p className="py-6 text-center text-sm text-ink-500">
         Nothing failed to reconcile.
       </p>
     );
@@ -133,72 +133,72 @@ export function ExceptionList({ exceptions }: { exceptions: ReconException[] }) 
         return (
           <div
             key={code}
-            className="overflow-hidden rounded-xl border border-ink-200/70 dark:border-ink-700/60"
+            className="overflow-hidden rounded-xl border border-ink-200/70"
           >
             <button
               type="button"
               onClick={() => setOpen(expanded ? null : code)}
-              className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-ink-50 dark:hover:bg-ink-800/40"
+              className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-ink-50"
             >
               <ChevronRight
                 size={15}
                 className={cn(
-                  "mt-1 shrink-0 text-ink-400 transition-transform",
+                  "mt-1 shrink-0 text-ink-500 transition-transform",
                   expanded && "rotate-90",
                 )}
               />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <SeverityChip severity={first.severity} />
-                  <span className="text-sm font-semibold text-ink-900 dark:text-white">
+                  <span className="text-sm font-semibold text-ink-900">
                     {first.label}
                   </span>
-                  <span className="text-xs tabular-nums text-ink-500 dark:text-ink-400">
+                  <span className="text-xs tabular-nums text-ink-500">
                     {items.length === 1 ? "1 case" : `${items.length} cases`}
                     {total > 0 && ` · ${formatINR(total)}`}
                   </span>
                 </div>
                 {first.meaning && (
-                  <p className="text-xs text-ink-600 dark:text-ink-300">{first.meaning}</p>
+                  <p className="text-xs text-ink-600">{first.meaning}</p>
                 )}
               </div>
             </button>
 
             {expanded && (
-              <div className="border-t border-ink-200/70 bg-ink-50/50 px-4 py-3 dark:border-ink-700/60 dark:bg-ink-900/30">
+              <div className="border-t border-ink-200/70 bg-ink-50/50 px-4 py-3">
                 {first.action && (
-                  <p className="mb-3 text-xs font-medium text-ink-700 dark:text-ink-200">
+                  <p className="mb-3 text-xs font-medium text-ink-700">
                     What to do: <span className="font-normal">{first.action}</span>
                   </p>
                 )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-left text-[10px] uppercase tracking-wide text-ink-400">
+                      <tr className="text-left text-[11px] text-ink-500">
                         <th className="pb-1.5 pr-3 font-semibold">Detail</th>
                         <th className="pb-1.5 pr-3 text-right font-semibold">Expected</th>
                         <th className="pb-1.5 pr-3 text-right font-semibold">Actual</th>
                         <th className="pb-1.5 text-right font-semibold">Difference</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-ink-200/60 dark:divide-ink-700/50">
+                    <tbody className="divide-y divide-ink-200/60">
                       {items.slice(0, 50).map((item, index) => (
                         <tr key={`${item.employee_id ?? "x"}-${index}`}>
-                          <td className="py-1.5 pr-3 text-ink-700 dark:text-ink-200">
+                          <td className="py-1.5 pr-3 text-ink-700">
                             {item.title}
                             {item.detail && (
-                              <span className="block text-ink-500 dark:text-ink-400">
+                              <span className="block text-ink-500">
                                 {item.detail}
                               </span>
                             )}
                           </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink-600 dark:text-ink-300">
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink-600">
                             {item.expected === null ? "—" : formatINR(item.expected)}
                           </td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink-600 dark:text-ink-300">
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-ink-600">
                             {item.actual === null ? "—" : formatINR(item.actual)}
                           </td>
-                          <td className="py-1.5 text-right font-semibold tabular-nums text-ink-900 dark:text-white">
+                          <td className="py-1.5 text-right font-semibold tabular-nums text-ink-900">
                             {item.difference === null ? "—" : formatINR(item.difference)}
                           </td>
                         </tr>
@@ -207,7 +207,7 @@ export function ExceptionList({ exceptions }: { exceptions: ReconException[] }) 
                   </table>
                 </div>
                 {items.length > 50 && (
-                  <p className="pt-2 text-[11px] text-ink-500 dark:text-ink-400">
+                  <p className="pt-2 text-[11px] text-ink-500">
                     Showing the first 50 of {items.length}. The full list is in the
                     reconciliation report.
                   </p>
@@ -234,18 +234,18 @@ export function Figure({
   tone?: "neutral" | "danger" | "success";
 }) {
   const tint = {
-    neutral: "text-ink-900 dark:text-white",
-    danger: "text-danger-600 dark:text-danger-400",
-    success: "text-success-700 dark:text-success-400",
+    neutral: "text-ink-900",
+    danger: "text-danger-600",
+    success: "text-success-700",
   }[tone];
   return (
     <Card>
       <CardContent className="space-y-1 py-4">
-        <span className="block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+        <span className="block text-[11px] font-semibold text-ink-500">
           {label}
         </span>
         <p className={cn("font-display text-2xl font-semibold tabular-nums", tint)}>{value}</p>
-        {hint && <p className="text-xs text-ink-500 dark:text-ink-400">{hint}</p>}
+        {hint && <p className="text-xs text-ink-500">{hint}</p>}
       </CardContent>
     </Card>
   );

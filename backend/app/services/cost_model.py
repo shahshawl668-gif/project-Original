@@ -349,6 +349,10 @@ class CostContext:
         # same wage, once per employee on that grade. Memoised per request.
         self._pt_cache: dict[tuple[str | None, str, str], Decimal] = {}
         self._lwf_cache: dict[tuple[str | None, str, str], tuple[Decimal, Decimal]] = {}
+        # Wages rarely repeat exactly, so the caches above miss for most
+        # employees; the slab rows behind every lookup are loaded once here.
+        # At 8,000 employees this was ~30,000 queries and 30 s per request.
+        self._slab_rows: dict = {}
 
     # -- slab lookups ----------------------------------------------------
     def _pt(self, state: str | None, wage: Decimal, as_of: date) -> Decimal:
@@ -358,7 +362,8 @@ class CostContext:
         if key not in self._pt_cache:
             from app.services.validation import lookup_pt
 
-            amount, _ = lookup_pt(self.db, state, wage, as_of, entity_id=self.entity_id)
+            amount, _ = lookup_pt(self.db, state, wage, as_of, entity_id=self.entity_id,
+                                  rows_cache=self._slab_rows)
             self._pt_cache[key] = amount
         return self._pt_cache[key]
 
@@ -370,7 +375,7 @@ class CostContext:
             from app.services.validation import lookup_lwf
 
             _, _, employee, employer = lookup_lwf(
-                self.db, state, wage, as_of, entity_id=self.entity_id
+                self.db, state, wage, as_of, entity_id=self.entity_id, rows_cache=self._slab_rows
             )
             self._lwf_cache[key] = (employee, employer)
         return self._lwf_cache[key]

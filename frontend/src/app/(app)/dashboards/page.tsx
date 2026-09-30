@@ -16,7 +16,7 @@ import { dashboardsApi, type Catalogue, type Dashboard, type Kpi, type Unit } fr
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900";
 const WRITE_ROLES = new Set(["owner", "manager", "analyst"]);
 
 /**
@@ -68,15 +68,15 @@ export default function DashboardsPage() {
       </div>
 
       <Card><CardContent className="space-y-3 py-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><LayoutGrid size={16} /> Start from a template</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><LayoutGrid size={16} /> Start from a template</h2>
         <p className="text-xs text-ink-500">A template makes a private copy you can use as it is or change. Nothing is shared until you share it.</p>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {(catalogue.data?.templates ?? []).map((t) => (
             <button key={t.key} type="button" disabled={busy} onClick={() => void create(() => dashboardsApi.fromTemplate(t.key))}
-              className="rounded-xl border border-ink-200 p-3 text-left transition hover:border-brand-400 hover:bg-brand-50/40 dark:border-white/10">
-              <span className="block text-sm font-semibold text-ink-900 dark:text-white">{t.name}</span>
+              className="rounded-xl border border-ink-200 p-3 text-left transition hover:border-brand-400 hover:bg-brand-50/40">
+              <span className="block text-sm font-semibold text-ink-900">{t.name}</span>
               <span className="block pt-0.5 text-xs text-ink-500">{t.description}</span>
-              <span className="block pt-1 text-[11px] text-ink-400">{t.tiles} tiles</span>
+              <span className="block pt-1 text-[11px] text-ink-500">{t.tiles} tiles</span>
             </button>
           ))}
         </div>
@@ -93,12 +93,12 @@ function BoardList({ title, icon: Icon, boards, loading, empty }: {
 }) {
   return (
     <Card><CardContent className="py-5">
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white"><Icon size={14} className="text-ink-400" /> {title}</h2>
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-900"><Icon size={14} className="text-ink-500" /> {title}</h2>
       {loading ? <Skeleton className="h-20 w-full" /> : boards.length === 0 ? <p className="text-sm text-ink-500">{empty}</p> : (
-        <ul className="divide-y divide-ink-100 dark:divide-white/5">
+        <ul className="divide-y divide-ink-100">
           {boards.map((d) => (
             <li key={d.id} className="flex items-center justify-between gap-2 py-2">
-              <Link href={`/dashboards/${d.id}`} className="min-w-0 font-medium text-brand-700 hover:underline dark:text-brand-300">{d.name}</Link>
+              <Link href={`/dashboards/${d.id}`} className="min-w-0 font-medium text-brand-700 hover:underline">{d.name}</Link>
               <span className="shrink-0 text-xs text-ink-500">
                 {d.layout.tiles.length} tiles · {d.visibility}{!d.mine && d.owner_email ? ` · by ${d.owner_email}` : ""}
               </span>
@@ -145,14 +145,14 @@ function KpiPanel({ catalogue, canShare }: { catalogue: Catalogue; canShare: boo
 
   return (
     <Card><CardContent className="space-y-3 py-5">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white"><Sigma size={16} /> Custom KPIs</h2>
+      <h2 className="flex items-center gap-2 text-base font-semibold text-ink-900"><Sigma size={16} /> Custom KPIs</h2>
       <p className="text-xs text-ink-500">A KPI is a formula over one dataset&apos;s metrics — for example <code>employer_cost / gross * 100</code>. It is evaluated safely on the server; a value that divides by zero or lacks an input shows as “—”, never 0.</p>
       {catalogue.kpis.length ? (
-        <ul className="divide-y divide-ink-100 text-sm dark:divide-white/5">
+        <ul className="divide-y divide-ink-100 text-sm">
           {catalogue.kpis.map((k) => (
             <li key={k.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <span><strong>{k.name}</strong> <span className="font-mono text-xs text-ink-500">= {k.formula}</span>
-                <span className="ml-2 text-xs text-ink-400">{catalogue.datasets.find((d) => d.key === k.dataset)?.label} · {k.unit} · {k.visibility}</span></span>
+                <span className="ml-2 text-xs text-ink-500">{catalogue.datasets.find((d) => d.key === k.dataset)?.label} · {k.unit} · {k.visibility}</span></span>
               {k.can_edit ? <button type="button" onClick={() => void remove(k)} className="text-xs text-ink-500 hover:text-danger-700">Delete</button> : null}
             </li>
           ))}

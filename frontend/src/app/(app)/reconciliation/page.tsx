@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -15,7 +14,11 @@ import {
 import { SignOffPanel } from "@/components/approvals/SignOffPanel";
 import { Menu, MenuItem } from "@/components/cost/Menu";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Figure, Verdict } from "@/components/reconciliation/pieces";
+import { Verdict } from "@/components/reconciliation/pieces";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { Stat } from "@/components/ui/kpi-card";
+import { useEntity } from "@/context/EntityContext";
+import { periodLabel, useWorkingPeriod } from "@/lib/workspace";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiAbsoluteUrl } from "@/lib/api";
 import { formatINR } from "@/lib/cost-analysis";
@@ -32,22 +35,37 @@ import { IntegrationPanel } from "@/components/studio/IntegrationPanel";
  * check it against.
  */
 export default function ReconciliationOverviewPage() {
-  const [period, setPeriod] = useState<string | undefined>(undefined);
+  const { entity } = useEntity();
+  // The month is the working period shown in the header, so this page, the
+  // Control Centre and the results never disagree about which month is meant.
+  const { period, setPeriod, loading: periodLoading } = useWorkingPeriod();
 
   const { data, isLoading } = useQuery<Overview>({
-    queryKey: ["recon-overview", period],
-    queryFn: () => fetchOverview(period),
+    queryKey: ["recon-overview", entity?.id, period],
+    queryFn: () => fetchOverview(period ?? undefined),
+    enabled: !!entity && !periodLoading,
+    placeholderData: (prev) => prev,
   });
 
   const periods = data?.periods ?? [];
-  const selected = data?.period_label ?? "Latest month";
+  const selected = data?.period_label ?? (period ? periodLabel(period) : "Latest month");
+  // The server reports the month asked for, register or not; say plainly when
+  // there is none, rather than letting empty figures read as a quiet month.
+  const noRegisterForPeriod = !!data?.period && !!period && !periods.some((p) => p.period.startsWith(period));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Month close"
         description="The register against the bank file, the journal voucher against payroll cost, and the month's approval."
       />
+
+      {noRegisterForPeriod ? (
+        <AlertBanner variant="warning" title={`No register is stored for ${periodLabel(period)}`}>
+          Nothing can be reconciled or approved for this month until its register is uploaded. The figures below are empty, not zero.{" "}
+          <Link href="/payroll/upload" className="font-medium underline">Upload the register</Link>
+        </AlertBanner>
+      ) : null}
 
       {isLoading && (
         <Card>
@@ -73,10 +91,10 @@ export default function ReconciliationOverviewPage() {
                 <>
                   {periods.map((option) => (
                     <MenuItem
-                      key={option.key}
-                      selected={data.period?.startsWith(option.key) ?? false}
+                      key={option.period}
+                      selected={data.period === option.period}
                       onClick={() => {
-                        setPeriod(option.key);
+                        setPeriod(option.period);
                         close();
                       }}
                     >
@@ -90,37 +108,31 @@ export default function ReconciliationOverviewPage() {
               href={apiAbsoluteUrl(
                 `/api/reports/bank-jv-reconciliation.xlsx?date_to=${data.period.slice(0, 7)}`,
               )}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-3 text-[13px] font-medium text-ink-800 shadow-soft transition hover:bg-ink-50"
             >
               <FileDown size={14} /> Reconciliation pack
             </a>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Figure
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat
               label="On the register"
-              value={`${data.register?.employees ?? 0}`}
-              hint={`${formatINR(data.register?.net_due ?? 0)} of net pay due`}
+              value={data.register?.employees ?? null}
+              qualifier={`${formatINR(data.register?.net_due ?? 0)} of net pay due · ${data.period_label}`}
             />
-            <Figure
+            <Stat
               label="Paid by bank file"
-              value={formatINR(data.bank?.paid_total ?? 0)}
-              hint={
-                data.bank?.files.length
-                  ? `${data.bank.files.length} file(s) uploaded`
-                  : "no file uploaded"
-              }
-              tone={data.bank?.ready ? "neutral" : "danger"}
+              value={data.bank?.files.length ? formatINR(data.bank.paid_total ?? 0) : "No bank file"}
+              tone={data.bank?.files.length ? "neutral" : "warning"}
+              qualifier={data.bank?.files.length ? `${data.bank.files.length} file(s) uploaded` : "payments cannot be reconciled until one is uploaded"}
+              href="/reconciliation/bank"
             />
-            <Figure
+            <Stat
               label="Ledger mapping"
-              value={data.jv?.template ? data.jv.template.name : "None"}
-              hint={
-                data.jv?.template
-                  ? `approved by ${data.jv.template.approved_by ?? "—"}`
-                  : "no approved template"
-              }
-              tone={data.jv?.ready ? "neutral" : "danger"}
+              value={data.jv?.template ? data.jv.template.name : "No approved template"}
+              tone={data.jv?.template ? "neutral" : "warning"}
+              qualifier={data.jv?.template ? `approved by ${data.jv.template.approved_by ?? "—"}` : "nothing can be posted to the ledger"}
+              href="/config/jv-templates"
             />
           </div>
 
@@ -174,26 +186,26 @@ export default function ReconciliationOverviewPage() {
 
           <Card>
             <CardContent className="py-5">
-              <h3 className="pb-1 text-base font-semibold text-ink-900 dark:text-white">
+              <h3 className="pb-1 text-[15px] font-semibold text-ink-900">
                 Reconciliations kept
               </h3>
-              <p className="pb-3 text-xs text-ink-500 dark:text-ink-400">
+              <p className="pb-3 text-xs text-ink-500">
                 A reconciliation is only a control if it leaves a record. Closing one does
                 not erase its exceptions — it records that a named person accepted them.
               </p>
               {data.runs?.length ? (
-                <div className="divide-y divide-ink-200/70 dark:divide-ink-700/60">
+                <div className="divide-y divide-ink-200/70">
                   {data.runs.map((run) => (
                     <div
                       key={run.id}
                       className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
                     >
-                      <span className="flex items-center gap-2 text-ink-800 dark:text-ink-100">
-                        <Users size={13} className="text-ink-400" />
+                      <span className="flex items-center gap-2 text-ink-800">
+                        <Users size={13} className="text-ink-500" />
                         {run.kind === "bank" ? "Bank payments" : "Journal voucher"} ·{" "}
                         {run.period_label}
                       </span>
-                      <span className="text-xs tabular-nums text-ink-500 dark:text-ink-400">
+                      <span className="text-xs tabular-nums text-ink-500">
                         {run.exception_count} exception(s) ·{" "}
                         {run.state === "closed"
                           ? `closed by ${run.closed_by ?? "—"}`
@@ -203,7 +215,7 @@ export default function ReconciliationOverviewPage() {
                   ))}
                 </div>
               ) : (
-                <p className="py-4 text-sm text-ink-500 dark:text-ink-400">
+                <p className="py-4 text-sm text-ink-500">
                   None kept for this month yet.
                 </p>
               )}
@@ -231,13 +243,13 @@ function StepCard({
   return (
     <Card>
       <CardContent className="space-y-3 py-5">
-        <h3 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white">
-          <Icon size={16} className="text-ink-400" /> {title}
+        <h3 className="flex items-center gap-2 text-[15px] font-semibold text-ink-900">
+          <Icon size={16} className="text-ink-500" /> {title}
         </h3>
         {children}
         <Link
           href={href}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline dark:text-brand-300"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
         >
           {cta} <ArrowRight size={14} />
         </Link>

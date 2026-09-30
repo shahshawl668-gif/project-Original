@@ -86,7 +86,7 @@ export default function AuditPage() {
               }
             </Menu>
           </div>
-          <p className="flex items-center gap-1.5 pb-2 text-xs text-ink-500 dark:text-ink-400">
+          <p className="flex items-center gap-1.5 pb-2 text-xs text-ink-500">
             <ShieldCheck size={13} /> Scoped to this workspace. Other entities keep their own.
           </p>
         </CardContent>
@@ -109,22 +109,22 @@ export default function AuditPage() {
       ) : (
         <Card>
           <CardContent className="py-2">
-            <ol className="divide-y divide-ink-100 dark:divide-white/5">
+            <ol className="divide-y divide-ink-100">
               {trail.data.events.map((event) => {
                 const Icon = ICONS[event.action] ?? History;
                 return (
                   <li key={event.id} className="flex items-start gap-3 py-3">
-                    <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-ink-100 text-ink-600 dark:bg-white/[0.07] dark:text-ink-300">
+                    <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-ink-100 text-ink-600">
                       <Icon size={14} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-ink-900 dark:text-white">{event.summary}</p>
-                      <p className="text-xs text-ink-500 dark:text-ink-400">
+                      <p className="text-sm text-ink-900">{event.summary}</p>
+                      <p className="text-xs text-ink-500">
                         {event.user_email ?? "unknown user"} · {when(event.created_at)}
                         {event.detail?.masked === true && " · identities masked"}
                       </p>
                     </div>
-                    <span className="flex-shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500 dark:bg-white/[0.06] dark:text-ink-400">
+                    <span className="flex-shrink-0 rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-500">
                       {event.action.split(".")[1] ?? event.action}
                     </span>
                   </li>

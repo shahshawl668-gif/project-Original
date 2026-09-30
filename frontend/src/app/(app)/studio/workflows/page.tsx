@@ -18,7 +18,7 @@ import { StatusBadge, fmtTime } from "@/components/studio/RunBits";
 import { studioFlowApi, type WorkflowDefinition } from "@/lib/studio";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900";
 const WRITE = new Set(["owner", "manager", "analyst"]);
 
 /** Starting points: each is an ordinary definition the builder opens for editing. */
@@ -79,7 +79,7 @@ export default function WorkflowsPage() {
           <input aria-label="Workflow name" className={FIELD} placeholder="Name, e.g. Monthly validation" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="grid gap-2 md:grid-cols-3">
             {TEMPLATES.map((t) => (
-              <label key={t.key} className="flex cursor-pointer items-start gap-2 rounded-xl border border-ink-200 p-3 text-sm dark:border-white/10">
+              <label key={t.key} className="flex cursor-pointer items-start gap-2 rounded-xl border border-ink-200 p-3 text-sm">
                 <input type="radio" name="template" className="mt-1" checked={template === t.key} onChange={() => setTemplate(t.key)} />
                 <span><span className="font-semibold">{t.label}</span><span className="block text-xs text-ink-500">{t.help}</span></span>
               </label>
@@ -98,11 +98,11 @@ export default function WorkflowsPage() {
         <Card><CardContent className="py-10 text-center text-sm text-ink-500"><WorkflowIcon className="mx-auto mb-2" size={22} />No workflows yet.</CardContent></Card>
       ) : (
         <Card><CardContent className="py-2">
-          <ul className="divide-y divide-ink-100 dark:divide-white/5">
+          <ul className="divide-y divide-ink-100">
             {list.data.map((w) => (
               <li key={w.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
-                  <Link href={`/studio/workflows/${w.id}`} className="font-semibold text-brand-700 hover:underline dark:text-brand-300">{w.name}</Link>
+                  <Link href={`/studio/workflows/${w.id}`} className="font-semibold text-brand-700 hover:underline">{w.name}</Link>
                   <span className="ml-2"><Badge variant={w.status === "active" ? "success" : w.status === "draft" ? "warning" : "secondary"}>{w.status}</Badge></span>
                   {w.has_changes && w.status !== "draft" ? <span className="ml-1"><Badge variant="warning">unpublished changes</Badge></span> : null}
                   <p className="text-xs text-ink-500">

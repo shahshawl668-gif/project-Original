@@ -1,236 +1,764 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, Download, Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertCircle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, CheckCircle2, Copy, Download,
+  FolderOpen, Loader2, Plus, RefreshCw, Save, X,
+} from "lucide-react";
 
-import { AlertBanner } from "@/components/ui/alert-banner";
-import { Card, CardContent } from "@/components/ui/card";
+import { useEntity } from "@/context/EntityContext";
+import { ActiveFilters, FilterMenu } from "@/components/cost/FilterMenu";
+import { BackLink } from "@/components/layout/BackLink";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { apiBlob, apiJson } from "@/lib/api";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { Button } from "@/components/ui/button";
+import { Drawer } from "@/components/ui/drawer";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatusPill } from "@/components/ui/status-pill";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { apiDownload } from "@/lib/api";
 import { fetchDimensions, fetchPeriods } from "@/lib/cost-analysis";
+import { saveBlob } from "@/lib/download";
+import { count, dateTime, inr, plural } from "@/lib/format";
+import {
+  CALC_METRICS, JOB_ACTIVE, MAX_CALCULATIONS, MAX_RANGE_MONTHS, MONEY_FIELDS, PREVIEW_LIMIT, builderApi, monthsBetween,
+  unknownMetrics, type BuilderField, type Preview, type ReportJob, type SavedReport, type Spec,
+} from "@/lib/report-builder";
+import { useUnsavedChanges } from "@/lib/unsaved";
+import { periodLabel } from "@/lib/workspace";
+import { cn } from "@/lib/utils";
 
-type Field = { key: string; label: string; numeric: boolean };
-type Dataset = { key: string; label: string; grain: string; fields: Field[]; dimensions: { key: string; label: string }[]; note: string };
-type Spec = { dataset: "payroll_cost"; dimension: string; fields: string[]; filters: Record<string, string[]>; date_from: string | null; date_to: string | null; sort: string; order: "asc" | "desc"; calculations: { key: string; label: string; expression: string }[] };
-type Preview = { status: "ok" | "missing_data" | "no_matching_records"; rows: Record<string, string | number | null>[]; record_count: number; truncated_preview?: boolean; control_totals: Record<string, number> | null; grain: string };
-type ReportJob = { id: string; definition_name: string; definition_version: number; state: string; stage: string; record_count: number | null; artifact_bytes: number | null; error_message: string | null; expires_at: string | null };
-type Saved = { id: string; name: string; version: number; visibility: string; status: string; specification: Spec };
-const steps = ["Dataset", "Fields", "Filters", "Calculations", "Grouping", "Layout", "Preview", "Save"];
-const initial: Spec = { dataset: "payroll_cost", dimension: "department", fields: ["period", "dimension", "headcount", "gross", "ctc"], filters: {}, date_from: null, date_to: null, sort: "period", order: "asc", calculations: [] };
+const FIELD = "h-9 w-full rounded-lg border border-ink-200 bg-white px-2.5 text-[13px] text-ink-900";
+const WRITE_ROLES = new Set(["owner", "manager", "analyst"]);
+const MANAGER_ROLES = new Set(["owner", "manager"]);
+const STEPS = ["Dataset", "Columns", "Filters", "Calculations", "Grouping", "Layout", "Preview", "Save & export"] as const;
 
+const INITIAL: Spec = {
+  dataset: "payroll_cost", dimension: "department", fields: ["period", "dimension", "headcount", "gross", "ctc"],
+  filters: {}, date_from: null, date_to: null, sort: "period", order: "asc", calculations: [],
+};
+type Meta = { name: string; description: string; visibility: "private" | "shared"; status: "draft" | "published" };
+const NEW_META: Meta = { name: "Payroll cost by department", description: "", visibility: "private", status: "draft" };
+
+/**
+ * Build a management report from the approved payroll cost dataset.
+ *
+ * Eight steps, each reachable directly and each stating its own validity. A
+ * preview shows at most 200 rows and says so beside the full count; an export
+ * contains every row. A saved report is a definition, not a frozen result, and
+ * every save is a new version.
+ */
 export default function ReportBuilderPage() {
-  const queryClient = useQueryClient();
+  const { entity, activeRole } = useEntity();
+  const qc = useQueryClient();
+  const canUse = WRITE_ROLES.has(activeRole ?? "");
+  const isManager = MANAGER_ROLES.has(activeRole ?? "");
+
+  const datasets = useQuery({ queryKey: ["rb-datasets", entity?.id], queryFn: builderApi.datasets, enabled: !!entity && canUse });
+  const saved = useQuery({ queryKey: ["rb-saved", entity?.id], queryFn: builderApi.saved, enabled: !!entity && canUse });
+  const dims = useQuery({ queryKey: ["bi", "dimensions", entity?.id], queryFn: fetchDimensions, enabled: !!entity && canUse });
+  const periods = useQuery({ queryKey: ["bi", "periods", entity?.id], queryFn: fetchPeriods, enabled: !!entity && canUse });
+
   const [step, setStep] = useState(0);
-  const [spec, setSpec] = useState<Spec>(initial);
-  const [name, setName] = useState("Payroll cost by department");
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [visibility, setVisibility] = useState<"private" | "shared">("private");
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
-  const datasets = useQuery({ queryKey: ["reports", "datasets"], queryFn: () => apiJson<{ datasets: Dataset[] }>("/api/reports/builder/datasets") });
-  const saved = useQuery({ queryKey: ["reports", "saved"], queryFn: () => apiJson<{ reports: Saved[] }>("/api/reports/builder/saved") });
-  const versions = useQuery({ queryKey: ["reports", "versions", activeId], enabled: !!activeId, queryFn: () => apiJson<{ versions: { version: number; name: string; created_at: string }[] }>(`/api/reports/builder/saved/${activeId}/versions`) });
-  const history = useQuery({ queryKey: ["reports", "jobs"], queryFn: () => apiJson<{ jobs: ReportJob[] }>("/api/reports/builder/jobs"), refetchInterval: activeJobId ? 3000 : false });
-  const job = useQuery({ queryKey: ["reports", "job", activeJobId], enabled: !!activeJobId, queryFn: () => apiJson<ReportJob>(`/api/reports/builder/jobs/${activeJobId}`), refetchInterval: activeJobId ? 3000 : false });
-  const dimensions = useQuery({ queryKey: ["bi", "dimensions"], queryFn: fetchDimensions });
-  const periods = useQuery({ queryKey: ["bi", "periods"], queryFn: fetchPeriods });
+  const [visited, setVisited] = useState<Set<number>>(new Set([0]));
+  const [spec, setSpec] = useState<Spec>(INITIAL);
+  const [meta, setMeta] = useState<Meta>(NEW_META);
+  const [active, setActive] = useState<SavedReport | null>(null);
+  const [baseline, setBaseline] = useState(() => JSON.stringify({ spec: INITIAL, meta: NEW_META }));
+  const [preview, setPreview] = useState<{ data: Preview; key: string } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [queueing, setQueueing] = useState(false);
+  const [fileNote, setFileNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [openSaved, setOpenSaved] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const previewSeq = useRef(0);
+
+  const versions = useQuery({ queryKey: ["rb-versions", entity?.id, active?.id, active?.version], queryFn: () => builderApi.versions(active!.id), enabled: !!active });
+
+  // Generated files: queued in the background, fixed once made, kept until they expire.
+  const jobs = useQuery({
+    queryKey: ["rb-jobs", entity?.id], queryFn: builderApi.jobs, enabled: !!entity && canUse,
+    refetchInterval: (q) => (q.state.data?.jobs.some((j) => JOB_ACTIVE.has(j.state)) ? 2000 : false),
+  });
+  const jobList = jobs.data?.jobs ?? [];
+  const latestJob = active ? jobList.find((j) => j.definition_id === active.id) : undefined;
+
+  const specKey = JSON.stringify(spec);
+  const dirty = JSON.stringify({ spec, meta }) !== baseline;
+  useUnsavedChanges(dirty);
+
   const dataset = datasets.data?.datasets[0];
-  const fields = [...(dataset?.fields ?? []), ...spec.calculations.map((c) => ({ key: c.key, label: c.label, numeric: true }))];
+  const fields: (BuilderField & { calculated?: boolean })[] = useMemo(() => [
+    ...(dataset?.fields ?? []),
+    ...spec.calculations.map((c) => ({ key: c.key, label: c.label || "Untitled calculation", numeric: true, calculated: true })),
+  ], [dataset, spec.calculations]);
+  const labelOf = (key: string) => fields.find((f) => f.key === key)?.label ?? key;
+  const available = periods.data?.periods ?? []; // newest first
+  const dimensions = dims.data?.dimensions ?? [];
+  const dimLabel = dataset?.dimensions.find((d) => d.key === spec.dimension)?.label ?? spec.dimension;
 
-  function update(next: Partial<Spec>) { setSpec((s) => ({ ...s, ...next })); setPreview(null); setSavedMessage(null); setDirty(true); }
-  async function runPreview() {
-    setBusy(true); setError(null);
-    try {
-      setPreview(await apiJson<Preview>("/api/reports/builder/preview", { method: "POST", body: JSON.stringify({ specification: spec }) }));
-      setStep(6);
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
+  // ── validity, per step ────────────────────────────────────────────────────
+  const range = spec.date_from && spec.date_to ? monthsBetween(spec.date_from, spec.date_to) : null;
+  const rangeError = range !== null && range < 1 ? "From is after To." : range !== null && range > MAX_RANGE_MONTHS ? `At most ${MAX_RANGE_MONTHS} months; this is ${range}.` : null;
+  const calcErrors = spec.calculations.map((c) => {
+    if (!c.label.trim()) return "Give it a column name.";
+    if (!c.expression.trim()) return "Write an expression.";
+    const unknown = unknownMetrics(c.expression);
+    if (unknown.length) return `Not a metric: ${unknown.join(", ")}.`;
+    if (!/^[\sA-Za-z0-9_+\-*/().]+$/.test(c.expression)) return "Use metric names, numbers, brackets and + − × ÷ only.";
+    return null;
+  });
+  const stepError: (string | null)[] = [
+    null,
+    spec.fields.length ? null : "Choose at least one column.",
+    rangeError,
+    calcErrors.find(Boolean) ?? null,
+    null,
+    spec.fields.includes(spec.sort) ? null : "Sort by a column that is in the report.",
+    null,
+    meta.name.trim() ? null : "Name the report.",
+  ];
+  const valid = stepError.every((e) => !e);
+  const monthLabel = (iso: string | null) => (iso ? periodLabel(iso) : null);
+  const summary = [
+    dataset?.label ?? "Payroll cost",
+    plural(spec.fields.length, "column"),
+    [spec.date_from || spec.date_to ? `${monthLabel(spec.date_from) ?? "Earliest"} – ${monthLabel(spec.date_to) ?? "latest"}` : "All months", Object.keys(spec.filters).length ? plural(Object.values(spec.filters).flat().length, "filter") : null].filter(Boolean).join(" · "),
+    spec.calculations.length ? plural(spec.calculations.length, "calculation") : "None",
+    `By ${dimLabel}`,
+    `${labelOf(spec.sort)}, ${spec.order === "asc" ? "ascending" : "descending"}`,
+    preview ? (preview.key === specKey ? "Up to date" : "Out of date") : "Not generated",
+    active ? `v${active.version}${dirty ? " · unsaved changes" : ""}` : "Not saved",
+  ];
+
+  function go(n: number) {
+    // Arriving at Preview shows current figures; earlier rows stay on screen while it refreshes.
+    if (n === 6 && n !== step && valid && (!preview || preview.key !== specKey)) void runPreview();
+    setStep(n);
+    setVisited((v) => new Set(v).add(n));
+    requestAnimationFrame(() => heading.current?.focus());
   }
+  function update(next: Partial<Spec>) {
+    setSpec((s) => ({ ...s, ...next }));
+  }
+
+  async function runPreview(target: Spec = spec) {
+    const ticket = ++previewSeq.current; // only the latest request may land
+    setPreviewing(true);
+    setPreviewError(null);
+    try {
+      const data = await builderApi.preview(target);
+      if (ticket === previewSeq.current) setPreview({ data, key: JSON.stringify(target) });
+    } catch (e) {
+      if (ticket === previewSeq.current) setPreviewError(e instanceof Error ? e.message : "The preview could not be generated.");
+    } finally {
+      if (ticket === previewSeq.current) setPreviewing(false);
+    }
+  }
+
+  function adopt(report: SavedReport) {
+    const m: Meta = { name: report.name, description: report.description ?? "", visibility: report.visibility, status: report.status };
+    const s = { ...INITIAL, ...report.specification };
+    setActive(report);
+    setSpec(s);
+    setMeta(m);
+    setBaseline(JSON.stringify({ spec: s, meta: m }));
+    setSaveError(null);
+    return s;
+  }
+
+  function confirmDiscard() {
+    return !dirty || window.confirm("You have unsaved changes. Discard them?");
+  }
+
+  function open(report: SavedReport) {
+    if (!confirmDiscard()) return;
+    const s = adopt(report);
+    setOpenSaved(false);
+    setVisited(new Set(STEPS.map((_, i) => i)));
+    setStep(6);
+    void runPreview(s);
+  }
+
+  function startNew() {
+    if (!confirmDiscard()) return;
+    setActive(null);
+    setSpec(INITIAL);
+    setMeta(NEW_META);
+    setBaseline(JSON.stringify({ spec: INITIAL, meta: NEW_META }));
+    setPreview(null);
+    setVisited(new Set([0]));
+    go(0);
+  }
+
+  async function copy(report: SavedReport) {
+    if (!confirmDiscard()) return;
+    try {
+      const c = await builderApi.clone(report.id);
+      await qc.invalidateQueries({ queryKey: ["rb-saved", entity?.id] });
+      toast.success(`Copied as “${c.name}” — a private draft`);
+      open(c);
+    } catch (e) {
+      toast.error("Not copied", { description: e instanceof Error ? e.message : "" });
+    }
+  }
+
   async function save() {
-    setBusy(true); setError(null);
+    setSaving(true);
+    setSaveError(null);
     try {
-      const result = await apiJson<Saved>(activeId ? `/api/reports/builder/saved/${activeId}` : "/api/reports/builder/saved", {
-        method: activeId ? "PUT" : "POST", body: JSON.stringify({ name: name.trim(), specification: spec, visibility, status: "draft" }),
+      const result = await builderApi.save(active?.id ?? null, {
+        name: meta.name.trim(), description: meta.description.trim() || null,
+        specification: spec, visibility: meta.visibility, status: meta.status,
       });
-      setActiveId(result.id); setDirty(false);
-      setSavedMessage(`Saved draft version ${result.version}. It will use current data when previewed again.`);
-      await saved.refetch(); await queryClient.invalidateQueries({ queryKey: ["reports", "versions", result.id] });
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
-  function load(report: Saved) {
-    setSpec(report.specification); setName(report.name); setVisibility(report.visibility as "private" | "shared"); setPreview(null);
-    setActiveId(report.id); setDirty(false);
-    setSavedMessage(`Editing ${report.name}, version ${report.version}. Preview uses current data.`); setStep(1);
+      adopt(result);
+      toast.success(`Saved as version ${result.version}`);
+      await qc.invalidateQueries({ queryKey: ["rb-saved", entity?.id] });
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Not saved.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  async function clone(report: Saved) {
-    setBusy(true); setError(null);
-    try {
-      const copy = await apiJson<Saved>(`/api/reports/builder/saved/${report.id}/clone`, { method: "POST" });
-      load(copy); await saved.refetch();
-      setSavedMessage(`Created personal draft ${copy.name}.`);
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
+  const refreshJobs = () => qc.invalidateQueries({ queryKey: ["rb-jobs", entity?.id] });
   async function generate() {
-    if (!activeId || dirty) return;
-    setBusy(true); setError(null);
+    if (!active) return;
+    setQueueing(true);
+    setFileNote(null);
     try {
-      const queued = await apiJson<ReportJob>(`/api/reports/builder/saved/${activeId}/jobs`, { method: "POST" });
-      setActiveJobId(queued.id);
-      await history.refetch();
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
+      await builderApi.queue(active.id);
+      await refreshJobs();
+    } catch (e) {
+      setFileNote({ ok: false, text: e instanceof Error ? e.message : "Not queued." });
+    } finally {
+      setQueueing(false);
+    }
+  }
+  async function jobAction(job: ReportJob, action: "cancel" | "retry" | "download") {
+    setFileNote(null);
+    try {
+      if (action === "download") {
+        const { blob, filename, bytes } = await apiDownload(`/api/reports/builder/jobs/${job.id}/download`, `report-v${job.definition_version}.xlsx`);
+        saveBlob(blob, filename);
+        setFileNote({ ok: true, text: `Downloaded ${filename} · ${Math.max(1, Math.round(bytes / 1024))} KB` });
+      } else {
+        await (action === "cancel" ? builderApi.cancel(job.id) : builderApi.retry(job.id));
+      }
+    } catch (e) {
+      setFileNote({ ok: false, text: e instanceof Error ? e.message : "Refused." });
+    } finally {
+      await refreshJobs();
+    }
   }
 
-  async function downloadJob(jobId: string) {
-    setBusy(true); setError(null);
-    try {
-      const blob = await apiBlob(`/api/reports/builder/jobs/${jobId}/download`);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = `peopleops-report-${jobId.slice(0, 12)}.xlsx`;
-      document.body.appendChild(link); link.click(); link.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
+  if (!canUse) {
+    return (
+      <div className="space-y-4">
+        <BackLink fallback="/reports">Report Centre</BackLink>
+        <PageHeader title="Report Builder" />
+        <EmptyState
+          title="Report Builder needs analyst access"
+          description="Your role in this company can download the standard reports but not build new ones. An owner or manager can change your role."
+          action={<Button asChild variant="outline"><Link href="/reports">Go to the Report Centre</Link></Button>}
+        />
+      </div>
+    );
   }
 
-  async function jobAction(jobId: string, action: "cancel" | "retry") {
-    setBusy(true); setError(null);
-    try {
-      const result = await apiJson<ReportJob>(`/api/reports/builder/jobs/${jobId}/${action}`, { method: "POST" });
-      setActiveJobId(result.id);
-      await history.refetch();
-    } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  }
+  const loadError = datasets.error || saved.error;
+  const stale = !!preview && preview.key !== specKey;
+  const exportBlocker = !active ? "Save the report to export it."
+    : dirty ? `You have unsaved changes. Save them first — an export always uses a saved version, so the file matches a definition someone can reopen.`
+    : !spec.date_from || !spec.date_to ? "Choose both a From and a To month in Filters. An export names the months it covers."
+    : null;
 
-  return <div className="space-y-5">
-    <PageHeader eyebrow="PeopleOps Reports" title="Report Builder" description="Build a payroll management report using approved BI figures. One row represents one payroll month and one breakdown value." />
-    <Link href="/reports" className="inline-flex items-center gap-2 text-sm text-brand-600 hover:underline"><ArrowLeft size={15} /> Report Centre</Link>
-    {(datasets.isError || saved.isError) && <AlertBanner variant="error" title="Could not load Report Builder">{String((datasets.error || saved.error) as Error)}</AlertBanner>}
-    {error && <AlertBanner variant="error" title="Report action failed">{error}</AlertBanner>}
-    {savedMessage && <AlertBanner variant="success" title="Report saved">{savedMessage}</AlertBanner>}
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-      <Card><CardContent className="space-y-5 py-5">
-        <nav aria-label="Builder steps" className="flex flex-wrap gap-2">
-          {steps.map((label, index) => <button key={label} type="button" onClick={() => setStep(index)}
-            aria-current={step === index ? "step" : undefined}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium ${step === index ? "bg-brand-600 text-white" : "bg-ink-50 text-ink-600 dark:bg-white/10 dark:text-ink-200"}`}>
-            {index + 1}. {label}
-          </button>)}
+  return (
+    <div className="space-y-5">
+      <BackLink fallback="/reports">Report Centre</BackLink>
+      <PageHeader
+        title={active ? meta.name || active.name : "New report"}
+        description="Payroll cost at one row per payroll month and breakdown value, from the same calculation as Cost analysis."
+        meta={
+          <>
+            {active ? <StatusPill tone={active.status === "published" ? "success" : "neutral"}>Version {active.version} · {active.status === "published" ? "Published" : "Draft"}</StatusPill> : <StatusPill tone="neutral">Not saved yet</StatusPill>}
+            {active ? <span>{active.visibility === "shared" ? "Shared with this company" : "Private to you"}</span> : null}
+            {dirty && active ? <StatusPill tone="warning">Unsaved changes</StatusPill> : null}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="ghost" onClick={startNew}><Plus size={14} /> New</Button>
+            <Button variant="outline" onClick={() => setOpenSaved(true)}>
+              <FolderOpen size={14} /> Saved reports{saved.data ? ` (${saved.data.reports.length})` : ""}
+            </Button>
+          </>
+        }
+      />
+
+      {loadError ? (
+        <AlertBanner variant="error" title="Report Builder could not load" action={<Button size="sm" variant="outline" onClick={() => { void datasets.refetch(); void saved.refetch(); }}>Try again</Button>}>
+          {(loadError as Error).message}
+        </AlertBanner>
+      ) : null}
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[232px_minmax(0,1fr)]">
+        <nav aria-label="Report steps" className="min-w-0 lg:sticky lg:top-20">
+          <ol className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+            {STEPS.map((label, i) => {
+              const err = visited.has(i) ? stepError[i] : null;
+              const settled = i === 6 ? !!preview && preview.key === specKey : i === 7 ? !!active && !dirty : true;
+              const done = visited.has(i) && !err && i !== step && settled;
+              return (
+                <li key={label} className="flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => go(i)}
+                    aria-current={i === step ? "step" : undefined}
+                    className={cn(
+                      "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors duration-fast",
+                      i === step ? "bg-brand-50 ring-1 ring-brand-200" : "hover:bg-ink-50",
+                    )}
+                  >
+                    <span aria-hidden className={cn(
+                      "mt-px flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                      err ? "bg-danger-600 text-white" : i === step ? "bg-brand-600 text-white" : done ? "bg-success-600 text-white" : "border border-ink-200 bg-white text-ink-500",
+                    )}>
+                      {err ? <X size={11} strokeWidth={3} /> : done ? <Check size={11} strokeWidth={3} /> : i + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-medium text-ink-900">
+                        {label}
+                        <span className="sr-only">{err ? ` — needs attention: ${err}` : done ? " — complete" : ""}</span>
+                      </span>
+                      <span className={cn("hidden truncate text-xs lg:block", err ? "text-danger-700" : "text-ink-500")}>{err ?? summary[i]}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
         </nav>
-        <h2 className="text-xl font-semibold text-ink-900 dark:text-white">{steps[step]}</h2>
-        {step === 0 && <div className="space-y-3">
-          <p className="text-sm text-ink-600 dark:text-ink-300">Payroll cost is the first approved dataset. It uses the same cost calculations as Insights and preserves unassigned dimensions.</p>
-          <div className="rounded-xl border border-ink-200 p-4 dark:border-white/10">
-            <h3 className="font-semibold">{dataset?.label ?? "Loading dataset…"}</h3>
-            <p className="mt-1 text-sm text-ink-500">Grain: {dataset?.grain}. {dataset?.note}</p>
+
+        <section aria-labelledby="step-heading" className="min-w-0 rounded-xl border border-ink-200 bg-white">
+          <div className="border-b border-ink-100 px-5 py-4">
+            <p className="text-xs text-ink-500">Step {step + 1} of {STEPS.length}</p>
+            <h2 id="step-heading" ref={heading} tabIndex={-1} className="text-base font-semibold text-ink-900 focus:outline-none">{STEPS[step]}</h2>
           </div>
-        </div>}
-        {step === 1 && <div className="grid gap-2 sm:grid-cols-2">
-          {fields.map((field) => <label key={field.key} className="flex items-center gap-2 rounded-lg border border-ink-200 p-3 text-sm dark:border-white/10">
-            <input type="checkbox" checked={spec.fields.includes(field.key)} onChange={() => {
-              const next = spec.fields.includes(field.key) ? spec.fields.filter((x) => x !== field.key) : [...spec.fields, field.key];
-              if (next.length) update({ fields: next, sort: next.includes(spec.sort) ? spec.sort : next[0] });
-            }} />{field.label}
-          </label>)}
-          <p className="text-xs text-ink-500 sm:col-span-2">The selected order is the column order. Employee details are not part of this aggregate dataset.</p>
-        </div>}
-        {step === 2 && <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(["date_from", "date_to"] as const).map((key) => <label key={key} className="space-y-1 text-sm">
-              <span>{key === "date_from" ? "From period" : "To period"}</span>
-              <select className="w-full rounded-lg border p-2 dark:bg-ink-900" value={spec[key] ?? ""} onChange={(e) => update({ [key]: e.target.value || null })}>
-                <option value="">All available</option>
-                {(periods.data?.periods ?? []).map((p) => <option key={p.period} value={p.period}>{p.label}</option>)}
-              </select>
-            </label>)}
+
+          <div className="space-y-4 px-5 py-5">
+            {!dataset && !loadError ? (
+              <div className="space-y-2"><Skeleton className="h-5 w-64" /><Skeleton className="h-20 w-full" /></div>
+            ) : null}
+
+            {dataset && step === 0 ? (
+              <div className="space-y-3">
+                <label className="flex cursor-default items-start gap-3 rounded-xl border border-brand-300 bg-brand-50/40 p-4">
+                  <input type="radio" checked readOnly className="mt-1 accent-brand-600" name="dataset" />
+                  <span>
+                    <span className="block text-[14px] font-semibold text-ink-900">{dataset.label}</span>
+                    <span className="mt-0.5 block text-[13px] text-ink-600">One row is {dataset.grain.toLowerCase()}. {dataset.note}</span>
+                  </span>
+                </label>
+                <p className="text-xs text-ink-500">
+                  This is the one dataset the builder offers. For one row per employee, use <Link href="/reports" className="font-medium text-brand-700 underline">Employee payroll cost</Link> in the Report Centre.
+                </p>
+              </div>
+            ) : null}
+
+            {dataset && step === 1 ? (
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <h3 className="text-xs font-medium text-ink-700">In the report, in column order</h3>
+                  {spec.fields.length ? (
+                    <ol className="mt-2 divide-y divide-ink-100 rounded-lg border border-ink-200">
+                      {spec.fields.map((key, i) => (
+                        <li key={key} className="flex items-center gap-2 px-3 py-1.5 text-[13px]">
+                          <span className="w-5 text-xs tabular-nums text-ink-500">{i + 1}</span>
+                          <span className="min-w-0 flex-1 truncate text-ink-900">{labelOf(key)}</span>
+                          <IconBtn label={`Move ${labelOf(key)} earlier`} disabled={i === 0} onClick={() => { const f = spec.fields.slice(); [f[i - 1], f[i]] = [f[i], f[i - 1]]; update({ fields: f }); }}><ArrowUp size={13} /></IconBtn>
+                          <IconBtn label={`Move ${labelOf(key)} later`} disabled={i === spec.fields.length - 1} onClick={() => { const f = spec.fields.slice(); [f[i + 1], f[i]] = [f[i], f[i + 1]]; update({ fields: f }); }}><ArrowDown size={13} /></IconBtn>
+                          <IconBtn label={`Remove ${labelOf(key)}`} disabled={spec.fields.length === 1} onClick={() => { const f = spec.fields.filter((x) => x !== key); update({ fields: f, sort: f.includes(spec.sort) ? spec.sort : f[0] }); }}><X size={13} /></IconBtn>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
+                  <p className="mt-2 text-xs text-ink-500">A report keeps at least one column. Employee names are not in this dataset.</p>
+                </div>
+                <div>
+                  <h3 className="text-xs font-medium text-ink-700">Available</h3>
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {fields.filter((f) => !spec.fields.includes(f.key)).map((f) => (
+                      <li key={f.key}>
+                        <button type="button" onClick={() => update({ fields: [...spec.fields, f.key] })}
+                          className="inline-flex h-8 items-center gap-1 rounded-full border border-ink-200 bg-white px-3 text-[13px] text-ink-800 hover:border-brand-300 hover:bg-brand-50">
+                          <Plus size={12} aria-hidden /> {f.label}{f.calculated ? <span className="text-xs text-ink-500"> · calculated</span> : null}
+                        </button>
+                      </li>
+                    ))}
+                    {fields.every((f) => spec.fields.includes(f.key)) ? <li className="text-xs text-ink-500">Every column is in the report.</li> : null}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+
+            {dataset && step === 2 ? (
+              <div className="space-y-5">
+                <fieldset>
+                  <legend className="text-xs font-medium text-ink-700">Payroll months</legend>
+                  <div className="mt-1 grid max-w-md grid-cols-2 gap-3">
+                    {(["date_from", "date_to"] as const).map((k) => (
+                      <label key={k} className="text-xs text-ink-500">{k === "date_from" ? "From" : "To"}
+                        <select className={cn(FIELD, "mt-1")} value={spec[k] ?? ""} onChange={(e) => update({ [k]: e.target.value || null })} aria-invalid={!!rangeError}>
+                          <option value="">{k === "date_from" ? "Earliest stored" : "Latest stored"}</option>
+                          {available.map((p) => <option key={p.period} value={p.period}>{p.label}</option>)}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                  {rangeError ? <p className="mt-1.5 text-xs text-danger-700">{rangeError}</p> : null}
+                  <p className="mt-1.5 text-xs text-ink-500">
+                    {range ? `${plural(range, "month")}. ` : ""}Up to {MAX_RANGE_MONTHS} months. An Excel export needs both months set.
+                    {!available.length && !periods.isLoading ? " No salary register is stored for this company yet." : ""}
+                  </p>
+                </fieldset>
+                <div className="space-y-2">
+                  <div className="max-w-xs"><FilterMenu align="left" dimensions={dimensions} filters={spec.filters} onClear={() => update({ filters: {} })}
+                    onToggle={(key, value) => {
+                      const cur = spec.filters[key] ?? [];
+                      const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value];
+                      const out = { ...spec.filters, [key]: next };
+                      if (!next.length) delete out[key];
+                      update({ filters: out });
+                    }} /></div>
+                  <ActiveFilters dimensions={dimensions} filters={spec.filters} onClear={() => update({ filters: {} })}
+                    onToggle={(key, value) => {
+                      const next = (spec.filters[key] ?? []).filter((v) => v !== value);
+                      const out = { ...spec.filters, [key]: next };
+                      if (!next.length) delete out[key];
+                      update({ filters: out });
+                    }} />
+                  <p className="text-xs text-ink-500">Values within one dimension are alternatives; different dimensions narrow each other.</p>
+                </div>
+              </div>
+            ) : null}
+
+            {dataset && step === 3 ? (
+              <div className="space-y-4">
+                <p className="text-[13px] text-ink-600">Optional. A calculated column combines metrics with + − × ÷ and brackets, per row. Division by zero leaves the cell blank, never zero.</p>
+                {spec.calculations.map((c, i) => {
+                  const setCalc = (patch: Partial<typeof c>) => update({ calculations: spec.calculations.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+                  return (
+                    <div key={c.key} className="space-y-2 rounded-lg border border-ink-200 p-3">
+                      <div className="grid gap-3 sm:grid-cols-[1fr_2fr_auto] sm:items-end">
+                        <label className="text-xs font-medium text-ink-700">Column name<input className={cn(FIELD, "mt-1")} value={c.label} maxLength={80} onChange={(e) => setCalc({ label: e.target.value })} /></label>
+                        <label className="text-xs font-medium text-ink-700">Expression<input className={cn(FIELD, "mt-1 font-mono")} value={c.expression} maxLength={160} placeholder="ctc / headcount" aria-invalid={!!calcErrors[i]} onChange={(e) => setCalc({ expression: e.target.value })} /></label>
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          const f = spec.fields.filter((x) => x !== c.key);
+                          update({ calculations: spec.calculations.filter((_, j) => j !== i), fields: f.length ? f : ["period"], sort: spec.sort === c.key ? (f[0] ?? "period") : spec.sort });
+                        }}>Remove</Button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-500">
+                        Insert:
+                        {CALC_METRICS.map((m) => (
+                          <button key={m} type="button" className="rounded border border-ink-200 px-1.5 py-0.5 font-mono text-[11px] text-ink-700 hover:bg-ink-50"
+                            onClick={() => setCalc({ expression: `${c.expression}${c.expression && !/[\s(+\-*/]$/.test(c.expression) ? " " : ""}${m}` })}>{m}</button>
+                        ))}
+                      </div>
+                      {calcErrors[i] ? <p className="text-xs text-danger-700">{calcErrors[i]}</p> : null}
+                    </div>
+                  );
+                })}
+                {spec.calculations.length < MAX_CALCULATIONS ? (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const n = [1, 2, 3, 4].find((k) => !spec.calculations.some((c) => c.key === `calc_${k}`)) ?? 9;
+                    const key = `calc_${n}`;
+                    update({ calculations: [...spec.calculations, { key, label: "", expression: "" }], fields: [...spec.fields, key] });
+                  }}><Plus size={13} /> Add a calculated column</Button>
+                ) : <p className="text-xs text-ink-500">Three calculated columns is the most a report can hold.</p>}
+                {spec.calculations.length ? <p className="text-xs text-ink-500">A new calculation is added to the end of the columns; reorder it under Columns.</p> : null}
+              </div>
+            ) : null}
+
+            {dataset && step === 4 ? (
+              <fieldset>
+                <legend className="text-[13px] text-ink-600">One row per payroll month and value of:</legend>
+                <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {dataset.dimensions.map((d) => (
+                    <label key={d.key} className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-[13px]", spec.dimension === d.key ? "border-brand-300 bg-brand-50/50 text-ink-900" : "border-ink-200 text-ink-700 hover:bg-ink-50")}>
+                      <input type="radio" name="dimension" className="accent-brand-600" checked={spec.dimension === d.key} onChange={() => update({ dimension: d.key })} /> {d.label}
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-ink-500">Employees with no value appear as Unassigned rather than disappearing. A month with no one paid in a group has no row — a gap, not a zero.</p>
+              </fieldset>
+            ) : null}
+
+            {dataset && step === 5 ? (
+              <div className="space-y-4">
+                <div className="grid max-w-lg gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-ink-700">Sort by
+                    <select className={cn(FIELD, "mt-1")} value={spec.sort} onChange={(e) => update({ sort: e.target.value })}>
+                      {spec.fields.map((k) => <option key={k} value={k}>{labelOf(k)}</option>)}
+                    </select>
+                  </label>
+                  <fieldset>
+                    <legend className="text-xs font-medium text-ink-700">Order</legend>
+                    <div className="mt-2.5 flex gap-4 text-[13px]">
+                      {(["asc", "desc"] as const).map((o) => (
+                        <label key={o} className="flex items-center gap-1.5"><input type="radio" name="order" className="accent-brand-600" checked={spec.order === o} onChange={() => update({ order: o })} /> {o === "asc" ? "Ascending" : "Descending"}</label>
+                      ))}
+                    </div>
+                  </fieldset>
+                </div>
+                <p className="text-xs text-ink-500">Layout is a table: the columns you chose, one row per month and group. Pivot, chart and PDF layouts are not available in the builder.</p>
+              </div>
+            ) : null}
+
+            {dataset && step === 6 ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button onClick={() => void runPreview()} disabled={previewing || !valid}>
+                    {previewing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {preview ? "Refresh preview" : "Generate preview"}
+                  </Button>
+                  {!valid ? <span className="text-xs text-danger-700">Fix the steps marked in red first.</span> : null}
+                  {stale && !previewing ? <StatusPill tone="warning">Out of date — the definition changed since this preview</StatusPill> : null}
+                </div>
+                {previewError ? <AlertBanner variant="error" title="The preview was not generated">{previewError}</AlertBanner> : null}
+                {preview ? <PreviewResult preview={preview.data} spec={spec} labelOf={labelOf} dimLabel={dimLabel} busy={previewing} stale={stale} /> : !previewing ? (
+                  <p className="text-[13px] text-ink-500">Nothing generated yet. A preview reads current data and changes nothing.</p>
+                ) : <Skeleton className="h-40 w-full" />}
+              </div>
+            ) : null}
+
+            {dataset && step === 7 ? (
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+                <div className="space-y-4">
+                  <label className="block text-xs font-medium text-ink-700">Report name
+                    <input className={cn(FIELD, "mt-1")} value={meta.name} maxLength={120} aria-invalid={!meta.name.trim()} onChange={(e) => setMeta({ ...meta, name: e.target.value })} />
+                  </label>
+                  <label className="block text-xs font-medium text-ink-700">Description <span className="font-normal text-ink-500">(optional)</span>
+                    <textarea className="mt-1 block min-h-[64px] w-full rounded-lg border border-ink-200 bg-white px-2.5 py-2 text-[13px] text-ink-900" maxLength={1000} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} />
+                  </label>
+                  <fieldset>
+                    <legend className="text-xs font-medium text-ink-700">Who can open it</legend>
+                    <div className="mt-1.5 space-y-1 text-[13px]">
+                      <label className="flex items-center gap-1.5"><input type="radio" name="vis" className="accent-brand-600" checked={meta.visibility === "private"} onChange={() => setMeta({ ...meta, visibility: "private" })} /> Only me</label>
+                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="vis" className="accent-brand-600" disabled={!isManager} checked={meta.visibility === "shared"} onChange={() => setMeta({ ...meta, visibility: "shared" })} /> Analysts and above in this company</label>
+                    </div>
+                  </fieldset>
+                  <fieldset>
+                    <legend className="text-xs font-medium text-ink-700">Status</legend>
+                    <div className="mt-1.5 space-y-1 text-[13px]">
+                      <label className="flex items-center gap-1.5"><input type="radio" name="status" className="accent-brand-600" checked={meta.status === "draft"} onChange={() => setMeta({ ...meta, status: "draft" })} /> Draft</label>
+                      <label className={cn("flex items-center gap-1.5", !isManager && "text-ink-500")}><input type="radio" name="status" className="accent-brand-600" disabled={!isManager} checked={meta.status === "published"} onChange={() => setMeta({ ...meta, status: "published" })} /> Published — only a manager can change it afterwards</label>
+                    </div>
+                  </fieldset>
+                  {!isManager ? <p className="text-xs text-ink-500">Sharing and publishing need a manager or owner.</p> : null}
+                  {saveError ? <AlertBanner variant="error" title="Not saved">{saveError}</AlertBanner> : null}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button onClick={() => void save()} disabled={saving || !valid || !dirty}>
+                      {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {active ? `Save as version ${active.version + 1}` : "Save report"}
+                    </Button>
+                    <span className="text-xs text-ink-500">{!valid ? "Fix the steps marked in red first." : !dirty ? "No changes since the last save." : "Saving stores the choices, not the figures; each save is a new version."}</span>
+                  </div>
+                </div>
+
+                <aside className="space-y-4">
+                  <div className="rounded-lg border border-ink-200 p-3.5">
+                    <h3 className="text-[13px] font-semibold text-ink-900">Excel export</h3>
+                    <p className="mt-1 text-xs text-ink-500">Every matched row — the preview&apos;s {PREVIEW_LIMIT}-row limit does not apply — with About, Summary, Details and Data basis sheets.</p>
+                    {exportBlocker ? <p className="mt-2 text-xs text-ink-700">{exportBlocker}</p> : null}
+                    <Button className="mt-3" variant="outline" size="sm"
+                      disabled={!!exportBlocker || queueing || (!!latestJob && JOB_ACTIVE.has(latestJob.state) && latestJob.definition_version === active?.version)}
+                      onClick={() => void generate()}>
+                      {queueing ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Generate Excel from version {active?.version ?? ""}
+                    </Button>
+                    <p className="mt-2 text-xs text-ink-500">It is made in the background — you can leave this page — and the file stays fixed and downloadable until the date shown.</p>
+                    {latestJob ? <div className="mt-3 border-t border-ink-100 pt-3"><JobRow job={latestJob} onAction={jobAction} /></div> : null}
+                    <div role="status" aria-live="polite" className="mt-2 text-xs">
+                      {fileNote ? <span className={cn("flex items-start gap-1.5", fileNote.ok ? "text-success-700" : "text-danger-700")}>
+                        {fileNote.ok ? <CheckCircle2 size={13} className="mt-px flex-shrink-0" aria-hidden /> : <AlertCircle size={13} className="mt-px flex-shrink-0" aria-hidden />} {fileNote.text}</span> : null}
+                    </div>
+                  </div>
+
+                  {active ? (
+                    <div className="rounded-lg border border-ink-200 p-3.5">
+                      <h3 className="text-[13px] font-semibold text-ink-900">Versions</h3>
+                      {versions.isLoading ? <Skeleton className="mt-2 h-12 w-full" /> : (
+                        <ol className="mt-2 space-y-1.5">
+                          {(versions.data?.versions ?? []).map((v) => (
+                            <li key={v.version} className="flex items-center justify-between gap-2 text-xs">
+                              <span className="min-w-0">
+                                <span className="font-medium text-ink-800">v{v.version}</span>{v.version === active.version ? <span className="text-ink-500"> · current</span> : null}
+                                <span className="block truncate text-ink-500">{v.name} · {dateTime(v.created_at)}</span>
+                              </span>
+                              {v.version !== active.version ? (
+                                <button type="button" className="flex-shrink-0 font-medium text-brand-700 hover:underline" onClick={() => {
+                                  update({ ...INITIAL, ...v.specification });
+                                  setMeta((m) => ({ ...m, name: v.name }));
+                                  toast.message(`Version ${v.version} loaded into the editor`, { description: `Save to make it version ${active.version + 1}.` });
+                                }}>Load</button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  ) : null}
+                </aside>
+              </div>
+            ) : null}
           </div>
-          <label className="block space-y-1 text-sm">Filter dimension
-            <select className="block w-full rounded-lg border p-2 dark:bg-ink-900" value={Object.keys(spec.filters)[0] ?? ""} onChange={(e) => update({ filters: e.target.value ? { [e.target.value]: [] } : {} })}>
-              <option value="">No filter</option>
-              {(dimensions.data?.dimensions ?? []).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-            </select>
-          </label>
-          {Object.keys(spec.filters).map((key) => <div key={key} className="max-h-44 space-y-1 overflow-auto rounded-lg border p-3">
-            {(dimensions.data?.dimensions.find((d) => d.key === key)?.values ?? []).map((value) => <label key={value} className="flex gap-2 text-sm">
-              <input type="checkbox" checked={spec.filters[key].includes(value)} onChange={() => update({ filters: { [key]: spec.filters[key].includes(value) ? spec.filters[key].filter((x) => x !== value) : [...spec.filters[key], value] } })} />{value}
-            </label>)}
-          </div>)}
-        </div>}
-        {step === 3 && <div className="space-y-3 text-sm">
-          <p>Optional advanced calculation. Use gross, deductions, net, employer_cost, ctc, headcount or person_months with +, −, × and ÷. Division by zero returns blank.</p>
-          <label className="block space-y-1">Column label<input className="block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.calculations[0]?.label ?? ""} onChange={(e) => update({ calculations: [{ key: "calc_custom", label: e.target.value, expression: spec.calculations[0]?.expression ?? "" }] })} /></label>
-          <label className="block space-y-1">Expression<input className="block w-full rounded-lg border p-2 dark:bg-ink-900" placeholder="ctc / headcount" value={spec.calculations[0]?.expression ?? ""} onChange={(e) => update({ calculations: [{ key: "calc_custom", label: spec.calculations[0]?.label ?? "Custom measure", expression: e.target.value }] })} /></label>
-          <button type="button" className="text-brand-600" onClick={() => update({ calculations: [], fields: spec.fields.filter((x) => x !== "calc_custom"), sort: spec.sort === "calc_custom" ? "period" : spec.sort })}>Clear calculation</button>
-        </div>}
-        {step === 4 && <label className="block space-y-2 text-sm">Group rows by
-          <select className="block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.dimension} onChange={(e) => update({ dimension: e.target.value })}>
-            {(dataset?.dimensions ?? []).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-          </select>
-          <p className="text-xs text-ink-500">One row per month and group. Totals use the shared BI calculation, not a join to a component table.</p>
-        </label>}
-        {step === 5 && <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm">Sort column<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.sort} onChange={(e) => update({ sort: e.target.value })}>{spec.fields.map((key) => <option key={key} value={key}>{fields.find((f) => f.key === key)?.label ?? key}</option>)}</select></label>
-          <label className="text-sm">Order<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={spec.order} onChange={(e) => update({ order: e.target.value as "asc" | "desc" })}><option value="asc">Ascending</option><option value="desc">Descending</option></select></label>
-          <p className="text-xs text-ink-500 sm:col-span-2">This release supports an aggregate detail table. Pivot and PDF layouts require the report job phase.</p>
-        </div>}
-        {step === 6 && <div className="space-y-3">
-          <button type="button" onClick={runPreview} disabled={busy} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Calculating…" : "Generate preview"}</button>
-          {preview && <div className="space-y-2">
-            <p className="text-sm font-medium">{preview.status === "ok" ? `${preview.record_count} rows matched` : preview.status === "missing_data" ? "No salary register for this period" : "No records match these filters"}</p>
-            {preview.truncated_preview && <p className="text-xs text-amber-700">Preview shows the first 200 rows; the total matched count is shown above.</p>}
-            {preview.control_totals && <p className="text-xs text-ink-500">Control total CTC: {Number(preview.control_totals.ctc).toLocaleString("en-IN")}. Grain: {preview.grain}.</p>}
-            <div className="max-h-96 overflow-auto rounded-lg border"><table className="min-w-full text-left text-xs"><thead className="sticky top-0 bg-ink-50 dark:bg-ink-900"><tr>{spec.fields.map((key) => <th key={key} className="whitespace-nowrap p-2">{fields.find((f) => f.key === key)?.label ?? key}</th>)}</tr></thead><tbody>{preview.rows.map((row, i) => <tr key={i} className="border-t">{spec.fields.map((key) => <td key={key} className="whitespace-nowrap p-2">{row[key] ?? "—"}</td>)}</tr>)}</tbody></table></div>
-          </div>}
-        </div>}
-        {step === 7 && <div className="space-y-3">
-          <label className="block text-sm">Report name<input className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="block text-sm">Visibility<select className="mt-1 block w-full rounded-lg border p-2 dark:bg-ink-900" value={visibility} onChange={(e) => setVisibility(e.target.value as "private" | "shared")}><option value="private">Personal draft</option><option value="shared">Company shared (manager access)</option></select></label>
-          <p className="text-xs text-ink-500">A saved definition contains choices, not a frozen result. Access is checked again when previewed.</p>
-          <button type="button" disabled={busy || !name.trim()} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {activeId ? "Save new version" : "Save draft"}</button>
-          {activeId && <button type="button" disabled={busy || dirty || !spec.date_from || !spec.date_to} onClick={generate} className="ml-2 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={15} /> Generate Excel</button>}
-          {dirty && <p className="text-xs text-ink-500">Save your changes before generation.</p>}
-          {job.data && <p className="text-sm">Job {job.data.id.slice(0, 8)}: {job.data.stage}{job.data.record_count !== null ? ` · ${job.data.record_count} rows` : ""}{job.data.error_message ? ` · ${job.data.error_message}` : ""}</p>}
-          {job.data?.state === "succeeded" && <button type="button" onClick={() => job.data && downloadJob(job.data.id)} className="text-brand-600 hover:underline">Download generated file</button>}
-          {activeId && (!spec.date_from || !spec.date_to) && <p className="text-xs text-ink-500">Choose both period bounds before export.</p>}
-          {activeId && <div className="space-y-1 text-xs text-ink-500"><strong className="block text-ink-700 dark:text-ink-200">Definition history</strong>{(versions.data?.versions ?? []).map((item) => <p key={item.version}>Version {item.version} · {item.name} · {item.created_at ? new Date(item.created_at).toLocaleString() : "Recorded"}</p>)}</div>}
-        </div>}
-        <div className="flex justify-between border-t pt-4">
-          <button type="button" disabled={step === 0} onClick={() => setStep((n) => n - 1)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40">Back</button>
-          {step < 7 && <button type="button" onClick={() => setStep((n) => n + 1)} className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white">{step === 6 ? <Check size={14} /> : <ArrowRight size={14} />} Next</button>}
-        </div>
-      </CardContent></Card>
-      <Card><CardContent className="space-y-3 py-5">
-        <h2 className="font-semibold">Saved reports</h2>
-        <p className="text-xs text-ink-500">Personal drafts and reports shared with this company.</p>
-        {(saved.data?.reports ?? []).map((report) => <div key={report.id} className="rounded-lg border p-3 text-sm dark:border-white/10">
-          <span className="block font-medium">{report.name}</span><span className="text-xs text-ink-500">{report.visibility} · v{report.version} · {report.status}</span>
-          <div className="mt-2 flex gap-3"><button type="button" onClick={() => load(report)} className="text-brand-600 hover:underline">Open</button><button type="button" onClick={() => clone(report)} className="text-brand-600 hover:underline">Clone</button></div>
-        </div>)}
-        {saved.data?.reports.length === 0 && <p className="text-sm text-ink-500">No saved reports yet.</p>}
-        <h2 className="border-t pt-4 font-semibold">Generated history</h2>
-        {(history.data?.jobs ?? []).map((item) => <div key={item.id} className="rounded-lg border p-3 text-xs dark:border-white/10">
-          <span className="block font-medium">{item.definition_name} · v{item.definition_version}</span>
-          <span className="block text-ink-500">{item.stage} · {item.id.slice(0, 8)}{item.record_count !== null ? ` · ${item.record_count} rows` : ""}</span>
-          {item.error_message && <span className="block text-red-600">{item.error_message}</span>}
-          <div className="mt-2 flex gap-3">
-            {item.state === "succeeded" && <button type="button" onClick={() => downloadJob(item.id)} className="text-brand-600">Download</button>}
-            {(item.state === "queued" || item.state === "running") && <button type="button" onClick={() => jobAction(item.id, "cancel")} className="text-brand-600">Cancel</button>}
-            {item.state === "failed" && <button type="button" onClick={() => jobAction(item.id, "retry")} className="text-brand-600">Retry</button>}
+
+          <div className="flex items-center justify-between border-t border-ink-100 px-5 py-3">
+            <Button variant="ghost" disabled={step === 0} onClick={() => go(step - 1)}><ArrowLeft size={14} /> {step > 0 ? STEPS[step - 1] : "Back"}</Button>
+            {step < STEPS.length - 1 ? (
+              <Button variant="outline" onClick={() => go(step + 1)}>
+                {STEPS[step + 1]} <ArrowRight size={14} />
+              </Button>
+            ) : null}
           </div>
-        </div>)}
-      </CardContent></Card>
+        </section>
+      </div>
+
+      <Drawer open={openSaved} onClose={() => setOpenSaved(false)} title="Saved reports" description="Your private drafts and reports shared with this company.">
+        {saved.isLoading ? <Skeleton className="h-24 w-full" /> : (saved.data?.reports.length ?? 0) === 0 ? (
+          <p className="text-[13px] text-ink-500">No saved reports yet. Build one and save it at the last step.</p>
+        ) : (
+          <ul className="divide-y divide-ink-100">
+            {saved.data!.reports.map((r) => (
+              <li key={r.id} className="py-3">
+                <p className="text-[13px] font-medium text-ink-900">{r.name}{active?.id === r.id ? <span className="font-normal text-ink-500"> · open</span> : null}</p>
+                <p className="text-xs text-ink-500">v{r.version} · {r.status === "published" ? "Published" : "Draft"} · {r.visibility === "shared" ? "Shared" : "Private"} · {dateTime(r.updated_at)}</p>
+                <div className="mt-1.5 flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => open(r)}>Open</Button>
+                  <Button size="sm" variant="ghost" onClick={() => void copy(r)}><Copy size={13} /> Copy</Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h3 className="mt-6 border-t border-ink-100 pt-4 text-[13px] font-semibold text-ink-900">Generated files</h3>
+        <p className="text-xs text-ink-500">Excel files you generated in this company, newest first. Each is fixed when made and downloadable until it expires.</p>
+        {jobs.isLoading ? <Skeleton className="mt-2 h-16 w-full" /> : jobList.length === 0 ? (
+          <p className="mt-2 text-[13px] text-ink-500">None yet.</p>
+        ) : (
+          <ul className="mt-1 divide-y divide-ink-100">{jobList.map((j) => <li key={j.id} className="py-2.5"><JobRow job={j} onAction={jobAction} showName /></li>)}</ul>
+        )}
+      </Drawer>
     </div>
-  </div>;
+  );
+}
+
+const JOB_PILL: Record<string, { tone: "neutral" | "running" | "success" | "danger"; label: string }> = {
+  queued: { tone: "running", label: "Queued" },
+  running: { tone: "running", label: "Generating" },
+  succeeded: { tone: "success", label: "Ready" },
+  failed: { tone: "danger", label: "Failed" },
+  cancelled: { tone: "neutral", label: "Cancelled" },
+  expired: { tone: "neutral", label: "Expired" },
+};
+
+function JobRow({ job, onAction, showName }: { job: ReportJob; onAction: (job: ReportJob, action: "cancel" | "retry" | "download") => void; showName?: boolean }) {
+  const pill = JOB_PILL[job.state] ?? { tone: "neutral" as const, label: job.state };
+  const facts = [
+    `v${job.definition_version}`,
+    job.state === "running" && job.stage === "retrying" ? `retrying (attempt ${job.attempt})` : null,
+    job.record_count !== null ? plural(job.record_count, "row") : null,
+    job.artifact_bytes ? `${Math.max(1, Math.round(job.artifact_bytes / 1024))} KB` : null,
+    job.state === "succeeded" && job.expires_at ? `until ${dateTime(job.expires_at)}` : null,
+    job.state !== "succeeded" && job.finished_at ? dateTime(job.finished_at) : job.state === "queued" ? `queued ${dateTime(job.queued_at)}` : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-2 text-xs">
+      <div className="min-w-0">
+        {showName ? <p className="truncate text-[13px] font-medium text-ink-900">{job.definition_name}</p> : null}
+        <p className="flex flex-wrap items-center gap-1.5 text-ink-600"><StatusPill tone={pill.tone}>{pill.label}</StatusPill> {facts}</p>
+        {job.error_message ? <p className="mt-1 text-danger-700">{job.error_message}</p> : null}
+        {job.state === "expired" ? <p className="mt-1 text-ink-500">The file has been deleted; its record stays. Generate again for a new one.</p> : null}
+      </div>
+      <div className="flex gap-1.5">
+        {job.state === "succeeded" ? <Button size="sm" variant="outline" onClick={() => onAction(job, "download")}><Download size={13} /> Download</Button> : null}
+        {JOB_ACTIVE.has(job.state) && !job.cancel_requested ? <Button size="sm" variant="ghost" onClick={() => onAction(job, "cancel")}>Cancel</Button> : null}
+        {job.state === "failed" ? <Button size="sm" variant="outline" onClick={() => onAction(job, "retry")}>Retry</Button> : null}
+      </div>
+    </div>
+  );
+}
+
+function IconBtn({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-500 hover:bg-ink-100 hover:text-ink-900 disabled:opacity-30 disabled:hover:bg-transparent">
+      {children}
+    </button>
+  );
+}
+
+const TOTALS: [string, string][] = [["ctc", "Total CTC"], ["gross", "Gross pay"], ["net", "Net pay"], ["employer_cost", "Employer contributions"], ["headcount", "People paid"]];
+
+function PreviewResult({ preview, spec, labelOf, dimLabel, busy, stale }: {
+  preview: Preview; spec: Spec; labelOf: (k: string) => string; dimLabel: string; busy: boolean; stale: boolean;
+}) {
+  if (preview.status === "missing_data") {
+    return <EmptyState title="No salary register in this range" description="There is nothing to report on for these months — not a zero payroll. Upload the register, or widen the months under Filters." />;
+  }
+  if (preview.status === "no_matching_records") {
+    return <EmptyState title="No rows match" description="Registers exist for these months, but no one paid matches the filters. Loosen them under Filters." />;
+  }
+  const shown = preview.rows.length;
+  const fmt = (key: string, v: string | number | null) => {
+    if (v === null || v === undefined) return <span className="text-ink-500" title="Not available">—</span>;
+    if (key === "period") return periodLabel(String(v));
+    if (MONEY_FIELDS.has(key)) return inr(Number(v));
+    if (key === "headcount" || key === "person_months") return count(Number(v));
+    if (typeof v === "number") return v.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+    return v;
+  };
+  return (
+    <div className={cn("space-y-3 transition-opacity duration-fast", (busy || stale) && "opacity-60")} aria-busy={busy}>
+      <p className="text-[13px] text-ink-800" role="status">
+        <b>{count(preview.record_count)} rows</b> matched.{" "}
+        {preview.truncated_preview
+          ? <span className="text-warning-800">Showing the first {count(shown)}. The Excel export contains all {count(preview.record_count)}.</span>
+          : <span className="text-ink-500">Showing all of them.</span>}
+      </p>
+      {preview.control_totals ? (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-ink-50 px-3 py-2.5 sm:grid-cols-5">
+          {TOTALS.map(([k, l]) => (
+            <div key={k}>
+              <dt className="text-[11px] text-ink-500">{l}</dt>
+              <dd className="text-[13px] font-semibold tabular-nums text-ink-900">{k === "headcount" ? count(preview.control_totals![k]) : inr(preview.control_totals![k])}</dd>
+            </div>
+          ))}
+          <p className="col-span-full text-[11px] text-ink-500">Control totals for the whole range and filters, before the breakdown — they should match Cost analysis for the same scope.</p>
+        </dl>
+      ) : null}
+      <Table containerClassName="max-h-[480px] rounded-lg border border-ink-200">
+        <TableHeader>
+          <TableRow>
+            {spec.fields.map((k, i) => {
+              const numeric = !["period", "dimension"].includes(k);
+              return <TableHead key={k} numeric={numeric} pin={i === 0}>{k === "dimension" ? dimLabel : labelOf(k)}</TableHead>;
+            })}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {preview.rows.map((row, r) => (
+            <TableRow key={r}>
+              {spec.fields.map((k, i) => <TableCell key={k} numeric={!["period", "dimension"].includes(k)} pin={i === 0}>{fmt(k, row[k])}</TableCell>)}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 }

@@ -30,8 +30,8 @@ export function FormulaPreview({
 }) {
   if (!expression.trim()) return null;
   return (
-    <div className="rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-sm text-brand-900 shadow-sm dark:border-brand-500/20 dark:bg-brand-500/[0.08] dark:text-brand-100">
-      <span className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-brand-700 dark:text-brand-300">
+    <div className="rounded-xl border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-sm text-brand-900 shadow-sm">
+      <span className="font-display text-[11px] font-semibold text-brand-700">
         Preview
       </span>
       <span className="ml-2 align-middle">{describe(expression, ruleType)}</span>

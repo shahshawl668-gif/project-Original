@@ -415,10 +415,16 @@ def get_validation_findings(
     _validation_run(db, company, run_id)
     data = list_run_findings(
         run_id=run_id, page=page, page_size=page_size, sort=sort, order=order, severity=severity,
-        rule_id=rule_id, employee_id=employee_id, rule_prefix=None, q=None, db=db,
+        rule_id=rule_id, employee_id=employee_id, rule_prefix=None, q=None,
+        # Called as a function, so every Query parameter needs its value spelled
+        # out — a default here would be the Query object itself.
+        component=None, state=None, owner=None, location=None, db=db,
         user=principal.user, entity=company,
     )["data"]
-    return envelope(paged(data["items"], page, page_size, data["total"], rules=data["rules"]))
+    # The integration contract's rule summary is unchanged by the product
+    # screen's richer facets.
+    rules = [{k: r[k] for k in ("rule_id", "rule_name", "severity", "count")} for r in data["rules"]]
+    return envelope(paged(data["items"], page, page_size, data["total"], rules=rules))
 
 
 @router.get("/validation-runs/{run_id}/employees", tags=["validation"],

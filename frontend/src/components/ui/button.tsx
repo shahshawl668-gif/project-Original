@@ -5,32 +5,34 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/**
+ * One primary action per view, in the action colour. Secondary actions are
+ * outlined, tertiary are ghost. Destructive is red and never the default.
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[13px] font-medium transition-colors duration-fast focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-soft hover:shadow-glow hover:from-brand-500 hover:to-accent-500",
-        primary:
-          "bg-gradient-to-br from-brand-600 to-accent-600 text-white shadow-soft hover:shadow-glow",
-        solid:
-          "bg-ink-900 text-white shadow-soft hover:bg-ink-800 dark:bg-white dark:text-ink-900 dark:hover:bg-ink-100",
+        default: "bg-brand-600 text-white shadow-soft hover:bg-brand-700 active:bg-brand-800",
+        primary: "bg-brand-600 text-white shadow-soft hover:bg-brand-700 active:bg-brand-800",
+        solid: "bg-ink-900 text-white shadow-soft hover:bg-ink-800",
         destructive: "bg-danger-600 text-white shadow-soft hover:bg-danger-700",
+        "destructive-outline":
+          "border border-danger-200 bg-white text-danger-700 hover:border-danger-300 hover:bg-danger-50",
         outline:
-          "border border-ink-200 bg-white text-ink-800 shadow-sm hover:bg-ink-50 hover:border-ink-300 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-100 dark:hover:bg-white/[0.08] dark:hover:border-white/20",
-        secondary:
-          "bg-ink-100 text-ink-900 hover:bg-ink-200 dark:bg-white/[0.06] dark:text-ink-100 dark:hover:bg-white/[0.10]",
-        ghost:
-          "text-ink-700 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-200 dark:hover:bg-white/[0.06] dark:hover:text-white",
-        link: "text-brand-700 underline-offset-4 hover:underline dark:text-brand-300",
+          "border border-ink-200 bg-white text-ink-800 shadow-soft hover:border-ink-300 hover:bg-ink-50",
+        secondary: "bg-ink-100 text-ink-900 hover:bg-ink-200",
+        ghost: "text-ink-700 hover:bg-ink-100 hover:text-ink-900",
+        link: "h-auto px-0 text-brand-700 underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-11 px-6 text-[15px]",
-        xl: "h-12 px-7 text-[15px]",
-        icon: "h-10 w-10",
+        default: "h-9 px-3.5",
+        sm: "h-8 px-2.5 text-xs",
+        lg: "h-10 px-4 text-sm",
+        xl: "h-11 px-5 text-sm",
+        icon: "h-9 w-9",
+        "icon-sm": "h-8 w-8",
       },
     },
     defaultVariants: {

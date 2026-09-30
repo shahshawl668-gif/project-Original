@@ -76,7 +76,7 @@ export default function AdminUsersPage() {
         eyebrow="Administration"
         title={
           <span className="inline-flex items-center gap-3">
-            <Shield className="text-brand-600 dark:text-brand-300" size={26} />
+            <Shield className="text-brand-600" size={26} />
             Users & roles
           </span>
         }
@@ -84,7 +84,7 @@ export default function AdminUsersPage() {
       />
 
       {q.isLoading && (
-        <div className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
+        <div className="flex items-center gap-2 text-sm text-ink-500">
           <Loader2 className="animate-spin" size={16} /> Loading users…
         </div>
       )}
@@ -105,23 +105,23 @@ export default function AdminUsersPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="bg-ink-50/80 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:bg-white/[0.03] dark:text-ink-300">
+                <tr className="bg-ink-50/80 text-left text-[11px] font-semibold text-ink-500">
                   <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Company</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="w-56 px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-white/[0.05]">
+              <tbody className="divide-y divide-ink-100">
                 {rows.map((r: AdminUserRow) => (
                   <tr
                     key={r.id}
-                    className="transition-colors hover:bg-ink-50/60 dark:hover:bg-white/[0.04]"
+                    className="transition-colors hover:bg-ink-50/60"
                   >
-                    <td className="px-4 py-3 font-mono text-xs text-ink-900 dark:text-white">
+                    <td className="px-4 py-3 font-mono text-xs text-ink-900">
                       {r.email}
                     </td>
-                    <td className="px-4 py-3 text-ink-600 dark:text-ink-300">
+                    <td className="px-4 py-3 text-ink-600">
                       {r.company_name ?? "—"}
                     </td>
                     <td className="px-4 py-3">
@@ -163,7 +163,7 @@ export default function AdminUsersPage() {
         )}
       </Card>
 
-      <p className="text-xs text-ink-500 dark:text-ink-400">
+      <p className="text-xs text-ink-500">
         You cannot remove the last admin. Protects against accidental lock-out (demote yourself last only after
         promoting another admin).
       </p>

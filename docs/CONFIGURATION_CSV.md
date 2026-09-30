@@ -1,6 +1,6 @@
 # Configuration CSV upload
 
-Download **Settings → Configuration upload → Download configuration CSV template** for the selected entity. Edit a copy as UTF-8 CSV, preview the upload, check the section counts, and apply. The downloaded file is a complete backup and an upload template. Upload accepts CSV, up to 5 MB and 10,000 configuration records. It never imports users, permissions, payroll registers, approvals, or audit history.
+Download **Configuration & admin → Configuration upload → Download configuration CSV template** for the selected entity. Edit a copy as UTF-8 CSV, preview the upload, check the section counts, and apply. The downloaded file is a complete backup and an upload template. Upload accepts CSV, up to 5 MB and 10,000 configuration records. It never imports users, permissions, payroll registers, approvals, or audit history.
 
 ## Columns
 

@@ -35,10 +35,10 @@ import { cn } from "@/lib/utils";
 
 /** Over budget reads as bad news; under budget as good. */
 function toneFor(value: number | null) {
-  if (value === null || value === 0) return "text-ink-500 dark:text-ink-400";
+  if (value === null || value === 0) return "text-ink-500";
   return value > 0
-    ? "text-danger-600 dark:text-danger-400"
-    : "text-success-700 dark:text-success-400";
+    ? "text-danger-600"
+    : "text-success-700";
 }
 
 const MEASURE_LABELS: Record<string, string> = {
@@ -190,7 +190,7 @@ export function BudgetView({
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                     <th className="py-2 text-left font-semibold">Period</th>
                     <th className="py-2 text-right font-semibold">Actual</th>
                     <th className="py-2 text-right font-semibold">Budget</th>
@@ -202,25 +202,25 @@ export function BudgetView({
                 <tbody className="tabular-nums">
                   {data.periods.map((period) => (
                     <tr key={period.period}
-                        className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                      <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">
+                        className="border-b border-ink-100 last:border-0">
+                      <td className="py-2 pr-3 text-ink-800">
                         {period.label}
                         {!period.has_budget && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-warning-700 dark:text-warning-400">
+                          <span className="ml-2 text-[11px] text-warning-700">
                             unbudgeted
                           </span>
                         )}
                         {!period.has_actual && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-warning-700 dark:text-warning-400"
+                          <span className="ml-2 text-[11px] text-warning-700"
                             title="No register was uploaded for this month, so there is no actual to compare. It is left out of the totals.">
                             no register
                           </span>
                         )}
                       </td>
-                      <td className="py-2 text-right text-ink-900 dark:text-white">
+                      <td className="py-2 text-right text-ink-900">
                         {period.actual === null ? "—" : formatINR(period.actual, true)}
                       </td>
-                      <td className="py-2 text-right text-ink-600 dark:text-ink-300">
+                      <td className="py-2 text-right text-ink-600">
                         {period.budget === null ? "—" : formatINR(period.budget, true)}
                       </td>
                       <td className={cn("py-2 text-right", toneFor(period.variance))}>
@@ -229,7 +229,7 @@ export function BudgetView({
                       <td className={cn("py-2 text-right", toneFor(period.variance))}>
                         {formatPct(period.variance_pct)}
                       </td>
-                      <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-2 text-right text-ink-500">
                         {period.utilisation_pct === null
                           ? "—" : `${period.utilisation_pct.toFixed(0)}%`}
                       </td>
@@ -248,7 +248,7 @@ export function BudgetView({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+                    <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                       <th className="py-2 text-left font-semibold">Scope</th>
                       <th className="py-2 text-right font-semibold">Actual</th>
                       <th className="py-2 text-right font-semibold">Budget</th>
@@ -259,12 +259,12 @@ export function BudgetView({
                   <tbody className="tabular-nums">
                     {data.scopes.map((scope) => (
                       <tr key={scope.scope}
-                          className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                        <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{scope.scope}</td>
-                        <td className="py-2 text-right text-ink-900 dark:text-white">
+                          className="border-b border-ink-100 last:border-0">
+                        <td className="py-2 pr-3 text-ink-800">{scope.scope}</td>
+                        <td className="py-2 text-right text-ink-900">
                           {formatINR(scope.actual, true)}
                         </td>
-                        <td className="py-2 text-right text-ink-600 dark:text-ink-300">
+                        <td className="py-2 text-right text-ink-600">
                           {scope.budget === null ? "—" : formatINR(scope.budget, true)}
                         </td>
                         <td className={cn("py-2 text-right", toneFor(scope.variance))}>
@@ -304,7 +304,7 @@ export function BudgetView({
         {forecast.isLoading ? (
           <Skeleton className="h-64" />
         ) : !forecast.data?.forecast.length ? (
-          <p className="text-sm text-ink-500 dark:text-ink-400">
+          <p className="text-sm text-ink-500">
             {forecast.data?.note ?? "Nothing to project from yet."}
           </p>
         ) : (
@@ -332,7 +332,7 @@ export function BudgetView({
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                     <th className="py-2 text-left font-semibold">Period</th>
                     <th className="py-2 text-right font-semibold">Forecast</th>
                     <th className="py-2 text-right font-semibold">Run rate</th>
@@ -346,27 +346,27 @@ export function BudgetView({
                 <tbody className="tabular-nums">
                   {forecast.data.forecast.map((row) => (
                     <tr key={row.period}
-                        className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                      <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{row.label}</td>
-                      <td className="py-2 text-right font-medium text-ink-900 dark:text-white">
+                        className="border-b border-ink-100 last:border-0">
+                      <td className="py-2 pr-3 text-ink-800">{row.label}</td>
+                      <td className="py-2 text-right font-medium text-ink-900">
                         {formatINR(row.forecast, true)}
                       </td>
-                      <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-2 text-right text-ink-500">
                         {formatINR(row.components.run_rate, true)}
                       </td>
-                      <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-2 text-right text-ink-500">
                         {row.components.increment ? formatINR(row.components.increment, true) : "—"}
                       </td>
-                      <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-2 text-right text-ink-500">
                         {row.components.joiners ? formatINR(row.components.joiners, true) : "—"}
                       </td>
-                      <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-2 text-right text-ink-500">
                         {row.components.exits ? formatINR(row.components.exits, true) : "—"}
                       </td>
-                      <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-2 text-right text-ink-500">
                         {row.components.bonus ? formatINR(row.components.bonus, true) : "—"}
                       </td>
-                      <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-2 text-right text-ink-500">
                         {row.headcount}
                       </td>
                     </tr>
@@ -375,7 +375,7 @@ export function BudgetView({
               </table>
             </div>
 
-            <p className="mt-3 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            <p className="mt-3 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
               {forecast.data.disclaimer} Base: {forecast.data.base?.note}
             </p>
           </>
@@ -389,7 +389,7 @@ export function BudgetView({
         actions={
           <a
             href={apiAbsoluteUrl("/api/budget/template.csv")}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-ink-50 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-ink-50"
           >
             <Download size={13} /> Template
           </a>
@@ -398,7 +398,7 @@ export function BudgetView({
         {versions.isLoading ? (
           <Skeleton className="h-24" />
         ) : !versions.data?.versions.length ? (
-          <p className="flex items-center gap-2 text-sm text-ink-500 dark:text-ink-400">
+          <p className="flex items-center gap-2 text-sm text-ink-500">
             <FileWarning size={15} /> No budget uploaded yet. Download the template, fill it in,
             and upload it from Data uploads.
           </p>
@@ -406,7 +406,7 @@ export function BudgetView({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+                <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                   <th className="py-2 text-left font-semibold">Name</th>
                   <th className="py-2 text-left font-semibold">Level</th>
                   <th className="py-2 text-left font-semibold">Measure</th>
@@ -419,11 +419,11 @@ export function BudgetView({
               <tbody>
                 {versions.data.versions.map((version) => (
                   <tr key={version.id}
-                      className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                    <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{version.name}</td>
-                    <td className="py-2 pr-3 text-ink-600 dark:text-ink-300">{version.scope_label}</td>
-                    <td className="py-2 pr-3 text-ink-600 dark:text-ink-300">{version.measure}</td>
-                    <td className="py-2 text-right tabular-nums text-ink-600 dark:text-ink-300">
+                      className="border-b border-ink-100 last:border-0">
+                    <td className="py-2 pr-3 text-ink-800">{version.name}</td>
+                    <td className="py-2 pr-3 text-ink-600">{version.scope_label}</td>
+                    <td className="py-2 pr-3 text-ink-600">{version.measure}</td>
+                    <td className="py-2 text-right tabular-nums text-ink-600">
                       {version.line_count}
                     </td>
                     <td className="py-2 pr-3">
@@ -435,7 +435,7 @@ export function BudgetView({
                         <Badge variant="outline">Draft</Badge>
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-xs text-ink-500 dark:text-ink-400">
+                    <td className="py-2 pr-3 text-xs text-ink-500">
                       {version.approved_by ?? "—"}
                     </td>
                     <td className="py-2 text-right">
@@ -444,7 +444,7 @@ export function BudgetView({
                           type="button"
                           onClick={() => approve.mutate(version.id)}
                           disabled={approve.isPending}
-                          className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 hover:border-brand-400 disabled:opacity-60 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-100"
+                          className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 hover:border-brand-400 disabled:opacity-60"
                         >
                           Approve
                         </button>
@@ -455,7 +455,7 @@ export function BudgetView({
               </tbody>
             </table>
             {approve.isError && (
-              <p className="mt-2 text-xs text-danger-600 dark:text-danger-400">
+              <p className="mt-2 text-xs text-danger-600">
                 {(approve.error as Error).message}
               </p>
             )}
@@ -478,7 +478,7 @@ function ScenarioField({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+      <span className="text-[11px] font-semibold text-ink-500">
         {label}
       </span>
       <input
@@ -488,7 +488,7 @@ function ScenarioField({
         max={max}
         step={step ?? 1}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
-        className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm tabular-nums text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+        className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm tabular-nums text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
       />
     </label>
   );

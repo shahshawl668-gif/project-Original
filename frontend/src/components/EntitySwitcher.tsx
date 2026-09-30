@@ -1,32 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Building2, Check, ChevronDown } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { usePathname, useRouter } from "next/navigation";
+import { Building2, Check, ChevronDown, Loader2 } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
+import { entityNeutralPath } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Picks which employer the workspace is acting on.
+ * Which company the workspace is acting on — always visible, because every
+ * number on every page belongs to one company.
  *
- * Hidden entirely for a single-entity organization: an enterprise with one
- * legal employer should never see a control that implies otherwise. It appears
- * as soon as there is a real choice to make.
+ * With one company it is a plain label. With several it switches, and a
+ * switch is a clean break: the query cache is emptied and the page remounts
+ * (EntityContext), and a URL naming a record of the old company falls back to
+ * its list.
  */
 export function EntitySwitcher() {
   const { entity, entities, isMultiEntity, organization, switchEntity, loading } = useEntity();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
@@ -39,7 +41,20 @@ export function EntitySwitcher() {
     };
   }, [open]);
 
-  if (loading || !entity || !isMultiEntity) return null;
+  if (loading && !entity) return <span className="h-8 w-40 animate-pulse-soft rounded-lg bg-ink-100" aria-hidden />;
+  if (!entity) return null;
+
+  if (!isMultiEntity) {
+    return (
+      <span
+        className="inline-flex max-w-[15rem] items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] font-medium text-ink-800"
+        title={entity.legal_name ?? entity.name}
+      >
+        <Building2 size={14} className="flex-shrink-0 text-ink-500" aria-hidden />
+        <span className="truncate">{entity.name}</span>
+      </span>
+    );
+  }
 
   async function onSelect(entityId: string) {
     if (entityId === entity?.id) {
@@ -48,9 +63,10 @@ export function EntitySwitcher() {
     }
     setSwitching(entityId);
     try {
+      // Clears the query cache and remounts the page (see EntityContext).
       await switchEntity(entityId);
-      // Everything cached belongs to the entity we just left.
-      await queryClient.invalidateQueries();
+      const neutral = entityNeutralPath(pathname);
+      if (neutral !== pathname || window.location.search) router.replace(neutral);
     } finally {
       setSwitching(null);
       setOpen(false);
@@ -64,21 +80,27 @@ export function EntitySwitcher() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="inline-flex max-w-[15rem] items-center gap-2 rounded-xl border border-ink-200/70 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 shadow-sm transition-colors hover:border-brand-300 hover:bg-ink-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-100 dark:hover:border-brand-500/40 dark:hover:bg-white/[0.08]"
+        aria-label={`Company: ${entity.name}. Switch company`}
+        className="inline-flex h-8 max-w-[15rem] items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 text-[13px] font-medium text-ink-800 shadow-soft transition-colors hover:border-ink-300 hover:bg-ink-50"
       >
-        <Building2 size={14} className="flex-shrink-0 text-brand-600 dark:text-brand-400" />
+        {switching ? (
+          <Loader2 size={14} className="flex-shrink-0 animate-spin text-brand-600" aria-hidden />
+        ) : (
+          <Building2 size={14} className="flex-shrink-0 text-ink-500" aria-hidden />
+        )}
         <span className="truncate">{entity.name}</span>
-        <ChevronDown size={13} className="flex-shrink-0 text-ink-400" aria-hidden />
+        <ChevronDown size={13} className="flex-shrink-0 text-ink-500" aria-hidden />
       </button>
 
       {open && (
         <div
           role="listbox"
-          className="absolute right-0 z-50 mt-2 max-h-80 w-72 overflow-y-auto rounded-xl border border-ink-200/70 bg-white p-1.5 shadow-lg dark:border-white/10 dark:bg-ink-900"
+          aria-label="Companies"
+          className="absolute right-0 z-50 mt-1.5 max-h-80 w-72 animate-fade-up overflow-y-auto rounded-xl border border-ink-200 bg-white p-1 shadow-elevated"
         >
           {organization && (
-            <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-              {organization.org_type === "practice" ? "Clients" : "Entities"} · {organization.name}
+            <p className="px-2.5 pb-1 pt-1.5 text-xs text-ink-500">
+              {organization.org_type === "practice" ? "Clients" : "Companies"} in {organization.name}
             </p>
           )}
           {entities.map((candidate) => {
@@ -92,20 +114,22 @@ export function EntitySwitcher() {
                 disabled={switching !== null}
                 onClick={() => void onSelect(candidate.id)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors disabled:opacity-60",
-                  active
-                    ? "bg-brand-50 text-brand-800 dark:bg-brand-500/10 dark:text-brand-200"
-                    : "text-ink-700 hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-white/[0.06]",
+                  "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors disabled:opacity-60",
+                  active ? "bg-brand-50 text-brand-900" : "text-ink-700 hover:bg-ink-50",
                 )}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">{candidate.name}</span>
-                  <span className="block truncate text-[10px] text-ink-400">
+                  <span className="block truncate font-medium">{candidate.name}</span>
+                  <span className="block truncate text-xs text-ink-500">
                     {candidate.code}
                     {candidate.primary_state ? ` · ${candidate.primary_state}` : ""}
                   </span>
                 </span>
-                {active && <Check size={14} className="flex-shrink-0" aria-hidden />}
+                {switching === candidate.id ? (
+                  <Loader2 size={14} className="flex-shrink-0 animate-spin" aria-hidden />
+                ) : active ? (
+                  <Check size={14} className="flex-shrink-0 text-brand-700" aria-hidden />
+                ) : null}
               </button>
             );
           })}

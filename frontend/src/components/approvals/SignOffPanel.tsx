@@ -6,8 +6,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowRight,
-  CheckCircle2,
-  Circle,
   FileDown,
   Loader2,
   RotateCcw,
@@ -29,6 +27,8 @@ import {
   type SignOffDetail,
 } from "@/lib/validation";
 import { cn } from "@/lib/utils";
+import { Stepper } from "@/components/ui/stepper";
+import { saveBlob } from "@/lib/download";
 
 /**
  * Approving a month.
@@ -74,7 +74,10 @@ function stepsDone(stage: string): number {
 
 const BLOCKER_ACTION: Record<string, { href: (runId: string | null) => string; label: string }> = {
   not_validated: { href: () => "/payroll/upload", label: "Upload & validate" },
-  revalidation_required: { href: () => "/payroll/validation", label: "Revalidate" },
+  revalidation_required: {
+    href: (runId) => (runId ? `/payroll/results?run=${encodeURIComponent(runId)}` : "/payroll/validation"),
+    label: "Revalidate",
+  },
   incomplete_coverage: {
     href: (runId) => (runId ? `/payroll/results?run=${encodeURIComponent(runId)}&tab=coverage` : "/payroll/results"),
     label: "See what could not be checked",
@@ -137,13 +140,7 @@ export function SignOffPanel({ period }: { period: string }) {
   const downloadPack = async () => {
     setBusy("pack");
     try {
-      const blob = await signoffApi.evidencePack(period);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `evidence-pack-${period.slice(0, 7)}.xlsx`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      saveBlob(await signoffApi.evidencePack(period), `evidence-pack-${period.slice(0, 7)}${state === "signed" ? "" : "-draft"}.xlsx`);
     } catch (e) {
       toast.error("Could not build the evidence pack", { description: e instanceof Error ? e.message : "" });
     } finally {
@@ -189,10 +186,10 @@ export function SignOffPanel({ period }: { period: string }) {
       <CardContent className="space-y-5 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="flex items-center gap-2 text-base font-semibold text-ink-900 dark:text-white">
-              <Stamp size={16} className="text-ink-400" /> Approval · {monthLabel(period)}
+            <h3 id="approval" className="flex items-center gap-2 text-[15px] font-semibold text-ink-900">
+              <Stamp size={16} className="text-ink-500" /> Approval · {monthLabel(period)}
             </h3>
-            <p className="text-xs text-ink-500 dark:text-ink-400">
+            <p className="text-xs text-ink-500">
               {s.stage_label}
               {readiness.run_number ? ` · run #${readiness.run_number}` : ""}
               {readiness.coverage?.coverage_pct != null
@@ -211,38 +208,13 @@ export function SignOffPanel({ period }: { period: string }) {
           </Button>
         </div>
 
-        <ol className="grid grid-cols-5 gap-1" aria-label="Month progress">
-          {STEPS.map((step, i) => {
-            const complete = i < done;
-            const current = i === done;
-            return (
-              <li key={step.key} className="flex flex-col items-center gap-1 text-center">
-                {complete ? (
-                  <CheckCircle2 size={18} className="text-success-600 dark:text-success-400" aria-hidden />
-                ) : (
-                  <Circle
-                    size={18}
-                    className={current ? "text-brand-600 dark:text-brand-300" : "text-ink-300 dark:text-ink-600"}
-                    aria-hidden
-                  />
-                )}
-                <span
-                  className={cn(
-                    "text-[11px] leading-tight",
-                    complete
-                      ? "text-ink-700 dark:text-ink-200"
-                      : current
-                        ? "font-semibold text-ink-900 dark:text-white"
-                        : "text-ink-400",
-                  )}
-                >
-                  {step.label}
-                  <span className="sr-only">{complete ? " (done)" : current ? " (next)" : ""}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+        <Stepper
+          label="Month progress"
+          steps={STEPS.map((step, i) => ({
+            label: step.label,
+            state: i < done ? "done" : i === done ? (s.stage === "validation_failed" || s.stage === "revalidation_required" || s.stage === "incomplete" ? "error" : "current") : "todo",
+          }))}
+        />
 
         {state === "signed" && s.changed_since_signoff.length > 0 ? (
           <AlertBanner variant="warning" title="Changed since it was signed">
@@ -258,7 +230,7 @@ export function SignOffPanel({ period }: { period: string }) {
 
         {state !== "signed" && readiness.blockers.length > 0 ? (
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-ink-800 dark:text-ink-100">Before this month can be approved</p>
+            <p className="text-sm font-semibold text-ink-800">Before this month can be approved</p>
             {readiness.blockers.map((b) => (
               <Blocker key={b.code} blocker={b} runId={readiness.run_id} />
             ))}
@@ -266,7 +238,7 @@ export function SignOffPanel({ period }: { period: string }) {
         ) : null}
 
         {state !== "signed" && readiness.ready && s.open_findings > 0 ? (
-          <p className="text-xs text-ink-600 dark:text-ink-300">
+          <p className="text-xs text-ink-600">
             {s.open_findings} finding(s) are still open. They will be listed as outstanding in the sign-off record;
             resolve or waive them first if they should not be.
           </p>
@@ -311,7 +283,7 @@ export function SignOffPanel({ period }: { period: string }) {
         {/* Sign */}
         {state === "pending_approval" ? (
           <div className="space-y-3">
-            <p className="text-sm text-ink-700 dark:text-ink-200">
+            <p className="text-sm text-ink-700">
               Submitted by <strong>{preparedBy ?? "—"}</strong>
               {signoff?.prepared_at ? ` on ${new Date(signoff.prepared_at).toLocaleString("en-IN")}` : ""}
               {signoff?.notes ? ` — “${signoff.notes}”` : ""}
@@ -354,24 +326,24 @@ export function SignOffPanel({ period }: { period: string }) {
         {/* Signed */}
         {state === "signed" && signoff ? (
           <div className="space-y-3">
-            <p className="flex items-center gap-2 text-sm text-ink-800 dark:text-ink-100">
+            <p className="flex items-center gap-2 text-sm text-ink-800">
               <ShieldCheck size={16} className="text-success-600" />
               Signed by <strong>{signoff.signed_by_email}</strong>
               {signoff.signed_at ? ` on ${new Date(signoff.signed_at).toLocaleString("en-IN")}` : ""}
               {detail.data?.snapshot?.approval?.independent === false ? " (approved by the preparer)" : ""}
             </p>
-            <p className="text-xs text-ink-500 dark:text-ink-400">
+            <p className="text-xs text-ink-500">
               Record digest <span className="font-mono">{signoff.snapshot_digest?.slice(0, 16)}…</span> ·{" "}
               {signoff.open_findings ?? 0} outstanding finding(s) recorded
             </p>
             {canApprove ? (
               <div className="flex flex-wrap items-end gap-2">
-                <label className="min-w-64 flex-1 text-xs text-ink-600 dark:text-ink-300">
+                <label className="min-w-64 flex-1 text-xs text-ink-600">
                   Reason for reopening
                   <input
                     value={reopenReason}
                     onChange={(e) => setReopenReason(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                    className="mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm"
                     placeholder="What changed, and who asked"
                   />
                 </label>
@@ -395,7 +367,7 @@ export function SignOffPanel({ period }: { period: string }) {
           </div>
         ) : null}
 
-        <p className="text-[11px] text-ink-500 dark:text-ink-400">
+        <p className="text-[11px] text-ink-500">
           {independent
             ? "Your organisation requires the approver to be someone other than the preparer."
             : "Your organisation allows the preparer to approve their own month; each sign-off records whether it was independent."}{" "}
@@ -406,12 +378,12 @@ export function SignOffPanel({ period }: { period: string }) {
 
         {detail.data?.history.length ? (
           <details className="text-xs">
-            <summary className="cursor-pointer font-semibold text-ink-700 dark:text-ink-200">
+            <summary className="cursor-pointer font-semibold text-ink-700">
               History ({detail.data.history.length})
             </summary>
             <ul className="mt-2 space-y-1">
               {detail.data.history.map((h, i) => (
-                <li key={i} className="text-ink-600 dark:text-ink-300">
+                <li key={i} className="text-ink-600">
                   {h.created_at ? new Date(h.created_at).toLocaleString("en-IN") : "—"} ·{" "}
                   {(h.from_state ?? "new").replace("_", " ")} → {h.to_state.replace("_", " ")} by{" "}
                   {h.actor_email ?? "—"}
@@ -433,8 +405,8 @@ function Blocker({ blocker, runId }: { blocker: ReadinessBlocker; runId: string 
       className={cn(
         "flex flex-wrap items-start justify-between gap-2 rounded-xl border px-3 py-2.5 text-sm",
         blocker.acceptable
-          ? "border-warning-200/80 bg-warning-50/60 text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100"
-          : "border-danger-200/80 bg-danger-50/60 text-danger-900 dark:border-danger-500/25 dark:bg-danger-500/10 dark:text-danger-100",
+          ? "border-warning-200/80 bg-warning-50/60 text-warning-900"
+          : "border-danger-200/80 bg-danger-50/60 text-danger-900",
       )}
     >
       <span className="min-w-0 flex-1">{blocker.message}</span>
@@ -474,11 +446,11 @@ function ActionForm({
   onSubmit: () => void;
 }) {
   const field =
-    "mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+    "mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm";
   return (
     <div className="space-y-3">
       {askReason ? (
-        <label className="block text-xs font-medium text-ink-700 dark:text-ink-200">
+        <label className="block text-xs font-medium text-ink-700">
           Why is it acceptable to approve without those checks? (required, kept in the sign-off record)
           <textarea
             value={acceptReason}
@@ -489,7 +461,7 @@ function ActionForm({
           />
         </label>
       ) : null}
-      <label className="block text-xs font-medium text-ink-700 dark:text-ink-200">
+      <label className="block text-xs font-medium text-ink-700">
         Notes (optional)
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={field} />
       </label>

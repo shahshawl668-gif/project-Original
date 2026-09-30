@@ -4,64 +4,89 @@
 
 :root {
   color-scheme: light;
-  /* Surfaces */
-  --bg-canvas: #f5f9fd;  /* white, with just enough sky in it to sit behind white cards */
+  /* Surfaces: a neutral canvas so white surfaces read by their border, not by
+     a tint. The canvas is the only non-white background a page needs. */
+  --bg-canvas: #f6f7f9;
   --bg-elevated: #ffffff;
-  --bg-subtle: rgba(15, 23, 42, 0.04);
+  --bg-subtle: rgb(16 24 40 / 0.035);
   --bg-card: #ffffff;
-  /* Borders */
-  --border-soft: rgb(15 23 42 / 0.07);
-  --border-default: rgb(15 23 42 / 0.10);
-  /* Text */
-  --text-primary: #0e1220;
-  --text-secondary: #5b6478;
-  --text-muted: #7c8597;
-  /* Accents (kept identical across modes for brand) */
-  --shadow-card: 0 1px 0 rgb(15 23 42 / 0.04), 0 12px 32px rgb(15 23 42 / 0.06);
+  --border-soft: #eef0f3;
+  --border-default: #dfe2e8;
+  --text-primary: #111522;
+  --text-secondary: #474f61;
+  --text-muted: #636c7e;
+  --focus: #0275b3;
+  /* Motion: 120–220 ms, one easing curve. */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 160ms;
+  --dur-slow: 220ms;
+  /* Heights the sticky parts of the page agree on. */
+  --header-h: 3.5rem;
 }
 
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
     @apply bg-[var(--bg-canvas)] text-ink-900;
-    font-feature-settings: "kern" 1, "liga" 1, "ss01" 1, "cv11" 1;
-    background-image:
-      radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.05) 0%, transparent 25%),
-      radial-gradient(circle at 100% 0%, rgba(56, 189, 248, 0.04) 0%, transparent 25%);
+    font-feature-settings: "kern" 1, "cv11" 1, "ss01" 1;
   }
 
-    h1, h2, h3, h4 {
-    @apply tracking-tight;
-    letter-spacing: -0.02em;
+  h1, h2, h3, h4 {
+    letter-spacing: -0.015em;
+  }
+
+  /* Numbers line up in every table without each cell asking. */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One visible focus treatment, in the brand colour, for everything a
+     keyboard can reach. Mouse clicks do not trigger it. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  :where(input, select, textarea):focus-visible {
+    outline-offset: 0;
+  }
+
+  ::selection {
+    background: rgb(2 132 199 / 0.16);
+  }
+}
+
+/* Motion is decoration here. Someone who asked their system for less of it
+   gets none — state changes still happen, they just do not travel. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgb(148 163 184 / 0.5) transparent;
+    scrollbar-color: rgb(138 147 164 / 0.45) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: rgb(148 163 184 / 0.5);
+    background: rgb(138 147 164 / 0.45);
     border-radius: 4px;
   }
-    .scrollbar-thin::-webkit-scrollbar-track {
+  .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
-  }
-
-  .glass {
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: saturate(180%) blur(14px);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
-    border: 1px solid rgba(255, 255, 255, 0.6);
   }
 
   .shimmer {
@@ -75,54 +100,36 @@
     animation: shimmer 2s linear infinite;
   }
 
-    .focus-ring:focus-visible {
-    outline: 2px solid #6366f1;
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
-    border-radius: 0.5rem;
   }
 
+  /* Hover on a clickable surface: the border firms up. Nothing moves. */
   .lift {
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
   }
   .lift:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 1px 0 rgb(15 23 42 / 0.06), 0 24px 56px -16px rgb(15 23 42 / 0.18);
+    border-color: #b7bdc9;
   }
-    .num {
+
+  .num {
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1, "ss01" 1;
+    font-feature-settings: "tnum" 1;
   }
 
-  .dropzone {
-    background-image: repeating-linear-gradient(
-      45deg,
-      rgba(99, 102, 241, 0.18) 0,
-      rgba(99, 102, 241, 0.18) 6px,
-      transparent 6px,
-      transparent 14px
-    );
-    background-size: 100% 100%;
-  }
-
+  /* Headings kept from the gradient era now simply use the action colour. */
   .text-gradient {
-    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 55%, #38bdf8 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #0369a1;
   }
 
-  .text-gradient-cool {
-    background: linear-gradient(135deg, #0369a1 0%, #38bdf8 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  /* Grid background for hero panels */
-  .bg-grid {
-    background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-    background-size: 32px 32px;
+  /* Small-caps field labels and table headers: one style everywhere. */
+  .label-caps {
+    font-size: 11px;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #636c7e;
   }
 }

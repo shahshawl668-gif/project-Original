@@ -329,7 +329,8 @@ export type Overview = {
   period_label?: string;
   ready?: boolean;
   message?: string;
-  periods: { key: string; label: string }[];
+  /** Months with a stored register, newest first. */
+  periods: { period: string; label: string }[];
   register?: { employees: number; net_due: number; stated_net_available: boolean };
   bank?: {
     files: BankFileMeta[];
@@ -490,9 +491,9 @@ export function closeRun(id: string) {
  * nobody reads the red on.
  */
 export const SEVERITY_TONE: Record<Severity, string> = {
-  high: "bg-danger-500/10 text-danger-700 ring-1 ring-danger-500/30 dark:text-danger-300",
-  medium: "bg-warning-500/10 text-warning-800 ring-1 ring-warning-500/30 dark:text-warning-200",
-  low: "bg-ink-500/10 text-ink-600 ring-1 ring-ink-500/20 dark:text-ink-300",
+  high: "bg-danger-500/10 text-danger-700 ring-1 ring-danger-500/30",
+  medium: "bg-warning-500/10 text-warning-800 ring-1 ring-warning-500/30",
+  low: "bg-ink-500/10 text-ink-600 ring-1 ring-ink-500/20",
 };
 
 export const SEVERITY_LABEL: Record<Severity, string> = {

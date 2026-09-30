@@ -36,10 +36,10 @@ import { cn } from "@/lib/utils";
 
 /** A gap against women reads as a problem; a gap the other way is still a gap. */
 function toneClass(tone: string) {
-  if (tone === "gap") return "text-danger-600 dark:text-danger-400";
-  if (tone === "reverse") return "text-accent-700 dark:text-accent-400";
-  if (tone === "level") return "text-success-700 dark:text-success-400";
-  return "text-ink-400";
+  if (tone === "gap") return "text-danger-600";
+  if (tone === "reverse") return "text-accent-700";
+  if (tone === "level") return "text-success-700";
+  return "text-ink-500";
 }
 
 export function PayEquityView({
@@ -95,10 +95,10 @@ function AuthorisationGate({ canChange }: { canChange: boolean }) {
   return (
     <Card>
       <CardContent className="space-y-4 py-6">
-        <span className="flex items-center gap-2 text-sm font-semibold text-ink-900 dark:text-white">
-          <Lock size={15} className="text-ink-400" /> Gender pay gap analysis is switched off
+        <span className="flex items-center gap-2 text-sm font-semibold text-ink-900">
+          <Lock size={15} className="text-ink-500" /> Gender pay gap analysis is switched off
         </span>
-        <div className="max-w-[68ch] space-y-3 text-sm text-ink-600 dark:text-ink-300">
+        <div className="max-w-[68ch] space-y-3 text-sm text-ink-600">
           <p>
             Indian law requires no gender pay gap reporting, so whether to run this analysis is
             the employer&rsquo;s decision rather than this product&rsquo;s. Switching it on is
@@ -117,14 +117,14 @@ function AuthorisationGate({ canChange }: { canChange: boolean }) {
         {canChange ? (
           <div className="flex max-w-[52ch] flex-col gap-2 pt-1">
             <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              <span className="text-[11px] font-semibold text-ink-500">
                 What authorises this? (optional, kept in the audit trail)
               </span>
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. Board approval, 12 March"
-                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </label>
             <button
@@ -136,13 +136,13 @@ function AuthorisationGate({ canChange }: { canChange: boolean }) {
               <ShieldCheck size={14} /> Authorise and switch on
             </button>
             {enable.isError && (
-              <p className="text-xs text-danger-600 dark:text-danger-400">
+              <p className="text-xs text-danger-600">
                 {(enable.error as Error).message}
               </p>
             )}
           </div>
         ) : (
-          <p className="text-sm text-ink-500 dark:text-ink-400">
+          <p className="text-sm text-ink-500">
             An owner or manager can switch it on.
           </p>
         )}
@@ -201,7 +201,7 @@ function Analysis({
               type="button"
               onClick={() => disable.mutate()}
               disabled={disable.isPending}
-              className="rounded-lg border border-ink-200 px-2.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-ink-50 disabled:opacity-60 dark:border-white/10 dark:text-ink-300 dark:hover:bg-white/[0.06]"
+              className="rounded-lg border border-ink-200 px-2.5 py-1.5 text-xs font-medium text-ink-600 hover:bg-ink-50 disabled:opacity-60"
             >
               Switch off
             </button>
@@ -210,30 +210,30 @@ function Analysis({
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {coverage.by_gender.map((row) => (
-            <div key={row.key} className="rounded-xl border border-ink-200/70 px-3 py-2.5 dark:border-white/10">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+            <div key={row.key} className="rounded-xl border border-ink-200/70 px-3 py-2.5">
+              <p className="text-[11px] font-semibold text-ink-500">
                 {row.label}
               </p>
-              <p className="font-display text-xl font-semibold tabular-nums text-ink-900 dark:text-white">
+              <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
                 {row.count}
               </p>
             </div>
           ))}
-          <div className="rounded-xl border border-ink-200/70 px-3 py-2.5 dark:border-white/10">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+          <div className="rounded-xl border border-ink-200/70 px-3 py-2.5">
+            <p className="text-[11px] font-semibold text-ink-500">
               Gender recorded
             </p>
-            <p className="font-display text-xl font-semibold tabular-nums text-ink-900 dark:text-white">
+            <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
               {coverage.recorded_pct.toFixed(0)}%
             </p>
-            <p className="text-[11px] text-ink-500 dark:text-ink-400">
+            <p className="text-[11px] text-ink-500">
               {coverage.recorded} of {coverage.total}
             </p>
           </div>
         </div>
 
         {coverage.recorded_pct < 90 && (
-          <p className="mt-3 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+          <p className="mt-3 flex items-start gap-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800">
             <Info size={14} className="mt-px flex-shrink-0" />
             <span>
               {coverage.total - coverage.recorded} employee
@@ -257,7 +257,7 @@ function Analysis({
             <GapTile label="Variable pay gap" gap={variable} detail="Median bonus and incentive, compared separately" />
           </div>
         ) : (
-          <p className="rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2.5 text-sm text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-300">
+          <p className="rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2.5 text-sm text-ink-600">
             {headline?.reason ??
               "Not enough of the population has a gender recorded to compare."}
           </p>
@@ -268,7 +268,7 @@ function Analysis({
           <GenderCard label="Men" summary={headline?.men} palette={palette[4]} />
         </div>
 
-        <p className="mt-3 flex items-start gap-2 text-xs text-ink-500 dark:text-ink-400">
+        <p className="mt-3 flex items-start gap-2 text-xs text-ink-500">
           <ScaleIcon size={13} className="mt-px flex-shrink-0" />
           <span>{data.direction}</span>
         </p>
@@ -312,7 +312,7 @@ function Analysis({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+              <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                 <th className="py-2 text-left font-semibold">Band</th>
                 <th className="py-2 text-left font-semibold">Pay range</th>
                 <th className="py-2 text-right font-semibold">Employees</th>
@@ -323,17 +323,17 @@ function Analysis({
             </thead>
             <tbody className="tabular-nums">
               {data.quartiles.map((q) => (
-                <tr key={q.band} className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                  <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{q.band}</td>
-                  <td className="py-2 pr-3 text-ink-500 dark:text-ink-400">
+                <tr key={q.band} className="border-b border-ink-100 last:border-0">
+                  <td className="py-2 pr-3 text-ink-800">{q.band}</td>
+                  <td className="py-2 pr-3 text-ink-500">
                     {q.pay_from !== null && q.pay_to !== null
                       ? `${formatINR(q.pay_from, true)} – ${formatINR(q.pay_to, true)}`
                       : "—"}
                   </td>
-                  <td className="py-2 text-right text-ink-900 dark:text-white">{q.count}</td>
-                  <td className="py-2 text-right text-ink-600 dark:text-ink-300">{q.counts.female}</td>
-                  <td className="py-2 text-right text-ink-600 dark:text-ink-300">{q.counts.male}</td>
-                  <td className="py-2 text-right text-ink-900 dark:text-white">
+                  <td className="py-2 text-right text-ink-900">{q.count}</td>
+                  <td className="py-2 text-right text-ink-600">{q.counts.female}</td>
+                  <td className="py-2 text-right text-ink-600">{q.counts.male}</td>
+                  <td className="py-2 text-right text-ink-900">
                     {q.female_pct === null ? "—" : `${q.female_pct.toFixed(0)}%`}
                   </td>
                 </tr>
@@ -349,8 +349,8 @@ function Analysis({
         description="Each comparable group's median gap, measured from zero. Bars to the right are groups where women are paid less; bars to the left, more."
       >
         {comparable.length === 0 ? (
-          <div className="rounded-lg border border-ink-200/70 bg-ink-50 px-3.5 py-3 text-sm text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-300">
-            <p className="font-medium text-ink-800 dark:text-ink-100">Nothing can be charted yet.</p>
+          <div className="rounded-lg border border-ink-200/70 bg-ink-50 px-3.5 py-3 text-sm text-ink-600">
+            <p className="font-medium text-ink-800">Nothing can be charted yet.</p>
             <p className="mt-1">
               None of the {data.like_for_like.length} groups has at least {data.min_group_size} of
               each gender, so every median would disclose someone&rsquo;s pay. A like-for-like
@@ -402,7 +402,7 @@ function Analysis({
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <p className="pt-2 text-xs text-ink-500 dark:text-ink-400">{data.direction}</p>
+            <p className="pt-2 text-xs text-ink-500">{data.direction}</p>
           </>
         )}
       </Panel>
@@ -415,7 +415,7 @@ function Analysis({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+              <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                 <th className="py-2 text-left font-semibold">{data.group_by_label}</th>
                 <th className="py-2 text-right font-semibold">Women</th>
                 <th className="py-2 text-right font-semibold">Men</th>
@@ -432,12 +432,12 @@ function Analysis({
                     key={group.group}
                     onClick={() => onSelectGroup?.(group.group)}
                     className={cn(
-                      "border-b border-ink-100 last:border-0 dark:border-white/5",
-                      !group.comparable && "text-ink-400 dark:text-ink-500",
-                      onSelectGroup && "cursor-pointer hover:bg-ink-50 dark:hover:bg-white/[0.04]",
+                      "border-b border-ink-100 last:border-0",
+                      !group.comparable && "text-ink-500",
+                      onSelectGroup && "cursor-pointer hover:bg-ink-50",
                     )}
                   >
-                    <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{group.group}</td>
+                    <td className="py-2 pr-3 text-ink-800">{group.group}</td>
                     <td className="py-2 text-right">{group.women.count}</td>
                     <td className="py-2 text-right">{group.men.count}</td>
                     <td className="py-2 text-right">
@@ -457,7 +457,7 @@ function Analysis({
         </div>
 
         {data.suppressed_groups.length > 0 && (
-          <p className="mt-3 flex items-start gap-2 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-400">
+          <p className="mt-3 flex items-start gap-2 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600">
             <EyeOff size={14} className="mt-px flex-shrink-0" />
             <span>
               {data.suppressed_groups.length} group
@@ -472,10 +472,10 @@ function Analysis({
 
       {/* ── what this is not ───────────────────────────────────────── */}
       <Panel title="How to read this" description="Every figure above, and what none of them says.">
-        <ul className="max-w-[72ch] list-disc space-y-2 pl-5 text-sm text-ink-600 dark:text-ink-300">
+        <ul className="max-w-[72ch] list-disc space-y-2 pl-5 text-sm text-ink-600">
           {data.caveats.map((caveat) => <li key={caveat}>{caveat}</li>)}
         </ul>
-        <p className="mt-3 flex items-start gap-2 text-xs text-ink-500 dark:text-ink-400">
+        <p className="mt-3 flex items-start gap-2 text-xs text-ink-500">
           <Users size={13} className="mt-px flex-shrink-0" />
           <span>
             No individual appears anywhere in this view or its export, at any permission level.
@@ -488,7 +488,7 @@ function Analysis({
 }
 
 function withheld() {
-  return <span className="text-[11px] uppercase tracking-wide text-ink-400">withheld</span>;
+  return <span className="text-[11px] text-ink-500">withheld</span>;
 }
 
 function GapTile({
@@ -499,12 +499,12 @@ function GapTile({
   detail: string;
 }) {
   return (
-    <div className="rounded-xl border border-ink-200/70 px-3.5 py-3 dark:border-white/10">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">{label}</p>
+    <div className="rounded-xl border border-ink-200/70 px-3.5 py-3">
+      <p className="text-[11px] font-semibold text-ink-500">{label}</p>
       <p className={cn("font-display text-2xl font-semibold tabular-nums", toneClass(gap.tone))}>
         {gap.text}
       </p>
-      <p className="text-[11px] text-ink-500 dark:text-ink-400">
+      <p className="text-[11px] text-ink-500">
         {gap.tone === "gap" ? "Women paid less. " : gap.tone === "reverse" ? "Women paid more. " : ""}
         {detail}
       </p>
@@ -520,27 +520,27 @@ function GenderCard({
   palette: string;
 }) {
   return (
-    <div className="rounded-xl border border-ink-200/70 px-3.5 py-3 dark:border-white/10">
-      <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+    <div className="rounded-xl border border-ink-200/70 px-3.5 py-3">
+      <p className="flex items-center gap-2 text-[11px] font-semibold text-ink-500">
         <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: palette }} />
         {label}
       </p>
       {!summary ? (
-        <p className="text-sm text-ink-400">—</p>
+        <p className="text-sm text-ink-500">—</p>
       ) : summary.suppressed ? (
         <>
-          <p className="font-display text-xl font-semibold text-ink-400">Withheld</p>
-          <p className="text-[11px] text-ink-500 dark:text-ink-400">
+          <p className="font-display text-xl font-semibold text-ink-500">Withheld</p>
+          <p className="text-[11px] text-ink-500">
             {summary.count} employee{summary.count === 1 ? "" : "s"} — too few to report a median
             without disclosing pay
           </p>
         </>
       ) : (
         <>
-          <p className="font-display text-xl font-semibold tabular-nums text-ink-900 dark:text-white">
+          <p className="font-display text-xl font-semibold tabular-nums text-ink-900">
             {formatINR(summary.median ?? 0, true)}
           </p>
-          <p className="text-[11px] text-ink-500 dark:text-ink-400">
+          <p className="text-[11px] text-ink-500">
             median · {summary.count} employees · mean {formatINR(summary.mean ?? 0, true)}
             {summary.variable_receipt_pct !== null && (
               <> · {summary.variable_receipt_pct.toFixed(0)}% receive variable pay</>

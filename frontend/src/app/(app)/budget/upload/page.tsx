@@ -161,20 +161,20 @@ export default function BudgetUploadPage() {
             </Menu>
 
             <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+              <span className="text-[11px] font-semibold text-ink-500">
                 Name this version
               </span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="FY27 approved plan"
-                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white"
+                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </label>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-ink-200 bg-white px-3.5 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-200 dark:hover:bg-white/[0.07]">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-ink-200 bg-white px-3.5 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50">
               <UploadCloud size={15} />
               {file ? file.name : "Choose a .csv or .xlsx"}
               <input
@@ -190,14 +190,14 @@ export default function BudgetUploadPage() {
             </label>
             <a
               href={apiAbsoluteUrl("/api/budget/template.csv")}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 underline dark:text-brand-300"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 underline"
             >
               <Download size={14} /> Template
             </a>
-            {busy && <Loader2 size={16} className="animate-spin text-ink-400" />}
+            {busy && <Loader2 size={16} className="animate-spin text-ink-500" />}
           </div>
 
-          <p className="text-xs text-ink-500 dark:text-ink-400">
+          <p className="text-xs text-ink-500">
             The file needs a month, a scope and an amount. Months are read as{" "}
             <code>2026-04</code>, <code>Apr 2026</code> or <code>04/2026</code>; anything else is
             reported rather than guessed at. Columns the product does not recognise are kept
@@ -210,11 +210,11 @@ export default function BudgetUploadPage() {
         <Card>
           <CardContent className="space-y-4 py-5">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+              <h3 className="text-base font-semibold text-ink-900">
                 {preview.line_count} line{preview.line_count === 1 ? "" : "s"} read from{" "}
                 {preview.filename}
               </h3>
-              <span className="font-display text-lg font-semibold tabular-nums text-ink-900 dark:text-white">
+              <span className="font-display text-lg font-semibold tabular-nums text-ink-900">
                 {formatINR(preview.total, true)}
               </span>
             </div>
@@ -230,11 +230,11 @@ export default function BudgetUploadPage() {
             </div>
 
             {preview.problems.length > 0 && (
-              <div className="rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-500/30 dark:bg-warning-500/10">
-                <p className="flex items-center gap-1.5 pb-1.5 text-xs font-semibold text-warning-800 dark:text-warning-300">
+              <div className="rounded-lg border border-warning-200 bg-warning-50 p-3">
+                <p className="flex items-center gap-1.5 pb-1.5 text-xs font-semibold text-warning-800">
                   <AlertTriangle size={13} /> These rows were not read
                 </p>
-                <ul className="space-y-0.5 text-xs text-warning-800 dark:text-warning-300">
+                <ul className="space-y-0.5 text-xs text-warning-800">
                   {preview.problems.slice(0, 12).map((problem) => (
                     <li key={problem}>· {problem}</li>
                   ))}
@@ -247,8 +247,8 @@ export default function BudgetUploadPage() {
 
             <div className="max-h-72 overflow-y-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-white dark:bg-ink-900">
-                  <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-ink-200 text-[11px] text-ink-500">
                     <th className="py-2 text-left font-semibold">Month</th>
                     <th className="py-2 text-left font-semibold">Scope</th>
                     <th className="py-2 text-right font-semibold">Amount</th>
@@ -258,18 +258,18 @@ export default function BudgetUploadPage() {
                 <tbody className="tabular-nums">
                   {preview.lines.map((line) => (
                     <tr key={`${line.period}:${line.scope_value}`}
-                        className="border-b border-ink-100 last:border-0 dark:border-white/5">
-                      <td className="py-1.5 pr-3 text-ink-800 dark:text-ink-100">
+                        className="border-b border-ink-100 last:border-0">
+                      <td className="py-1.5 pr-3 text-ink-800">
                         {new Date(line.period).toLocaleDateString("en-IN",
                           { month: "short", year: "numeric" })}
                       </td>
-                      <td className="py-1.5 pr-3 text-ink-600 dark:text-ink-300">
+                      <td className="py-1.5 pr-3 text-ink-600">
                         {line.scope_value === "entity" ? "Whole entity" : line.scope_value}
                       </td>
-                      <td className="py-1.5 text-right text-ink-900 dark:text-white">
+                      <td className="py-1.5 text-right text-ink-900">
                         {formatINR(line.amount, true)}
                       </td>
-                      <td className="py-1.5 text-right text-ink-500 dark:text-ink-400">
+                      <td className="py-1.5 text-right text-ink-500">
                         {line.headcount ?? "—"}
                       </td>
                     </tr>
@@ -277,13 +277,13 @@ export default function BudgetUploadPage() {
                 </tbody>
               </table>
               {preview.truncated && (
-                <p className="pt-2 text-xs text-ink-500 dark:text-ink-400">
+                <p className="pt-2 text-xs text-ink-500">
                   Showing the first 200 lines. All {preview.line_count} will be stored.
                 </p>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 border-t border-ink-100 pt-3 dark:border-white/5">
+            <div className="flex flex-wrap items-center gap-3 border-t border-ink-100 pt-3">
               <button
                 type="button"
                 onClick={commit}
@@ -294,7 +294,7 @@ export default function BudgetUploadPage() {
                 Store as a draft
               </button>
               {!name.trim() && (
-                <span className="text-xs text-ink-500 dark:text-ink-400">
+                <span className="text-xs text-ink-500">
                   Give this version a name first — budgets are versioned rather than overwritten.
                 </span>
               )}
@@ -308,13 +308,13 @@ export default function BudgetUploadPage() {
 
 function Fact({ label, value, tone }: { label: string; value: string; tone?: "ok" | "warn" }) {
   return (
-    <div className="rounded-xl border border-ink-200/70 px-3 py-2 dark:border-white/10">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">{label}</p>
+    <div className="rounded-xl border border-ink-200/70 px-3 py-2">
+      <p className="text-[11px] font-semibold text-ink-500">{label}</p>
       <p
         className={
           tone === "warn"
-            ? "font-display text-lg font-semibold text-warning-700 dark:text-warning-400"
-            : "font-display text-lg font-semibold text-ink-900 dark:text-white"
+            ? "font-display text-lg font-semibold text-warning-700"
+            : "font-display text-lg font-semibold text-ink-900"
         }
       >
         {value}

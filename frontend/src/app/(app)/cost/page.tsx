@@ -428,7 +428,7 @@ function CostAnalysisContent() {
           </div>
 
           {shows.compare && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-3 dark:border-white/5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-3">
             <ActiveFilters
               dimensions={dims.data?.dimensions ?? []}
               filters={filters}
@@ -445,7 +445,7 @@ function CostAnalysisContent() {
                   "inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
                   comparing
                     ? "border-brand-500 bg-brand-600 text-white"
-                    : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-200 dark:hover:bg-white/[0.07]",
+                    : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
                 )}
               >
                 <GitCompareArrows size={14} />
@@ -473,7 +473,7 @@ function CostAnalysisContent() {
           )}
 
           {shows.compare && comparing && available.length < 2 && (
-            <p className="text-xs text-ink-500 dark:text-ink-400">
+            <p className="text-xs text-ink-500">
               Only one month has been uploaded, so there is nothing yet to compare it with.
             </p>
           )}
@@ -549,11 +549,16 @@ function CostAnalysisContent() {
         <>
           {analysis.data?.basis ? <DataBasisStrip basis={analysis.data.basis} /> : null}
           {/* ── the figures ───────────────────────────────────────── */}
+          <p className="text-xs text-ink-500">
+            <span className="font-medium text-ink-700">Actual</span> — what the stored salary registers paid
+            {points.length ? `, ${points[0]?.label}${points.length > 1 ? ` to ${points[points.length - 1]?.label}` : ""}` : ""}.
+            {" "}Contractual CTC is under <b>Compensation &amp; benefits</b>; approved budget and forecasts under <b>Budget &amp; forecast</b>. Nothing here is annualised or forecast.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile
               icon={IndianRupee}
               label="Total CTC"
-              value={formatINR(totals?.ctc ?? 0, true)}
+              value={totals ? formatINR(totals.ctc, true) : "—"}
               tone="cost"
               delta={deltaOf("ctc")}
               deltaPct={deltaPctOf("ctc")}
@@ -562,14 +567,14 @@ function CostAnalysisContent() {
             <StatTile
               icon={Wallet}
               label="Gross pay"
-              value={formatINR(totals?.gross ?? 0, true)}
-              hint={`${(((totals?.gross ?? 0) / (totals?.ctc || 1)) * 100).toFixed(1)}% of CTC`}
+              value={totals ? formatINR(totals.gross, true) : "—"}
+              hint={totals?.ctc ? `${((totals.gross / totals.ctc) * 100).toFixed(1)}% of CTC` : "no register in range"}
             />
             <StatTile
               icon={Landmark}
               label="Employer contributions"
-              value={formatINR(totals?.employer_cost ?? 0, true)}
-              hint={`${(((totals?.employer_cost ?? 0) / (totals?.ctc || 1)) * 100).toFixed(1)}% on top of gross`}
+              value={totals ? formatINR(totals.employer_cost, true) : "—"}
+              hint={totals?.ctc ? `${((totals.employer_cost / totals.ctc) * 100).toFixed(1)}% of CTC, on top of gross` : "no register in range"}
             />
             <StatTile
               icon={Users}
@@ -720,7 +725,7 @@ function CostAnalysisContent() {
                     shareOf={totals?.[LAYER_TOTAL[view]] ?? 0}
                   />
                   {layer !== "earnings" && analysis.data?.sources && (
-                    <p className="mt-3 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-400">
+                    <p className="mt-3 rounded-lg border border-ink-200/70 bg-ink-50 px-3 py-2 text-xs text-ink-600">
                       {formatINR(analysis.data.sources.reported, true)} of the statutory total is the
                       payroll system&rsquo;s own figure; {formatINR(analysis.data.sources.computed, true)}{" "}
                       was computed here. Where the two disagree, that disagreement is a validation
@@ -888,7 +893,7 @@ function PeriodPicker({
               </MenuItem>
             ))
           ) : (
-            <p className="px-2.5 py-3 text-xs text-ink-500 dark:text-ink-400">
+            <p className="px-2.5 py-3 text-xs text-ink-500">
               No registers uploaded yet.
             </p>
           )
@@ -924,13 +929,13 @@ function CtcBreakdown({
         totalLabel="Employer contributions"
         shareOf={totals.ctc ?? 0}
       />
-      <div className="flex items-baseline justify-between rounded-xl border-2 border-brand-200 bg-brand-50 px-3 py-2.5 dark:border-brand-500/40 dark:bg-brand-500/10">
-        <span className="text-sm font-semibold text-brand-900 dark:text-brand-100">Total CTC</span>
-        <span className="font-display text-lg font-semibold tabular-nums text-brand-900 dark:text-brand-100">
+      <div className="flex items-baseline justify-between rounded-xl border-2 border-brand-200 bg-brand-50 px-3 py-2.5">
+        <span className="text-sm font-semibold text-brand-900">Total CTC</span>
+        <span className="font-display text-lg font-semibold tabular-nums text-brand-900">
           {formatINR(totals.ctc ?? 0, true)}
         </span>
       </div>
-      <p className="text-xs text-ink-500 dark:text-ink-400">
+      <p className="text-xs text-ink-500">
         Deductions — {formatINR(totals.deductions ?? 0, true)}, leaving{" "}
         {formatINR(totals.net ?? 0, true)} net — come out of gross and are not added here.
         Counting them again is the commonest way a payroll cost report overstates itself.
@@ -964,7 +969,7 @@ function VarianceTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+          <tr className="border-b border-ink-200 text-[11px] text-ink-500">
             <th className="py-2 text-left font-semibold">Period</th>
             <th className="py-2 text-right font-semibold">Headcount</th>
             <th className="py-2 text-right font-semibold">Change</th>
@@ -977,37 +982,37 @@ function VarianceTable({
         </thead>
         <tbody className="tabular-nums">
           {rows.map((row) => (
-            <tr key={row.period} className="border-b border-ink-100 last:border-0 dark:border-white/5">
-              <td className="py-2 pr-3 text-ink-800 dark:text-ink-100">{row.label}</td>
-              <td className="py-2 text-right text-ink-900 dark:text-white">{row.headcount}</td>
-              <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+            <tr key={row.period} className="border-b border-ink-100 last:border-0">
+              <td className="py-2 pr-3 text-ink-800">{row.label}</td>
+              <td className="py-2 text-right text-ink-900">{row.headcount}</td>
+              <td className="py-2 text-right text-ink-500">
                 {row.headDelta === null ? "—" : row.headDelta === 0 ? "0" : row.headDelta > 0 ? `+${row.headDelta}` : row.headDelta}
               </td>
-              <td className="py-2 text-right text-ink-900 dark:text-white">
+              <td className="py-2 text-right text-ink-900">
                 {formatINR(row.measures.ctc, true)}
               </td>
               <td className={cn(
                 "py-2 text-right",
-                (row.ctcDelta ?? 0) > 0 ? "text-danger-600 dark:text-danger-400"
-                  : (row.ctcDelta ?? 0) < 0 ? "text-success-700 dark:text-success-400"
-                  : "text-ink-500 dark:text-ink-400",
+                (row.ctcDelta ?? 0) > 0 ? "text-danger-600"
+                  : (row.ctcDelta ?? 0) < 0 ? "text-success-700"
+                  : "text-ink-500",
               )}>
                 {formatPct(row.ctcPct)}
               </td>
-              <td className="py-2 text-right text-ink-900 dark:text-white">
+              <td className="py-2 text-right text-ink-900">
                 {formatINR(row.perHead, true)}
               </td>
               <td className={cn(
                 "py-2 text-right",
-                (row.perHeadPct ?? 0) > 0 ? "text-danger-600 dark:text-danger-400"
-                  : (row.perHeadPct ?? 0) < 0 ? "text-success-700 dark:text-success-400"
-                  : "text-ink-500 dark:text-ink-400",
+                (row.perHeadPct ?? 0) > 0 ? "text-danger-600"
+                  : (row.perHeadPct ?? 0) < 0 ? "text-success-700"
+                  : "text-ink-500",
               )}>
                 {formatPct(row.perHeadPct)}
               </td>
               {/* Arrears alongside, because a month inflated by back-pay is not
                   a month whose run rate rose. */}
-              <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+              <td className="py-2 text-right text-ink-500">
                 {formatINR(row.measures.arrears, true)}
               </td>
             </tr>
@@ -1026,14 +1031,14 @@ function VarianceTable({
 function DataBasisStrip({ basis }: { basis: DataBasis }) {
   const unvalidated = basis.months.filter((m) => m.validation !== "validated");
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-ink-200/70 bg-white px-4 py-2.5 text-xs text-ink-600 dark:border-white/10 dark:bg-ink-900/60 dark:text-ink-300">
-      <span><strong className="text-ink-800 dark:text-ink-100">{basis.periods_with_register.length}</strong> month(s) with a register</span>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-ink-200/70 bg-white px-4 py-2.5 text-xs text-ink-600">
+      <span><strong className="text-ink-800">{basis.periods_with_register.length}</strong> month(s) with a register</span>
       {basis.missing_months.length ? (
-        <span className="font-semibold text-warning-800 dark:text-warning-300" title={basis.missing_months.map((m) => m.slice(0, 7)).join(", ")}>
+        <span className="font-semibold text-warning-800" title={basis.missing_months.map((m) => m.slice(0, 7)).join(", ")}>
           {basis.missing_months.length} month(s) missing — absent, not zero
         </span>
       ) : null}
-      <span className={unvalidated.length ? "font-semibold text-warning-800 dark:text-warning-300" : ""}
+      <span className={unvalidated.length ? "font-semibold text-warning-800" : ""}
         title={basis.months.map((m) => `${m.period.slice(0, 7)}: ${m.label}`).join("\n")}>
         {basis.validated_months} validated{unvalidated.length ? `, ${unvalidated.length} not validated or changed since` : ""}
       </span>
@@ -1044,7 +1049,7 @@ function DataBasisStrip({ basis }: { basis: DataBasis }) {
         </span>
       ) : null}
       {basis.last_uploaded_at ? <span>Data as of {new Date(basis.last_uploaded_at).toLocaleString("en-IN")}</span> : null}
-      <span className="text-ink-400">{basis.source}</span>
+      <span className="text-ink-500">{basis.source}</span>
     </div>
   );
 }

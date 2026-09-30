@@ -43,7 +43,7 @@ export function SlowRequestNotice({
     <p
       role="status"
       aria-live="polite"
-      className={`flex items-center gap-2 text-xs text-ink-500 dark:text-ink-400 ${className}`}
+      className={`flex items-center gap-2 text-xs text-ink-500 ${className}`}
     >
       <Loader2 size={13} className="animate-spin" aria-hidden />
       <span>

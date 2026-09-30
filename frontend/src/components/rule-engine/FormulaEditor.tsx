@@ -94,8 +94,8 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
           },
           options: {
             isWholeLine: true,
-            className: "bg-red-100",
-            glyphMarginClassName: "bg-red-500",
+            className: "bg-danger-100",
+            glyphMarginClassName: "bg-danger-500",
           },
         },
       ]) || [];
@@ -118,7 +118,7 @@ const FormulaEditor = forwardRef<FormulaEditorHandle, Props>(function FormulaEdi
   }, [errorLine, errorMessage]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm dark:border-white/10 dark:bg-ink-950">
+    <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
       <Monaco
         height={height}
         defaultLanguage="javascript"

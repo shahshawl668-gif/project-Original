@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 import { useAuth } from "@/context/AuthContext";
 import { clearPayrollResults } from "@/lib/payroll-session";
 import {
@@ -62,6 +64,12 @@ type EntityContextValue = {
   loading: boolean;
   switchEntity: (entityId: string) => Promise<void>;
   reload: () => Promise<void>;
+  /**
+   * Increments on every completed company switch. The shell keys the page on
+   * it, so nothing a page held in memory — filters, selections, a half-typed
+   * search — survives into the next company.
+   */
+  generation: number;
 };
 
 const EntityContext = createContext<EntityContextValue | undefined>(undefined);
@@ -70,6 +78,8 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   const [payload, setPayload] = useState<OrgContextPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generation, setGeneration] = useState(0);
+  const queryClient = useQueryClient();
 
   const reload = useCallback(async () => {
     if (!isAuthenticated) {
@@ -102,18 +112,31 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
       // made against the new entity, then reload everything downstream.
       const previous = getActiveEntityId();
       setActiveEntityId(entityId);
+      let switched = false;
       try {
         const res = await apiFetch(`/api/org/entities/${entityId}/select`, { method: "POST" });
         await parseEnvelopeResponse(res);
-        if (previous !== entityId) clearPayrollResults();
+        switched = previous !== entityId;
+        if (switched) {
+          clearPayrollResults();
+          // Empty the cache rather than mark it stale: stale data stays on
+          // screen, under the new company's name, until each refetch lands.
+          queryClient.clear();
+        }
       } catch (err) {
         setActiveEntityId(previous);
         throw err;
       } finally {
         await reload();
       }
+      if (switched) {
+        // Anything fetched while the reload was in flight may carry a key from
+        // the old company; clear once more, then remount the page.
+        queryClient.clear();
+        setGeneration((g) => g + 1);
+      }
     },
-    [reload],
+    [reload, queryClient],
   );
 
   const value = useMemo<EntityContextValue>(() => {
@@ -130,8 +153,9 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
       loading,
       switchEntity,
       reload,
+      generation,
     };
-  }, [payload, loading, switchEntity, reload]);
+  }, [payload, loading, switchEntity, reload, generation]);
 
   return <EntityContext.Provider value={value}>{children}</EntityContext.Provider>;
 }

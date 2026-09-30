@@ -13,7 +13,7 @@ export function StatusBadge({ status }: { status: RunStatus }) {
 export function RunLine({ run }: { run: Run }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-      <Link href={`/studio/runs/${run.id}`} className="min-w-0 font-medium text-brand-700 hover:underline dark:text-brand-300">
+      <Link href={`/studio/runs/${run.id}`} className="min-w-0 font-medium text-brand-700 hover:underline">
         {runTitle(run)}{run.source.batch_id && run.kind !== "workflow" ? ` · ${run.source.batch_id}` : ""}
       </Link>
       <span className="flex items-center gap-2 text-xs text-ink-500">
@@ -74,21 +74,21 @@ export function CountsFunnel({ counts }: { counts: Counts }) {
 
 function Identity({ ok, text }: { ok: boolean; text: string }) {
   return (
-    <li className={ok ? "flex items-center gap-1.5 text-success-700 dark:text-success-400" : "flex items-center gap-1.5 font-semibold text-danger-700"}>
+    <li className={ok ? "flex items-center gap-1.5 text-success-700" : "flex items-center gap-1.5 font-semibold text-danger-700"}>
       {ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />} {text}{ok ? "" : " — does not reconcile; report this run"}
     </li>
   );
 }
 
 function Box({ label, value, tone }: { label: string; value: string; tone?: "ok" | "bad" | "warn" }) {
-  const cls = tone === "bad" ? "border-danger-200 bg-danger-50 text-danger-800 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-200"
-    : tone === "warn" ? "border-warning-200 bg-warning-50 text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100"
-      : tone === "ok" ? "border-success-200 bg-success-50 text-success-800 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-200"
-        : "border-ink-200 bg-white text-ink-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-100";
+  const cls = tone === "bad" ? "border-danger-200 bg-danger-50 text-danger-800"
+    : tone === "warn" ? "border-warning-200 bg-warning-50 text-warning-900"
+      : tone === "ok" ? "border-success-200 bg-success-50 text-success-800"
+        : "border-ink-200 bg-white text-ink-800";
   return (
     <div className={`min-w-[88px] rounded-lg border px-3 py-2 ${cls}`}>
       <div className="text-lg font-bold tabular-nums">{value}</div>
-      <div className="text-[11px] font-semibold uppercase tracking-wide opacity-80">{label}</div>
+      <div className="text-[11px] font-semibold">{label}</div>
     </div>
   );
 }

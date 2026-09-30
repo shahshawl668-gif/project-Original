@@ -27,6 +27,7 @@ import {
   uploadBankFile,
   type BankFileMeta,
 } from "@/lib/reconciliation";
+import { useWorkingPeriod } from "@/lib/workspace";
 
 /**
  * Bank payments against the register.
@@ -38,7 +39,11 @@ import {
  */
 export default function BankReconciliationPage() {
   const queryClient = useQueryClient();
-  const [period, setPeriod] = useState(currentPeriod());
+  // The month in the header's period picker, so this page and the rest of the
+  // month's work agree on which month is open (it used to start on the calendar month).
+  const working = useWorkingPeriod();
+  const period = working.period ?? currentPeriod();
+  const setPeriod = (value: string) => { if (value) working.setPeriod(value); };
   const [profileId, setProfileId] = useState<string>("");
   const [fileId, setFileId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +56,7 @@ export default function BankReconciliationPage() {
   const { data: files, isLoading: loadingFiles } = useQuery({
     queryKey: ["bank-files", period],
     queryFn: () => fetchBankFiles(period),
+    enabled: !working.loading,
   });
 
   useEffect(() => {
@@ -139,17 +145,17 @@ export default function BankReconciliationPage() {
       <Card>
         <CardContent className="py-5">
           <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+            <label>
+              <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
                 Period
               </span>
               <input
                 type="month"
                 value={period}
                 onChange={(event) => setPeriod(event.target.value)}
-                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900 dark:border-ink-700 dark:bg-ink-900 dark:text-white"
+                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
               />
-            </div>
+            </label>
 
             <Menu
               label="Read with"
@@ -200,7 +206,7 @@ export default function BankReconciliationPage() {
           {loadingFiles ? (
             <p className="pt-4 text-sm text-ink-500">Loading…</p>
           ) : fileList.length ? (
-            <div className="mt-4 divide-y divide-ink-200/70 dark:divide-ink-700/60">
+            <div className="mt-4 divide-y divide-ink-200/70">
               {fileList.map((file) => (
                 <div
                   key={file.id}
@@ -214,20 +220,20 @@ export default function BankReconciliationPage() {
                     <span
                       className={
                         file.id === fileId
-                          ? "font-semibold text-brand-600 dark:text-brand-300"
-                          : "text-ink-800 dark:text-ink-100"
+                          ? "font-semibold text-brand-600"
+                          : "text-ink-800"
                       }
                     >
                       {file.filename}
                     </span>
-                    <span className="text-xs tabular-nums text-ink-500 dark:text-ink-400">
+                    <span className="text-xs tabular-nums text-ink-500">
                       {file.row_count} payments · {formatINR(file.total)}
                     </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => remove.mutate(file.id)}
-                    className="text-ink-400 transition hover:text-danger-600"
+                    className="text-ink-500 transition hover:text-danger-600"
                     aria-label={`Delete ${file.filename}`}
                   >
                     <Trash2 size={14} />
@@ -236,7 +242,7 @@ export default function BankReconciliationPage() {
               ))}
             </div>
           ) : (
-            <p className="pt-4 text-sm text-ink-500 dark:text-ink-400">
+            <p className="pt-4 text-sm text-ink-500">
               No bank file for this month. Until one is uploaded, payments for{" "}
               {period} are unreconciled.
             </p>
@@ -245,7 +251,7 @@ export default function BankReconciliationPage() {
           {active?.problems.length ? (
             <div className="mt-3 space-y-1">
               {active.problems.map((problem) => (
-                <p key={problem} className="text-xs text-warning-700 dark:text-warning-300">
+                <p key={problem} className="text-xs text-warning-700">
                   {problem}
                 </p>
               ))}
@@ -309,10 +315,10 @@ export default function BankReconciliationPage() {
             <CardContent className="py-5">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
                 <div>
-                  <h3 className="text-base font-semibold text-ink-900 dark:text-white">
+                  <h3 className="text-base font-semibold text-ink-900">
                     Exceptions
                   </h3>
-                  <p className="text-xs text-ink-500 dark:text-ink-400">
+                  <p className="text-xs text-ink-500">
                     Grouped by what went wrong. Open one to see the employees behind it.
                   </p>
                 </div>
@@ -322,7 +328,7 @@ export default function BankReconciliationPage() {
                     type="button"
                     onClick={() => keep.mutate()}
                     disabled={keep.isPending}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50 dark:border-ink-700 dark:text-ink-200 dark:hover:bg-ink-800"
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-50"
                   >
                     {keep.isPending ? (
                       <Loader2 size={14} className="animate-spin" />

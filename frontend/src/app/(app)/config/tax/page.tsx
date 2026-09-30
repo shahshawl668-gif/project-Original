@@ -24,25 +24,25 @@ function Section({ title, icon, children, defaultOpen = true }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03] dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04]">
+    <div className="overflow-hidden rounded-2xl border border-ink-200/70 bg-white shadow-soft ring-1 ring-ink-900/[0.03]">
       <button
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-ink-50 dark:hover:bg-white/[0.04]"
+        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-ink-50"
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-2">
           {icon}
-          <span className="font-display text-sm font-semibold text-ink-800 dark:text-white">
+          <span className="font-display text-sm font-semibold text-ink-800">
             {title}
           </span>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-ink-400 dark:text-ink-500" />
+          <ChevronUp size={16} className="text-ink-500" />
         ) : (
-          <ChevronDown size={16} className="text-ink-400 dark:text-ink-500" />
+          <ChevronDown size={16} className="text-ink-500" />
         )}
       </button>
       {open && (
-        <div className="border-t border-ink-100 px-5 pb-5 pt-4 dark:border-white/[0.06]">
+        <div className="border-t border-ink-100 px-5 pb-5 pt-4">
           {children}
         </div>
       )}
@@ -53,17 +53,17 @@ function Section({ title, icon, children, defaultOpen = true }: {
 function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+      <label className="text-[11px] font-semibold text-ink-600">
         {label}
       </label>
       {children}
-      {help && <p className="text-xs text-ink-400 dark:text-ink-500">{help}</p>}
+      {help && <p className="text-xs text-ink-500">{help}</p>}
     </div>
   );
 }
 
 const inputCls =
-  "w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40";
 
 function NumInput({ value, onChange, step = "any", placeholder }: {
   value: string; onChange: (v: string) => void; step?: string; placeholder?: string;
@@ -79,13 +79,13 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
     <button
       onClick={() => onChange(!checked)}
       className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
-        checked ? "text-brand-700 dark:text-brand-300" : "text-ink-500 dark:text-ink-400"
+        checked ? "text-brand-700" : "text-ink-500"
       }`}
     >
       {checked ? (
-        <ToggleRight size={20} className="text-brand-600 dark:text-brand-300" />
+        <ToggleRight size={20} className="text-brand-600" />
       ) : (
-        <ToggleLeft size={20} className="text-ink-400 dark:text-ink-500" />
+        <ToggleLeft size={20} className="text-ink-500" />
       )}
       {label}
     </button>
@@ -118,7 +118,7 @@ function BandTable<T extends { up_to: string | null; rate: string }>({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500 dark:text-ink-400">
+          <tr className="text-left text-[11px] font-semibold text-ink-500">
             <th className="pb-2 pr-3">{upToLabel}</th>
             <th className="pb-2 pr-3">{rateLabel}</th>
             <th className="pb-2 w-10" />
@@ -126,10 +126,10 @@ function BandTable<T extends { up_to: string | null; rate: string }>({
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-t border-ink-100 dark:border-white/[0.06]">
+            <tr key={i} className="border-t border-ink-100">
               <td className="py-2 pr-3">
                 {row.up_to === null ? (
-                  <span className="inline-flex items-center rounded-lg bg-ink-100 px-3 py-2 text-xs font-semibold text-ink-600 dark:bg-white/[0.06] dark:text-ink-300">
+                  <span className="inline-flex items-center rounded-lg bg-ink-100 px-3 py-2 text-xs font-semibold text-ink-600">
                     No upper bound (∞)
                   </span>
                 ) : (
@@ -141,7 +141,7 @@ function BandTable<T extends { up_to: string | null; rate: string }>({
               </td>
               <td className="py-2 text-right">
                 <button
-                  className="rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
+                  className="rounded-lg p-1.5 text-ink-500 transition-colors hover:bg-danger-50 hover:text-danger-600"
                   onClick={() => onChange(rows.filter((_, j) => j !== i))}
                   title="Remove band"
                 >
@@ -178,7 +178,7 @@ function RegimeEditor({ regime, onChange, showChapterVia }: {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+        <p className="mb-2 text-[11px] font-semibold text-ink-600">
           Tax slabs (₹ upper bound → rate %)
         </p>
         <BandTable rows={regime.slabs}
@@ -208,7 +208,7 @@ function RegimeEditor({ regime, onChange, showChapterVia }: {
         )}
       </div>
       <div>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+        <p className="mb-2 text-[11px] font-semibold text-ink-600">
           Surcharge brackets (taxable income → % of tax)
         </p>
         <BandTable rows={regime.surcharge_brackets}
@@ -387,8 +387,8 @@ export default function TaxConfigPage() {
             onClick={() => setSelectedYear(fy)}
             className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
               fy === selectedYear
-                ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400/50 dark:bg-brand-500/10 dark:text-brand-300"
-                : "border-ink-200 bg-white text-ink-600 hover:border-ink-300 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-300"
+                ? "border-brand-500 bg-brand-50 text-brand-700"
+                : "border-ink-200 bg-white text-ink-600 hover:border-ink-300"
             }`}
           >
             {fy === cfg.default_year && <Star size={12} className="fill-current" />}
@@ -417,15 +417,15 @@ export default function TaxConfigPage() {
 
       {year && (
         <>
-          <Section title={`New regime — FY ${selectedYear}`} icon={<Landmark size={16} className="text-brand-600 dark:text-brand-300" />}>
+          <Section title={`New regime — FY ${selectedYear}`} icon={<Landmark size={16} className="text-brand-600" />}>
             <RegimeEditor regime={year.new_regime} onChange={(r) => patchYear({ new_regime: r })} />
           </Section>
 
-          <Section title={`Old regime — FY ${selectedYear}`} icon={<Landmark size={16} className="text-brand-600 dark:text-brand-300" />} defaultOpen={false}>
+          <Section title={`Old regime — FY ${selectedYear}`} icon={<Landmark size={16} className="text-brand-600" />} defaultOpen={false}>
             <div className="flex flex-col gap-5">
               <RegimeEditor regime={year.old_regime} onChange={(r) => patchYear({ old_regime: r })} showChapterVia />
               <div>
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+                <p className="mb-2 text-[11px] font-semibold text-ink-600">
                   Chapter VI-A caps (₹)
                 </p>
                 <div className="grid gap-4 sm:grid-cols-4">
@@ -469,7 +469,7 @@ export default function TaxConfigPage() {
           </div>
 
           {/* Quick regime comparison against current (unsaved changes excluded) */}
-          <Section title="Try it — old vs new regime" icon={<Calculator size={16} className="text-brand-600 dark:text-brand-300" />} defaultOpen={false}>
+          <Section title="Try it — old vs new regime" icon={<Calculator size={16} className="text-brand-600" />} defaultOpen={false}>
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="w-56">
@@ -481,20 +481,20 @@ export default function TaxConfigPage() {
               </div>
               {comparison && (
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-ink-200/70 p-4 dark:border-white/[0.07]">
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">Old regime</p>
-                    <p className="mt-1 text-lg font-semibold text-ink-900 dark:text-white">₹{comparison.old.total_tax_annual.toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">TDS ₹{comparison.old.monthly_tds.toLocaleString("en-IN")}/month</p>
+                  <div className="rounded-xl border border-ink-200/70 p-4">
+                    <p className="text-xs font-semibold text-ink-500">Old regime</p>
+                    <p className="mt-1 text-lg font-semibold text-ink-900">₹{comparison.old.total_tax_annual.toLocaleString("en-IN")}</p>
+                    <p className="text-xs text-ink-500">TDS ₹{comparison.old.monthly_tds.toLocaleString("en-IN")}/month</p>
                   </div>
-                  <div className="rounded-xl border border-ink-200/70 p-4 dark:border-white/[0.07]">
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink-500 dark:text-ink-400">New regime</p>
-                    <p className="mt-1 text-lg font-semibold text-ink-900 dark:text-white">₹{comparison.new.total_tax_annual.toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">TDS ₹{comparison.new.monthly_tds.toLocaleString("en-IN")}/month</p>
+                  <div className="rounded-xl border border-ink-200/70 p-4">
+                    <p className="text-xs font-semibold text-ink-500">New regime</p>
+                    <p className="mt-1 text-lg font-semibold text-ink-900">₹{comparison.new.total_tax_annual.toLocaleString("en-IN")}</p>
+                    <p className="text-xs text-ink-500">TDS ₹{comparison.new.monthly_tds.toLocaleString("en-IN")}/month</p>
                   </div>
-                  <div className="rounded-xl border border-brand-300/60 bg-brand-50/60 p-4 dark:border-brand-400/30 dark:bg-brand-500/10">
-                    <p className="text-xs font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">Cheaper: {comparison.cheaper_regime} regime</p>
-                    <p className="mt-1 text-lg font-semibold text-brand-800 dark:text-brand-200">saves ₹{comparison.annual_saving.toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-brand-700/80 dark:text-brand-300/80">FY {comparison.financial_year}</p>
+                  <div className="rounded-xl border border-brand-300/60 bg-brand-50/60 p-4">
+                    <p className="text-xs font-semibold text-brand-700">Cheaper: {comparison.cheaper_regime} regime</p>
+                    <p className="mt-1 text-lg font-semibold text-brand-800">saves ₹{comparison.annual_saving.toLocaleString("en-IN")}</p>
+                    <p className="text-xs text-brand-700/80">FY {comparison.financial_year}</p>
                   </div>
                 </div>
               )}
@@ -504,7 +504,7 @@ export default function TaxConfigPage() {
       )}
 
       {/* Rule thresholds */}
-      <Section title="Validation rule thresholds" icon={<SlidersHorizontal size={16} className="text-brand-600 dark:text-brand-300" />} defaultOpen={false}>
+      <Section title="Validation rule thresholds" icon={<SlidersHorizontal size={16} className="text-brand-600" />} defaultOpen={false}>
         <div className="flex flex-col gap-5">
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Min PF wage % of gross" help="STRUCT-001: below this flags PF avoidance">
@@ -571,7 +571,7 @@ export default function TaxConfigPage() {
             if (!group) return null;
             return (
               <div key={groupKey}>
-                <p className="mb-2 mt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600 dark:text-ink-300">
+                <p className="mb-2 mt-2 text-[11px] font-semibold text-ink-600">
                   {title}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-3">

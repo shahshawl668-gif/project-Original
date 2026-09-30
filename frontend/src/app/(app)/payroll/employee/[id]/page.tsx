@@ -2,20 +2,25 @@
 
 import Link from "next/link";
 import { useEntity } from "@/context/EntityContext";
+import { inr } from "@/lib/format";
 import {
-  inr, monthLabel, validationApi, OUTCOME_LABEL,
+  monthLabel, validationApi, OUTCOME_LABEL,
   type Outcome, type RunEmployee, type ValidationRun, type Verdict,
 } from "@/lib/validation";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  ResponsiveContainer, Tooltip,
-} from "recharts";
-import {
-  ArrowLeft, ShieldCheck, AlertTriangle, XCircle,
-  CheckCircle2, Info, ChevronDown, ChevronUp, Activity,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { HelpCircle } from "lucide-react";
+
+import { BackLink } from "@/components/layout/BackLink";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { Stat } from "@/components/ui/kpi-card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
+import { Tabs } from "@/components/ui/tabs";
+import { plural } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,129 +73,32 @@ type ResultRow = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const fmt = (n: number | null | undefined, digits = 2) =>
-  n == null ? "–" : `₹${n.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+const fmt = (n: number | null | undefined) => inr(n, { digits: 2 });
+const SEVERITY_TONE: Record<string, StatusTone> = { CRITICAL: "danger", WARNING: "warning", INFO: "info" };
+const SEVERITY_LABEL: Record<string, string> = { CRITICAL: "Critical", WARNING: "Warning", INFO: "Info" };
+const RISK_TONE: Record<string, StatusTone> = { HIGH: "danger", MEDIUM: "warning", LOW: "success" };
 
-const SEV_STYLES: Record<string, { card: string; badge: string; icon: React.ReactNode }> = {
-  CRITICAL: {
-    card: "bg-danger-50/80 border-danger-200/80 dark:bg-danger-500/[0.08] dark:border-danger-500/30",
-    badge:
-      "bg-danger-100 text-danger-800 border border-danger-200 dark:bg-danger-500/15 dark:text-danger-200 dark:border-danger-500/30",
-    icon: <XCircle size={16} className="mt-0.5 shrink-0 text-danger-600 dark:text-danger-400" />,
-  },
-  WARNING: {
-    card: "bg-warn-50/80 border-warn-200/80 dark:bg-warn-500/[0.08] dark:border-warn-500/30",
-    badge:
-      "bg-warn-100 text-warn-800 border border-warn-200 dark:bg-warn-500/15 dark:text-warn-200 dark:border-warn-500/30",
-    icon: <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warn-600 dark:text-warn-400" />,
-  },
-  INFO: {
-    card: "bg-brand-50/70 border-brand-100 dark:bg-brand-500/[0.08] dark:border-brand-500/30",
-    badge:
-      "bg-brand-100 text-brand-800 border border-brand-100 dark:bg-brand-500/15 dark:text-brand-200 dark:border-brand-500/30",
-    icon: <Info size={16} className="mt-0.5 shrink-0 text-brand-500 dark:text-brand-400" />,
-  },
-  PASS: {
-    card: "bg-success-50/80 border-success-100 dark:bg-success-500/[0.08] dark:border-success-500/30",
-    badge:
-      "bg-success-100 text-success-800 border border-success-100 dark:bg-success-500/15 dark:text-success-200 dark:border-success-500/30",
-    icon: <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success-600 dark:text-success-400" />,
-  },
-};
-
-const RISK_META: Record<string, { bar: string; bg: string; text: string }> = {
-  HIGH: {
-    bar: "bg-danger-500",
-    bg: "bg-danger-50/80 border-danger-200/80 dark:bg-danger-500/[0.08] dark:border-danger-500/30",
-    text: "text-danger-700 dark:text-danger-300",
-  },
-  MEDIUM: {
-    bar: "bg-warn-500",
-    bg: "bg-warn-50/80 border-warn-200/80 dark:bg-warn-500/[0.08] dark:border-warn-500/30",
-    text: "text-warn-700 dark:text-warn-300",
-  },
-  LOW: {
-    bar: "bg-success-500",
-    bg: "bg-success-50/80 border-success-200 dark:bg-success-500/[0.08] dark:border-success-500/30",
-    text: "text-success-700 dark:text-success-300",
-  },
-};
-
-function FindingCard({ f }: { f: Finding }) {
-  const [open, setOpen] = useState(true);
-  const s = f.status === "PASS" ? SEV_STYLES.PASS : SEV_STYLES[f.severity] ?? SEV_STYLES.INFO;
+function FindingRow({ f, whyHref }: { f: Finding; whyHref: string | null }) {
+  const pass = f.status === "PASS";
   return (
-    <div className={`overflow-hidden rounded-xl border ${s.card}`}>
-      <button
-        className="flex w-full items-start gap-3 p-4 text-left"
-        onClick={() => setOpen((o) => !o)}
-      >
-        {s.icon}
-        <div className="min-w-0 flex-1">
-          <div className="mb-0.5 flex flex-wrap items-center gap-2">
-            <span className={`rounded px-1.5 py-0.5 font-mono text-xs font-semibold ${s.badge}`}>
-              {f.rule_id}
-            </span>
-            <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${s.badge}`}>
-              {f.status === "PASS" ? "PASS" : f.severity}
-            </span>
-            <span className="text-sm font-semibold text-ink-800 dark:text-ink-100">
-              {f.rule_name}
-            </span>
-            <span className="text-xs text-ink-400 dark:text-ink-500">· {f.component}</span>
-          </div>
-          <p className="line-clamp-1 text-sm text-ink-600 dark:text-ink-300">{f.reason}</p>
-        </div>
-        <div className="ml-2 shrink-0 text-ink-400 dark:text-ink-500">
-          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
-      </button>
-      {open && (
-        <div className="space-y-3 border-t border-black/5 px-4 pb-4 pt-3 dark:border-white/10">
-          {(f.expected_value || f.actual_value) && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {f.expected_value && (
-                <div className="rounded-lg bg-white/70 p-3 text-xs dark:bg-white/[0.04]">
-                  <p className="mb-0.5 text-ink-400 dark:text-ink-500">Expected</p>
-                  <p className="font-semibold text-ink-800 dark:text-ink-100">
-                    {f.expected_value}
-                  </p>
-                </div>
-              )}
-              {f.actual_value && (
-                <div className="rounded-lg bg-white/70 p-3 text-xs dark:bg-white/[0.04]">
-                  <p className="mb-0.5 text-ink-400 dark:text-ink-500">Actual</p>
-                  <p className="font-semibold text-ink-800 dark:text-ink-100">{f.actual_value}</p>
-                </div>
-              )}
-              {f.difference && f.difference !== "0.00" && (
-                <div className="rounded-lg bg-white/70 p-3 text-xs dark:bg-white/[0.04]">
-                  <p className="mb-0.5 text-ink-400 dark:text-ink-500">Difference</p>
-                  <p className="font-semibold text-warn-700 dark:text-warn-300">{f.difference}</p>
-                </div>
-              )}
-            </div>
-          )}
-          <p className="text-sm text-ink-700 dark:text-ink-200">{f.reason}</p>
-          {f.financial_impact > 0 && (
-            <div className="flex items-center gap-2 text-sm font-semibold text-danger-700 dark:text-danger-300">
-              <Activity size={14} />
-              Estimated exposure: {fmt(f.financial_impact)}
-            </div>
-          )}
-          {f.suggested_fix && (
-            <div className="rounded-lg border border-brand-100 bg-brand-50/80 px-3 py-2 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/[0.08] dark:text-brand-100">
-              <ShieldCheck
-                size={12}
-                className="mr-1.5 inline text-brand-600 dark:text-brand-300"
-              />
-              <strong>Recommended fix: </strong>
-              {f.suggested_fix}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <li className="px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {pass ? <StatusPill tone="success">Passed</StatusPill> : <StatusPill tone={SEVERITY_TONE[f.severity] ?? "neutral"}>{SEVERITY_LABEL[f.severity] ?? f.severity}</StatusPill>}
+        <span className="min-w-0 flex-1 text-[13px] text-ink-900"><span className="font-mono text-xs text-ink-500">{f.rule_id}</span> {f.rule_name}</span>
+        {f.component ? <span className="text-xs text-ink-500">{f.component}</span> : null}
+        {whyHref ? <Link href={whyHref} className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"><HelpCircle size={12} aria-hidden /> Why?</Link> : null}
+      </div>
+      {f.reason ? <p className="mt-1 text-[13px] leading-relaxed text-ink-700">{f.reason}</p> : null}
+      {f.expected_value || f.actual_value ? (
+        <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-0.5 text-xs">
+          <div className="flex gap-1"><dt className="text-ink-500">Actual</dt><dd className="num font-medium text-ink-900">{f.actual_value || "—"}</dd></div>
+          <div className="flex gap-1"><dt className="text-ink-500">Expected</dt><dd className="num font-medium text-ink-900">{f.expected_value || "—"}</dd></div>
+          {f.difference && f.difference !== "0.00" ? <div className="flex gap-1"><dt className="text-ink-500">Difference</dt><dd className="num font-medium text-ink-900">{f.difference}</dd></div> : null}
+          {!pass ? <div className="flex gap-1"><dt className="text-ink-500">Impact</dt><dd className="font-medium text-ink-900">{f.financial_impact > 0 ? <span className="num">{inr(f.financial_impact)}</span> : <span className="italic text-ink-500">not calculated</span>}</dd></div> : null}
+        </dl>
+      ) : null}
+      {f.suggested_fix && !pass ? <p className="mt-1.5 rounded-md bg-brand-50 px-2.5 py-1.5 text-xs text-ink-800"><span className="font-medium text-brand-800">Suggested correction: </span>{f.suggested_fix}</p> : null}
+    </li>
   );
 }
 
@@ -209,7 +117,7 @@ function EmployeeDrilldown() {
   const [sourceRow, setSourceRow] = useState<Record<string, unknown> | null>(null);
   const [employee, setEmployee] = useState<RunEmployee | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filterSev, setFilterSev] = useState<"ALL"|"CRITICAL"|"WARNING"|"INFO"|"PASS">("ALL");
+  const [filterSev, setFilterSev] = useState<"ALL" | "CRITICAL" | "WARNING" | "INFO" | "PASS">("ALL");
 
   useEffect(() => {
     let cancelled = false;
@@ -241,290 +149,157 @@ function EmployeeDrilldown() {
   }, [employeeId, entity, runParam]);
 
   const backHref = run ? `/payroll/results?run=${encodeURIComponent(run.id)}` : "/payroll/results";
+  const runId = run?.id;
+  // Finding ids, for the "Why?" links: the employee result carries the
+  // findings but not the records they were stored as.
+  const ids = useQuery({
+    queryKey: ["run-findings", runId, "employee", employeeId],
+    queryFn: () => validationApi.findings(runId!, { employee_id: employeeId, page_size: 200 }),
+    enabled: !!runId && !!employeeId,
+  });
+  const whyFor = (f: Finding) => {
+    const hit = ids.data?.items.find((x) => x.rule_id === f.rule_id && (x.component ?? "") === (f.component ?? ""))
+      ?? ids.data?.items.find((x) => x.rule_id === f.rule_id);
+    return hit && runId ? `/payroll/results/why?run=${encodeURIComponent(runId)}&finding=${encodeURIComponent(hit.id)}` : null;
+  };
 
   const allFindings = useMemo(() => empData?.findings ?? [], [empData]);
+  const filteredFindings = useMemo(() => allFindings.filter((f) => {
+    if (filterSev === "ALL") return f.status === "FAIL";
+    if (filterSev === "PASS") return f.status === "PASS";
+    return f.status === "FAIL" && f.severity === filterSev;
+  }), [allFindings, filterSev]);
 
-  const filteredFindings = useMemo(() => {
-    return allFindings.filter(f => {
-      if (filterSev === "ALL") return true;
-      if (filterSev === "PASS") return f.status === "PASS";
-      return f.status === "FAIL" && f.severity === filterSev;
-    });
-  }, [allFindings, filterSev]);
-
-  const fails   = allFindings.filter(f => f.status === "FAIL");
-  const crit    = fails.filter(f => f.severity === "CRITICAL");
-  const warn    = fails.filter(f => f.severity === "WARNING");
-  const infos   = fails.filter(f => f.severity === "INFO");
-  const passes  = allFindings.filter(f => f.status === "PASS");
+  const fails = allFindings.filter((f) => f.status === "FAIL");
+  const crit = fails.filter((f) => f.severity === "CRITICAL");
+  const warn = fails.filter((f) => f.severity === "WARNING");
+  const infos = fails.filter((f) => f.severity === "INFO");
+  const passes = allFindings.filter((f) => f.status === "PASS");
   // The run's de-duplicated figure for this employee, not a raw sum that
   // would count the same rupees once per overlapping check.
   const totalImpact = employee?.financial_impact ?? null;
-
-  const radarData = useMemo(() => {
-    const layers: Record<string, number> = {};
-    fails.forEach(f => {
-      const layer = f.rule_id.split("-")[0];
-      layers[layer] = (layers[layer] || 0) + (f.severity === "CRITICAL" ? 3 : f.severity === "WARNING" ? 2 : 1);
-    });
-    return Object.entries(layers).map(([subject, value]) => ({ subject, value }));
-  }, [fails]);
-
-  const risk = empData ? (RISK_META[empData.risk_level] ?? RISK_META.LOW) : RISK_META.LOW;
+  const cannot = empData?.coverage ? Object.values(empData.coverage).filter((v) => v.outcome === "cannot_validate").length : null;
 
   if (!empData) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 p-6">
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-        >
-          <ArrowLeft size={14} /> Back to results
-        </Link>
-        <div className="rounded-2xl border border-ink-200 bg-white p-12 text-center shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
-          <ShieldCheck size={48} className="mx-auto mb-4 text-ink-200 dark:text-ink-600" />
-          <p className="text-lg font-semibold text-ink-700 dark:text-ink-200">
-            {!employeeId
-              ? "No employee ID provided."
-              : loadError
-                ? loadError
-                : "Loading…"}
-          </p>
-          <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-            Results are read from the validation run on the server.
-          </p>
-        </div>
+      <div className="space-y-5">
+        <BackLink fallback={backHref}>Back to results</BackLink>
+        {loadError ? (
+          <AlertBanner variant="error" title="This employee could not be opened">{loadError} The employee may not be in this run, or the run may belong to another company.</AlertBanner>
+        ) : !employeeId ? (
+          <AlertBanner variant="info">No employee was named in the link.</AlertBanner>
+        ) : (
+          <div className="space-y-4"><Skeleton className="h-10 w-72" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div><Skeleton className="h-72 w-full rounded-xl" /></div>
+        )}
       </div>
     );
   }
 
+  const breakdown = Object.entries(empData.score_breakdown ?? {}).filter(([, v]) => v > 0).sort((x, y) => y[1] - x[1]);
+  const maxB = Math.max(1, ...breakdown.map(([, v]) => v));
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <Link
-        href={backHref}
-        className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-      >
-        <ArrowLeft size={14} /> Back to results
-      </Link>
+    <div className="space-y-5">
+      <BackLink fallback={backHref}>Back to results</BackLink>
+      <PageHeader
+        title={empData.employee_name || empData.employee_id}
+        description={
+          <>
+            <span className="font-mono">{empData.employee_id}</span>
+            {run ? <> · {monthLabel(run.period_month)} · run {run.run_number} ({run.status})</> : null}
+            {run?.upload ? <> · {run.upload.filename ?? "register"}, revision {run.upload.revision}</> : null}
+            {sourceRow && typeof sourceRow["_source_row"] === "number" ? <> · file row {sourceRow["_source_row"] as number}</> : null}
+          </>
+        }
+        meta={<StatusPill tone={RISK_TONE[empData.risk_level] ?? "neutral"}>Risk {empData.risk_level.toLowerCase()} · score <span className="num">{empData.risk_score}</span></StatusPill>}
+      />
 
-      {run ? (
-        <p className="text-xs text-ink-500">
-          {monthLabel(run.period_month)} · run #{run.run_number} ({run.status})
-          {run.upload ? ` · ${run.upload.filename ?? "register"}, upload ${run.upload.revision}` : ""}
-          {sourceRow && typeof sourceRow["_source_row"] === "number" ? ` · file row ${sourceRow["_source_row"] as number}` : ""}
-        </p>
-      ) : null}
-
-      <div className={`rounded-2xl border p-5 ${risk.bg}`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="mb-1 font-display text-[11px] font-bold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-400">
-              Employee
-            </p>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-ink-900 dark:text-white">
-              {empData.employee_name || empData.employee_id}
-            </h1>
-            {empData.employee_name && (
-              <p className="font-mono text-sm text-ink-500 dark:text-ink-400">
-                {empData.employee_id}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div
-              className={`flex items-center gap-2 rounded-xl border bg-white/70 px-4 py-2 dark:bg-white/[0.04] ${risk.bg}`}
-            >
-              <span className={`font-display text-3xl font-black ${risk.text}`}>
-                {empData.risk_score}
-              </span>
-              <div>
-                <p className="text-xs text-ink-400 dark:text-ink-500">Risk score</p>
-                <p className={`text-sm font-bold ${risk.text}`}>{empData.risk_level}</p>
-              </div>
-            </div>
-            <div className="h-2 w-40 rounded-full bg-ink-200 dark:bg-white/10">
-              <div
-                className={`h-2 rounded-full ${risk.bar}`}
-                style={{ width: `${empData.risk_score}%` }}
-              />
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Failed checks" value={fails.length} tone={crit.length ? "danger" : fails.length ? "warning" : "neutral"} qualifier={`${crit.length} critical · ${warn.length} warning · ${infos.length} info`} />
+        <Stat label="Checks passed" value={passes.length} qualifier="that ran and agreed" />
+        <Stat label="Could not validate" value={cannot} tone={cannot ? "warning" : "neutral"} qualifier="an input was missing" />
+        <Stat label="Impact" value={totalImpact == null ? (fails.length ? "Not priced" : "—") : inr(totalImpact)} qualifier="counted once across overlapping checks" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {[
-          {
-            label: "Critical",
-            value: crit.length,
-            color: "text-danger-600 dark:text-danger-300",
-            bg: "bg-danger-50 border-danger-100 dark:bg-danger-500/[0.08] dark:border-danger-500/30",
-          },
-          {
-            label: "Warning",
-            value: warn.length,
-            color: "text-warn-700 dark:text-warn-300",
-            bg: "bg-warn-50 border-warn-100 dark:bg-warn-500/[0.08] dark:border-warn-500/30",
-          },
-          {
-            label: "Info",
-            value: infos.length,
-            color: "text-brand-700 dark:text-brand-300",
-            bg: "bg-brand-50 border-brand-100 dark:bg-brand-500/[0.08] dark:border-brand-500/30",
-          },
-          {
-            label: "Passed",
-            value: passes.length,
-            color: "text-success-700 dark:text-success-300",
-            bg: "bg-success-50 border-success-100 dark:bg-success-500/[0.08] dark:border-success-500/30",
-          },
-          {
-            label: "Est. impact",
-            value: totalImpact == null ? "—" : inr(totalImpact),
-            color: "text-warn-700 dark:text-warn-300",
-            bg: "bg-warn-50/60 border-warn-100 dark:bg-warn-500/[0.06] dark:border-warn-500/30",
-          },
-        ].map((s) => (
-          <div key={s.label} className={`rounded-xl border p-3 ${s.bg}`}>
-            <p className="text-xs text-ink-500 dark:text-ink-400">{s.label}</p>
-            <p className={`font-display text-xl font-bold ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
+      <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
+        <section className="rounded-xl border border-ink-200 bg-white shadow-soft" aria-labelledby="findings-h">
+          <header className="px-4 pt-3">
+            <h2 id="findings-h" className="text-[15px] font-semibold text-ink-900">Checks for this employee</h2>
+            <Tabs
+              className="mt-2"
+              label="Filter findings"
+              value={filterSev}
+              onChange={(v) => setFilterSev(v as typeof filterSev)}
+              items={[
+                { id: "ALL", label: "All failed", count: fails.length },
+                { id: "CRITICAL", label: "Critical", count: crit.length },
+                { id: "WARNING", label: "Warning", count: warn.length },
+                { id: "INFO", label: "Info", count: infos.length },
+                { id: "PASS", label: "Passed", count: passes.length },
+              ]}
+            />
+          </header>
+          {filteredFindings.length ? (
+            <ul className="divide-y divide-ink-100">{filteredFindings.map((f, i) => <FindingRow key={i} f={f} whyHref={f.status === "FAIL" ? whyFor(f) : null} />)}</ul>
+          ) : (
+            <p className="px-4 py-8 text-center text-[13px] text-ink-500">{filterSev === "PASS" ? "No passed checks were recorded as findings." : "No failed checks in this category."} The outcome of every check is listed below.</p>
+          )}
+        </section>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {radarData.length > 0 && (
-          <div className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
-            <h3 className="mb-3 font-display text-sm font-bold uppercase tracking-[0.1em] text-ink-700 dark:text-ink-200">
-              Issue layer breakdown
-            </h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="rgba(148,163,184,0.25)" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                <Radar
-                  name="Issues"
-                  dataKey="value"
-                  stroke="#6366f1"
-                  fill="#6366f1"
-                  fillOpacity={0.3}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--surface-elevated, #fff)",
-                    border: "1px solid rgba(148,163,184,0.25)",
-                    borderRadius: 12,
-                    color: "var(--text-primary, #0f172a)",
-                  }}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        <div className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
-          <h3 className="mb-3 font-display text-sm font-bold uppercase tracking-[0.1em] text-ink-700 dark:text-ink-200">
-            Statutory snapshot
-          </h3>
-          <div className="space-y-2 text-sm">
-            {[
-              ["PF wage", fmt(empData.pf_wage)],
-              ["PF employee", fmt(empData.pf_amount_employee)],
-              ["PF employer", fmt(empData.pf_amount_employer)],
-              ["ESIC eligible", empData.esic_eligible ? "Yes" : "Exempt"],
-              ["ESIC (emp)", empData.esic_eligible ? fmt(empData.esic_employee) : "–"],
-              ["ESIC (er)", empData.esic_eligible ? fmt(empData.esic_employer) : "–"],
-              ["PT", empData.pt_due > 0 ? fmt(empData.pt_due) : "Nil"],
-              ["PT state", empData.pt_applicable_state || "–"],
-              ["LWF (emp)", empData.lwf_employee > 0 ? fmt(empData.lwf_employee) : "Nil"],
-              ["LWF (er)", empData.lwf_employer > 0 ? fmt(empData.lwf_employer) : "Nil"],
-              ["Paid days", empData.paid_days != null ? String(empData.paid_days) : "–"],
-              ["LOP days", empData.lop_days != null ? String(empData.lop_days) : "–"],
-            ].map(([k, v]) => (
-              <div
-                key={k}
-                className="flex justify-between border-b border-ink-100 pb-1 dark:border-white/[0.05]"
-              >
-                <span className="text-ink-500 dark:text-ink-400">{k}</span>
-                <span className="font-medium text-ink-800 dark:text-ink-100">{v}</span>
-              </div>
-            ))}
-          </div>
+        <div className="space-y-4">
+          <section className="rounded-xl border border-ink-200 bg-white p-4 shadow-soft" aria-labelledby="snap-h">
+            <h2 id="snap-h" className="text-[13px] font-semibold text-ink-900">Statutory snapshot</h2>
+            <p className="text-xs text-ink-500">As computed by this run</p>
+            <dl className="mt-2 divide-y divide-ink-100 text-[13px]">
+              {[
+                ["PF wage", fmt(empData.pf_wage)],
+                ["PF employee", fmt(empData.pf_amount_employee)],
+                ["PF employer", fmt(empData.pf_amount_employer)],
+                ["ESIC", empData.esic_eligible ? "Covered" : "Exempt"],
+                ["ESIC employee", empData.esic_eligible ? fmt(empData.esic_employee) : "—"],
+                ["ESIC employer", empData.esic_eligible ? fmt(empData.esic_employer) : "—"],
+                ["PT", empData.pt_due > 0 ? fmt(empData.pt_due) : "Nil"],
+                ["PT state", empData.pt_applicable_state || "—"],
+                ["LWF employee", empData.lwf_employee > 0 ? fmt(empData.lwf_employee) : "Nil"],
+                ["LWF employer", empData.lwf_employer > 0 ? fmt(empData.lwf_employer) : "Nil"],
+                ["Paid days", empData.paid_days != null ? String(empData.paid_days) : "Not supplied"],
+                ["LOP days", empData.lop_days != null ? String(empData.lop_days) : "Not supplied"],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-3 py-1.5">
+                  <dt className="text-ink-500">{k}</dt>
+                  <dd className={cn("num text-right font-medium", v === "Not supplied" ? "font-normal text-ink-500" : "text-ink-900")}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+          {breakdown.length ? (
+            <section className="rounded-xl border border-ink-200 bg-white p-4 shadow-soft" aria-labelledby="risk-h">
+              <h2 id="risk-h" className="text-[13px] font-semibold text-ink-900">What drives the risk score</h2>
+              <ul className="mt-2 space-y-1.5">
+                {breakdown.map(([k, v]) => (
+                  <li key={k}>
+                    <div className="flex justify-between text-xs"><span className="text-ink-700">{k.replace(/_/g, " ")}</span><span className="num font-medium text-ink-900">{v}</span></div>
+                    <div className="mt-0.5 h-1.5 rounded-full bg-ink-100"><div className="h-full rounded-full bg-ink-400" style={{ width: `${(v / maxB) * 100}%` }} /></div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </div>
       </div>
 
       <CoverageList coverage={empData.coverage} />
-
-      <div>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
-            All findings ({filteredFindings.length})
-          </h2>
-          <div className="flex flex-wrap gap-1">
-            {(["ALL", "CRITICAL", "WARNING", "INFO", "PASS"] as const).map((s) => {
-              const active = filterSev === s;
-              const activeColor =
-                s === "CRITICAL"
-                  ? "bg-danger-600 text-white"
-                  : s === "WARNING"
-                  ? "bg-warn-500 text-white"
-                  : s === "INFO"
-                  ? "bg-brand-600 text-white"
-                  : s === "PASS"
-                  ? "bg-success-600 text-white"
-                  : "bg-brand-600 text-white";
-              return (
-                <button
-                  key={s}
-                  onClick={() => setFilterSev(s)}
-                  className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
-                    active
-                      ? activeColor
-                      : "bg-ink-100 text-ink-600 hover:bg-ink-200 dark:bg-white/[0.06] dark:text-ink-300 dark:hover:bg-white/[0.10]"
-                  }`}
-                >
-                  {s}{" "}
-                  {s === "ALL"
-                    ? ""
-                    : s === "CRITICAL"
-                    ? crit.length
-                    : s === "WARNING"
-                    ? warn.length
-                    : s === "INFO"
-                    ? infos.length
-                    : passes.length}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {filteredFindings.map((f, i) => (
-            <FindingCard key={i} f={f} />
-          ))}
-          {filteredFindings.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-ink-200 bg-ink-50/40 py-12 text-center dark:border-white/[0.07] dark:bg-white/[0.02]">
-              <CheckCircle2
-                size={40}
-                className="mx-auto mb-3 text-success-300 dark:text-success-500"
-              />
-              <p className="text-ink-500 dark:text-ink-400">No findings in this category.</p>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
 const OUTCOME_ORDER: Outcome[] = ["failed", "cannot_validate", "passed", "not_applicable", "disabled"];
 const OUTCOME_CHIP: Record<Outcome, string> = {
-  passed: "bg-success-100 text-success-800 dark:bg-success-500/15 dark:text-success-200",
-  failed: "bg-danger-100 text-danger-800 dark:bg-danger-500/15 dark:text-danger-200",
-  cannot_validate: "bg-warn-100 text-warn-800 dark:bg-warn-500/15 dark:text-warn-200",
-  not_applicable: "bg-ink-100 text-ink-600 dark:bg-white/[0.06] dark:text-ink-300",
-  disabled: "bg-ink-100 text-ink-500 dark:bg-white/[0.06] dark:text-ink-400",
+  passed: "bg-success-100 text-success-800",
+  failed: "bg-danger-100 text-danger-800",
+  cannot_validate: "bg-warning-100 text-warning-800",
+  not_applicable: "bg-ink-100 text-ink-600",
+  disabled: "bg-ink-100 text-ink-500",
 };
 
 /** Every check's outcome for this employee — what ran, what could not, and why. */
@@ -532,7 +307,7 @@ function CoverageList({ coverage }: { coverage?: Record<string, Verdict> }) {
   const [show, setShow] = useState<Outcome>("cannot_validate");
   if (!coverage) {
     return (
-      <p className="rounded-xl border border-dashed border-ink-200 px-4 py-3 text-sm text-ink-500 dark:border-white/[0.07]">
+      <p className="rounded-xl border border-dashed border-ink-200 px-4 py-3 text-sm text-ink-500">
         This run predates per-check outcomes, so which checks could not run is not recorded. Revalidate to see it.
       </p>
     );
@@ -543,15 +318,15 @@ function CoverageList({ coverage }: { coverage?: Record<string, Verdict> }) {
   ) as Record<Outcome, number>;
   const rows = entries.filter(([, v]) => v.outcome === show);
   return (
-    <div className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft dark:border-white/[0.07] dark:bg-ink-900/70">
+    <div className="rounded-xl border border-ink-200 bg-white p-4 shadow-soft">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-base font-bold tracking-tight text-ink-900 dark:text-white">
-          Checks for this employee ({entries.length})
+        <h2 className="text-[15px] font-semibold text-ink-900">
+          Every check&apos;s outcome ({plural(entries.length, "check")})
         </h2>
         <div className="flex flex-wrap gap-1">
           {OUTCOME_ORDER.map((o) => (
             <button key={o} type="button" onClick={() => setShow(o)} aria-pressed={show === o}
-              className={`rounded-lg px-3 py-1 text-xs font-semibold ${show === o ? OUTCOME_CHIP[o] + " ring-1 ring-current" : "bg-ink-50 text-ink-600 hover:bg-ink-100 dark:bg-white/[0.04] dark:text-ink-300"}`}>
+              className={`rounded-md px-2.5 py-1 text-xs font-medium ${show === o ? OUTCOME_CHIP[o] + " ring-1 ring-current" : "bg-ink-50 text-ink-600 hover:bg-ink-100"}`}>
               {OUTCOME_LABEL[o]} {counts[o]}
             </button>
           ))}
@@ -560,11 +335,11 @@ function CoverageList({ coverage }: { coverage?: Record<string, Verdict> }) {
       {rows.length === 0 ? (
         <p className="text-sm text-ink-500">No checks with this outcome.</p>
       ) : (
-        <ul className="divide-y divide-ink-100 text-sm dark:divide-white/[0.05]">
+        <ul className="divide-y divide-ink-100 text-sm">
           {rows.map(([rule, v]) => (
             <li key={rule} className="flex flex-wrap gap-x-3 gap-y-0.5 py-2">
               <span className="w-20 shrink-0 font-mono text-xs text-ink-500">{rule}</span>
-              <span className="min-w-0 flex-1 text-ink-700 dark:text-ink-200">{v.reason || OUTCOME_LABEL[v.outcome]}</span>
+              <span className="min-w-0 flex-1 text-ink-700">{v.reason || OUTCOME_LABEL[v.outcome]}</span>
             </li>
           ))}
         </ul>
@@ -575,7 +350,7 @@ function CoverageList({ coverage }: { coverage?: Record<string, Verdict> }) {
 
 export default function EmployeeDrilldownPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-5xl p-6 text-sm text-ink-500">Loading…</div>}>
+    <Suspense fallback={<Skeleton className="h-96 w-full rounded-xl" />}>
       <EmployeeDrilldown />
     </Suspense>
   );

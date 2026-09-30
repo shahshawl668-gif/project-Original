@@ -90,7 +90,7 @@ function InviteInner() {
     return (
       <AuthShell>
         <div className="animate-fade-up">
-          <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-danger-600">
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-danger-600">
             <AlertTriangle size={13} /> Invitation
           </span>
           <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-ink-900">
@@ -128,7 +128,7 @@ function InviteInner() {
   return (
     <AuthShell>
       <div className="animate-fade-up">
-        <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-brand-600">
+        <p className="text-[11px] font-semibold text-brand-600">
           You have been invited
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-ink-900">
@@ -146,7 +146,7 @@ function InviteInner() {
 
         <dl className="mt-5 space-y-2 rounded-xl border border-ink-200 bg-white/60 p-4 text-[13px]">
           <div className="flex items-start gap-2">
-            <Building2 size={14} className="mt-0.5 shrink-0 text-ink-400" />
+            <Building2 size={14} className="mt-0.5 shrink-0 text-ink-500" />
             <div>
               <dt className="font-medium text-ink-800">
                 {preview.entity_names.length === 0
@@ -157,7 +157,7 @@ function InviteInner() {
             </div>
           </div>
           <div className="flex items-start gap-2">
-            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-ink-400" />
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-ink-500" />
             <div>
               <dt className="font-medium text-ink-800">
                 Expires {formatWhen(preview.expires_at)}

@@ -1,212 +1,132 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import type { LucideIcon } from "lucide-react";
-import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { ArrowUpRight, ArrowDownRight, ChevronRight, Minus } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type Tone = "indigo" | "violet" | "emerald" | "amber" | "rose" | "sky" | "slate";
+export type StatTone = "neutral" | "brand" | "success" | "warning" | "danger";
 
-const TONE: Record<
-  Tone,
-  { icon: string; ring: string; gradient: string; chip: string; chipText: string }
-> = {
-  indigo: {
-    icon: "text-brand-600",
-    ring: "ring-brand-100",
-    gradient: "from-brand-500/15 via-brand-100/0 to-transparent",
-    chip: "bg-brand-50",
-    chipText: "text-brand-700",
-  },
-  violet: {
-    icon: "text-accent-600",
-    ring: "ring-accent-100",
-    gradient: "from-accent-500/15 via-accent-100/0 to-transparent",
-    chip: "bg-accent-50",
-    chipText: "text-accent-700",
-  },
-  emerald: {
-    icon: "text-success-600",
-    ring: "ring-success-100",
-    gradient: "from-success-500/15 via-success-100/0 to-transparent",
-    chip: "bg-success-50",
-    chipText: "text-success-700",
-  },
-  amber: {
-    icon: "text-warning-600",
-    ring: "ring-warning-100",
-    gradient: "from-warning-500/15 via-warning-100/0 to-transparent",
-    chip: "bg-warning-50",
-    chipText: "text-warning-700",
-  },
-  rose: {
-    icon: "text-danger-600",
-    ring: "ring-danger-100",
-    gradient: "from-danger-500/15 via-danger-100/0 to-transparent",
-    chip: "bg-danger-50",
-    chipText: "text-danger-700",
-  },
-  sky: {
-    icon: "text-sky-600",
-    ring: "ring-sky-100",
-    gradient: "from-sky-500/15 via-sky-100/0 to-transparent",
-    chip: "bg-sky-50",
-    chipText: "text-sky-700",
-  },
-  slate: {
-    icon: "text-ink-600",
-    ring: "ring-ink-100",
-    gradient: "from-ink-200/40 via-ink-100/0 to-transparent",
-    chip: "bg-ink-100",
-    chipText: "text-ink-700",
-  },
+const TONE_DOT: Record<StatTone, string> = {
+  neutral: "bg-ink-300",
+  brand: "bg-brand-500",
+  success: "bg-success-500",
+  warning: "bg-warning-500",
+  danger: "bg-danger-500",
 };
 
-type Trend = {
-  value: string;
-  direction: "up" | "down" | "flat";
-  label?: string;
+const TONE_VALUE: Record<StatTone, string> = {
+  neutral: "text-ink-900",
+  brand: "text-ink-900",
+  success: "text-success-700",
+  warning: "text-warning-800",
+  danger: "text-danger-700",
 };
 
-export function KpiCard({
-  icon: Icon,
+type Trend = { value: string; direction: "up" | "down" | "flat"; label?: string; good?: "up" | "down" };
+
+/**
+ * One number, and what it is.
+ *
+ * `label` names the metric; `qualifier` names its basis (period, scope,
+ * "actual" vs "annualised") so the figure is never read without its units.
+ * `value` may be `null`, which renders as "Not available" — an absent figure
+ * must not look like a zero. With `href`, the whole tile drills through.
+ */
+export function Stat({
   label,
   value,
+  qualifier,
   hint,
-  tone = "indigo",
+  tone = "neutral",
   trend,
-  spark,
+  icon: Icon,
+  href,
   className,
   footer,
 }: {
-  icon: LucideIcon;
   label: string;
-  value: string | number;
-  hint?: string;
-  tone?: Tone;
+  value: ReactNode | null;
+  qualifier?: ReactNode;
+  hint?: ReactNode;
+  tone?: StatTone;
   trend?: Trend;
-  spark?: number[]; // 0-100 normalised values
+  icon?: LucideIcon;
+  href?: string;
   className?: string;
   footer?: ReactNode;
 }) {
-  const t = TONE[tone];
-  const TrendIcon =
-    trend?.direction === "up" ? ArrowUpRight : trend?.direction === "down" ? ArrowDownRight : Minus;
-  const trendColor =
-    trend?.direction === "up"
-      ? "text-success-600 bg-success-50 ring-success-100"
-      : trend?.direction === "down"
-        ? "text-danger-600 bg-danger-50 ring-danger-100"
-        : "text-ink-500 bg-ink-100 ring-ink-200";
-
-  return (
-    <div
-      className={cn(
-        "lift group relative overflow-hidden rounded-2xl border border-ink-200/70 bg-white p-5 shadow-soft ring-1 ring-ink-900/[0.03]",
-        "dark:border-white/[0.07] dark:bg-ink-900/70 dark:ring-white/[0.04] dark:shadow-[0_1px_0_rgba(0,0,0,0.4),0_16px_40px_rgba(0,0,0,0.4)]",
-        className,
-      )}
-    >
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-gradient-to-br opacity-80 blur-2xl transition-opacity group-hover:opacity-100",
-          t.gradient,
+  const good = trend?.good ?? "up";
+  const TrendIcon = trend?.direction === "up" ? ArrowUpRight : trend?.direction === "down" ? ArrowDownRight : Minus;
+  const trendTone =
+    !trend || trend.direction === "flat"
+      ? "text-ink-500"
+      : trend.direction === good
+        ? "text-success-700"
+        : "text-danger-700";
+  const body = (
+    <>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-ink-500">
+        <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", TONE_DOT[tone])} aria-hidden />
+        {Icon ? <Icon size={13} className="text-ink-500" aria-hidden /> : null}
+        <span className="truncate">{label}</span>
+        {href ? <ChevronRight size={13} className="ml-auto flex-shrink-0 text-ink-300 transition-colors group-hover:text-ink-500" aria-hidden /> : null}
+      </div>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        {value === null || value === undefined ? (
+          <span className="text-sm font-medium text-ink-500">Not available</span>
+        ) : (
+          <span className={cn("num text-[22px] font-semibold leading-none tracking-tight", TONE_VALUE[tone])}>
+            {typeof value === "number" ? value.toLocaleString("en-IN") : value}
+          </span>
         )}
-      />
-      <div className="relative flex items-start justify-between">
-        <div
-          className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-xl bg-white ring-1 shadow-sm dark:bg-white/[0.04] dark:ring-white/10",
-            t.ring,
-          )}
-        >
-          <Icon size={18} strokeWidth={2} className={t.icon} />
-        </div>
-        {trend && (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
-              trendColor,
-              trend.direction === "up"
-                ? "dark:bg-success-500/10 dark:text-success-300 dark:ring-success-500/20"
-                : trend.direction === "down"
-                  ? "dark:bg-danger-500/10 dark:text-danger-300 dark:ring-danger-500/20"
-                  : "dark:bg-white/[0.06] dark:text-ink-200 dark:ring-white/10",
-            )}
-          >
-            <TrendIcon size={11} strokeWidth={2.5} />
+        {trend ? (
+          <span className={cn("inline-flex items-center gap-0.5 text-xs font-medium", trendTone)}>
+            <TrendIcon size={12} aria-hidden />
             {trend.value}
+            {trend.label ? <span className="font-normal text-ink-500">{trend.label}</span> : null}
           </span>
-        )}
+        ) : null}
       </div>
-      <p className="num relative mt-5 text-[2rem] font-bold leading-none tracking-tightest text-ink-900 dark:text-white">
-        {typeof value === "number" ? value.toLocaleString("en-IN") : value}
-      </p>
-      <div className="relative mt-2 flex items-center justify-between gap-3">
-        <p className="text-[13px] font-medium text-ink-700 dark:text-ink-200">{label}</p>
-        {trend?.label && (
-          <span className="text-[10px] font-medium text-ink-400 dark:text-ink-400">
-            {trend.label}
-          </span>
-        )}
-      </div>
-      {hint && (
-        <p className="relative mt-1.5 text-[11px] leading-relaxed text-ink-500 dark:text-ink-400">
-          {hint}
-        </p>
-      )}
-      {spark && spark.length > 1 && (
-        <Sparkline points={spark} tone={tone} className="relative mt-4 h-9 w-full" />
-      )}
-      {footer && (
-        <div className="relative mt-4 border-t border-ink-100 pt-3 dark:border-white/[0.06]">
-          {footer}
-        </div>
-      )}
-    </div>
+      {qualifier ? <p className="mt-1 text-[11.5px] text-ink-500">{qualifier}</p> : null}
+      {hint ? <div className="mt-1.5 text-xs leading-relaxed text-ink-500">{hint}</div> : null}
+      {footer ? <div className="mt-3 border-t border-ink-100 pt-2.5 text-xs">{footer}</div> : null}
+    </>
+  );
+  const cls = cn("group block rounded-xl border border-ink-200 bg-white p-4 shadow-soft", href && "lift", className);
+  return href ? (
+    <Link href={href} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }
 
-function Sparkline({ points, tone, className }: { points: number[]; tone: Tone; className?: string }) {
-  const w = 100;
-  const h = 28;
-  const max = Math.max(...points, 1);
-  const min = Math.min(...points, 0);
-  const range = Math.max(max - min, 1);
-  const step = w / Math.max(points.length - 1, 1);
-  const path = points
-    .map((p, i) => {
-      const x = i * step;
-      const y = h - ((p - min) / range) * h;
-      return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
-  const color =
-    tone === "indigo"
-      ? "#6366f1"
-      : tone === "violet"
-        ? "#a855f7"
-        : tone === "emerald"
-          ? "#16a34a"
-          : tone === "amber"
-            ? "#d97706"
-            : tone === "rose"
-              ? "#dc2626"
-              : tone === "sky"
-                ? "#0284c7"
-                : "#64748b";
-  const id = `spark-grad-${tone}`;
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={className} aria-hidden>
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${path} L ${w} ${h} L 0 ${h} Z`} fill={`url(#${id})`} />
-      <path d={path} fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+/** Kept for existing callers; maps the old tone names onto `Stat`. */
+export function KpiCard({
+  icon,
+  label,
+  value,
+  hint,
+  tone = "slate",
+  trend,
+  className,
+  footer,
+}: {
+  icon?: LucideIcon;
+  label: string;
+  value: string | number;
+  hint?: string;
+  tone?: "indigo" | "violet" | "emerald" | "amber" | "rose" | "sky" | "slate";
+  trend?: { value: string; direction: "up" | "down" | "flat"; label?: string };
+  spark?: number[];
+  className?: string;
+  footer?: ReactNode;
+}) {
+  const map: Record<string, StatTone> = {
+    indigo: "brand", violet: "brand", sky: "brand", emerald: "success", amber: "warning", rose: "danger", slate: "neutral",
+  };
+  return <Stat icon={icon} label={label} value={value} hint={hint} tone={map[tone]} trend={trend} className={className} footer={footer} />;
 }

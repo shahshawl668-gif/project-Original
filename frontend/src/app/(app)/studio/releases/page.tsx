@@ -19,7 +19,7 @@ import { RELEASE_VARIANT, studioReleaseApi, type EnvName } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
 const FIELD =
-  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-white";
+  "w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900";
 const MANAGE = new Set(["owner", "manager"]);
 const RANK: Record<EnvName, number> = { development: 0, test: 1, production: 2 };
 
@@ -47,14 +47,14 @@ export default function ReleasesPage() {
         <Card><CardContent className="space-y-3 py-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-ink-900 dark:text-white">This company is <span data-testid="environment">{env.data.environment}</span></h2>
+              <h2 className="text-base font-semibold text-ink-900">This company is <span data-testid="environment">{env.data.environment}</span></h2>
               <p className="text-xs text-ink-500">Releases go upward: development → test → production. A company holding real payroll stays production.</p>
             </div>
             {canManage ? <select aria-label="Environment" className={cn(FIELD, "max-w-[12rem]")} value={env.data.environment} onChange={(e) => void setEnv(e.target.value as EnvName)}>
               <option value="development">Development</option><option value="test">Test</option><option value="production">Production</option></select> : null}
           </div>
           <ul className="flex flex-wrap gap-2 text-xs">{env.data.companies.map((c) => (
-            <li key={c.id} className="rounded-full border border-ink-200 px-2.5 py-1 dark:border-white/10">{c.name} · <strong>{c.environment}</strong></li>))}</ul>
+            <li key={c.id} className="rounded-full border border-ink-200 px-2.5 py-1">{c.name} · <strong>{c.environment}</strong></li>))}</ul>
         </CardContent></Card>
       ) : null}
 
@@ -63,11 +63,11 @@ export default function ReleasesPage() {
       {!list.data ? <Skeleton className="h-32 w-full rounded-2xl" /> : list.data.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-ink-500"><GitBranch className="mx-auto mb-2" size={22} />No releases involve this company yet.</CardContent></Card>
       ) : (
-        <Card><CardContent className="py-2"><ul className="divide-y divide-ink-100 dark:divide-white/5">
+        <Card><CardContent className="py-2"><ul className="divide-y divide-ink-100">
           {list.data.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
               <div>
-                <Link href={`/studio/releases/${r.id}`} className="font-semibold text-brand-700 hover:underline dark:text-brand-300">{r.title}</Link>
+                <Link href={`/studio/releases/${r.id}`} className="font-semibold text-brand-700 hover:underline">{r.title}</Link>
                 <p className="flex items-center gap-1 text-xs text-ink-500">{r.source.name} ({r.source.environment}) <ArrowRight size={11} /> {r.target.name} ({r.target.environment}) · {r.items.length} item(s) · by {r.created_by} {fmtTime(r.created_at)}</p>
               </div>
               <Badge variant={RELEASE_VARIANT[r.status]}>{r.status.replace("_", " ")}</Badge>

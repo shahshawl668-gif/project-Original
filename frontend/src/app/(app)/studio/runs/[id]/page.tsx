@@ -5,12 +5,15 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, RotateCcw, XCircle } from "lucide-react";
+import { Eye, RotateCcw, XCircle } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { BackLink } from "@/components/layout/BackLink";
+import { ConfirmAction } from "@/components/studio/Controls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
 import { CountsFunnel, StatusBadge, fmtTime } from "@/components/studio/RunBits";
@@ -32,6 +35,7 @@ export default function StudioRunPage() {
   const [disposition, setDisposition] = useState<"" | "rejected" | "skipped">("");
   const [viewing, setViewing] = useState<Rejection | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const run = useQuery({
     queryKey: ["studio-run", entity?.id, id], queryFn: () => studioApi.run(id), enabled: !!entity && !!id, retry: false,
@@ -76,27 +80,37 @@ export default function StudioRunPage() {
 
   return (
     <div className="space-y-5">
+      <BackLink fallback="/studio/runs">All runs</BackLink>
       <PageHeader eyebrow="PeopleOps Studio · run" title={<span className="flex flex-wrap items-center gap-3">{runTitle(r)} <StatusBadge status={r.status} /></span>}
         description={`${r.actor.label} · queued ${fmtTime(r.queued_at)}${r.finished_at ? ` · finished ${fmtTime(r.finished_at)}` : ""}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link href="/studio/runs" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-sm"><ArrowLeft size={14} /> All runs</Link>
             {["queued", "running"].includes(r.status) && WRITE.has(activeRole ?? "") ? (
-              <button type="button" disabled={busy} onClick={() => void act(() => studioApi.cancel(r.id), "Cancellation requested")}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-danger-200 px-3 text-sm text-danger-700"><XCircle size={14} /> Cancel</button>
+              <Button variant="destructive-outline" disabled={busy} onClick={() => setConfirmCancel(true)}><XCircle size={14} /> Cancel run</Button>
             ) : null}
             {retryable && WRITE.has(activeRole ?? "") ? (
-              <button type="button" disabled={busy} onClick={() => void act(() => studioApi.retryRejected(r.id), "Rejected records queued again as a new run")}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white"><RotateCcw size={14} /> Retry rejected records</button>
+              <Button disabled={busy} onClick={() => void act(() => studioApi.retryRejected(r.id), "Rejected records queued again as a new run")}><RotateCcw size={14} /> Retry rejected records</Button>
             ) : null}
           </div>
         } />
       <StudioNav />
+      <ConfirmAction
+        open={confirmCancel}
+        onClose={() => setConfirmCancel(false)}
+        title="Cancel this run?"
+        consequence={r.kind === "workflow"
+          ? "The workflow stops before its next step, and any import or validation it started is asked to stop too. Steps already finished are not undone."
+          : r.status === "queued"
+            ? "It is cancelled before it starts; nothing from this batch is stored. Send the batch again when ready."
+            : "An import that has already started is not interrupted: it finishes this batch and the request is recorded against the run. Nothing already stored is rolled back."}
+        confirmLabel="Cancel run"
+        onConfirm={() => act(() => studioApi.cancel(r.id), "Cancellation requested")}
+      />
 
       {r.error ? (
         <AlertBanner variant={r.status === "failed" ? "error" : "warning"} title={r.error.message}>
           {r.error.recommended_action ? <><strong>What to do:</strong> {r.error.recommended_action}</> : null}
-          <span className="block pt-1 text-xs opacity-80">Error category: {r.error.category}{r.attempts > 1 ? ` · ${r.attempts} attempts` : ""}</span>
+          <span className="block pt-1 text-xs">Error category: {r.error.category}{r.attempts > 1 ? ` · ${r.attempts} attempts` : ""}</span>
         </AlertBanner>
       ) : null}
 
@@ -104,7 +118,7 @@ export default function StudioRunPage() {
 
       {r.counts ? (
         <Card><CardContent className="space-y-3 py-5">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Reconciliation</h2>
+          <h2 className="text-base font-semibold text-ink-900">Reconciliation</h2>
           <CountsFunnel counts={r.counts} />
         </CardContent></Card>
       ) : r.status === "queued" || r.status === "running" ? (
@@ -113,7 +127,7 @@ export default function StudioRunPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card><CardContent className="space-y-2 py-5 text-sm">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">Source and lineage</h2>
+          <h2 className="text-base font-semibold text-ink-900">Source and lineage</h2>
           <Row k="Source system" v={r.source.system} />
           <Row k="Source object" v={r.source.object} />
           <Row k="Batch id" v={r.source.batch_id} />
@@ -131,7 +145,7 @@ export default function StudioRunPage() {
         </CardContent></Card>
 
         <Card><CardContent className="space-y-2 py-5 text-sm">
-          <h2 className="text-base font-semibold text-ink-900 dark:text-white">What it led to</h2>
+          <h2 className="text-base font-semibold text-ink-900">What it led to</h2>
           {validationRun ? (
             <p><Link href={`/payroll/results?run=${encodeURIComponent(validationRun)}`} className="font-semibold text-brand-700 underline">Validation results</Link> — findings, coverage and “Why this result?” for this data.</p>
           ) : validationJob ? (
@@ -144,14 +158,14 @@ export default function StudioRunPage() {
           {r.links.ignored_columns?.length ? <p className="text-warning-800">Columns not recognised and ignored: {r.links.ignored_columns.join(", ")}</p> : null}
           {r.links.warnings?.length ? <ul className="list-disc pl-5 text-xs text-ink-600">{r.links.warnings.map((w) => <li key={w}>{w}</li>)}</ul> : null}
           {missing ? (
-            <div className={missing.count ? "rounded-lg border border-warning-200 bg-warning-50 p-2 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100" : "text-xs text-ink-500"}>
+            <div className={missing.count ? "rounded-lg border border-warning-200 bg-warning-50 p-2 text-xs text-warning-900" : "text-xs text-ink-500"}>
               {missing.count
                 ? <><strong>{missing.count} employee(s) stored here were not in this full fetch.</strong> Nothing was removed — the stream reports absences rather than acting on them. Check whether they left: {missing.employee_ids.join(", ")}{missing.count > missing.employee_ids.length ? " …" : ""}</>
                 : "Every employee stored here was in this full fetch."}
             </div>
           ) : null}
           {r.retries?.length ? (
-            <div className="pt-2"><p className="text-xs font-semibold uppercase text-ink-500">Retries</p>
+            <div className="pt-2"><p className="text-xs font-semibold text-ink-500">Retries</p>
               <ul className="text-xs">{r.retries.map((x) => <li key={x.id}><Link className="text-brand-700 underline" href={`/studio/runs/${x.id}`}>{fmtTime(x.queued_at)}</Link> — {x.status}</li>)}</ul></div>
           ) : null}
         </CardContent></Card>
@@ -160,7 +174,7 @@ export default function StudioRunPage() {
       {["import", "sync"].includes(r.kind) ? (
         <Card><CardContent className="space-y-3 py-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold text-ink-900 dark:text-white">Records not stored</h2>
+            <h2 className="text-base font-semibold text-ink-900">Records not stored</h2>
             <select aria-label="Show" className="rounded-lg border border-ink-200 px-2 py-1 text-sm" value={disposition}
               onChange={(e) => { setDisposition(e.target.value as typeof disposition); setPage(1); }}>
               <option value="">Rejected and skipped</option><option value="rejected">Rejected</option><option value="skipped">Skipped</option>
@@ -175,18 +189,18 @@ export default function StudioRunPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase tracking-wide text-ink-500">
+                <thead className="text-left text-xs text-ink-500">
                   <tr><th className="py-1 pr-3">Row</th><th className="py-1 pr-3">Employee</th><th className="py-1 pr-3">Outcome</th>
                     <th className="py-1 pr-3">Field</th><th className="py-1 pr-3">Reason</th><th className="py-1 pr-3">Source record</th><th className="py-1" /></tr>
                 </thead>
-                <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+                <tbody className="divide-y divide-ink-100">
                   {rejections.data.items.map((x) => (
                     <tr key={x.id}>
                       <td className="py-1.5 pr-3 tabular-nums">{x.row_number}</td>
                       <td className="py-1.5 pr-3 font-mono text-xs">{x.record_key ?? "—"}</td>
                       <td className="py-1.5 pr-3 text-xs">{x.disposition === "skipped" ? "Skipped" : "Rejected"} · {x.code.replace(/_/g, " ")}</td>
                       <td className="py-1.5 pr-3 font-mono text-xs">{x.field ?? "—"}</td>
-                      <td className="py-1.5 pr-3 text-xs">{x.message}{x.retried_in_run_id ? <span className="block text-ink-400">retried in <Link className="underline" href={`/studio/runs/${x.retried_in_run_id}`}>a later run</Link></span> : null}</td>
+                      <td className="py-1.5 pr-3 text-xs">{x.message}{x.retried_in_run_id ? <span className="block text-ink-500">retried in <Link className="underline" href={`/studio/runs/${x.retried_in_run_id}`}>a later run</Link></span> : null}</td>
                       <td className="py-1.5 pr-3 font-mono text-xs">{x.source_ref?.record_id ?? "—"}</td>
                       <td className="py-1.5 text-right">
                         {MANAGE.has(activeRole ?? "") && x.payload_retained ? (
@@ -226,7 +240,7 @@ export default function StudioRunPage() {
 
 function Row({ k, v, mono }: { k: string; v: string | null | undefined; mono?: boolean }) {
   return (
-    <p className="flex justify-between gap-3 border-b border-ink-100 py-1 last:border-0 dark:border-white/5">
+    <p className="flex justify-between gap-3 border-b border-ink-100 py-1 last:border-0">
       <span className="text-ink-500">{k}</span>
       <span className={mono ? "break-all text-right font-mono text-xs" : "text-right"}>{v || "—"}</span>
     </p>

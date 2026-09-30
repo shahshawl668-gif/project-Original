@@ -27,22 +27,28 @@ export function StudioNav() {
   ];
   const list = overview.data ? sections : FALLBACK;
   return (
-    <nav aria-label="Studio sections" className="-mx-1 flex flex-wrap gap-1 border-b border-ink-100 pb-2 dark:border-white/10">
-      {list.map((s) => {
-        const active = s.href === "/studio" ? pathname === "/studio" : !!s.href && pathname.startsWith(s.href);
-        return s.available && s.href ? (
-          <Link key={s.key} href={s.href}
-            className={cn("rounded-lg px-3 py-1.5 text-sm font-medium",
-              active ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/5")}>
-            {s.label}
-          </Link>
-        ) : (
-          <span key={s.key} title={s.summary} aria-disabled="true"
-            className="cursor-not-allowed rounded-lg px-3 py-1.5 text-sm text-ink-400 dark:text-ink-500">
-            {s.label} <span className="text-[10px] uppercase tracking-wide">· not in this release</span>
-          </span>
-        );
-      })}
+    <nav aria-label="Studio sections" className="scrollbar-thin -mx-1 overflow-x-auto border-b border-ink-200">
+      <ul className="flex min-w-max gap-1 px-1">
+        {list.map((s) => {
+          const active = s.href === "/studio" ? pathname === "/studio" : !!s.href && pathname.startsWith(s.href);
+          return (
+            <li key={s.key}>
+              {s.available && s.href ? (
+                <Link href={s.href} aria-current={active ? "page" : undefined}
+                  className={cn("-mb-px inline-flex h-10 items-center border-b-2 px-3 text-[13px] font-medium transition-colors duration-fast",
+                    active ? "border-brand-600 text-ink-900" : "border-transparent text-ink-600 hover:border-ink-300 hover:text-ink-900")}>
+                  {s.label}
+                </Link>
+              ) : (
+                <span title={s.summary} aria-disabled="true"
+                  className="-mb-px inline-flex h-10 cursor-not-allowed items-center border-b-2 border-transparent px-3 text-[13px] text-ink-500">
+                  {s.label}<span className="ml-1 text-[11px]">· not in this release</span>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }

@@ -140,7 +140,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Request-Id"],
+    # A download's filename says which company, report and date it holds; the
+    # browser hides it from a cross-origin page unless it is exposed.
+    expose_headers=["X-Request-Id", "Content-Disposition"],
     max_age=600,
 )
 

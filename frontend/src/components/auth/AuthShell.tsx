@@ -73,7 +73,7 @@ export function AuthShell({
           </div>
 
           <div className="relative z-10 mt-auto">
-            <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.25em] text-white/60">
+            <p className="mb-4 text-[11px] font-semibold text-white/60">
               For HR &amp; Finance teams in India
             </p>
             <h2 className="font-display text-balance text-[42px] font-bold leading-[1.05] tracking-tightest text-white">
@@ -82,7 +82,7 @@ export function AuthShell({
                   Audit-grade payroll
                   <br />
                   validation,{" "}
-                  <span className="bg-gradient-to-r from-sky-200 via-cyan-200 to-white bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-brand-200 via-cyan-200 to-white bg-clip-text text-transparent">
                     in one click.
                   </span>
                 </>
@@ -110,7 +110,7 @@ export function AuthShell({
           </div>
 
           <div className="relative z-10 mt-12 overflow-hidden">
-            <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/40">
+            <p className="mb-2.5 text-[11px] font-semibold text-white/40">
               Built for industries
             </p>
             <div className="relative">
@@ -140,7 +140,7 @@ export function AuthShell({
           />
           <div className="mx-auto w-full max-w-[440px]">
             <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-soft">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-soft">
                 <Sparkles size={17} strokeWidth={2.25} />
               </span>
               <span className="font-display text-base font-bold tracking-tight text-ink-900">

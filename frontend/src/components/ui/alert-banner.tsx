@@ -4,27 +4,11 @@ import { cn } from "@/lib/utils";
 
 type AlertVariant = "success" | "error" | "warning" | "info";
 
-const styles: Record<AlertVariant, { wrap: string; iconWrap: string; icon: string }> = {
-  success: {
-    wrap: "border-success-200/80 bg-gradient-to-br from-success-50 to-white text-success-900 dark:border-success-500/25 dark:from-success-500/10 dark:to-ink-900/40 dark:text-success-100",
-    iconWrap: "bg-success-500/10 ring-1 ring-success-500/30",
-    icon: "text-success-600 dark:text-success-400",
-  },
-  error: {
-    wrap: "border-danger-200/80 bg-gradient-to-br from-danger-50 to-white text-danger-900 dark:border-danger-500/25 dark:from-danger-500/10 dark:to-ink-900/40 dark:text-danger-100",
-    iconWrap: "bg-danger-500/10 ring-1 ring-danger-500/30",
-    icon: "text-danger-600 dark:text-danger-400",
-  },
-  warning: {
-    wrap: "border-warning-200/80 bg-gradient-to-br from-warning-50 to-white text-warning-950 dark:border-warning-500/30 dark:from-warning-500/10 dark:to-ink-900/40 dark:text-warning-100",
-    iconWrap: "bg-warning-500/10 ring-1 ring-warning-500/40",
-    icon: "text-warning-600 dark:text-warning-400",
-  },
-  info: {
-    wrap: "border-brand-200/70 bg-gradient-to-br from-brand-50 to-white text-ink-800 dark:border-brand-500/25 dark:from-brand-500/10 dark:to-ink-900/40 dark:text-ink-100",
-    iconWrap: "bg-brand-500/10 ring-1 ring-brand-500/30",
-    icon: "text-brand-600 dark:text-brand-300",
-  },
+const styles: Record<AlertVariant, { wrap: string; icon: string }> = {
+  success: { wrap: "border-success-200 bg-success-50 text-success-950", icon: "text-success-600" },
+  error: { wrap: "border-danger-200 bg-danger-50 text-danger-950", icon: "text-danger-600" },
+  warning: { wrap: "border-warning-200 bg-warning-50 text-warning-950", icon: "text-warning-600" },
+  info: { wrap: "border-brand-200 bg-brand-50 text-ink-800", icon: "text-brand-600" },
 };
 
 const icons: Record<AlertVariant, typeof CheckCircle2> = {
@@ -39,32 +23,36 @@ type AlertBannerProps = {
   title?: string;
   children: ReactNode;
   className?: string;
+  /** Technical detail, kept behind a disclosure so the plain message leads. */
+  details?: ReactNode;
+  action?: ReactNode;
 };
 
-export function AlertBanner({ variant, title, children, className }: AlertBannerProps) {
+/**
+ * An inline message. Only errors interrupt a screen reader (`role="alert"`);
+ * the rest are announced politely, so a page with three notices does not
+ * shout three times on load.
+ */
+export function AlertBanner({ variant, title, children, className, details, action }: AlertBannerProps) {
   const s = styles[variant];
   const Icon = icons[variant];
   return (
     <div
-      role="alert"
-      className={cn(
-        "flex items-start gap-3 rounded-2xl border p-4 text-sm leading-relaxed shadow-soft",
-        s.wrap,
-        className,
-      )}
+      role={variant === "error" ? "alert" : "status"}
+      className={cn("flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-[13px] leading-relaxed", s.wrap, className)}
     >
-      <span
-        className={cn(
-          "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl",
-          s.iconWrap,
-        )}
-      >
-        <Icon className={cn("h-4 w-4", s.icon)} aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1 pt-0.5">
-        {title ? <p className="font-display text-[14px] font-semibold">{title}</p> : null}
-        <div className={cn("text-[13px]", title && "mt-1")}>{children}</div>
+      <Icon className={cn("mt-0.5 h-4 w-4 flex-shrink-0", s.icon)} aria-hidden />
+      <div className="min-w-0 flex-1">
+        {title ? <p className="font-semibold">{title}</p> : null}
+        <div className={cn(title && "mt-0.5")}>{children}</div>
+        {details ? (
+          <details className="mt-1.5 text-xs">
+            <summary className="cursor-pointer select-none text-ink-600 hover:text-ink-900">Technical details</summary>
+            <div className="mt-1.5 break-words font-mono text-[11px] text-ink-600">{details}</div>
+          </details>
+        ) : null}
       </div>
+      {action ? <div className="flex-shrink-0">{action}</div> : null}
     </div>
   );
 }

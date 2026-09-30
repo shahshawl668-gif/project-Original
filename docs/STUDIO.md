@@ -597,7 +597,10 @@ environment's own secrets live.
 * **Environments are companies, not a flag on each object.** Phase 1 put an
   `environment` label on service accounts, keys, connections and runs; that
   label stays, but separation is enforced by company, because that is where
-  data and secrets already live and are already isolated.
+  data and secrets already live and are already isolated. Since PR #43 a
+  service account's environment must also match every company it names:
+  new keys take the selected company's environment, and each integration
+  request is checked against it (`STUDIO_INTEGRATION_ARCHITECTURE.md`).
 * **Independent approval is unconditional for releases.** Mappings and
   workflows follow the organisation's policy; a release — which changes
   production for everyone — always needs a second person. A one-person
@@ -609,6 +612,16 @@ environment's own secrets live.
 ---
 
 ## 6. Quick starts
+
+**How the screens mark actions.** A test (a flask on a plain outline button)
+changes nothing. Anything that stops, replaces or publishes something opens a
+confirmation stating the consequence as the server implements it — for
+example, cancelling an import that has already started does not interrupt it
+(only a queued run is stopped; a workflow stops before its next step), and a
+disabled webhook still sends deliveries already queued. Secrets shown once are
+masked until revealed and copy in full either way. The section bar marks the
+current section; sections not in this release are listed, greyed, and are not
+links.
 
 ### Administrator (no developer needed)
 

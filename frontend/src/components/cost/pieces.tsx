@@ -27,28 +27,28 @@ export function StatTile({
   // for the reader rather than its arithmetic sign.
   const deltaTone =
     delta === undefined || delta === 0
-      ? "text-ink-500 dark:text-ink-400"
+      ? "text-ink-500"
       : (tone === "cost") === delta > 0
-        ? "text-danger-600 dark:text-danger-400"
-        : "text-success-700 dark:text-success-400";
+        ? "text-danger-600"
+        : "text-success-700";
 
   return (
     <Card>
       <CardContent className="space-y-1 py-4">
-        <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+        <span className="flex items-center gap-2 text-[11px] font-semibold text-ink-500">
           <Icon size={13} /> {label}
         </span>
-        <p className="font-display text-2xl font-semibold tabular-nums text-ink-900 dark:text-white">
+        <p className="font-display text-2xl font-semibold tabular-nums text-ink-900">
           {value}
         </p>
         {delta !== undefined ? (
           <p className={cn("text-xs font-medium tabular-nums", deltaTone)}>
             {formatDelta(delta)}
-            {deltaPct !== undefined && <span className="ml-1.5 opacity-80">{formatPct(deltaPct)}</span>}
-            {hint && <span className="ml-1.5 font-normal text-ink-500 dark:text-ink-400">{hint}</span>}
+            {deltaPct !== undefined && <span className="ml-1.5">{formatPct(deltaPct)}</span>}
+            {hint && <span className="ml-1.5 font-normal text-ink-500">{hint}</span>}
           </p>
         ) : (
-          hint && <p className="text-xs text-ink-500 dark:text-ink-400">{hint}</p>
+          hint && <p className="text-xs text-ink-500">{hint}</p>
         )}
       </CardContent>
     </Card>
@@ -74,9 +74,9 @@ export function Panel({
       <CardContent className="py-5">
         <div className="flex items-start justify-between gap-4 pb-3">
           <div className="space-y-1">
-            <h3 className="text-base font-semibold text-ink-900 dark:text-white">{title}</h3>
+            <h3 className="text-base font-semibold text-ink-900">{title}</h3>
             {description && (
-              <p className="text-xs text-ink-500 dark:text-ink-400">{description}</p>
+              <p className="text-xs text-ink-500">{description}</p>
             )}
           </div>
           {actions}
@@ -109,7 +109,7 @@ export function MeasureTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-ink-200 text-[10px] uppercase tracking-wide text-ink-400 dark:border-white/10">
+          <tr className="border-b border-ink-200 text-[11px] text-ink-500">
             <th className="py-2 text-left font-semibold">Component</th>
             <th className="py-2 text-right font-semibold">Amount</th>
             <th className="py-2 text-right font-semibold">Share</th>
@@ -117,29 +117,29 @@ export function MeasureTable({
         </thead>
         <tbody className="tabular-nums">
           {rows.map((row) => (
-            <tr key={row.key} className="border-b border-ink-100 last:border-0 dark:border-white/5">
+            <tr key={row.key} className="border-b border-ink-100 last:border-0">
               <td className="py-2 pr-3">
-                <span className="text-ink-800 dark:text-ink-100">{row.label}</span>
+                <span className="text-ink-800">{row.label}</span>
                 {row.hint && (
-                  <span className="block text-[11px] text-ink-500 dark:text-ink-400">{row.hint}</span>
+                  <span className="block text-[11px] text-ink-500">{row.hint}</span>
                 )}
               </td>
-              <td className="py-2 text-right align-top text-ink-900 dark:text-white">
+              <td className="py-2 text-right align-top text-ink-900">
                 {formatINR(row.amount, true)}
               </td>
-              <td className="py-2 text-right align-top text-ink-500 dark:text-ink-400">
+              <td className="py-2 text-right align-top text-ink-500">
                 {denominator ? `${((row.amount / denominator) * 100).toFixed(1)}%` : "—"}
               </td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr className="border-t-2 border-ink-300 font-semibold dark:border-white/20">
-            <td className="py-2 text-ink-900 dark:text-white">{totalLabel}</td>
-            <td className="py-2 text-right tabular-nums text-ink-900 dark:text-white">
+          <tr className="border-t-2 border-ink-300 font-semibold">
+            <td className="py-2 text-ink-900">{totalLabel}</td>
+            <td className="py-2 text-right tabular-nums text-ink-900">
               {formatINR(total, true)}
             </td>
-            <td className="py-2 text-right text-ink-500 dark:text-ink-400">
+            <td className="py-2 text-right text-ink-500">
               {denominator ? `${((total / denominator) * 100).toFixed(1)}%` : "—"}
             </td>
           </tr>
@@ -289,7 +289,7 @@ export function DivergingBar(props: {
 /** A one-line hint that a chart responds to being clicked. */
 export function ClickHint({ children }: { children: React.ReactNode }) {
   return (
-    <p className="pb-2 text-[11px] text-ink-500 dark:text-ink-400">
+    <p className="pb-2 text-[11px] text-ink-500">
       <span aria-hidden>↘ </span>{children}
     </p>
   );
