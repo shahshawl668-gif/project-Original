@@ -153,7 +153,7 @@ export default function MappingEditorPage() {
         <datalist id="target-fields">{(targets.data?.targets ?? []).map((t) => <option key={t.target} value={t.target} />)}</datalist>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] text-xs">
-            <thead className="text-left uppercase tracking-wide text-ink-500"><tr><th className="py-1 pr-2">Product field</th><th className="pr-2">From</th><th className="pr-2">Read as</th><th className="pr-2">Required</th><th className="pr-2">Default</th><th className="pr-2">Format / pad / codes</th><th className="pr-2">Lookup (from=to per line)</th><th className="pr-2">Formula or condition</th><th /></tr></thead>
+            <thead className="text-left text-ink-500 [&_th]:font-medium"><tr><th className="py-1 pr-2">Product field</th><th className="pr-2">From</th><th className="pr-2">Read as</th><th className="pr-2">Required</th><th className="pr-2">Default</th><th className="pr-2">Format / pad / codes</th><th className="pr-2">Lookup (from=to per line)</th><th className="pr-2">Formula or condition</th><th /></tr></thead>
             <tbody className="divide-y divide-ink-100 align-top">
               {spec.fields.map((f, i) => (
                 <tr key={i}>
@@ -205,7 +205,7 @@ export default function MappingEditorPage() {
             <p className="text-sm"><strong>{preview.mapped}</strong> of {preview.rows} record(s) map cleanly; <strong className={preview.rejected ? "text-danger-700" : ""}>{preview.rejected}</strong> would be rejected.{preview.truncated ? " (First 200 shown.)" : ""}</p>
             <div className="max-h-96 overflow-auto rounded-lg border border-ink-200">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-ink-50 text-left uppercase tracking-wide text-ink-500"><tr><th className="px-2 py-1">Row</th><th className="px-2">Result</th><th className="px-2">Output / errors</th></tr></thead>
+                <thead className="sticky top-0 bg-ink-50 text-left text-ink-500 [&_th]:font-medium"><tr><th className="px-2 py-1">Row</th><th className="px-2">Result</th><th className="px-2">Output / errors</th></tr></thead>
                 <tbody className="divide-y divide-ink-100">
                   {preview.results.map((r) => (
                     <tr key={r.row} className={r.errors.length ? "bg-danger-50/50" : ""}>

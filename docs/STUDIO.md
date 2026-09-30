@@ -610,6 +610,16 @@ environment's own secrets live.
 
 ## 6. Quick starts
 
+**How the screens mark actions.** A test (a flask on a plain outline button)
+changes nothing. Anything that stops, replaces or publishes something opens a
+confirmation stating the consequence as the server implements it — for
+example, cancelling an import that has already started does not interrupt it
+(only a queued run is stopped; a workflow stops before its next step), and a
+disabled webhook still sends deliveries already queued. Secrets shown once are
+masked until revealed and copy in full either way. The section bar marks the
+current section; sections not in this release are listed, greyed, and are not
+links.
+
 ### Administrator (no developer needed)
 
 1. **Studio → API Centre → New service account.** Name it after the system

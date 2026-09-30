@@ -5,12 +5,15 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Link2, PlayCircle, Plus, RefreshCcw, Undo2, Wifi } from "lucide-react";
+import { Link2, PlayCircle, Plus, RefreshCcw, Undo2 } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/layout/BackLink";
+import { ConfirmAction, TestButton } from "@/components/studio/Controls";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
@@ -35,6 +38,7 @@ export default function ConnectionPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [creds, setCreds] = useState<Record<string, string>>({});
+  const [confirm, setConfirm] = useState<{ kind: "disable" } | { kind: "replace" } | { kind: "reset"; stream: Stream } | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ["studio-connection", entity?.id, id] });
 
   if (q.error) {
@@ -61,13 +65,15 @@ export default function ConnectionPage() {
 
   return (
     <div className="space-y-5">
+      <BackLink fallback="/studio/connections">All connections</BackLink>
       <PageHeader eyebrow="PeopleOps Studio · connection" title={<span className="flex flex-wrap items-center gap-3">{c.name} <HealthBadge health={c.health} />{c.status !== "active" ? <Badge variant="destructive">disabled</Badge> : null}</span>}
         description={`${c.system_kind.replace("_", " ")} · ${c.provider === "rest" ? c.base_url : "file uploads"} · ${c.environment} · inbound: the external system is the source of truth for what it sends`}
         actions={<div className="flex flex-wrap gap-2">
-          <Link href="/studio/connections" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-sm"><ArrowLeft size={14} /> All</Link>
-          {c.provider === "rest" && canWrite ? <button type="button" disabled={busy} onClick={() => void test()} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-sm"><Wifi size={14} /> Test connection</button> : null}
-          {c.auth_method === "oauth2_authorization_code" && canManage ? <button type="button" disabled={busy} onClick={() => void connect()} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white"><Link2 size={14} /> {c.oauth?.connected ? "Reconnect" : "Connect"}</button> : null}
-          {canManage ? <button type="button" disabled={busy} onClick={() => void act(() => studioConnApi.update(c.id, { status: c.status === "active" ? "disabled" : "active" }), c.status === "active" ? "Disabled — schedules stop" : "Enabled")} className="h-9 rounded-lg border border-ink-200 px-3 text-sm">{c.status === "active" ? "Disable" : "Enable"}</button> : null}
+          {c.provider === "rest" && canWrite ? <TestButton size="default" disabled={busy} onClick={() => void test()}>Test connection</TestButton> : null}
+          {c.auth_method === "oauth2_authorization_code" && canManage ? <Button disabled={busy} onClick={() => void connect()}><Link2 size={14} /> {c.oauth?.connected ? "Reconnect" : "Connect"}</Button> : null}
+          {canManage ? (c.status === "active"
+            ? <Button variant="destructive-outline" disabled={busy} onClick={() => setConfirm({ kind: "disable" })}>Disable</Button>
+            : <Button variant="outline" disabled={busy} onClick={() => void act(() => studioConnApi.update(c.id, { status: "active" }), "Enabled")}>Enable</Button>) : null}
         </div>} />
       <StudioNav />
 
@@ -86,7 +92,7 @@ export default function ConnectionPage() {
             <div className="space-y-2 border-t border-ink-100 pt-2">
               <p className="text-xs font-semibold">Rotate credentials</p>
               {Object.keys(c.secret_hint).map((k) => <input key={k} type="password" autoComplete="off" aria-label={`New ${k}`} placeholder={`New ${k.replace(/_/g, " ")}`} className={FIELD} value={creds[k] ?? ""} onChange={(e) => setCreds({ ...creds, [k]: e.target.value })} />)}
-              <button type="button" disabled={busy || !Object.values(creds).some(Boolean)} onClick={() => void act(() => studioConnApi.update(c.id, { secrets: creds }), "Credentials replaced").then(() => setCreds({}))} className="rounded-lg border border-brand-300 px-3 py-1.5 text-xs font-semibold text-brand-700 disabled:opacity-40">Replace</button>
+              <Button size="sm" variant="destructive-outline" disabled={busy || !Object.values(creds).some(Boolean)} onClick={() => setConfirm({ kind: "replace" })}>Replace credentials</Button>
             </div>
           ) : null}
         </CardContent></Card>
@@ -105,7 +111,7 @@ export default function ConnectionPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div><h2 className="text-base font-semibold text-ink-900">Streams</h2>
             <p className="text-xs text-ink-500">Each stream is one kind of record: where it is read from, how it is paged, which mapping reads it, and when it runs.</p></div>
-          {canManage && !adding && c.provider === "rest" ? <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white"><Plus size={14} /> Add stream</button> : null}
+          {canManage && !adding && c.provider === "rest" ? <Button onClick={() => setAdding(true)}><Plus size={14} /> Add stream</Button> : null}
         </div>
         {adding ? <StreamForm connection={c} onDone={() => { setAdding(false); void refresh(); }} /> : null}
         {c.streams.length === 0 && !adding ? <p className="text-sm text-ink-500">{c.provider === "rest" ? "No streams yet." : "File connections have no streams: upload files in Data mapping."}</p> : null}
@@ -122,14 +128,38 @@ export default function ConnectionPage() {
                 <p className="text-xs text-ink-500">Checkpoint: {s.checkpoint.watermark ? <code>{s.checkpoint.watermark}</code> : "none"}{s.checkpoint.at ? ` · committed ${fmtTime(s.checkpoint.at)}` : ""}{s.last_run_id ? <> · <Link className="underline" href={`/studio/runs/${s.last_run_id}`}>last run</Link></> : null}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {canWrite ? <button type="button" disabled={busy} onClick={() => void test(s.id)} className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-2.5 py-1 text-xs"><Wifi size={12} /> Test</button> : null}
-                {canWrite ? <button type="button" disabled={busy || c.status !== "active"} onClick={() => void act(() => studioConnApi.syncNow(s.id), "Sync queued")} className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white"><PlayCircle size={12} /> Sync now</button> : null}
-                {canManage ? <button type="button" onClick={() => setEditing(s.id)} className="rounded-lg border border-ink-200 px-2.5 py-1 text-xs">Edit</button> : null}
-                {canManage && s.checkpoint.watermark ? <button type="button" disabled={busy} onClick={() => { if (window.confirm("Reset the checkpoint? The next sync fetches everything again; upsert makes that safe.")) void act(() => studioConnApi.resetCheckpoint(s.id), "Checkpoint reset"); }} className="inline-flex items-center gap-1 rounded-lg border border-ink-200 px-2.5 py-1 text-xs"><Undo2 size={12} /> Reset checkpoint</button> : null}
+                {canWrite ? <TestButton disabled={busy} onClick={() => void test(s.id)}>Test</TestButton> : null}
+                {canWrite ? <Button size="sm" disabled={busy || c.status !== "active"} onClick={() => void act(() => studioConnApi.syncNow(s.id), "Sync queued")}><PlayCircle size={13} /> Sync now</Button> : null}
+                {canManage ? <Button size="sm" variant="ghost" onClick={() => setEditing(s.id)}>Edit</Button> : null}
+                {canManage && s.checkpoint.watermark ? <Button size="sm" variant="destructive-outline" disabled={busy} onClick={() => setConfirm({ kind: "reset", stream: s })}><Undo2 size={13} /> Reset checkpoint</Button> : null}
               </div>
             </div>
           </div>
         ))}
+        <ConfirmAction
+          open={confirm?.kind === "disable"}
+          onClose={() => setConfirm(null)}
+          title={`Disable ${c.name}?`}
+          consequence="Scheduled syncs on every stream stop and Sync now is refused until it is enabled again. Stored records and checkpoints are kept."
+          confirmLabel="Disable connection"
+          onConfirm={() => act(() => studioConnApi.update(c.id, { status: "disabled" }), "Disabled — schedules stop")}
+        />
+        <ConfirmAction
+          open={confirm?.kind === "replace"}
+          onClose={() => setConfirm(null)}
+          title="Replace the stored credentials?"
+          consequence="The next call uses the new values. The old ones are overwritten and cannot be shown or restored. Test the connection afterwards."
+          confirmLabel="Replace credentials"
+          onConfirm={() => act(() => studioConnApi.update(c.id, { secrets: creds }), "Credentials replaced").then(() => setCreds({}))}
+        />
+        <ConfirmAction
+          open={confirm?.kind === "reset"}
+          onClose={() => setConfirm(null)}
+          title={confirm?.kind === "reset" ? `Reset the checkpoint on ${confirm.stream.name}?` : ""}
+          consequence="The next sync fetches everything again instead of only what changed. Records already stored are reported unchanged, not duplicated, but the run takes longer."
+          confirmLabel="Reset checkpoint"
+          onConfirm={() => confirm?.kind === "reset" ? act(() => studioConnApi.resetCheckpoint(confirm.stream.id), "Checkpoint reset") : undefined}
+        />
         <p className="text-xs text-ink-500"><RefreshCcw size={11} className="inline" /> The checkpoint moves only when a run stores its records, in the same transaction. A failed run leaves it where it was, so nothing is skipped; replaying stored records reports them unchanged, never duplicated.</p>
       </CardContent></Card>
     </div>

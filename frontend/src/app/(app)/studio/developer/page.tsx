@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
 import { StudioNav } from "@/components/studio/StudioNav";
+import { TestButton } from "@/components/studio/Controls";
 import { studioDevApi, type FormulaResult, type WorkflowCondition } from "@/lib/studio";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,7 @@ export default function DeveloperPage() {
   const ref = useQuery({ queryKey: ["studio-dev-ref", entity?.id], queryFn: studioDevApi.reference, enabled: !!entity });
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="PeopleOps Studio" title="Developer workspace"
+      <PageHeader title="Developer workspace"
         description="Test formulas, conditions and lookups on sample rows before they go into a mapping, a rule or a workflow. The same evaluators the product runs; nothing is stored." />
       <StudioNav />
       <FormulaTester />
@@ -77,14 +78,14 @@ function FormulaTester() {
         <label className="text-xs font-semibold text-ink-700">Expression<input aria-label="Expression" className={cn(FIELD, "mt-1 font-mono")} value={expression} onChange={(e) => setExpression(e.target.value)} /></label>
         <label className="text-xs font-semibold text-ink-700">Sample rows (JSON)<textarea aria-label="Formula sample" className={cn(FIELD, "mt-1 h-20 font-mono text-xs")} value={sample} onChange={(e) => setSample(e.target.value)} /></label>
       </div>
-      <button type="button" onClick={() => void run()} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white">Test</button>
+      <TestButton onClick={() => void run()}>Try it</TestButton>
       {out ? (
         <div className="space-y-2 text-sm" data-testid="formula-result">
           {out.ok ? (
             <p><strong>In words:</strong> {out.in_words}. <span className="text-ink-500">Reads {out.variables?.join(", ") || "nothing"}{out.functions?.length ? `; calls ${out.functions.join(", ")}` : ""}.</span></p>
           ) : <AlertBanner variant="error" title="Refused">{out.error}</AlertBanner>}
           {out.results.length ? (
-            <table className="w-full text-xs"><thead className="text-left uppercase text-ink-500"><tr><th className="py-1">Row</th><th>Result</th><th>Read</th></tr></thead>
+            <table className="w-full text-xs"><thead className="text-left text-ink-500"><tr><th className="py-1 font-medium">Row</th><th>Result</th><th>Read</th></tr></thead>
               <tbody className="divide-y divide-ink-100">{out.results.map((r) => (
                 <tr key={r.row} className={r.error ? "text-danger-700" : ""}><td className="py-1">{r.row}</td><td className="font-mono">{r.error ?? r.value}</td>
                   <td className="font-mono">{r.inputs ? JSON.stringify(r.inputs) : ""}</td></tr>))}</tbody></table>
@@ -117,7 +118,7 @@ function ConditionTester() {
       ))}
       <button type="button" className="text-xs underline" onClick={() => setConds([...conds, { field: "data.status", op: "eq", value: "" }])}>+ condition</button>
       <textarea aria-label="Condition sample" className={cn(FIELD, "h-16 font-mono text-xs")} value={sample} onChange={(e) => setSample(e.target.value)} />
-      <button type="button" onClick={() => void run()} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white">Test</button>
+      <TestButton onClick={() => void run()}>Try it</TestButton>
       {out ? (out.ok ? (
         <ul className="text-xs" data-testid="condition-result">{out.results.map((r) => (
           <li key={r.row}>Row {r.row}: <strong>{r.holds ? "matches" : "does not match"}</strong> — {r.conditions.map((c) => `${c.field} is ${JSON.stringify(c.actual)}`).join("; ")}</li>))}</ul>
@@ -145,7 +146,7 @@ function LookupTester() {
         <select aria-label="If unmatched" className={FIELD} value={policy} onChange={(e) => setPolicy(e.target.value)}>
           <option value="reject">No match → reject</option><option value="keep">No match → keep</option><option value="blank">No match → absent</option></select>
       </div>
-      <button type="button" onClick={() => void run()} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white">Test</button>
+      <TestButton onClick={() => void run()}>Try it</TestButton>
       {out ? (out.ok ? (
         <ul className="text-xs" data-testid="lookup-result">{out.results.map((r) => (
           <li key={r.row} className={r.error ? "text-danger-700" : ""}>{String(r.value)} → {r.error ?? (r.result === null || r.result === undefined ? "absent" : String(r.result))}{!r.error && r.matched === false ? " (kept: no match)" : ""}</li>))}</ul>

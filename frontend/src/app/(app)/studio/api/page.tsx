@@ -3,16 +3,18 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Copy, KeyRound, Plus, RotateCcw, ShieldOff, TriangleAlert } from "lucide-react";
+import { KeyRound, Plus, RotateCcw, ShieldOff } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/studio/Markdown";
 import { StudioNav } from "@/components/studio/StudioNav";
+import { ConfirmAction, CopyButton, SecretOnce } from "@/components/studio/Controls";
 import { fmtTime } from "@/components/studio/RunBits";
 import {
   integrationBaseUrl,
@@ -35,21 +37,12 @@ const PRESETS: { label: string; scopes: string[] }[] = [
   { label: "Read results and BI", scopes: ["validation:read", "bi:read", "signoff:read"] },
 ];
 
-async function copy(text: string, what = "Copied") {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success(what);
-  } catch {
-    toast.error("Could not copy — select the text and copy it by hand");
-  }
-}
-
 export default function ApiCentrePage() {
   const { activeRole } = useEntity();
   const canManage = MANAGE.has(activeRole ?? "");
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow="PeopleOps Studio" title="API Centre"
+      <PageHeader title="API Centre"
         description="Machine identities for the systems that send you data, the keys they use, and the documented, versioned integration API they call." />
       <StudioNav />
       {canManage ? <Accounts /> : (
@@ -84,9 +77,7 @@ function Accounts() {
           <p className="text-xs text-ink-500">A service account is a machine, not a person: it cannot sign in, and it can only do what its scopes allow in the companies it names. It can never publish rules, waive or resolve findings, or sign off a month.</p>
         </div>
         {!creating ? (
-          <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white">
-            <Plus size={14} /> New service account
-          </button>
+          <Button onClick={() => setCreating(true)}><Plus size={14} /> New service account</Button>
         ) : null}
       </div>
       {issued ? <IssuedKey issued={issued} onClose={() => setIssued(null)} /> : null}
@@ -114,16 +105,10 @@ function Accounts() {
 
 function IssuedKey({ issued, onClose }: { issued: IssuedCredential; onClose: () => void }) {
   return (
-    <div role="alert" className="space-y-2 rounded-xl border-2 border-warning-300 bg-warning-50 p-4 text-sm text-warning-950">
-      <p className="flex items-center gap-2 font-semibold"><TriangleAlert size={16} /> Copy this key now — it will not be shown again</p>
-      <p className="text-xs">Store it in the sending system&apos;s secret store. PeopleOpsLab keeps only a fingerprint; nobody here can show it to you later. If it is lost, rotate it.</p>
-      <div className="flex items-center gap-2">
-        <code data-testid="issued-key" className="min-w-0 flex-1 break-all rounded bg-white px-2 py-1.5 font-mono text-xs text-ink-900">{issued.key}</code>
-        <button type="button" onClick={() => void copy(issued.key, "Key copied")} className="inline-flex items-center gap-1 rounded-lg border border-warning-400 px-2 py-1.5 text-xs font-semibold"><Copy size={12} /> Copy</button>
-      </div>
-      <p className="text-xs">Prefix <code>{issued.prefix}</code> · expires {new Date(issued.expires_at).toLocaleDateString("en-IN")}</p>
-      <button type="button" onClick={onClose} className="rounded-lg bg-warning-600 px-3 py-1.5 text-xs font-semibold text-white">I have stored it</button>
-    </div>
+    <SecretOnce title="API key" value={issued.key} testId="issued-key" onClose={onClose}>
+      Store it in the sending system&apos;s secret store. PeopleOpsLab keeps only a fingerprint; nobody here can show it to you later. If it is lost, rotate it.
+      {" "}Prefix <code>{issued.prefix}</code> · expires {new Date(issued.expires_at).toLocaleDateString("en-IN")}.
+    </SecretOnce>
   );
 }
 
@@ -177,7 +162,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
         <legend className="text-xs font-semibold text-ink-700">Scopes — grant the least it needs</legend>
         <div className="mt-1 flex flex-wrap gap-2">
           {PRESETS.map((p) => (
-            <button key={p.label} type="button" onClick={() => setChosen(p.scopes)} className="rounded-full border border-brand-300 px-2.5 py-0.5 text-xs text-brand-700">{p.label}</button>
+            <button key={p.label} type="button" onClick={() => setChosen(p.scopes)} className="rounded-full border border-brand-300 bg-white px-2.5 py-0.5 text-xs text-brand-700 hover:bg-brand-50">{p.label}</button>
           ))}
         </div>
         <div className="mt-2 grid gap-1.5 md:grid-cols-2">
@@ -191,9 +176,8 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
         </div>
       </fieldset>
       <div className="flex gap-2">
-        <button type="button" disabled={busy || name.trim().length < 2 || !companies.length || !chosen.length} onClick={() => void save()}
-          className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Create and issue a key</button>
-        <button type="button" onClick={onCancel} className="px-3 py-2 text-sm text-ink-600">Cancel</button>
+        <Button disabled={busy || name.trim().length < 2 || !companies.length || !chosen.length} onClick={() => void save()}>Create and issue a key</Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
   );
@@ -201,6 +185,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
 
 function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount; onIssued: (k: IssuedCredential) => void; onChanged: () => Promise<unknown> }) {
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<{ kind: "rotate" | "revoke"; cred: Credential } | { kind: "disable" } | null>(null);
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try { await fn(); toast.success(done); await onChanged(); } catch (e) {
@@ -208,18 +193,11 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
     } finally { setBusy(false); }
   };
   const issue = () => run(async () => onIssued(await studioApi.issueKey(account.id, { label: "Additional key", expires_in_days: 90 })), "Key issued");
-  const rotate = (c: Credential) => {
-    const hours = window.prompt("Keep the old key working for how many hours while the new one is rolled out? (0–168)", "24");
-    if (hours === null) return;
-    void run(async () => onIssued((await studioApi.rotateKey(c.id, { grace_hours: Number(hours), expires_in_days: 90 })).new), "Key rotated");
-  };
-  const revoke = (c: Credential) => {
-    const reason = window.prompt(`Revoke ${c.prefix} now? It stops working immediately. Why?`);
-    if (!reason) return;
-    void run(() => studioApi.revokeKey(c.id, reason), "Key revoked");
-  };
-  const toggle = () => run(() => studioApi.updateAccount(account.id, { status: account.status === "active" ? "disabled" : "active" }),
-    account.status === "active" ? "Service account disabled — every key stopped" : "Service account enabled");
+  const rotate = (c: Credential) => setConfirm({ kind: "rotate", cred: c });
+  const revoke = (c: Credential) => setConfirm({ kind: "revoke", cred: c });
+  const setStatus = (status: "active" | "disabled") => run(() => studioApi.updateAccount(account.id, { status }),
+    status === "disabled" ? "Service account disabled — every key stopped" : "Service account enabled");
+  const toggle = () => (account.status === "active" ? setConfirm({ kind: "disable" }) : void setStatus("active"));
 
   return (
     <div className="rounded-xl border border-ink-200 p-4">
@@ -234,13 +212,13 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
           <div className="flex flex-wrap gap-1 pt-1">{account.scopes.map((s) => <code key={s} className="rounded bg-ink-100 px-1.5 py-0.5 text-[11px]">{s}</code>)}</div>
         </div>
         <div className="flex gap-2">
-          <button type="button" disabled={busy || account.status !== "active"} onClick={() => void issue()} className="rounded-lg border border-ink-200 px-2.5 py-1 text-xs disabled:opacity-40">Issue key</button>
-          <button type="button" disabled={busy} onClick={() => void toggle()} className="rounded-lg border border-ink-200 px-2.5 py-1 text-xs">{account.status === "active" ? "Disable" : "Enable"}</button>
+          <Button size="sm" variant="outline" disabled={busy || account.status !== "active"} onClick={() => void issue()}>Issue key</Button>
+          <Button size="sm" variant={account.status === "active" ? "destructive-outline" : "outline"} disabled={busy} onClick={() => toggle()}>{account.status === "active" ? "Disable" : "Enable"}</Button>
         </div>
       </div>
       {account.credentials.length ? (
         <table className="mt-3 w-full text-xs">
-          <thead className="text-left uppercase tracking-wide text-ink-500"><tr><th className="py-1">Key</th><th>State</th><th>Expires</th><th>Last used</th><th /></tr></thead>
+          <thead className="text-left text-ink-500"><tr><th className="py-1 font-medium">Key</th><th>State</th><th>Expires</th><th>Last used</th><th /></tr></thead>
           <tbody className="divide-y divide-ink-100">
             {account.credentials.map((c) => (
               <tr key={c.id}>
@@ -252,11 +230,11 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
                 <td className="text-right">
                   {c.state === "active" ? (
                     <span className="inline-flex gap-2">
-                      <button type="button" disabled={busy} onClick={() => rotate(c)} className="inline-flex items-center gap-1 text-brand-700 underline"><RotateCcw size={11} /> Rotate</button>
-                      <button type="button" disabled={busy} onClick={() => revoke(c)} className="inline-flex items-center gap-1 text-danger-700 underline"><ShieldOff size={11} /> Revoke</button>
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => rotate(c)}><RotateCcw size={12} /> Rotate</Button>
+                      <Button size="sm" variant="destructive-outline" disabled={busy} onClick={() => revoke(c)}><ShieldOff size={12} /> Revoke</Button>
                     </span>
                   ) : c.state === "rotating" ? (
-                    <button type="button" disabled={busy} onClick={() => revoke(c)} className="text-danger-700 underline">Revoke now</button>
+                    <Button size="sm" variant="destructive-outline" disabled={busy} onClick={() => revoke(c)}><ShieldOff size={12} /> Revoke now</Button>
                   ) : null}
                 </td>
               </tr>
@@ -264,6 +242,34 @@ function AccountCard({ account, onIssued, onChanged }: { account: ServiceAccount
           </tbody>
         </table>
       ) : <p className="pt-2 text-xs text-ink-500">No keys yet.</p>}
+
+      <ConfirmAction
+        open={confirm?.kind === "rotate"}
+        onClose={() => setConfirm(null)}
+        tone="primary"
+        title={confirm?.kind === "rotate" ? `Rotate ${confirm.cred.prefix}…?` : ""}
+        consequence="A new key is issued and shown once. The old key keeps working for the overlap you choose, then stops, so the sending system can switch without a gap."
+        confirmLabel="Rotate key"
+        field={{ kind: "hours", label: "Keep the old key working for (hours)", min: 0, max: 168, initial: 24, help: "0 stops the old key at once; at most 168 (seven days)." }}
+        onConfirm={(hours) => confirm?.kind === "rotate" ? run(async () => onIssued((await studioApi.rotateKey(confirm.cred.id, { grace_hours: Number(hours), expires_in_days: 90 })).new), "Key rotated") : undefined}
+      />
+      <ConfirmAction
+        open={confirm?.kind === "revoke"}
+        onClose={() => setConfirm(null)}
+        title={confirm?.kind === "revoke" ? `Revoke ${confirm.cred.prefix}…?` : ""}
+        consequence="It stops working immediately and cannot be restored. Any system still using it is refused from its next call."
+        confirmLabel="Revoke key"
+        field={{ kind: "reason", label: "Why — recorded in the audit trail", required: true, placeholder: "e.g. key exposed in a support ticket" }}
+        onConfirm={(reason) => confirm?.kind === "revoke" ? run(() => studioApi.revokeKey(confirm.cred.id, reason), "Key revoked") : undefined}
+      />
+      <ConfirmAction
+        open={confirm?.kind === "disable"}
+        onClose={() => setConfirm(null)}
+        title={`Disable ${account.name}?`}
+        consequence="Every key on this account stops working until it is enabled again. Runs already accepted are not affected."
+        confirmLabel="Disable account"
+        onConfirm={() => setStatus("disabled")}
+      />
     </div>
   );
 }
@@ -309,7 +315,7 @@ function Snippet({ code }: { code: string }) {
   return (
     <div className="relative">
       <pre className="overflow-x-auto rounded-lg bg-ink-900 p-3 pr-16 text-[11px] leading-relaxed text-ink-100">{code}</pre>
-      <button type="button" onClick={() => void copy(code)} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-white/10 px-2 py-1 text-[11px] text-white"><Copy size={11} /> Copy</button>
+      <CopyButton value={code} what="Command copied" dark className="absolute right-2 top-2" />
     </div>
   );
 }

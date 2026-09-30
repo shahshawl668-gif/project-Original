@@ -5,12 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, CheckCircle2, RotateCcw, Rocket, Send, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, RotateCcw, Rocket, Send, XCircle } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/layout/BackLink";
+import { ConfirmAction } from "@/components/studio/Controls";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
@@ -29,6 +32,7 @@ export default function ReleasePage() {
   const q = useQuery({ queryKey: ["studio-release", entity?.id, id], queryFn: () => studioReleaseApi.get(id), enabled: !!entity && !!id, retry: false });
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<"promote" | "cancel" | null>(null);
   if (q.error) return <AlertBanner variant="error" title="This release could not be opened">It may belong to another organisation. <Link className="underline" href="/studio/releases">All releases</Link></AlertBanner>;
   const r = q.data;
   if (!r) return <Skeleton className="h-96 w-full rounded-2xl" />;
@@ -45,10 +49,10 @@ export default function ReleasePage() {
   const impact = r.impact;
   return (
     <div className="space-y-5">
+      <BackLink fallback="/studio/releases">All releases</BackLink>
       <PageHeader eyebrow={r.rollback_of_id ? "PeopleOps Studio · rollback release" : "PeopleOps Studio · release"}
         title={<span className="flex flex-wrap items-center gap-3">{r.title} <Badge variant={RELEASE_VARIANT[r.status]}>{r.status.replace("_", " ")}</Badge></span>}
-        description={`${r.source.name} (${r.source.environment}) → ${r.target.name} (${r.target.environment}) · drafted by ${r.created_by} ${fmtTime(r.created_at)}`}
-        actions={<Link href="/studio/releases" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-sm"><ArrowLeft size={14} /> All</Link>} />
+        description={`${r.source.name} (${r.source.environment}) → ${r.target.name} (${r.target.environment}) · drafted by ${r.created_by} ${fmtTime(r.created_at)}`} />
       <StudioNav />
       {r.notes ? <p className="text-sm text-ink-600">{r.notes}</p> : null}
       {r.rollback_of_id ? <AlertBanner variant="info" title="Restores what an earlier release replaced">As new versions: nothing already published is edited. <Link className="underline" href={`/studio/releases/${r.rollback_of_id}`}>The release it undoes</Link></AlertBanner> : null}
@@ -85,18 +89,35 @@ export default function ReleasePage() {
 
       {canManage ? (
         <Card><CardContent className="flex flex-wrap items-center gap-2 py-5">
-          {r.status === "draft" ? <button type="button" disabled={busy || !!impact?.blocking} onClick={() => void act(() => studioReleaseApi.act(r.id, "submit"), "Submitted for approval")} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"><Send size={14} /> Submit for approval</button> : null}
+          {r.status === "draft" ? <Button disabled={busy || !!impact?.blocking} onClick={() => void act(() => studioReleaseApi.act(r.id, "submit"), "Submitted for approval")}><Send size={14} /> Submit for approval</Button> : null}
           {r.status === "awaiting_approval" ? <>
             <input aria-label="Decision note" className="min-w-[16rem] flex-1 rounded-lg border border-ink-200 px-3 py-2 text-sm" placeholder="Note (required to reject)" value={note} onChange={(e) => setNote(e.target.value)} />
-            <button type="button" disabled={busy} onClick={() => void act(() => studioReleaseApi.decide(r.id, true, note), "Approved")} className="inline-flex items-center gap-1.5 rounded-lg bg-success-600 px-3 py-2 text-sm font-semibold text-white"><CheckCircle2 size={14} /> Approve</button>
-            <button type="button" disabled={busy} onClick={() => void act(() => studioReleaseApi.decide(r.id, false, note), "Rejected")} className="inline-flex items-center gap-1.5 rounded-lg border border-danger-300 px-3 py-2 text-sm text-danger-700"><XCircle size={14} /> Reject</button>
+            <Button disabled={busy} onClick={() => void act(() => studioReleaseApi.decide(r.id, true, note), "Approved")}><CheckCircle2 size={14} /> Approve</Button>
+            <Button variant="destructive-outline" disabled={busy || !note.trim()} title={note.trim() ? undefined : "Write a note saying why"} onClick={() => void act(() => studioReleaseApi.decide(r.id, false, note), "Rejected")}><XCircle size={14} /> Reject</Button>
             <span className="text-xs text-ink-500">An owner or manager other than {r.created_by} decides.</span>
           </> : null}
-          {r.status === "approved" ? <button type="button" disabled={busy || !!impact?.blocking} onClick={() => void act(() => studioReleaseApi.act(r.id, "promote"), "Promoted")} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white"><Rocket size={14} /> Promote to {r.target.name}</button> : null}
-          {r.can_roll_back ? <button type="button" disabled={busy} onClick={() => void act(() => studioReleaseApi.act(r.id, "rollback"), "Rollback drafted")} className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 px-3 py-2 text-sm"><RotateCcw size={14} /> Draft a rollback</button> : null}
-          {["draft", "awaiting_approval", "approved"].includes(r.status) ? <button type="button" disabled={busy} onClick={() => void act(() => studioReleaseApi.act(r.id, "cancel"), "Cancelled")} className="px-3 py-2 text-sm text-ink-600">Cancel release</button> : null}
+          {r.status === "approved" ? <Button disabled={busy || !!impact?.blocking} onClick={() => setConfirm("promote")}><Rocket size={14} /> Promote to {r.target.name}</Button> : null}
+          {r.can_roll_back ? <Button variant="outline" disabled={busy} onClick={() => void act(() => studioReleaseApi.act(r.id, "rollback"), "Rollback drafted")}><RotateCcw size={14} /> Draft a rollback</Button> : null}
+          {["draft", "awaiting_approval", "approved"].includes(r.status) ? <Button variant="destructive-outline" className="ml-auto" disabled={busy} onClick={() => setConfirm("cancel")}>Cancel release</Button> : null}
         </CardContent></Card>
       ) : null}
+      <ConfirmAction
+        open={confirm === "promote"}
+        onClose={() => setConfirm(null)}
+        tone="primary"
+        title={`Promote to ${r.target.name} (${r.target.environment})?`}
+        consequence={<>Every item marked create or update becomes the version in force in {r.target.name} from now. Earlier versions, and every run that used one, stay as they are; a rollback is drafted as a new release, not an undo.</>}
+        confirmLabel={`Promote to ${r.target.name}`}
+        onConfirm={() => act(() => studioReleaseApi.act(r.id, "promote"), "Promoted")}
+      />
+      <ConfirmAction
+        open={confirm === "cancel"}
+        onClose={() => setConfirm(null)}
+        title="Cancel this release?"
+        consequence="It stops here and cannot be submitted or promoted. Nothing in either company changes. Draft a new release to try again."
+        confirmLabel="Cancel release"
+        onConfirm={() => act(() => studioReleaseApi.act(r.id, "cancel"), "Cancelled")}
+      />
     </div>
   );
 }

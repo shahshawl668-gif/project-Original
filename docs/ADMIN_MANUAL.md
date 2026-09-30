@@ -510,6 +510,16 @@ proposes — the key is the preparer, so any owner or manager may approve.
 - A key found somewhere it should not be can be identified by its prefix
   (`pol_live_1a2b3c4d`) in Studio → API Centre without anyone knowing the
   secret. The product stores only a fingerprint and cannot show a key again.
+- A new key or signing secret appears once, masked. **Reveal** shows it and
+  **Copy** copies the whole value either way; press **I have stored it** once it
+  is in the other system's secret store.
+- Anything that stops, replaces or publishes something — revoke, rotate,
+  disable, replace credentials, reset a checkpoint, cancel a run, promote or
+  cancel a release, publish a workflow — is a red (or, for publishing, blue)
+  button that opens a confirmation saying what will happen. Revoking needs a
+  reason, which goes into the audit trail; a rotation asks for the overlap in
+  whole hours (0–168). Tests — **Test connection**, **Send test**, **Dry run**,
+  **Try it** — are plain outline buttons with a flask and change nothing.
 - Rejected records are kept for 30 days for inspection and retry; viewing one
   is written to the audit trail.
 

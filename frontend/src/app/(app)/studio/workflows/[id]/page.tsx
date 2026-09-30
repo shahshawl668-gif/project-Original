@@ -5,12 +5,15 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowDown, ArrowLeft, ArrowUp, Ban, FlaskConical, PlayCircle, Plus, Save, Send, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Ban, FlaskConical, PlayCircle, Plus, Save, Send, Trash2 } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/layout/BackLink";
+import { ConfirmAction, TestButton } from "@/components/studio/Controls";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
@@ -66,6 +69,7 @@ export default function WorkflowBuilderPage() {
   const [def, setDef] = useState<WorkflowDefinition | null>(null);
   const [limits, setLimits] = useState({ max_runs_per_hour: 20, timeout_minutes: 120 });
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<"publish" | "disable" | null>(null);
   const [month, setMonth] = useState("");
   const [sample, setSample] = useState("");
   const [dry, setDry] = useState<DryRun | null>(null);
@@ -100,6 +104,7 @@ export default function WorkflowBuilderPage() {
 
   return (
     <div className="space-y-5">
+      <BackLink fallback="/studio/workflows">All workflows</BackLink>
       <PageHeader eyebrow="PeopleOps Studio · workflow"
         title={<span className="flex flex-wrap items-center gap-3">{w.name}
           <Badge variant={w.status === "active" ? "success" : w.status === "draft" ? "warning" : "secondary"}>{w.status}</Badge>
@@ -107,12 +112,30 @@ export default function WorkflowBuilderPage() {
           {w.has_changes && w.active_version ? <Badge variant="warning">unpublished changes</Badge> : null}</span>}
         description={w.description ?? undefined}
         actions={<div className="flex flex-wrap gap-2">
-          <Link href="/studio/workflows" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-sm"><ArrowLeft size={14} /> All</Link>
-          {editable ? <button type="button" disabled={busy} onClick={() => void save()} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-300 px-3 text-sm font-semibold text-brand-700"><Save size={14} /> Save</button> : null}
-          {canManage ? <button type="button" disabled={busy} onClick={() => void act(async () => { await studioFlowApi.update(w.id, { definition: def, ...limits }); return studioFlowApi.publish(w.id); }, "Published — now in force")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white"><Send size={14} /> Publish</button> : null}
-          {canManage && w.active_version ? <button type="button" disabled={busy} onClick={() => void act(() => studioFlowApi.enable(w.id, w.status !== "active"), w.status === "active" ? "Disabled" : "Enabled")} className="h-9 rounded-lg border border-ink-200 px-3 text-sm">{w.status === "active" ? "Disable" : "Enable"}</button> : null}
+          {editable ? <Button variant="outline" disabled={busy} onClick={() => void save()}><Save size={14} /> Save draft</Button> : null}
+          {canManage ? <Button disabled={busy} onClick={() => setConfirm("publish")}><Send size={14} /> Publish</Button> : null}
+          {canManage && w.active_version ? (w.status === "active"
+            ? <Button variant="destructive-outline" disabled={busy} onClick={() => setConfirm("disable")}>Disable</Button>
+            : <Button variant="outline" disabled={busy} onClick={() => void act(() => studioFlowApi.enable(w.id, true), "Enabled")}>Enable</Button>) : null}
         </div>} />
       <StudioNav />
+      <ConfirmAction
+        open={confirm === "publish"}
+        onClose={() => setConfirm(null)}
+        tone="primary"
+        title={`Publish ${w.name} as version ${(w.active_version ?? 0) + 1}?`}
+        consequence={<>The editor&apos;s current definition is saved, checked again, and put in force, and the workflow is enabled: from now its trigger starts runs with this version. Where your organisation requires it, the publisher must be someone other than the last editor.</>}
+        confirmLabel="Publish and enable"
+        onConfirm={() => act(async () => { await studioFlowApi.update(w.id, { definition: def, ...limits }); return studioFlowApi.publish(w.id); }, "Published — now in force")}
+      />
+      <ConfirmAction
+        open={confirm === "disable"}
+        onClose={() => setConfirm(null)}
+        title={`Disable ${w.name}?`}
+        consequence="Its trigger stops starting runs, and a schedule is cleared, until it is enabled again. The published version is kept."
+        confirmLabel="Disable workflow"
+        onConfirm={() => act(() => studioFlowApi.enable(w.id, false), "Disabled")}
+      />
 
       {w.last_skip ? <AlertBanner variant="warning" title={`Last skipped ${fmtTime(w.last_skip.at)}`}>{w.last_skip.reason}</AlertBanner> : null}
       {!w.active_version ? <AlertBanner variant="info" title="Draft">Nothing runs until an owner or manager publishes it. Publishing re-checks every stream, webhook and person it names.</AlertBanner> : null}
@@ -162,7 +185,7 @@ export default function WorkflowBuilderPage() {
             <textarea aria-label="Sample event" className={cn(FIELD, "mt-1 h-28 font-mono text-xs")} value={sample} onChange={(e) => setSample(e.target.value)} /></label>
           <div className="space-y-2">
             <label className="block text-xs font-semibold text-ink-700">Month<input type="month" aria-label="Month" className={cn(FIELD, "mt-1")} value={month} onChange={(e) => setMonth(e.target.value)} /></label>
-            <button type="button" onClick={() => void runDry()} className="w-full rounded-lg border border-brand-300 px-3 py-1.5 text-sm font-semibold text-brand-700">Dry run — does nothing</button>
+            <TestButton className="w-full" onClick={() => void runDry()}>Dry run — changes nothing</TestButton>
             {canManage && w.status === "active" ? <button type="button" disabled={busy} onClick={() => void act(() => studioFlowApi.run(w.id, month ? `${month}-01` : undefined), "Run started")} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white"><PlayCircle size={14} /> Run now (v{w.active_version})</button> : null}
           </div>
         </div>

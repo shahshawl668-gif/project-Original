@@ -5,12 +5,15 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, RotateCcw, XCircle } from "lucide-react";
+import { Eye, RotateCcw, XCircle } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { BackLink } from "@/components/layout/BackLink";
+import { ConfirmAction } from "@/components/studio/Controls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StudioNav } from "@/components/studio/StudioNav";
 import { CountsFunnel, StatusBadge, fmtTime } from "@/components/studio/RunBits";
@@ -32,6 +35,7 @@ export default function StudioRunPage() {
   const [disposition, setDisposition] = useState<"" | "rejected" | "skipped">("");
   const [viewing, setViewing] = useState<Rejection | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   const run = useQuery({
     queryKey: ["studio-run", entity?.id, id], queryFn: () => studioApi.run(id), enabled: !!entity && !!id, retry: false,
@@ -76,22 +80,32 @@ export default function StudioRunPage() {
 
   return (
     <div className="space-y-5">
+      <BackLink fallback="/studio/runs">All runs</BackLink>
       <PageHeader eyebrow="PeopleOps Studio · run" title={<span className="flex flex-wrap items-center gap-3">{runTitle(r)} <StatusBadge status={r.status} /></span>}
         description={`${r.actor.label} · queued ${fmtTime(r.queued_at)}${r.finished_at ? ` · finished ${fmtTime(r.finished_at)}` : ""}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link href="/studio/runs" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 px-3 text-sm"><ArrowLeft size={14} /> All runs</Link>
             {["queued", "running"].includes(r.status) && WRITE.has(activeRole ?? "") ? (
-              <button type="button" disabled={busy} onClick={() => void act(() => studioApi.cancel(r.id), "Cancellation requested")}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-danger-200 px-3 text-sm text-danger-700"><XCircle size={14} /> Cancel</button>
+              <Button variant="destructive-outline" disabled={busy} onClick={() => setConfirmCancel(true)}><XCircle size={14} /> Cancel run</Button>
             ) : null}
             {retryable && WRITE.has(activeRole ?? "") ? (
-              <button type="button" disabled={busy} onClick={() => void act(() => studioApi.retryRejected(r.id), "Rejected records queued again as a new run")}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-sm font-semibold text-white"><RotateCcw size={14} /> Retry rejected records</button>
+              <Button disabled={busy} onClick={() => void act(() => studioApi.retryRejected(r.id), "Rejected records queued again as a new run")}><RotateCcw size={14} /> Retry rejected records</Button>
             ) : null}
           </div>
         } />
       <StudioNav />
+      <ConfirmAction
+        open={confirmCancel}
+        onClose={() => setConfirmCancel(false)}
+        title="Cancel this run?"
+        consequence={r.kind === "workflow"
+          ? "The workflow stops before its next step, and any import or validation it started is asked to stop too. Steps already finished are not undone."
+          : r.status === "queued"
+            ? "It is cancelled before it starts; nothing from this batch is stored. Send the batch again when ready."
+            : "An import that has already started is not interrupted: it finishes this batch and the request is recorded against the run. Nothing already stored is rolled back."}
+        confirmLabel="Cancel run"
+        onConfirm={() => act(() => studioApi.cancel(r.id), "Cancellation requested")}
+      />
 
       {r.error ? (
         <AlertBanner variant={r.status === "failed" ? "error" : "warning"} title={r.error.message}>
