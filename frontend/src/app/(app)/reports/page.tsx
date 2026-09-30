@@ -3,50 +3,65 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Download, EyeOff, FileSpreadsheet, Loader2, SlidersHorizontal } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Loader2, SlidersHorizontal } from "lucide-react";
 
-import { Menu, MenuItem } from "@/components/cost/Menu";
+import { useEntity } from "@/context/EntityContext";
 import { ActiveFilters, FilterMenu } from "@/components/cost/FilterMenu";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiBlob } from "@/lib/api";
-import {
-  fetchDimensions,
-  fetchPeriods,
-  fetchReports,
-  type ReportMeta,
-} from "@/lib/cost-analysis";
+import { apiDownload } from "@/lib/api";
+import { fetchDimensions, fetchPeriods, fetchReports, type ReportMeta } from "@/lib/cost-analysis";
+import { saveBlob } from "@/lib/download";
+import { plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+const FIELD = "h-9 w-full rounded-lg border border-ink-200 bg-white px-2.5 text-[13px] text-ink-900";
+const BUILDER_ROLES = new Set(["owner", "manager", "analyst"]);
+
+type Export =
+  | { state: "running" }
+  | { state: "done"; filename: string; bytes: number; at: Date }
+  | { state: "failed"; message: string };
+
 /**
- * Report downloads.
+ * The standard reports, grouped by the job each one does.
  *
- * Every workbook carries a provenance sheet — what it covered, which filters
- * were applied, how fresh the data was, who generated it and when — so a report
- * that circulates by email can still answer those questions in November.
+ * One scope panel sets the period, breakdown, filters and name masking for
+ * every report; each report then says which of those it actually reads (the
+ * server declares it and its tests prove it), so nobody sets a filter and
+ * receives a workbook it had no effect on. Every workbook opens with its own
+ * provenance sheet.
  */
 export default function ReportsPage() {
+  const { entity, activeRole } = useEntity();
   const [groupBy, setGroupBy] = useState("department");
   const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [masked, setMasked] = useState(false);
-  const [dateFrom, setDateFrom] = useState<string | null>(null);
-  const [dateTo, setDateTo] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [exports, setExports] = useState<Record<string, Export>>({});
+  const [announce, setAnnounce] = useState("");
 
-  const reports = useQuery({ queryKey: ["reports"], queryFn: fetchReports });
-  const dims = useQuery({ queryKey: ["bi", "dimensions"], queryFn: fetchDimensions });
-  const periods = useQuery({ queryKey: ["bi", "periods"], queryFn: fetchPeriods });
-  const available = periods.data?.periods ?? [];
+  const reports = useQuery({ queryKey: ["reports", entity?.id], queryFn: fetchReports, enabled: !!entity });
+  const dims = useQuery({ queryKey: ["bi", "dimensions", entity?.id], queryFn: fetchDimensions, enabled: !!entity });
+  const periods = useQuery({ queryKey: ["bi", "periods", entity?.id], queryFn: fetchPeriods, enabled: !!entity });
+  const available = periods.data?.periods ?? []; // newest first
+  const dimensions = dims.data?.dimensions ?? [];
+  const label = (p: string) => available.find((o) => o.period === p)?.label ?? p;
+  const earliest = available.length ? available[available.length - 1].label : null;
+  const latest = available.length ? available[0].label : null;
+  const fromLabel = dateFrom ? label(dateFrom) : earliest ? `${earliest} (earliest)` : "Earliest stored";
+  const toLabel = dateTo ? label(dateTo) : latest ? `${latest} (latest)` : "Latest stored";
+  const reversed = !!dateFrom && !!dateTo && dateFrom > dateTo;
+  const filterCount = Object.values(filters).reduce((n, v) => n + v.length, 0);
+  const breakdownLabel = dimensions.find((d) => d.key === groupBy)?.label ?? "Department";
 
   function toggleFilter(key: string, value: string) {
     setFilters((current) => {
       const existing = current[key] ?? [];
-      const next = existing.includes(value)
-        ? existing.filter((v) => v !== value)
-        : [...existing, value];
+      const next = existing.includes(value) ? existing.filter((v) => v !== value) : [...existing, value];
       const out = { ...current, [key]: next };
       if (!next.length) delete out[key];
       return out;
@@ -54,205 +69,180 @@ export default function ReportsPage() {
   }
 
   async function download(report: ReportMeta) {
-    setBusy(report.key);
-    setError(null);
+    setExports((e) => ({ ...e, [report.key]: { state: "running" } }));
+    setAnnounce(`Generating ${report.title}`);
     try {
-      const params = new URLSearchParams({ group_by: groupBy });
-      if (dateFrom) params.set("date_from", dateFrom);
+      const params = new URLSearchParams();
+      if (report.inputs.breakdown) params.set("group_by", groupBy);
+      if (dateFrom && report.inputs.period === "range") params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      for (const [key, values] of Object.entries(filters)) {
-        for (const value of values) params.append(key, value);
+      if (report.inputs.filters) {
+        for (const [key, values] of Object.entries(filters)) for (const value of values) params.append(key, value);
       }
-      const blob = await apiBlob(`/api/reports/${report.key}.xlsx?${params}`, {
-        headers: masked ? { "X-Mask-Identity": "on" } : undefined,
+      const { blob, filename, bytes } = await apiDownload(`/api/reports/${report.key}.xlsx?${params}`, `${report.key}.xlsx`, {
+        headers: masked && report.inputs.names ? { "X-Mask-Identity": "on" } : undefined,
       });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${report.key}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
+      saveBlob(blob, filename);
+      setExports((e) => ({ ...e, [report.key]: { state: "done", filename, bytes, at: new Date() } }));
+      setAnnounce(`${report.title} downloaded as ${filename}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "The server did not return a workbook.";
+      setExports((e) => ({ ...e, [report.key]: { state: "failed", message } }));
+      setAnnounce(`${report.title} failed: ${message}`);
     }
   }
+
+  /** What this report will cover with the current scope, in words. */
+  function covers(report: ReportMeta): string[] {
+    const out = [report.inputs.period === "as_at" ? `As at ${toLabel.replace(" (latest)", "")}` : `${fromLabel.replace(" (earliest)", "")} – ${toLabel.replace(" (latest)", "")}`];
+    if (report.inputs.breakdown) out.push(`by ${breakdownLabel}`);
+    if (report.inputs.filters) out.push(filterCount ? `${plural(filterCount, "filter")} applied` : "all employees");
+    if (report.inputs.names) out.push(masked ? "names masked" : "names shown");
+    return out;
+  }
+
+  function ignores(report: ReportMeta): string | null {
+    const unused = [
+      filterCount && !report.inputs.filters ? "filters" : null,
+      dateFrom && report.inputs.period === "as_at" ? "the From month" : null,
+    ].filter(Boolean);
+    return unused.length ? `Does not use ${unused.join(" or ")}.` : null;
+  }
+
+  const list = reports.data?.reports ?? [];
+  const groups = Array.from(new Set(list.map((r) => r.group)));
 
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Reports"
         title="Report Centre"
-        description="Choose a standard report, set its company scope and period, then download a workbook with its data basis and generation details."
+        description="Standard Excel workbooks. Set the scope once; each report states what it covers. Every workbook opens with where its figures came from."
+        actions={BUILDER_ROLES.has(activeRole ?? "") ? (
+          <Button asChild variant="outline"><Link href="/reports/builder"><SlidersHorizontal size={14} /> Build a report</Link></Button>
+        ) : null}
       />
 
-      <Link href="/reports/builder" className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"><SlidersHorizontal size={16} /> Build a report</Link>
+      <div className="sr-only" role="status" aria-live="polite">{announce}</div>
 
-      <Card>
-        <CardContent className="space-y-3 py-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Menu
-              label="Break down by"
-              summary={dims.data?.dimensions.find((d) => d.key === groupBy)?.label ?? "Department"}
-            >
-              {(close) =>
-                (dims.data?.dimensions ?? []).map((dimension) => (
-                  <MenuItem
-                    key={dimension.key}
-                    selected={dimension.key === groupBy}
-                    onClick={() => { setGroupBy(dimension.key); close(); }}
-                  >
-                    {dimension.label}
-                  </MenuItem>
-                ))
-              }
-            </Menu>
-
-            <Menu
-              label="From"
-              summary={available.find((p) => p.period === dateFrom)?.label ?? "Earliest"}
-              width="w-44"
-            >
-              {(close) => (
-                <>
-                  <MenuItem selected={!dateFrom} onClick={() => { setDateFrom(null); close(); }}>
-                    Earliest stored
-                  </MenuItem>
-                  {available.map((option) => (
-                    <MenuItem
-                      key={option.period}
-                      selected={option.period === dateFrom}
-                      onClick={() => { setDateFrom(option.period); close(); }}
-                    >
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </>
-              )}
-            </Menu>
-
-            <Menu
-              label="To"
-              summary={available.find((p) => p.period === dateTo)?.label ?? "Latest"}
-              width="w-44"
-            >
-              {(close) => (
-                <>
-                  <MenuItem selected={!dateTo} onClick={() => { setDateTo(null); close(); }}>
-                    Latest stored
-                  </MenuItem>
-                  {available.map((option) => (
-                    <MenuItem
-                      key={option.period}
-                      selected={option.period === dateTo}
-                      onClick={() => { setDateTo(option.period); close(); }}
-                    >
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </>
-              )}
-            </Menu>
-
-            <FilterMenu
-              dimensions={dims.data?.dimensions ?? []}
-              filters={filters}
-              onToggle={toggleFilter}
-              onClear={() => setFilters({})}
-            />
+      <div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside aria-labelledby="scope-heading" className="space-y-4 rounded-xl border border-ink-200 bg-white p-4 lg:sticky lg:top-20">
+          <div>
+            <h2 id="scope-heading" className="text-sm font-semibold text-ink-900">Report scope</h2>
+            <p className="mt-0.5 text-xs text-ink-500">Applies to every report that reads it.</p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-3">
-            <ActiveFilters
-              dimensions={dims.data?.dimensions ?? []}
-              filters={filters}
-              onToggle={toggleFilter}
-              onClear={() => setFilters({})}
-            />
-            <button
-              type="button"
-              onClick={() => setMasked((v) => !v)}
-              aria-pressed={masked}
-              className={cn(
-                "ml-auto inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors",
-                masked
-                  ? "border-brand-500 bg-brand-600 text-white"
-                  : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
-              )}
-            >
-              <EyeOff size={14} />
-              {masked ? "Names masked" : "Mask names"}
-            </button>
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-medium text-ink-700">Period</legend>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-ink-500">From
+                <select className={cn(FIELD, "mt-1")} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} disabled={!available.length}>
+                  <option value="">Earliest</option>
+                  {available.map((o) => <option key={o.period} value={o.period}>{o.label}</option>)}
+                </select>
+              </label>
+              <label className="text-xs text-ink-500">To
+                <select className={cn(FIELD, "mt-1")} value={dateTo} onChange={(e) => setDateTo(e.target.value)} disabled={!available.length}>
+                  <option value="">Latest</option>
+                  {available.map((o) => <option key={o.period} value={o.period}>{o.label}</option>)}
+                </select>
+              </label>
+            </div>
+            {reversed ? <p className="text-xs text-danger-700" role="alert">From is after To. Swap them to download a range report.</p> : null}
+            <p className="text-xs text-ink-500">
+              {earliest ? `Stored: ${earliest === latest ? earliest : `${earliest} – ${latest}`}. ` : ""}“As at” reports use the To month alone.
+            </p>
+          </fieldset>
+
+          <label className="block text-xs font-medium text-ink-700">Break down by
+            <select className={cn(FIELD, "mt-1")} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+              {(dimensions.length ? dimensions : [{ key: "department", label: "Department" }]).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
+            </select>
+          </label>
+
+          <div className="space-y-2">
+            <FilterMenu align="left" dimensions={dimensions} filters={filters} onToggle={toggleFilter} onClear={() => setFilters({})} />
+            <ActiveFilters dimensions={dimensions} filters={filters} onToggle={toggleFilter} onClear={() => setFilters({})} />
           </div>
+
+          <fieldset>
+            <legend className="text-xs font-medium text-ink-700">Employee names in workbooks</legend>
+            <div className="mt-1.5 flex gap-4 text-[13px] text-ink-800">
+              <label className="flex items-center gap-1.5"><input type="radio" name="names" className="accent-brand-600" checked={!masked} onChange={() => setMasked(false)} /> Show</label>
+              <label className="flex items-center gap-1.5"><input type="radio" name="names" className="accent-brand-600" checked={masked} onChange={() => setMasked(true)} /> Mask</label>
+            </div>
+            <p className="mt-1 text-xs text-ink-500">Masking swaps names for initials and a stable token; figures are unchanged. Applies to reports that list employees.</p>
+          </fieldset>
+        </aside>
+
+        <div className="min-w-0 space-y-6">
+          {reports.isError ? (
+            <AlertBanner variant="error" title="The report list could not be loaded" action={<Button size="sm" variant="outline" onClick={() => void reports.refetch()}>Try again</Button>}>
+              {(reports.error as Error).message}
+            </AlertBanner>
+          ) : null}
+          {!periods.isLoading && !periods.isError && available.length === 0 ? (
+            <AlertBanner variant="warning" title="No salary register stored for this company">
+              Register-based reports will contain no months — an empty workbook, not a zero payroll. <Link href="/payroll/upload" className="font-medium underline">Upload a register</Link>.
+            </AlertBanner>
+          ) : null}
+
+          {reports.isLoading ? (
+            <div className="space-y-3">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+          ) : (
+            groups.map((group) => (
+              <section key={group} aria-labelledby={`g-${group}`}>
+                <h2 id={`g-${group}`} className="mb-2 text-sm font-semibold text-ink-900">{group}</h2>
+                <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 bg-white">
+                  {list.filter((r) => r.group === group).map((report) => {
+                    const ex = exports[report.key];
+                    const blocked = reversed && report.inputs.period === "range";
+                    const note = ignores(report);
+                    return (
+                      <li key={report.key} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-start">
+                        <FileSpreadsheet size={18} className="mt-0.5 hidden flex-shrink-0 text-ink-400 sm:block" aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-[14px] font-semibold text-ink-900">{report.title}</h3>
+                          <p className="mt-0.5 text-[13px] text-ink-600">{report.description}</p>
+                          <p className="mt-1.5 text-xs text-ink-500">
+                            <span className="text-ink-700">{covers(report).join(" · ")}</span>
+                            <span aria-hidden> · </span>Needs {report.required_data.toLowerCase()}
+                            {note ? <span className="text-ink-500"> · {note}</span> : null}
+                          </p>
+                          {ex?.state === "done" ? (
+                            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-success-700">
+                              <CheckCircle2 size={13} aria-hidden /> Downloaded {ex.filename} · {Math.max(1, Math.round(ex.bytes / 1024))} KB · {ex.at.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          ) : ex?.state === "failed" ? (
+                            <p className="mt-1.5 flex items-start gap-1.5 text-xs text-danger-700">
+                              <AlertCircle size={13} className="mt-px flex-shrink-0" aria-hidden /> Not generated: {ex.message}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="self-start"
+                          disabled={ex?.state === "running" || blocked}
+                          onClick={() => void download(report)}
+                          aria-label={`${ex?.state === "failed" ? "Retry" : "Download"} ${report.title} (Excel)`}
+                        >
+                          {ex?.state === "running" ? <><Loader2 size={13} className="animate-spin" /> Generating…</>
+                            : <><Download size={13} /> {ex?.state === "failed" ? "Retry" : ex?.state === "done" ? "Download again" : "Excel"}</>}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))
+          )}
+
           <p className="text-xs text-ink-500">
-            Masking replaces each name with a stable per-workspace token and initials. The
-            figures are unchanged — it is for a report that will be forwarded further than the
-            people who may see who earns what.
+            Workbooks are built from current stored data, not a signed snapshot: keep the file you download as the evidence.
+            Nothing is cut short — a sheet longer than Excel allows continues on a second sheet. None of these is a statutory filing format.
           </p>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <AlertBanner variant="error" title="Could not generate that report">{error}</AlertBanner>
-      )}
-
-      {!periods.isLoading && available.length === 0 && (
-        <AlertBanner variant="warning" title="No payroll periods available">
-          Upload a salary register for this company before generating a register-based report. Finding reports also require a validation run.
-        </AlertBanner>
-      )}
-      {reports.isError && (
-        <AlertBanner variant="error" title="Could not load reports">
-          {(reports.error as Error).message}
-        </AlertBanner>
-      )}
-
-      {reports.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-28" />)}
         </div>
-      ) : (
-        <div className="space-y-7">
-          {Array.from(new Set((reports.data?.reports ?? []).map((report) => report.group))).map((group) => (
-            <section key={group} aria-label={group}>
-              <h2 className="mb-3 text-base font-semibold text-ink-900">{group}</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(reports.data?.reports ?? []).filter((report) => report.group === group).map((report) => (
-            <Card key={report.key}>
-              <CardContent className="flex h-full flex-col gap-2 py-4">
-                <span className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-                  <FileSpreadsheet size={15} className="text-brand-600" />
-                  {report.title}
-                </span>
-                <p className="flex-1 text-xs text-ink-500">
-                  {report.description}
-                </p>
-                <p className="text-xs text-ink-500">
-                  Required: {report.required_data}. Period: selected range above.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => download(report)}
-                  disabled={busy === report.key}
-                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-medium text-ink-700 transition-colors hover:bg-ink-50 disabled:opacity-60"
-                >
-                  {busy === report.key ? (
-                    <><Loader2 size={13} className="animate-spin" /> Building…</>
-                  ) : (
-                    <><Download size={13} /> Download .xlsx</>
-                  )}
-                </button>
-              </CardContent>
-            </Card>
-              ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

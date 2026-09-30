@@ -116,6 +116,61 @@ def test_every_report_in_the_catalogue_can_be_generated(client, workspace):
         assert zipfile.is_zipfile(io.BytesIO(r.content)), report["key"]
 
 
+def _content(payload: bytes, skip: set[str]) -> dict:
+    import openpyxl
+
+    wb = openpyxl.load_workbook(io.BytesIO(payload))
+    return {name: [list(row) for row in wb[name].iter_rows(values_only=True)]
+            for name in wb.sheetnames if name not in skip}
+
+
+def test_the_catalogue_offers_only_the_inputs_a_report_reads(client, workspace):
+    """
+    The Report Centre shows a breakdown, filter or From month against a report
+    only when the catalogue says the report reads it. Each "no" is proved here
+    by generating the workbook both ways: a control that changes nothing must
+    not be offered as if it did.
+    """
+    entity, user, headers = workspace
+    _seed(entity, user)
+    listed = client.get("/api/reports", headers=headers).json()["data"]["reports"]
+    assert [r["group"] for r in listed] == sorted(
+        (r["group"] for r in listed), key=reporting.PURPOSES.index)
+
+    def get(key: str, query: str) -> bytes:
+        r = client.get(f"/api/reports/{key}.xlsx?{query}", headers=headers)
+        assert r.status_code == 200, f"{key}: {r.text[:200]}"
+        return r.content
+
+    about = {"About this report"}
+    for report in listed:
+        key, inputs = report["key"], report["inputs"]
+        assert set(inputs) == {"period", "breakdown", "filters", "names"}, key
+        if not inputs["breakdown"]:
+            assert _content(get(key, "group_by=department"), about) == \
+                _content(get(key, "group_by=grade"), about), key
+        if not inputs["filters"]:
+            assert _content(get(key, ""), about) == \
+                _content(get(key, "department=Engineering"), about), key
+        if inputs["period"] == "as_at":
+            # The basis sheet lists the months in the range whatever the report.
+            skip = about | {"Data basis"}
+            assert _content(get(key, "date_to=2026-05"), skip) == \
+                _content(get(key, "date_from=2026-05&date_to=2026-05"), skip), key
+
+
+def test_a_cross_origin_page_can_read_the_workbook_filename(client, workspace):
+    """The filename names the company, report and date; a browser hides it unless exposed."""
+    entity, user, headers = workspace
+    _seed(entity, user)
+    r = client.get("/api/reports/headcount.xlsx",
+                   headers={**headers, "Origin": "http://localhost:3000"})
+    assert r.status_code == 200
+    assert "-headcount-" in r.headers["content-disposition"]
+    exposed = r.headers["access-control-expose-headers"].lower()
+    assert "content-disposition" in exposed
+
+
 def test_an_unknown_report_is_a_404(client, workspace):
     _, _, headers = workspace
     assert client.get("/api/reports/vibes.xlsx", headers=headers).status_code == 404

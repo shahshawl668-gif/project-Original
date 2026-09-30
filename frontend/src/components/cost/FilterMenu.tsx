@@ -22,11 +22,13 @@ export function FilterMenu({
   filters,
   onToggle,
   onClear,
+  align = "right",
 }: {
   dimensions: DimensionMeta[];
   filters: Record<string, string[]>;
   onToggle: (key: string, value: string) => void;
   onClear: () => void;
+  align?: "left" | "right";
 }) {
   const [search, setSearch] = useState("");
   const count = Object.values(filters).reduce((n, v) => n + v.length, 0);
@@ -56,7 +58,7 @@ export function FilterMenu({
       icon={Filter}
       summary={count ? `${count} applied` : "All employees"}
       count={count || undefined}
-      align="right"
+      align={align}
       width="w-80"
     >
       <div className="sticky top-0 z-10 bg-white p-1">

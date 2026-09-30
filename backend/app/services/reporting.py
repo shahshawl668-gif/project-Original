@@ -637,26 +637,55 @@ REPORTS: dict[str, tuple[str, str, Callable]] = {
 RESTRICTED_REPORTS = {"pay-equity"}
 
 
+# Grouped by the job a report does, in the order a payroll team meets them in a
+# month: close it, prove it compliant, explain its cost, describe its people.
+PURPOSES = (
+    "Close the month",
+    "Compliance and pay fairness",
+    "Cost and budget",
+    "People and pay",
+)
+
 REPORT_GROUPS = {
-    "management-summary": ("Finance and management", "Salary register"),
-    "department-cost": ("Finance and management", "Salary register"),
-    "headcount": ("CTC and salary", "Salary register"),
-    "compensation": ("CTC and salary", "Salary register"),
-    "statutory-cost": ("Configured statutory validation", "Salary register and statutory configuration"),
-    "budget-variance": ("Finance and management", "Salary register and approved budget"),
-    "component-breakdown": ("CTC and salary", "Salary register with mapped components"),
-    "reconciliation": ("Payroll validation", "Validation findings"),
-    "bank-jv-reconciliation": ("Finance and management", "Salary register, bank file and journal voucher"),
-    "employee-cost": ("CTC and salary", "Salary register"),
-    "pay-equity": ("Finance and management", "Salary register and authorised attribute"),
+    "reconciliation": ("Close the month", "Validation findings"),
+    "bank-jv-reconciliation": ("Close the month", "Salary register, bank file and journal voucher"),
+    "statutory-cost": ("Compliance and pay fairness", "Salary register and statutory configuration"),
+    "pay-equity": ("Compliance and pay fairness", "Salary register and authorised attribute"),
+    "management-summary": ("Cost and budget", "Salary register"),
+    "department-cost": ("Cost and budget", "Salary register"),
+    "budget-variance": ("Cost and budget", "Salary register and approved budget"),
+    "component-breakdown": ("Cost and budget", "Salary register with mapped components"),
+    "headcount": ("People and pay", "Salary register"),
+    "compensation": ("People and pay", "Salary register"),
+    "employee-cost": ("People and pay", "Salary register"),
+}
+
+# Which of the shared inputs each report actually reads, so the screen offers
+# only the choices that change the workbook. `period` is "range" (from–to) or
+# "as_at" (the To month alone; the latest stored when unset); `names` means the
+# workbook lists employees, so identity masking applies to it.
+# tests/test_reports_and_audit.py proves each "no" by generating both ways.
+REPORT_INPUTS = {
+    "management-summary": {"period": "range", "breakdown": True, "filters": True, "names": False},
+    "department-cost": {"period": "range", "breakdown": True, "filters": True, "names": False},
+    "headcount": {"period": "range", "breakdown": False, "filters": True, "names": False},
+    "compensation": {"period": "as_at", "breakdown": True, "filters": True, "names": False},
+    "statutory-cost": {"period": "range", "breakdown": True, "filters": True, "names": False},
+    "budget-variance": {"period": "range", "breakdown": False, "filters": True, "names": False},
+    "component-breakdown": {"period": "range", "breakdown": True, "filters": True, "names": False},
+    "reconciliation": {"period": "range", "breakdown": False, "filters": False, "names": True},
+    "bank-jv-reconciliation": {"period": "as_at", "breakdown": False, "filters": False, "names": True},
+    "employee-cost": {"period": "range", "breakdown": False, "filters": True, "names": True},
+    "pay-equity": {"period": "as_at", "breakdown": True, "filters": True, "names": False},
 }
 
 
 def catalogue() -> list[dict]:
+    order = {key: index for index, key in enumerate(REPORT_GROUPS)}
     return [{"key": key, "title": title, "description": description,
              "group": REPORT_GROUPS[key][0], "required_data": REPORT_GROUPS[key][1],
-             "format": "xlsx"}
-            for key, (title, description, _) in REPORTS.items()]
+             "inputs": REPORT_INPUTS[key], "format": "xlsx"}
+            for key, (title, description, _) in sorted(REPORTS.items(), key=lambda item: order[item[0]])]
 
 
 def build(

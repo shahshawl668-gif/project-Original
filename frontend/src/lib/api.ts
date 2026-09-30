@@ -402,6 +402,25 @@ export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blo
   return res.blob();
 }
 
+/** A download and the filename the server gave it (Content-Disposition), or `fallback`. */
+export async function apiDownload(path: string, fallback: string, init: RequestInit = {}): Promise<{ blob: Blob; filename: string; bytes: number }> {
+  const res = await apiFetch(path, init);
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Download failed (${res.status})`;
+    try {
+      const j = JSON.parse(text) as ApiEnvelope<unknown>;
+      if (j?.error?.detail != null) msg = formatErrorDetail(j.error.detail);
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(msg);
+  }
+  const named = /filename="?([^";]+)"?/i.exec(res.headers.get("content-disposition") ?? "");
+  const blob = await res.blob();
+  return { blob, filename: named?.[1] ?? fallback, bytes: blob.size };
+}
+
 export function setTokens(access: string, refresh: string) {
   localStorage.setItem(ACCESS_TOKEN_KEY, access);
   localStorage.setItem(REFRESH_TOKEN_KEY, refresh);

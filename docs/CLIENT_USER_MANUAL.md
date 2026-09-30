@@ -464,30 +464,72 @@ group never see this company's boards.
 
 ### Reports
 
-**Reports → Report Centre.** Select the company first, then a reporting period,
-dimension and optional filters. The catalogue groups available reports by
-purpose and lists required input data. Choose **Mask names** when the workbook
-will be shared with someone who need not see employee identities. Download the
-Excel workbook and check its **About this report** and **Data basis** sheets
-before using its figures. An absent payroll month is not treated as a zero
-month. Finding reconciliation shows current finding state within the selected
-last-seen period; it does not reconstruct an earlier run.
+**Reports → Report Centre.** The standard reports, grouped by the job they do:
+**Close the month** (payroll reconciliation; bank and journal voucher),
+**Compliance and pay fairness** (statutory cost; gender pay gap, when your
+company has authorised it), **Cost and budget** and **People and pay**.
+
+Set the scope once in the **Report scope** panel — the months, the breakdown,
+any employee filters, and whether employee names are shown or masked. Each
+report then says in one line what it will cover with that scope, for example
+*Apr 2026 – Jun 2026 · by Department · 2 filters applied*, and what data it
+needs. Not every report reads every choice:
+
+- **As at** reports (compensation, bank and journal voucher, gender pay gap)
+  use the **To** month alone; the others cover the From–To range.
+- A report that does not read your filters or your From month says so
+  (*Does not use filters*), so you never receive a workbook the filter had no
+  effect on.
+- Masking applies to the reports that list employees; it swaps each name for
+  initials and a stable token and leaves every figure unchanged.
+
+Choose **Excel** on a report. The row shows *Generating…*, then the file name
+and size once it has downloaded, or the reason it failed with **Retry**. Check
+the workbook's **About this report** and **Data basis** sheets before using its
+figures. An absent payroll month is not treated as a zero month. Payroll
+reconciliation shows current finding state within the selected last-seen
+period; it does not reconstruct an earlier run. Nothing is cut short: a sheet
+longer than Excel allows continues on a second sheet.
 
 The workbook is generated from current stored data. Keep the downloaded file
 as evidence; generating the same report later may produce different values if
-source registers or configurations have changed. The current catalogue does
-not create an official statutory filing format.
+source registers or configurations have changed. The catalogue does not create
+an official statutory filing format.
 
-**Build a report:** Open **Reports → Report Builder**. Choose the
-payroll cost dataset, columns, period and filters, optional arithmetic calculation,
-breakdown and sort. Preview the result and its CTC control total before saving a
-personal draft. A manager can share a definition with the company. A saved
-definition is evaluated against current data when opened again. Preview shows
-at most 200 rows and states the full matched count. Save the definition with both
-period bounds, then use **Download Excel** for all matched aggregate rows; check
-the summary and data-basis sheets before sharing.
+![Report Centre](images/09-reports.png)
 
-![Reports](images/09-reports.png)
+**Build a report:** **Reports → Report Builder** (analyst, manager or owner).
+The steps are listed down the left; go to any of them directly. A step with a
+problem is marked in red with the reason.
+
+1. **Dataset** — payroll cost, one row per payroll month and breakdown value.
+   For one row per employee use *Employee payroll cost* in the Report Centre.
+2. **Columns** — add columns, put them in order with the arrows, remove them.
+3. **Filters** — the months (up to 24) and employee filters.
+4. **Calculations** — up to three calculated columns, such as
+   `ctc / headcount`. A name that is not a metric is flagged at once. Division
+   by zero leaves the cell blank, never zero.
+5. **Grouping** — the breakdown. Employees with no value appear as
+   *Unassigned*; a month with no one paid in a group has no row.
+6. **Layout** — sort column and order. The layout is a table; pivot and PDF
+   layouts are not available.
+7. **Preview** — generated when you arrive and whenever the definition has
+   changed. It states how many rows matched and, above 200, that it shows the
+   first 200 while the export has them all. Control totals (CTC, gross, net,
+   employer contributions, people paid) should match Cost analysis for the
+   same scope.
+8. **Save & export** — name the report and save it; every save is a new
+   version, and an earlier version can be loaded back and saved again. A
+   manager or owner can share a report with the company or publish it. **Excel
+   export** downloads a saved version with every matched row; it waits until
+   your changes are saved and both months are set, and says which it is
+   waiting for.
+
+**Saved reports** (top right) lists your drafts and the reports shared with
+the company; **Copy** makes a private draft of one. A saved report is a set of
+choices, not a frozen result: it reads current data each time.
+
+![Report Builder](images/36-report-builder.png)
 
 ### Register history
 

@@ -537,7 +537,9 @@ export function approveBudget(id: string): Promise<{ id: string; state: string }
 // ---------------------------------------------------------------------------
 // Reports and the audit trail
 // ---------------------------------------------------------------------------
-export type ReportMeta = { key: string; title: string; description: string; group: string; required_data: string; format: "xlsx" };
+/** Which shared inputs a report reads; the server proves each "no" in its tests. */
+export type ReportInputs = { period: "range" | "as_at"; breakdown: boolean; filters: boolean; names: boolean };
+export type ReportMeta = { key: string; title: string; description: string; group: string; required_data: string; inputs: ReportInputs; format: "xlsx" };
 
 export function fetchReports(): Promise<{ reports: ReportMeta[] }> {
   return apiFetch("/api/reports").then((r) =>
