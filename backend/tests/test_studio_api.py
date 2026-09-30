@@ -165,6 +165,23 @@ def test_scopes_and_companies_bound_every_key(client, company):
     assert r.status_code == 403
 
 
+def test_api_key_environment_must_match_company_and_is_rechecked(client, company):
+    production = _key(client, company, scopes=["imports:read"])
+    company_id = company["X-Entity-Id"]
+    assert call(client, production["key"], "GET", "/imports", company=company_id).status_code == 200
+
+    changed = client.put("/api/studio/environment", headers=company, json={"environment": "test"})
+    assert changed.status_code == 200, changed.text
+    err(call(client, production["key"], "GET", "/imports", company=company_id), 404, "not_found")
+
+    wrong = client.post("/api/studio/service-accounts", headers=company, json={
+        "name": "Wrong environment", "environment": "production",
+        "entity_ids": [company_id], "scopes": ["imports:read"]})
+    assert wrong.status_code == 400, wrong.text
+    testing = _key(client, company, scopes=["imports:read"], environment="test")
+    assert call(client, testing["key"], "GET", "/imports", company=company_id).status_code == 200
+
+
 def test_only_owners_and_managers_manage_keys(client, company):
     email = f"studio-analyst-{uuid.uuid4().hex[:6]}@studio-example.com"
     inv = _data(client.post("/api/org/invitations", headers=company, json={"email": email, "role": "analyst"}))
