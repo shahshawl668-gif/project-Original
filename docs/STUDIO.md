@@ -597,7 +597,10 @@ environment's own secrets live.
 * **Environments are companies, not a flag on each object.** Phase 1 put an
   `environment` label on service accounts, keys, connections and runs; that
   label stays, but separation is enforced by company, because that is where
-  data and secrets already live and are already isolated.
+  data and secrets already live and are already isolated. Since PR #43 a
+  service account's environment must also match every company it names:
+  new keys take the selected company's environment, and each integration
+  request is checked against it (`STUDIO_INTEGRATION_ARCHITECTURE.md`).
 * **Independent approval is unconditional for releases.** Mappings and
   workflows follow the organisation's policy; a release — which changes
   production for everyone — always needs a second person. A one-person

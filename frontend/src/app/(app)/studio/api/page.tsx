@@ -19,6 +19,7 @@ import { fmtTime } from "@/components/studio/RunBits";
 import {
   integrationBaseUrl,
   studioApi,
+  studioReleaseApi,
   type Credential,
   type IssuedCredential,
   type OpenApi,
@@ -118,10 +119,11 @@ function IssuedKey({ issued, onClose }: { issued: IssuedCredential; onClose: () 
 function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: (a: ServiceAccount) => void }) {
   const { entity, entities, entityRoles } = useEntity();
   const scopes = useQuery({ queryKey: ["studio-scopes"], queryFn: studioApi.scopes });
+  const companyEnvironment = useQuery({ queryKey: ["studio-company-environment", entity?.id], queryFn: studioReleaseApi.environment, enabled: !!entity });
   const manageable = entities.filter((e) => MANAGE.has(entityRoles[e.id] ?? ""));
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [environment, setEnvironment] = useState("production");
+  const environment = companyEnvironment.data?.environment ?? "production";
   const [companies, setCompanies] = useState<string[]>(entity ? [entity.id] : []);
   const [chosen, setChosen] = useState<string[]>(PRESETS[1].scopes);
   const [busy, setBusy] = useState(false);
@@ -141,17 +143,16 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
 
   return (
     <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/30 p-4">
+      {companyEnvironment.error && <AlertBanner variant="error" title="Company environment could not be loaded">Reload Studio before issuing a key.</AlertBanner>}
       <div className="grid gap-3 md:grid-cols-[1fr_1fr_12rem]">
         <label className="text-xs font-semibold text-ink-700">Name — the system that will use it
           <input className={cn(FIELD, "mt-1")} placeholder="e.g. HRMS nightly feed" value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="text-xs font-semibold text-ink-700">Description
           <input className={cn(FIELD, "mt-1")} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
-        <label className="text-xs font-semibold text-ink-700">Environment
-          <select aria-label="Environment" className={cn(FIELD, "mt-1")} value={environment} onChange={(e) => setEnvironment(e.target.value)}>
-            <option value="production">Production</option><option value="test">Test</option><option value="development">Development</option>
-          </select></label>
+        <div className="text-xs font-semibold text-ink-700">Environment
+          <p className="mt-1 flex h-9 items-center gap-1 text-[13px] font-normal text-ink-900"><span className="capitalize">{companyEnvironment.isLoading ? "Loading…" : environment}</span><span className="text-ink-500">· set by this company</span></p></div>
       </div>
-      <p className="text-xs text-warning-800">Environment is a key label in this deployment. Test and development keys still reach the same database; use a dedicated non-production company with synthetic data for rehearsals.</p>
+      <p className="text-xs text-warning-800">A key can only access companies marked with the same environment. Test and development companies must use synthetic data; they share infrastructure with production and are not separate databases.</p>
       <fieldset>
         <legend className="text-xs font-semibold text-ink-700">Companies it may act on — only ones you manage</legend>
         <div className="mt-1 flex flex-wrap gap-2">
@@ -181,7 +182,7 @@ function NewAccount({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
         </div>
       </fieldset>
       <div className="flex gap-2">
-        <Button disabled={busy || name.trim().length < 2 || !companies.length || !chosen.length} onClick={() => void save()}>Create and issue a key</Button>
+        <Button disabled={busy || companyEnvironment.isLoading || !!companyEnvironment.error || name.trim().length < 2 || !companies.length || !chosen.length} onClick={() => void save()}>Create and issue a key</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>

@@ -122,10 +122,12 @@ def _check_scopes(scopes: list[str]) -> list[str]:
     return sorted(set(scopes))
 
 
-def _check_companies(db: Session, actor: User, org_id: uuid.UUID, entity_ids: list[str]) -> list[str]:
+def _check_companies(db: Session, actor: User, org_id: uuid.UUID, entity_ids: list[str], environment: str | None = None) -> list[str]:
     """Every named company must be in this organisation and managed by the actor."""
     if not entity_ids:
         raise ValueError("Choose at least one company this account may act on.")
+    from app.services.studio.releases import environment_of
+
     out: list[str] = []
     for raw in entity_ids:
         try:
@@ -135,8 +137,11 @@ def _check_companies(db: Session, actor: User, org_id: uuid.UUID, entity_ids: li
         # Unknown, another organisation's, or one the actor cannot manage: the
         # same answer for all three, so the form cannot probe for company ids.
         if (entity is None or entity.org_id != org_id
+                or not entity.is_active
                 or not tenancy.role_at_least(db, actor, "manager", entity)):
             raise PermissionError("You can only grant access to companies you manage.")
+        if environment is not None and environment_of(db, entity.id) != environment:
+            raise ValueError("The key environment must match every selected company environment.")
         out.append(str(entity.id))
     return sorted(set(out))
 
@@ -172,7 +177,7 @@ def create_account(
     if environment not in ENV_TAG:
         raise ValueError("Environment must be development, test or production.")
     scopes = _check_scopes(scopes)
-    companies = _check_companies(db, actor, org_id, entity_ids)
+    companies = _check_companies(db, actor, org_id, entity_ids, environment)
     if db.query(ServiceAccount).filter(ServiceAccount.org_id == org_id, ServiceAccount.name == name).first():
         raise ValueError(f"A service account called “{name}” already exists.")
     account = ServiceAccount(
@@ -204,13 +209,13 @@ def update_account(
     before = {"scopes": list(account.scopes), "entity_ids": list(account.entity_ids), "status": account.status}
     # Editing needs the same authority over the companies it already names:
     # otherwise removing a company would be a way to act on one you cannot see.
-    _check_companies(db, actor, account.org_id, list(account.entity_ids))
+    _check_companies(db, actor, account.org_id, list(account.entity_ids), account.environment)
     if description is not None:
         account.description = description
     if scopes is not None:
         account.scopes = _check_scopes(scopes)
     if entity_ids is not None:
-        account.entity_ids = _check_companies(db, actor, account.org_id, entity_ids)
+        account.entity_ids = _check_companies(db, actor, account.org_id, entity_ids, account.environment)
     if status is not None:
         if status not in ("active", "disabled"):
             raise ValueError("Status must be active or disabled.")
