@@ -89,9 +89,9 @@ Owners are roles. Priority: P0 now · P1 this month · P2 this quarter.
 ### AU-05 — Session lifetime and revocation
 - **Requirement:** ASVS 7.3.1, 7.3.2, 7.4.3, 7.5.1, 7.5.2. A.8.5.
 - **Implementation / evidence:** access 30 min; refresh rotated with replay detection (family ends after 60 s grace); absolute 12 h from sign-in (`auth_time`); `session_version` ends every session on reset, "sign out everywhere", MFA enrolment, admin or operator action; re-authentication (password) before MFA changes.
-- **Remediation required:** a list of active sessions (7.5.2 asks to *view* them) — R12.
-- **Verification · result:** `test_a_password_reset_ends_every_session`, `test_sign_out_everywhere`, `test_a_replayed_refresh_token_ends_the_session_family`, `test_a_session_ends_at_its_absolute_limit…`, `test_a_token_from_before_session_versions_still_works` — pass.
-- **Status:** Partial (7.5.2 view).
+- **Remediation required:** none for 7.5.2 — `GET /api/auth/sessions` and `POST /api/auth/sessions/{id}/end` (password required) added 1 Oct 2026. Ending one session stops its refresh immediately; its current access token lives out its ≤ 30 minutes ("sign out everywhere" is immediate).
+- **Verification · result:** `test_a_password_reset_ends_every_session`, `test_sign_out_everywhere`, `test_a_replayed_refresh_token_ends_the_session_family`, `test_a_session_ends_at_its_absolute_limit…`, `test_a_token_from_before_session_versions_still_works`, `test_a_person_sees_their_sessions_and_ends_one` — pass.
+- **Status:** Implemented — verified.
 
 ### AU-06 — Token storage in the browser
 - **Requirement:** ASVS V3 (Web Frontend Security), V7.
@@ -193,7 +193,7 @@ Owners are roles. Priority: P0 now · P1 this month · P2 this quarter.
 - **Requirement:** A.8.8 *Management of technical vulnerabilities*.
 - **Implementation / evidence:** `tools/dependency_audit.py` fails on unassessed advisories and expired reviews; `security/dependency-exceptions.json`; Dependabot; Next.js 14.2.35; DOMPurify ≥ 3.4.16.
 - **Verification · result:** audit gate run locally: 34 advisories reported, 0 unassessed; a synthetic unknown advisory fails it (checked).
-- **Remediation required:** Next.js 15.5+ (R4); `xlsx` 0.20.3 (R5); PyJWT (R14).
+- **Remediation required:** Next.js 15.5+ (R4); `xlsx` 0.20.3 (R5). python-jose → PyJWT done; `pip-audit` now reports no known vulnerabilities.
 - **Status:** Partial.
 
 ### SD-03 — Software bill of materials

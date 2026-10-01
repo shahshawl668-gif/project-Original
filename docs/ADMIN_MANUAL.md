@@ -518,6 +518,8 @@ decision for the client, not a housekeeping task.
   `REFRESH_REUSE_GRACE_SECONDS`, `SESSION_ABSOLUTE_HOURS`,
   `REQUIRE_MFA_FOR_PLATFORM_STAFF`, `EXPOSE_API_DOCS` (forced off in
   production), `MAX_REQUEST_MB`, `MAX_WORKBOOK_EXPANDED_MB`.
+- **Token library:** python-jose is replaced by PyJWT. Tokens are the same
+  HS256 format either way, so nobody is signed out by the deploy or a rollback.
 - **Rollback:** redeploy the previous release; it ignores the new columns and
   tables. To remove the audit trigger too: `DROP TRIGGER append_only ON
   audit_events; DROP TRIGGER append_only ON security_events;`. Anyone who had

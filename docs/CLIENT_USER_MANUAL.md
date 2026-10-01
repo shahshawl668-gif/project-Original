@@ -67,7 +67,9 @@ If your organisation requires two-step sign-in and you have not set it up, you
 are taken straight to that page after signing in and can do nothing else until
 you have.
 
-**Sign out everywhere** on the same page ends every session on every device,
+**Where you are signed in** on the same page lists each sign-in — browser, when it began, when it was last active — and marks this device. **End…** one, after confirming your password: it stops refreshing at once, though a page already open there keeps working for up to 30 minutes.
+
+**Sign out everywhere** ends every session on every device,
 this one included — use it if a laptop is lost or you think someone else knows
 your password. Resetting your password does the same. It stops further access;
 it cannot recall a file already downloaded to a device.

@@ -363,14 +363,14 @@ def test_a_password_reset_does_not_bypass_two_step_sign_in(client):
 # ── session lifetime and organisation policy ────────────────────────────────
 
 def test_a_session_ends_at_its_absolute_limit_however_often_it_is_refreshed(client, monkeypatch):
-    from jose import jwt
+    import jwt
 
     email, tokens = _signup(client, "absolute")
-    claims = jwt.get_unverified_claims(tokens["refresh_token"])
+    claims = jwt.decode(tokens["refresh_token"], options={"verify_signature": False})
     assert isinstance(claims["auth_time"], int)
     rotated = client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]}).json()["data"]
     # A refresh carries the original sign-in time forward; it does not restart the clock.
-    assert jwt.get_unverified_claims(rotated["refresh_token"])["auth_time"] == claims["auth_time"]
+    assert jwt.decode(rotated["refresh_token"], options={"verify_signature": False})["auth_time"] == claims["auth_time"]
     monkeypatch.setattr(time, "time", lambda: claims["auth_time"] + settings.session_absolute_hours * 3600 + 5)
     ended = client.post("/api/auth/refresh", json={"refresh_token": rotated["refresh_token"]})
     assert ended.status_code == 401 and "time limit" in ended.text
@@ -458,3 +458,51 @@ def test_a_body_without_a_length_is_cut_off_at_the_ceiling(monkeypatch):
     asyncio.run(BodyLimit(app)({"type": "http", "headers": []}, receive, send))
     assert sent[0]["status"] == 413
     assert read["bytes"] <= 1024 * 1024 + 256 * 1024         # stopped within a chunk of the ceiling
+
+
+def test_a_forged_token_opens_nothing(client):
+    """Wrong key, no signature (alg=none), expired: each is refused."""
+    import jwt
+
+    email, tokens = _signup(client, "forged")
+    claims = jwt.decode(tokens["access_token"], options={"verify_signature": False})
+    forged = [
+        jwt.encode(claims, "x" * 48, algorithm="HS256"),
+        jwt.encode(claims, None, algorithm="none"),
+        jwt.encode({**claims, "exp": int(time.time()) - 1}, settings.jwt_secret, algorithm="HS256"),
+    ]
+    for token in forged:
+        assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+    assert _me(client, tokens) == 200
+
+
+def test_a_person_sees_their_sessions_and_ends_one(client):
+    """ASVS 7.5.2: view, and with the password, end any one."""
+    email, laptop = _signup(client, "devices")
+    phone = client.post("/api/auth/login", json={"email": email, "password": PASSWORD},
+                        headers={"User-Agent": "Phone browser 1.0"}).json()["data"]
+    listed = client.get("/api/auth/sessions", headers=_bearer(laptop)).json()["data"]
+    assert len(listed) == 2
+    assert sum(s["current"] for s in listed) == 1
+    phone_row = next(s for s in listed if s["browser"] == "Phone browser 1.0")
+    assert not phone_row["current"]
+
+    # A refresh keeps the session's identity: the same row, later activity.
+    phone = client.post("/api/auth/refresh", json={"refresh_token": phone["refresh_token"]}).json()["data"]
+    again = client.get("/api/auth/sessions", headers=_bearer(laptop)).json()["data"]
+    assert phone_row["id"] in {s["id"] for s in again} and len(again) == 2
+
+    end = f"/api/auth/sessions/{phone_row['id']}/end"
+    assert client.post(end, headers=_bearer(laptop), json={"password": "wrong"}).status_code == 401
+    assert client.post(end, headers=_bearer(laptop), json={"password": PASSWORD}).status_code == 200
+    assert client.post("/api/auth/refresh", json={"refresh_token": phone["refresh_token"]}).status_code == 401
+    assert _me(client, laptop) == 200
+    assert len(client.get("/api/auth/sessions", headers=_bearer(laptop)).json()["data"]) == 1
+    assert any(e.kind == "session_ended" for e in _events(email))
+
+    # Someone else's session is not yours to end, or to learn exists.
+    _, stranger = _signup(client, "stranger")
+    mine = client.get("/api/auth/sessions", headers=_bearer(laptop)).json()["data"][0]["id"]
+    assert client.post(f"/api/auth/sessions/{mine}/end", headers=_bearer(stranger),
+                       json={"password": PASSWORD}).status_code == 404
+    assert _me(client, laptop) == 200

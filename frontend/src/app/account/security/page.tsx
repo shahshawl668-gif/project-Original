@@ -8,10 +8,19 @@ import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch, clearTokens, getSessionPortal, parseEnvelopeResponse, setTokens } from "@/lib/api";
-import { date, plural } from "@/lib/format";
+import { ago, date, dateTime, plural } from "@/lib/format";
 
 type MfaStatus = { enabled: boolean; enabled_at: string | null; recovery_codes_left: number; required: boolean };
 type Setup = { secret: string; otpauth_uri: string };
+type SignedIn = { id: string; portal: string | null; signed_in_at: string | null; last_active_at: string | null; browser: string | null; current: boolean };
+
+/** "Chrome on Windows" from a user-agent string; the raw string is in the title attribute. */
+function device(ua: string | null): string {
+  if (!ua) return "Browser not recorded";
+  const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "A browser";
+  const os = /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "";
+  return os ? `${browser} on ${os}` : browser;
+}
 
 const field = "mt-1 block h-10 w-full rounded-lg border border-ink-200 bg-white px-3 text-[13px] text-ink-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20";
 
@@ -39,12 +48,16 @@ export default function AccountSecurityPage() {
   const [code, setCode] = useState("");
   const [setup, setSetup] = useState<Setup | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
+  const [sessions, setSessions] = useState<SignedIn[] | null>(null);
+  const [ending, setEnding] = useState<string | null>(null);
+  const [endPassword, setEndPassword] = useState("");
   const portal = getSessionPortal();
   const home = portal === "platform" ? "/platform" : "/dashboard";
 
   const load = useCallback(async () => {
     try {
       setStatus(await parseEnvelopeResponse<MfaStatus>(await apiFetch("/api/auth/mfa", { cache: "no-store" })));
+      setSessions(await parseEnvelopeResponse<SignedIn[]>(await apiFetch("/api/auth/sessions", { cache: "no-store" })));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load your sign-in settings.");
     }
@@ -94,6 +107,18 @@ export default function AccountSecurityPage() {
     setPassword(""); setCode("");
     await load();
   });
+
+  const endOne = (e: FormEvent) => { e.preventDefault(); const row = sessions?.find((s) => s.id === ending); void run(async () => {
+    await post(`/api/auth/sessions/${ending}/end`, { password: endPassword });
+    setEnding(null); setEndPassword("");
+    if (row?.current) {
+      clearTokens();
+      await logout();
+      router.replace(portal === "platform" ? "/platform/login" : "/login");
+      return;
+    }
+    await load();
+  }); };
 
   const everywhere = () => void run(async () => {
     await post("/api/auth/sessions/revoke-all", {});
@@ -178,6 +203,43 @@ export default function AccountSecurityPage() {
             </label>
             <Button type="submit" size="sm" disabled={busy || !password}>Set up two-step sign-in</Button>
           </form>
+        )}
+      </section>
+
+      <section aria-labelledby="signed-in-heading" className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft">
+        <h2 id="signed-in-heading" className="text-[15px] font-semibold">Where you are signed in</h2>
+        <p className="mt-1 text-[13px] text-ink-600">
+          One row per sign-in. Ending one stops it refreshing at once; a page already open there keeps working for up to 30 minutes.
+          Use <b>Sign out everywhere</b> below to stop everything immediately.
+        </p>
+        {sessions === null ? <p className="mt-3 text-xs text-ink-500">Loading…</p> : (
+          <ul className="mt-3 divide-y divide-ink-100 rounded-lg border border-ink-200">
+            {sessions.map((s) => (
+              <li key={s.id} className="px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[13px] font-medium text-ink-900" title={s.browser ?? undefined}>
+                      {device(s.browser)}{s.portal && s.portal !== "client" ? ` · ${s.portal}` : ""}
+                      {s.current ? <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">This device</span> : null}
+                    </p>
+                    <p className="text-xs text-ink-500">Signed in {dateTime(s.signed_in_at)} · active {ago(s.last_active_at)}</p>
+                  </div>
+                  {ending === s.id ? null : (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => { setEnding(s.id); setEndPassword(""); }}>End…</Button>
+                  )}
+                </div>
+                {ending === s.id ? (
+                  <form onSubmit={endOne} className="mt-2 flex flex-wrap items-end gap-2">
+                    <label className="block grow text-xs font-medium text-ink-700">Confirm your password
+                      <input type="password" autoComplete="current-password" className={field} value={endPassword} onChange={(e) => setEndPassword(e.target.value)} required autoFocus />
+                    </label>
+                    <Button type="submit" size="sm" variant="destructive-outline" disabled={busy || !endPassword}>End this session</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setEnding(null)}>Cancel</Button>
+                  </form>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

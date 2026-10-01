@@ -719,8 +719,17 @@ def add_session_security(conn: Connection) -> None:
         ):
             if column not in have:
                 conn.execute(text(f"ALTER TABLE users ADD COLUMN {column} {ddl}"))  # nosec B608
-    if "refresh_tokens" in tables and "rotated_at" not in _columns(conn, "refresh_tokens"):
-        conn.execute(text(f"ALTER TABLE refresh_tokens ADD COLUMN rotated_at {ts_t}"))  # nosec B608
+    if "refresh_tokens" in tables:
+        have = _columns(conn, "refresh_tokens")
+        for column, ddl in (
+            ("rotated_at", ts_t),
+            ("session_id", _uuid_type(conn)),
+            ("signed_in_at", ts_t),
+            ("portal", "VARCHAR(16)"),
+            ("user_agent", "VARCHAR(200)"),
+        ):
+            if column not in have:
+                conn.execute(text(f"ALTER TABLE refresh_tokens ADD COLUMN {column} {ddl}"))  # nosec B608
 
 
 APPEND_ONLY_TABLES = ("audit_events", "security_events")

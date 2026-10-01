@@ -195,6 +195,17 @@ async function shouldFallbackToDirect(res: Response): Promise<boolean> {
   }
 }
 
+/**
+ * Set while the page is being left. Leaving aborts in-flight requests with
+ * the same TypeError a dead relay produces; without this, every reload would
+ * retry its pending calls against the direct host for nothing.
+ */
+let leavingPage = false;
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("beforeunload", () => { leavingPage = true; });
+  window.addEventListener("pageshow", () => { leavingPage = false; });
+}
+
 async function fetchWithProxyFallback(path: string, init: RequestInit): Promise<Response> {
   const usingProxy = usesServerSideProxy();
   // Authentication must use one configured API endpoint. A proxy failure
@@ -213,7 +224,8 @@ async function fetchWithProxyFallback(path: string, init: RequestInit): Promise<
     }
     return res;
   } catch (e) {
-    if (usingProxy && !isAuth && e instanceof TypeError) {
+    // By name, not instanceof: a network failure's TypeError may come from another realm.
+    if (usingProxy && !isAuth && !leavingPage && (e as { name?: string } | null)?.name === "TypeError") {
       // Proxy path itself is unreachable; attempt direct API call.
       return fetch(directApiUrl(path), init);
     }
