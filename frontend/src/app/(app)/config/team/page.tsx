@@ -771,6 +771,11 @@ const APPROVAL_SETTINGS: { key: keyof ApprovalPolicy; label: string; hint: strin
     label: "Dated statutory changes need a second person to publish",
     hint: "The person who drafted a change to PF, ESIC or component mapping cannot put it in force.",
   },
+  {
+    key: "members_require_mfa",
+    label: "Everyone signs in with two steps",
+    hint: "Members without two-step sign-in can sign in only to set it up. Turn it on for your own account first, under Sign-in & security.",
+  },
 ];
 
 /**

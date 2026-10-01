@@ -169,7 +169,7 @@ curl -X POST https://api.peopleopslab.in/api/income-tax/compare \
 # 4) Auth: signup → login
 curl -X POST https://api.peopleopslab.in/api/auth/signup \
   -H 'Content-Type: application/json' \
-  -d '{"email":"qa@peopleopslab.in","password":"Strong-Pwd-123","company_name":"QA Co"}'
+  -d '{"email":"qa@peopleopslab.in","password":"<a long unique password — never a real one in a document>","company_name":"QA Co"}'
 ```
 
 All four must return HTTP 200 with `{"success": true, ...}`.

@@ -599,6 +599,8 @@ def run_migrations(engine: Engine) -> None:
         track_finding_work,
         extend_validation_rules,
         record_import_lineage,
+        add_session_security,
+        protect_audit_trail,
     )
     for step in steps:
         with engine.begin() as conn:
@@ -690,3 +692,79 @@ def record_import_lineage(conn: Connection) -> None:
     for table in ("employee_records", "attendance_rows", "ctc_records"):
         if table in tables and "lineage" not in _columns(conn, table):
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN lineage JSON"))  # nosec B608
+
+
+def add_session_security(conn: Connection) -> None:
+    """
+    Session versions, two-step sign-in, and refresh-token rotation marks.
+
+    Additive and idempotent. ``session_version`` starts at 0 for everyone and
+    tokens issued before it existed read as version 0, so the deploy that adds
+    it signs no one out. No one has two-step sign-in until they enrol, and
+    ``REQUIRE_MFA_FOR_PLATFORM_STAFF`` is off until an operator turns it on, so
+    the deploy locks no administrator out. Rollback: the previous release
+    ignores all five columns; tokens it issues carry no version and still read
+    as 0.
+    """
+    tables = _table_names(conn)
+    ts_t = "TIMESTAMP" if conn.dialect.name == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+    if "users" in tables:
+        have = _columns(conn, "users")
+        for column, ddl in (
+            ("session_version", "INTEGER NOT NULL DEFAULT 0"),
+            ("mfa_secret_enc", "TEXT"),
+            ("mfa_enabled_at", ts_t),
+            ("mfa_recovery_hashes", "JSON"),
+            ("mfa_last_step", "INTEGER"),
+        ):
+            if column not in have:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {column} {ddl}"))  # nosec B608
+    if "refresh_tokens" in tables and "rotated_at" not in _columns(conn, "refresh_tokens"):
+        conn.execute(text(f"ALTER TABLE refresh_tokens ADD COLUMN rotated_at {ts_t}"))  # nosec B608
+
+
+APPEND_ONLY_TABLES = ("audit_events", "security_events")
+
+
+def protect_audit_trail(conn: Connection) -> None:
+    """
+    The audit trail and the security log refuse UPDATE and DELETE in the database itself.
+
+    The application already has no path that edits them; this makes the same
+    true of a bug, an injected statement, or a hurried manual fix run through
+    the application's own connection. On PostgreSQL a change arriving through a
+    foreign-key cascade (``pg_trigger_depth() > 1``) is still allowed, so the
+    schema's ON DELETE rules keep working if an operator ever removes a company
+    by hand. What this is not: protection from the database owner, who can drop
+    the trigger. That needs an off-database copy (docs/SECURITY.md, open item).
+
+    Idempotent; re-running replaces the function and trigger. Rollback:
+    ``DROP TRIGGER append_only ON <table>`` for each table.
+    """
+    tables = _table_names(conn)
+    if conn.dialect.name == "postgresql":
+        conn.execute(text("""
+            CREATE OR REPLACE FUNCTION refuse_audit_change() RETURNS trigger AS $$
+            BEGIN
+                IF pg_trigger_depth() > 1 THEN
+                    RETURN COALESCE(NEW, OLD);
+                END IF;
+                RAISE EXCEPTION '% is append-only: % refused', TG_TABLE_NAME, TG_OP
+                    USING ERRCODE = 'insufficient_privilege';
+            END;
+            $$ LANGUAGE plpgsql
+        """))
+        for table in APPEND_ONLY_TABLES:
+            if table in tables:
+                conn.execute(text(f"DROP TRIGGER IF EXISTS append_only ON {table}"))  # nosec B608
+                conn.execute(text(
+                    f"CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON {table} "  # nosec B608
+                    "FOR EACH ROW EXECUTE FUNCTION refuse_audit_change()"))
+    elif conn.dialect.name == "sqlite":
+        for table in APPEND_ONLY_TABLES:
+            if table not in tables:
+                continue
+            for op in ("UPDATE", "DELETE"):
+                conn.execute(text(
+                    f"CREATE TRIGGER IF NOT EXISTS {table}_no_{op.lower()} BEFORE {op} ON {table} "  # nosec B608
+                    f"BEGIN SELECT RAISE(ABORT, '{table} is append-only: {op} refused'); END"))

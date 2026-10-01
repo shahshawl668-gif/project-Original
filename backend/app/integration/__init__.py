@@ -11,7 +11,6 @@ integration keys — never a person's session.
 from __future__ import annotations
 
 import logging
-import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -20,6 +19,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.integration import errors
 from app.integration.routes import router
+from app.security import safe_request_id
 from app.services.studio.credentials import SCOPES, redact
 
 logger = logging.getLogger("payroll.integration")
@@ -135,7 +135,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
-        rid = request.headers.get("X-Request-Id") or getattr(request.state, "request_id", None) or uuid.uuid4().hex[:12]
+        rid = getattr(request.state, "request_id", None) or safe_request_id(request.headers.get("X-Request-Id"))
         request.state.request_id = rid
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > settings.integration_max_request_mb * 1024 * 1024:

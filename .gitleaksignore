@@ -1,0 +1,9 @@
+# Findings reviewed and resolved, by fingerprint (commit:file:rule:line). Each entry
+# needs a reason. A new finding is never added here to make CI pass: rotate first.
+#
+# Example sign-up passwords in documentation (literal values in curl examples).
+# Replaced with placeholders on 2026-09-30. They stay in history, so any account
+# ever created with them must have its password changed — see docs/SECURITY.md,
+# open item 'QA account from DEPLOYMENT.md'.
+9db33792b8e61550ad35d7609f65305670a1f36b:docs/GO_LIVE.md:generic-api-key:218
+92492dd80aa80e6c0baba9d91b900be5c35e1f83:DEPLOYMENT.md:generic-api-key:98

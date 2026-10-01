@@ -42,6 +42,43 @@ same message as a wrong password.
 
 After signing in you land on **Companies**.
 
+### Two-step sign-in
+
+Your password alone should not be enough to open your company's payroll. Open
+the menu under your initial (top right) → **Sign-in & security** →
+**Set up two-step sign-in**, confirm your password, add the key to an
+authenticator app (Google Authenticator, Microsoft Authenticator, 1Password and
+others), and type the six-digit code it shows.
+
+![Sign-in and security](images/37-sign-in-security.png)
+
+You are then shown **ten
+recovery codes once** — keep them somewhere safe and offline; each works once
+in place of a code if you lose your phone.
+
+From then on, after your password you enter the current code.
+
+![The second step](images/38-two-step-code.png)
+ A code works
+once. If you have lost both your phone and your recovery codes, your
+administrator can arrange a reset after confirming who you are.
+
+If your organisation requires two-step sign-in and you have not set it up, you
+are taken straight to that page after signing in and can do nothing else until
+you have.
+
+**Sign out everywhere** on the same page ends every session on every device,
+this one included — use it if a laptop is lost or you think someone else knows
+your password. Resetting your password does the same. It stops further access;
+it cannot recall a file already downloaded to a device.
+
+Ten wrong passwords or codes in fifteen minutes lock sign-in for that address
+for fifteen minutes — even with the right password — and then it unlocks by
+itself. A session ends twelve hours after you signed in, however active you
+have been.
+
+Passwords must be at least 8 characters and not one of the most commonly used.
+
 ---
 
 ## 3. Finding your way around

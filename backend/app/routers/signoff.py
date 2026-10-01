@@ -20,7 +20,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write, require_entity_admin
 from app.envelope import ok
 from app.models import Entity, PeriodSignOff, SignOffEvent, User
-from app.services import approvals
+from app.services import approvals, audit, export_safety
 from app.services import signoff as signoff_service
 
 router = APIRouter()
@@ -457,10 +457,15 @@ def evidence_pack(
         ],
     )
 
+    export_safety.neutralise_workbook(wb)
     stream = io.BytesIO()
     wb.save(stream)
     stream.seek(0)
     filename = f"evidence-pack-{entity_info.get('code', 'entity')}-{snapshot.get('period_month')}.xlsx"
+    audit.record(db, entity_id=entity.id, user=user, action="export.downloaded", object_type="evidence_pack",
+                 object_id=str(snapshot.get("period_month")), summary=f"Downloaded the evidence pack for {period}",
+                 detail={"format": "xlsx", "file": filename})
+    db.commit()
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

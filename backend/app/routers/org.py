@@ -51,7 +51,7 @@ from app.schemas.org import (
     OrganizationUpdate,
 )
 from app.security import hash_password
-from app.services import audit, invitations, support_access, tenancy
+from app.services import audit, auth_security, invitations, support_access, tenancy
 
 router = APIRouter()
 
@@ -848,6 +848,7 @@ class ApprovalPolicyUpdate(BaseModel):
     matrix_publish_requires_independent_approver: bool | None = None
     studio_publish_requires_independent_approver: bool | None = None
     statutory_publish_requires_independent_approver: bool | None = None
+    members_require_mfa: bool | None = None
 
 
 @router.get("/approval-policy")
@@ -878,6 +879,11 @@ def set_approval_policy(
     if membership is None or membership.role != "owner":
         raise HTTPException(status_code=403, detail="Only an owner can change approval controls")
     org = db.get(Organization, membership.org_id)
+    if body.members_require_mfa and not auth_security.mfa_enabled(user):
+        # The owner turning it on must already use it, so the switch can never
+        # leave the organisation with nobody able to administer it.
+        raise HTTPException(status_code=409, detail="Turn on two-step sign-in for your own account first "
+                                                    "(Sign-in & security), then require it of everyone.")
     before = approvals.policy_for(db, org.id)
     after = approvals.set_policy(db, org, body.model_dump(exclude_none=True))
     audit.record(

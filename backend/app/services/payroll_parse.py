@@ -4,6 +4,8 @@ from typing import Any
 
 import pandas as pd
 
+from app.services.upload_safety import check_workbook
+
 REQUIRED_BASE = {"employee_id"}
 EMPLOYEE_ID_HEADERS = {"employee_id", "emp_id", "employee_code", "employee_number"}
 IDENTIFIER_HEADERS = EMPLOYEE_ID_HEADERS | {
@@ -63,6 +65,7 @@ def parse_payroll_file(content: bytes, filename: str) -> pd.DataFrame:
         id_types = {h: str for h in headers if normalize_col(h) in IDENTIFIER_HEADERS}
         return pd.read_csv(io.BytesIO(content), dtype=id_types)
     if lower.endswith(".xlsx"):
+        check_workbook(content)
         headers = pd.read_excel(io.BytesIO(content), engine="openpyxl", nrows=0).columns
         id_types = {h: str for h in headers if normalize_col(h) in IDENTIFIER_HEADERS}
         return pd.read_excel(io.BytesIO(content), engine="openpyxl", dtype=id_types)

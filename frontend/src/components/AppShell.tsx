@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Loader2, LogOut, Menu, ShieldCheck, X } from
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
+import { getAccessToken, parseJwtPayload } from "@/lib/api";
 import { useEntity } from "@/context/EntityContext";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import { ADMIN_ITEMS, NAV_GROUPS, breadcrumbsFor, isActiveHref, type NavGroup } from "@/lib/navigation";
@@ -209,6 +210,14 @@ function ProfileMenu() {
           >
             Audit trail
           </Link>
+          <Link
+            role="menuitem"
+            href="/account/security"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-ink-700 transition-colors hover:bg-ink-50"
+          >
+            Sign-in & security
+          </Link>
           <div className="my-1 h-px bg-ink-100" />
           <button
             role="menuitem"
@@ -290,6 +299,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { generation } = useEntity();
+  const router = useRouter();
+
+  // A member whose organisation requires two-step sign-in, not yet enrolled,
+  // holds a session that can do only that. Take them there rather than let
+  // every page fail.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const token = getAccessToken();
+    if (token && parseJwtPayload(token)?.enrol_mfa) router.replace("/account/security");
+  }, [isAuthenticated, pathname, router]);
   const mainRef = useRef<HTMLElement>(null);
   const positions = useRef(new Map<string, number>());
   const popped = useRef(false);

@@ -22,7 +22,7 @@ import {
   setTokens,
 } from "@/lib/api";
 
-import { signIn, type AuthUser } from "@/lib/auth";
+import { completeSecondStep, signIn, type AuthUser } from "@/lib/auth";
 import { clearPayrollResults } from "@/lib/payroll-session";
 export type { AuthUser } from "@/lib/auth";
 
@@ -30,7 +30,9 @@ type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
+  /** Throws SecondStepRequired when the account has two-step sign-in. */
   login: (email: string, password: string, workspaceSlug?: string, portal?: "client" | "platform") => Promise<void>;
+  verifySecondStep: (mfaToken: string, code: string) => Promise<void>;
   signup: (email: string, password: string, company_name?: string | null) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -106,6 +108,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     toast.success("Signed in");
   }, []);
 
+  const verifySecondStep = useCallback(async (mfaToken: string, code: string) => {
+    sessionRevision.current += 1;
+    const me = await completeSecondStep(mfaToken, code);
+    clearPayrollResults();
+    setUser(me);
+    setLoading(false);
+    toast.success("Signed in");
+  }, []);
+
   const signup = useCallback(
     async (email: string, password: string, company_name?: string | null) => {
       sessionRevision.current += 1;
@@ -158,11 +169,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       isAuthenticated: !!user,
       login,
+      verifySecondStep,
       signup,
       logout,
       refreshUser,
     }),
-    [user, loading, login, signup, logout, refreshUser]
+    [user, loading, login, verifySecondStep, signup, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

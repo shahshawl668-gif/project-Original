@@ -219,7 +219,7 @@ curl -s -o /dev/null -w "%{http_code}\n" $API/api/reports  # 401 — auth requir
 # request is rejected as 422 before the closed door is ever reached)
 curl -s -o /dev/null -w "%{http_code}\n" -X POST $API/api/auth/signup \
   -H 'Content-Type: application/json' \
-  -d '{"email":"nobody@example.com","password":"x-Unused-123","company_name":"X"}'  # 404
+  -d '{"email":"nobody@example.com","password":"<a long unique password — never a real one in a document>","company_name":"X"}'  # 404
 
 # platform staff login → authenticated read (password from your password
 # manager, typed at the prompt — never on the command line)

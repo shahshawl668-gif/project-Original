@@ -39,6 +39,7 @@ from app.schemas.validation_matrix import (
 from app.services import audit, rule_packs, tenancy, validation_matrix
 from app.services.payroll_parse import normalize_col
 from app.services.validation_catalog import BUILTIN_RULES, rule_family
+from app.services.upload_safety import check_workbook
 
 router = APIRouter()
 
@@ -360,6 +361,7 @@ def _parse_import(raw: bytes, filename: str) -> list[dict[str, str]]:
     if filename.lower().endswith(".xlsx"):
         from openpyxl import load_workbook
 
+        check_workbook(raw)
         try:
             wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
         except Exception as exc:  # noqa: BLE001 — any unreadable workbook is the same answer

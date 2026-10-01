@@ -279,6 +279,7 @@
     <a href="#manuals">The three manuals</a>
     <a href="#testing">Testing points</a>
     <a href="#links">Live links</a>
+    <a href="#security">Security</a>
     <a href="#open">Open items</a>
   </nav>
 
@@ -407,6 +408,7 @@
           <tr><td class="mono">/platform/join</td><td>Accept a platform staff invitation and set a password</td><td><span class="pill p-info">Token</span></td></tr>
           <tr><td class="mono">/platform</td><td>Platform console — provision a client workspace</td><td><span class="pill p-stop">Platform admin</span></td></tr>
           <tr><td class="mono">/invite</td><td>Accept an invitation</td><td><span class="pill p-info">Token</span></td></tr>
+          <tr><td class="mono">/account/security</td><td>Your own sign-in: set up, turn off or replace the recovery codes of two-step sign-in (TOTP), and sign out everywhere. A member whose organisation requires two-step sign-in, not yet enrolled, is sent here and can do nothing else until enrolled. A support session cannot change anything here</td><td><span class="pill p-ok">Any signed-in person</span></td></tr>
           <tr><td class="mono">/control-centre</td><td>Payroll Control Centre — one month for one company: files and readiness, validation progress and coverage, findings needing attention, changes since the previous run, approval blockers, reconciliation, evidence and dashboards, and the next step. Its state is the server's own period status (<code>/api/validation/periods/{p}/status</code>); a month with no findings is never shown as clean unless it is. The month is the <em>working period</em> chosen in the header, remembered per company for the browser session</td><td><span class="pill p-ok">Any role</span> (start validation: write roles)</td></tr>
           <tr><td class="mono">/dashboard</td><td>Companies portfolio — every employer, ordered by what needs attention</td><td><span class="pill p-ok">Any role</span></td></tr>
           <tr><td class="mono">/payroll/upload</td><td>Salary register, in four stages: choose file, month and run type; map columns (sample values, how each suggestion matched — from <code>match</code> on <code>POST /api/payroll/preview</code> — and the <code>required</code> fields still unmapped); server check (employees read, revision, whether the month's register was replaced); queue validation</td><td><span class="pill p-warn">Write roles</span></td></tr>
@@ -523,6 +525,9 @@
           <tr><td class="mono">GET /api/admin/support/grants</td><td>Grants, open and historical</td></tr>
           <tr><td class="mono">POST /api/admin/support/grants</td><td>Open one — requires an organisation, a duration and a reason</td></tr>
           <tr><td class="mono">POST /api/admin/support/grants/{grant_id}/end</td><td>Close one early</td></tr>
+          <tr><td class="mono">GET /api/admin/security/events</td><td>The security event log — sign-ins, lockouts, two-step changes, session revocations, replayed refresh tokens. Filter by <code>kind</code>, <code>outcome</code>, <code>subject</code>. Metadata about accounts, never payroll; no password, token or code is stored. Platform owner or admin; each read is itself logged</td></tr>
+          <tr><td class="mono">POST /api/admin/security/unlock</td><td>Lift a sign-in lock early for one address (locks expire on their own). Platform owner or admin</td></tr>
+          <tr><td class="mono">POST /api/admin/staff/{user_id}/revoke-sessions</td><td>End every session a member of platform staff holds — a lost laptop, a departure. Platform owner (or yourself)</td></tr>
         </tbody>
       </table>
     </div>
@@ -539,6 +544,16 @@ python -m app.bootstrap_owner you@yourdomain.in --site https://www.peopleopslab.
     variable and no seed account with a default password, each of which would be a credential
     that ends up in a repository. An installation upgraded from before platform roles needs none
     of this: a one-time migration names its legacy admin as owner.</p>
+    <h3>Regaining sign-in for one account</h3>
+    <p>The console cannot remove anyone's two-step sign-in — a stolen owner session that could strip
+    other people's second factor would make it decorative. From a shell on the API host, after
+    confirming who is asking by a channel other than the one the request came on:</p>
+    <pre><code>cd backend
+python -m app.auth_recovery unlock      someone@example.com
+python -m app.auth_recovery reset-mfa    someone@example.com --reason "lost phone, confirmed by call"
+python -m app.auth_recovery end-sessions someone@example.com --reason "laptop stolen"</code></pre>
+    <p>Each use is written to the security event log with its reason. It never handles a password,
+    code or token. Details and the incident procedures are in <code>docs/security/INCIDENT_RUNBOOK.md</code>.</p>
     <p>After that, staff are <strong>invited, not promoted from the client population</strong>:
     an existing admin issues an invitation, the recipient accepts it at <code>/platform/join</code>
     and sets their own password. Platform staff and client users are now separate populations with
@@ -784,16 +799,37 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
           <tr><td class="mono">INTEGRATION_MAX_REQUEST_MB</td><td class="mono">25</td><td>Largest request body the integration API accepts (<code>413 payload_too_large</code>)</td></tr>
           <tr><td class="mono">INTEGRATION_MAX_RECORDS</td><td class="mono">50000</td><td>Most records one import batch may carry</td></tr>
           <tr><td class="mono">STUDIO_REJECTION_RETENTION_DAYS</td><td class="mono">30</td><td>How long a rejected record's own copy is kept; the rejection (row, code, reason) stays with the run</td></tr>
-          <tr><td class="mono">STUDIO_SECRET_KEY</td><td>—</td><td><b>Required in production before any connection credential or webhook secret is stored.</b> A Fernet key (<code>Fernet.generate_key()</code>); a comma-separated list rotates — the first encrypts, all decrypt. Unset in production, storing a secret fails with a clear error rather than falling back. Outside production a key is derived from <code>JWT_SECRET</code>. Losing it makes stored secrets unreadable: connections must be re-entered</td></tr>
+          <tr><td class="mono">STUDIO_SECRET_KEY</td><td>—</td><td><b>Required in production before any connection credential or webhook secret is stored.</b> A Fernet key (<code>Fernet.generate_key()</code>); a comma-separated list rotates — the first encrypts, all decrypt. Unset in production, storing a secret fails with a clear error rather than falling back. Outside production a key is derived from <code>JWT_SECRET</code>. Losing it makes stored secrets unreadable: connections must be re-entered, and — since it also seals two-step sign-in secrets — everyone enrolled must enrol again. Rotate with <code>new,old</code>, then <code>python -m app.rotate_secrets --apply</code>, then <code>new</code> alone</td></tr>
           <tr><td class="mono">STUDIO_ALLOW_PRIVATE_DESTINATIONS</td><td class="mono">false</td><td>Lets connections and webhooks reach private addresses, for local development against a mock system. <b>Forced <code>false</code> in production.</b> Link-local and cloud-metadata addresses stay blocked even when on</td></tr>
           <tr><td class="mono">STUDIO_HTTP_TIMEOUT_SECONDS</td><td class="mono">30</td><td>Per-request timeout for every outbound call (connections, OAuth, webhooks)</td></tr>
           <tr><td class="mono">REPORT_WORKER_ENABLED</td><td class="mono">true</td><td>Starts the report job worker in the API process; disable when using the standalone report worker.</td></tr>
           <tr><td class="mono">REPORT_ARTIFACT_MAX_MB</td><td class="mono">10</td><td>Maximum generated workbook size; jobs exceeding it fail with an explicit message.</td></tr>
           <tr><td class="mono">REPORT_ARTIFACT_RETENTION_DAYS</td><td class="mono">30</td><td>Download retention for generated report files before expiry cleanup.</td></tr>
           <tr><td class="mono">STUDIO_HTTP_MAX_RESPONSE_MB</td><td class="mono">50</td><td>Largest response body Studio reads from another system; a larger one is refused, not truncated</td></tr>
+          <tr><td class="mono">LOGIN_MAX_FAILURES</td><td class="mono">10</td><td>Wrong answers (password, or two-step code) per sign-in identifier inside the window before it is refused with 429 and <code>Retry-After</code> — the right password included. An address with no account is locked identically, so the refusal reveals nothing. Also rate-limits password-reset requests</td></tr>
+          <tr><td class="mono">LOGIN_FAILURE_WINDOW_MINUTES</td><td class="mono">15</td><td>The window those failures are counted in</td></tr>
+          <tr><td class="mono">LOGIN_LOCKOUT_MINUTES</td><td class="mono">15</td><td>How long a lock lasts. It always expires on its own; <code>python -m app.auth_recovery unlock</code> or <code>POST /api/admin/security/unlock</code> lifts it early</td></tr>
+          <tr><td class="mono">REFRESH_REUSE_GRACE_SECONDS</td><td class="mono">60</td><td>A rotated refresh token presented again within this is a second tab racing the first and is simply refused. After it, it is a replay: every session of that user ends and a <code>refresh / detected</code> security event is written</td></tr>
+          <tr><td class="mono">SESSION_ABSOLUTE_HOURS</td><td class="mono">12</td><td>However often it is refreshed, a session ends this long after the sign-in that began it (the <code>auth_time</code> claim)</td></tr>
+          <tr><td class="mono">REQUIRE_MFA_FOR_PLATFORM_STAFF</td><td class="mono">false</td><td>When on, platform staff without two-step sign-in can sign in only to set it up. Locks no one out. Turn it on once every member of staff has had the chance to enrol. Client organisations have the same switch for their members under Team → Approval controls (<code>members_require_mfa</code>), which an owner can turn on only after enrolling themselves</td></tr>
+          <tr><td class="mono">EXPOSE_API_DOCS</td><td class="mono">true</td><td>The interactive reference at <code>/docs</code>, <code>/redoc</code>, <code>/openapi.json</code>. <b>Forced <code>false</code> in production.</b> The integration API keeps its own published reference</td></tr>
+          <tr><td class="mono">MAX_REQUEST_MB</td><td class="mono">50</td><td>Largest request body any route accepts. A declared length over it is refused before a byte is read (<code>413 payload_too_large</code>); a body streamed without a length is cut off at the ceiling — 413 for JSON, 400 from the form parser for a multipart upload</td></tr>
+          <tr><td class="mono">MAX_WORKBOOK_EXPANDED_MB</td><td class="mono">200</td><td>Largest size an uploaded <code>.xlsx</code> may expand to when unzipped, read from the zip directory before anything is parsed — a few kilobytes can otherwise declare gigabytes</td></tr>
         </tbody>
       </table>
     </div>
+  </section>
+
+  <!-- ============================================ -->
+  <section id="security">
+    <h2>Security</h2>
+    <p class="sub">The assessment, the control register and the evidence are in <code>docs/SECURITY.md</code> and <code>docs/security/</code>. The product is <strong>not</strong> ISO/IEC 27001 certified and nothing here claims it; certification is decided by an accredited certification body after an audit that has not happened.</p>
+    <p><b>Sign-in.</b> Passwords are bcrypt. New passwords must be 8–128 characters and not among the 10,000 most common (<code>app/data/common_passwords.txt</code>). Guessing is throttled per identifier (settings above). Two-step sign-in is TOTP (<code>cryptography</code>'s RFC 6238 implementation), with ten single-use recovery codes stored as digests; a code works once. The secret is sealed with <code>STUDIO_SECRET_KEY</code> — so that key now also protects second factors, and losing it means everyone re-enrols. Every token carries <code>sv</code>, the user's session version: a password reset, "sign out everywhere", turning on two-step sign-in, an administrator, or a replayed refresh token raises it and every session ends at its next request.</p>
+    <p><b>Responses.</b> Every API answer carries <code>nosniff</code>, <code>X-Frame-Options: DENY</code>, <code>Referrer-Policy: no-referrer</code>, <code>Cache-Control: no-store</code> and a content policy that allows nothing (it serves JSON and files, never pages); HSTS in production. The web app sends its own policy from <code>next.config.mjs</code>: framing, plugins, foreign scripts, styles, fonts and connections are refused; inline scripts are still allowed until nonces are wired through. A caller's <code>X-Request-Id</code> is kept only if it is a plain token, since it is written into logs.</p>
+    <p><b>Files.</b> Uploaded workbooks are checked for their expanded size before parsing, are parsed with <code>defusedxml</code> (pinned in <code>requirements.txt</code>), and macros are never read. Every workbook the product builds forces cells to text, so an employee name like <code>=HYPERLINK(…)</code> cannot become a live formula in an export. Every download of payroll data — run export, evidence pack, findings export, JV, evidence attachment, reports — writes <code>export.downloaded</code> to the client's audit trail. An expired download link stops further downloads; it cannot recall a copy already saved to someone's device.</p>
+    <p><b>Records.</b> <code>audit_events</code> and <code>security_events</code> refuse UPDATE and DELETE in the database itself (a trigger on PostgreSQL, allowing only foreign-key cascades; one on SQLite). This does not stop the database owner, who can drop the trigger.</p>
+    <p><b>Supply chain.</b> CI runs the suite on SQLite and PostgreSQL, a secret scan of the whole history, and <code>tools/dependency_audit.py</code>, which fails on any advisory not assessed in <code>security/dependency-exceptions.json</code> or past its review date; it keeps a CycloneDX SBOM for each side with every run. Dependabot proposes updates weekly.</p>
+    <p><b>Recovery.</b> <code>backend/tools/restore_drill.py</code> backs up, restores into a new database, compares every table row-for-row and boots the product on the copy. Its first record, on synthetic data, is <code>docs/evidence/restore-drill-2026-09-30.md</code>. It has <em>not</em> been run against production's backups — the free-tier database has none to test.</p>
   </section>
 
   <!-- ============================================ -->
@@ -804,6 +840,11 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
     <div class="note stop">
       <h4>The database is on free tier and expires 22 October 2026</h4>
       <p><code>plan: free</code>, <code>expiresAt: 2026-10-22T20:27:54Z</code>, read again from the Render API on 30 September 2026. Deletion on that date is not reversible, and it is a paid change only you can make — the Render tools available here cannot change a database's plan. Render dashboard → the database → Settings → Instance Type → Basic-256MB, about $6/month. Tell me when it is done and I will confirm from the API rather than the dashboard.</p>
+    </div>
+
+    <div class="note stop">
+      <h4>Security items that need you</h4>
+      <p>From <code>docs/SECURITY.md</code> §9, worst first. <b>(1)</b> Production data and logs are in Render's <b>Singapore</b> region; the CERT-In directions of 28 April 2022 require ICT logs to be kept within India for 180 days, and cross-border processing needs a legal view under the DPDP Act — qualified advice, not a code change. <b>(2)</b> The free-tier database has no backups at all; a paid plan with point-in-time recovery, then a restore drill against it. <b>(3)</b> <code>DEPLOYMENT.md</code> showed a literal sign-up password for <code>qa@peopleopslab.in</code> against production; the value is now a placeholder but remains in git history — if that account exists in production, change its password. <b>(4)</b> Upgrade Next.js to 15.5+: seven advisories against the App Router apply to 14.2.35 and are accepted only provisionally in <code>security/dependency-exceptions.json</code> until 30 November 2026. <b>(5)</b> Install the fixed <code>xlsx</code> from the SheetJS CDN (unreachable from the build environment used here).</p>
     </div>
 
     <div class="note warn">

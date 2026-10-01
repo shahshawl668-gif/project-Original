@@ -38,7 +38,7 @@ from app.models import (
     ValidationRun,
     ValidationRunEmployee,
 )
-from app.services import approvals
+from app.services import approvals, audit, export_safety
 from app.services import coverage as coverage_svc
 from app.services import explain as explain_svc
 from app.services import register_uploads, run_inputs
@@ -759,52 +759,57 @@ def export_run(
         ("Gross exposure (before waivers)", float(run.total_financial_impact or 0)),
         ("Open exposure", float(run.open_financial_impact or 0)),
     ):
-        summary.append([key, value])
+        summary.append(export_safety.text_row(summary, [key, value]))
     if run.upload_id:
         upload = db.get(RegisterUpload, run.upload_id)
         if upload is not None:
-            summary.append(["Source file", upload.filename or ""])
-            summary.append(["Source file SHA-256", upload.file_sha256])
-            summary.append(["Upload revision", upload.revision])
+            summary.append(export_safety.text_row(summary, ["Source file", upload.filename or ""]))
+            summary.append(export_safety.text_row(summary, ["Source file SHA-256", upload.file_sha256]))
+            summary.append(export_safety.text_row(summary, ["Upload revision", upload.revision]))
 
     findings = book.create_sheet("Findings")
-    findings.append([
+    findings.append(export_safety.text_row(findings, [
         "Employee ID", "Employee", "Rule", "Rule name", "Component", "Severity",
         "Expected", "Actual", "Difference", "Financial impact", "Waived", "Reason", "Suggested fix",
-    ])
+    ]))
     for r in (
         db.query(FindingRecord)
         .filter(FindingRecord.run_id == run.id)
         .order_by(FindingRecord.employee_id, FindingRecord.rule_id)
         .yield_per(1000)
     ):
-        findings.append([
+        findings.append(export_safety.text_row(findings, [
             r.employee_id, r.employee_name, r.rule_id, r.rule_name, r.component, r.severity,
             r.expected_value, r.actual_value, r.difference, float(r.financial_impact or 0),
             "yes" if r.was_waived else "no", r.reason, r.suggested_fix,
-        ])
+        ]))
 
     employees = book.create_sheet("Employees")
-    employees.append([
+    employees.append(export_safety.text_row(employees, [
         "Employee ID", "Employee", "Department", "Risk score", "Risk level",
         "Failed checks", "Critical", "Warnings", "Passed checks", "Financial impact", "Gross",
-    ])
+    ]))
     for e in (
         db.query(ValidationRunEmployee)
         .filter(ValidationRunEmployee.run_id == run.id)
         .order_by(ValidationRunEmployee.position)
         .yield_per(1000)
     ):
-        employees.append([
+        employees.append(export_safety.text_row(employees, [
             e.employee_id, e.employee_name, e.department, e.risk_score, e.risk_level,
             e.failed_checks, e.critical_count, e.warning_count, e.passed_checks,
             float(e.financial_impact or 0), float(e.gross) if e.gross is not None else None,
-        ])
+        ]))
 
     buf = io.BytesIO()
     book.save(buf)
     buf.seek(0)
     name = f"validation-{run.period_month:%Y-%m}-run{run.run_number}.xlsx"
+    # Findings with names and amounts leaving the product: recorded like any change.
+    audit.record(db, entity_id=entity.id, user=user, action="export.downloaded", object_type="validation_run",
+                 object_id=str(run.id), summary=f"Downloaded validation run {run.run_number} for {run.period_month:%b %Y}",
+                 detail={"format": "xlsx", "file": name})
+    db.commit()
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

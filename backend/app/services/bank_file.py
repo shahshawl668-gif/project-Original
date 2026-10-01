@@ -392,7 +392,13 @@ def _raw_table(content: bytes, filename: str, cfg: dict[str, Any]) -> tuple[list
     if layout == "excel" or filename.lower().endswith((".xlsx", ".xls")):
         import pandas as pd
 
-        frame = pd.read_excel(io.BytesIO(content), engine="openpyxl", header=None, dtype=str)
+        from app.services.upload_safety import check_workbook
+
+        try:
+            check_workbook(content)
+            frame = pd.read_excel(io.BytesIO(content), engine="openpyxl", header=None, dtype=str)
+        except ValueError as exc:  # an unreadable or oversized workbook is the uploader's to fix
+            raise ProfileError(str(exc) or "The file is not a readable .xlsx workbook.") from exc
         table = [["" if v is None or str(v) == "nan" else str(v) for v in row]
                  for row in frame.values.tolist()]
     elif layout == "fixed":
