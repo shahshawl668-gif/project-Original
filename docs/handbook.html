@@ -845,7 +845,7 @@ python tools/statutory_worksheet.py worksheet.xlsx</code></pre>
 
     <div class="note stop">
       <h4>Security items that need you</h4>
-      <p>From <code>docs/SECURITY.md</code> §9, worst first. <b>(1)</b> Production data and logs are in Render's <b>Singapore</b> region; the CERT-In directions of 28 April 2022 require ICT logs to be kept within India for 180 days, and cross-border processing needs a legal view under the DPDP Act — qualified advice, not a code change. <b>(2)</b> The free-tier database has no backups at all; a paid plan with point-in-time recovery, then a restore drill against it. <b>(3)</b> <code>DEPLOYMENT.md</code> showed a literal sign-up password for <code>qa@peopleopslab.in</code> against production; the value is now a placeholder but remains in git history — if that account exists in production, change its password. <b>(4)</b> Install the fixed <code>xlsx</code> from the SheetJS CDN (unreachable from the build environment used here).</p>
+      <p>From <code>docs/SECURITY.md</code> §9, worst first. <b>(1)</b> Production data and logs are in Render's <b>Singapore</b> region; the CERT-In directions of 28 April 2022 require ICT logs to be kept within India for 180 days, and cross-border processing needs a legal view under the DPDP Act — qualified advice, not a code change. <b>(2)</b> The free-tier database has no backups at all; a paid plan with point-in-time recovery, then a restore drill against it. <b>(3)</b> Install the fixed <code>xlsx</code> from the SheetJS CDN (unreachable from the build environment used here).</p>
     </div>
 
     <div class="note warn">

@@ -113,8 +113,8 @@ Owners are roles. Priority: P0 now · P1 this month · P2 this quarter.
 - **Requirement:** A.8.4 *Access to source code*; A.5.17; A.8.15 *Logging*. ASVS V13, V16.
 - **Implementation / evidence:** gitleaks over the full history in CI; `.gitleaksignore` records two reviewed findings; security events and log lines never carry passwords, tokens or codes; validation errors redact secret fields; the MFA challenge lives in memory only.
 - **Verification · result:** gitleaks 8.21.2 over 336 commits: 2 findings (example passwords in docs) → replaced → 0. Tests assert no password, code or recovery code appears in any event.
-- **Remediation required:** confirm/rotate the `qa@peopleopslab.in` account (R3).
-- **Status:** Implemented — verified; rotation pending.
+- **Remediation required:** none. R3 closed 1 Oct 2026: the published `qa@peopleopslab.in` password is refused by the production sign-in (checked by the owner); it remains in git history but opens nothing.
+- **Status:** Implemented — verified.
 
 ### DS-03 — Personal data in logs
 - **Requirement:** A.8.15; A.5.34 *Privacy and protection of PII*.
