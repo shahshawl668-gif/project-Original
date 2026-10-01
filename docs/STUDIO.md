@@ -348,7 +348,9 @@ pinned on the stream or the newest published version effective on the run
 date, and the run records which — so the runs that used version 3 always used
 exactly version 3. **Preview** applies a draft or published version to sample
 records (from a file, the connection, or pasted JSON) and returns every
-output and every error with its source row. **Compare** lists field-by-field
+output and every error with its source row. A sample file is read on the
+server (`POST /api/studio/mappings/sample`: the first 500 rows, as text, with
+the same size and expansion checks as an import), never in the browser. **Compare** lists field-by-field
 differences between any two versions.
 
 **Lineage** on each stored record gains the mapping version, beside the

@@ -834,6 +834,25 @@ def preview_spec(body: PreviewBody, db: Session = Depends(get_db), entity: Entit
     return ok(profiles.preview(spec, body.records))
 
 
+SAMPLE_ROWS = 500
+
+
+@router.post("/mappings/sample")
+async def read_sample(file: UploadFile = File(...), entity: Entity = Depends(require_studio_reader)):
+    """
+    A sample file's first rows as text records, for building a mapping.
+
+    Parsed here rather than in the browser, so spreadsheets are only ever
+    opened by the server's checked reader (size and zip-bomb limits, no
+    macros, values as text). Nothing is stored.
+    """
+    try:
+        records, truncated = imports.sample_records(await file.read(), file.filename or "sample.csv", SAMPLE_ROWS)
+    except ValueError as exc:
+        raise _http(exc)
+    return ok({"records": records, "truncated": truncated, "rows": len(records)})
+
+
 @router.post("/mappings/{mapping_id}/preview")
 async def preview_mapping(mapping_id: str, file: UploadFile | None = File(default=None),
                           records: str | None = Form(default=None), db: Session = Depends(get_db),

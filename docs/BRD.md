@@ -368,7 +368,7 @@ Stated plainly because a BRD that hides them is not a baseline.
 |---|---|---|---|
 | G1 | No data retention or deletion policy engine | DPDP Act obligation unmet for erasure requests | Required before processing a third party's data at scale |
 | G2 | `passlib` imports `crypt`, removed in Python 3.13 | Blocks a runtime upgrade | Pinned to Python 3.12; replace before upgrading |
-| G3 | `xlsx` npm advisory with no fixed version | Frontend dependency audit shows a high finding | Server-side generation is `openpyxl`; assess client-side usage |
+| G3 | ~~`xlsx` npm advisory with no fixed version~~ | Frontend dependency audit shows a high finding | Resolved 1 Oct 2026: the package is removed; mapping samples are parsed on the server (`openpyxl`) |
 | G4 | `validation.py` at ~59% line coverage | Highest-complexity module, thinnest coverage | Raise before major refactor |
 | G5 | No rate limiting on authentication endpoints | Credential stuffing exposure | Add at the edge before public signup |
 | G6 | Bank presets unverified against live bank specifications | A wrong mapping reconciles against the wrong column | Mitigated by the mandatory test-against-a-file step |
