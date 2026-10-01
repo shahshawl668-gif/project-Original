@@ -3,7 +3,9 @@ uvicorn[standard]>=0.32.1
 sqlalchemy>=2.0.36
 pydantic>=2.10.3
 pydantic-settings>=2.6.1
-python-jose[cryptography]>=3.3.0
+# Tokens are HS256. PyJWT replaced python-jose, whose ecdsa dependency carries
+# CVE-2024-23342 with no upstream fix (docs/SECURITY.md R14).
+PyJWT>=2.10
 passlib[bcrypt]>=1.7.4
 bcrypt<4.1
 python-multipart>=0.0.17

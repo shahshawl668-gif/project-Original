@@ -10,7 +10,7 @@ import uuid
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from jwt import PyJWTError as JWTError
 from sqlalchemy.orm import Session
 
 from app.config import settings

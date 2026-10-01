@@ -149,10 +149,10 @@ All on 30 September 2026, in an isolated container, on synthetic data.
 | Frontend auth tests | 17 passed (3 new: second step) |
 | Frontend typecheck, lint | Clean |
 | bandit | 0 issues (one reviewed `nosec`: HMAC-SHA1 in RFC 6238 TOTP) |
-| pip-audit | 1 advisory (ecdsa, CVE-2024-23342) — not reachable: HS256 only; excepted with review date |
+| pip-audit | Initially 1 advisory (ecdsa, CVE-2024-23342, via python-jose) — not reachable (HS256 only). Removed by replacing python-jose with PyJWT: **no known vulnerabilities**. Tokens verified interchangeable in both directions, so the deploy signs no one out and a rollback is safe; forged tokens (wrong key, `alg=none`, expired) refused — `test_a_forged_token_opens_nothing` |
 | npm audit (runtime) | 33 advisories across next, xlsx, postcss, nanoid — each assessed in `dependency-exceptions.json`; 9 **apply** and are provisional |
 | gitleaks, full history (336 commits) | 2 findings (example passwords in docs) → fixed and recorded; 0 after |
-| Browser walk, production build, API in production mode | Signed in; enrolled two-step sign-in through the page (10 recovery codes shown once); signed out and back in with a code; a wrong code refused with a message; "sign out everywhere" returned to sign-in and the old access token then got 401. API: all headers incl. HSTS, `/docs` and `/openapi.json` 404. Web: CSP and headers present. **No CSP violation on any page left to load**, including the formula editor (Monaco), Studio mapping, dashboards and Report Builder. Observed: when a navigation aborts an in-flight relay request, the client's existing fallback retries it against the direct API URL, and the CSP blocks that retry if the URL is not the relay's — harmless, but the fallback should not fire on aborts (P2) |
+| Browser walk, production build, API in production mode | Signed in; enrolled two-step sign-in through the page (10 recovery codes shown once); signed out and back in with a code; a wrong code refused with a message; "sign out everywhere" returned to sign-in and the old access token then got 401. API: all headers incl. HSTS, `/docs` and `/openapi.json` 404. Web: CSP and headers present. **No CSP violation on any page left to load**, including the formula editor (Monaco), Studio mapping, dashboards and Report Builder. Observed: when a navigation aborts an in-flight relay request, the client's existing fallback retries it against the direct API URL, and the CSP blocks that retry if the URL is not the relay's — harmless; fixed on 1 Oct 2026 — the fallback no longer fires while the page is being left (`tests/auth.test.cjs`, two tests) |
 | Restore drill | PASS — 85 tables, 39,411 rows identical by content digest; application booted and signed in on the copy |
 
 ## 7. Hosting and organisational verification gaps
@@ -207,9 +207,9 @@ month, P2 this quarter.
 | R9 | No breached-password check (ASVS 6.2.12); bcrypt ignores bytes past 72 | Engineering | P2 | k-anonymity breached-password lookup (sends a hash prefix to a third party — a privacy decision); pre-hash or move to Argon2id with rehash on sign-in |
 | R10 | No IP-level throttling; API reachable directly | Engineering | P2 | Edge rate limiting / WAF in front of both services; restrict the API to the relay |
 | R11 | No alerting on security events | Engineering | P2 | Alert on `refresh/detected`, lock bursts, `mfa_disabled`, support grants; ship logs to a retained store (180 days) |
-| R12 | Users cannot list their sessions (ASVS 7.5.2) | Engineering | P2 | Session list on `/account/security` |
+| R12 | ~~Users cannot list their sessions (ASVS 7.5.2)~~ | Engineering | Done | Session list with per-session end on `/account/security` (1 Oct 2026); ending one takes effect at its next refresh, ≤ 30 min |
 | R13 | One unexplained PostgreSQL sweep failure | Engineering | P2 | Run the sweep in CI on PostgreSQL (now in place) and capture the next failure's output |
-| R14 | `python-jose` pulls unmaintained `ecdsa` | Engineering | P2 | Replace with PyJWT |
+| R14 | ~~`python-jose` pulls unmaintained `ecdsa`~~ | Engineering | Done | Replaced with PyJWT (1 Oct 2026) |
 | R15 | No independent assessment | Business owner | P1 before real client data | Engage a tester with `security/PENTEST_SCOPE.md` |
 | R16 | ISMS exists only as templates | Business owner | P1 | Approve scope, policy, risk method; start the records each template names |
 | R17 | Statutory rates unsigned (GO_LIVE D6) | Payroll professional | P0 before real data | Unchanged by this work |

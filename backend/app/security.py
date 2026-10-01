@@ -4,7 +4,7 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, UTC
 
-from jose import jwt
+import jwt
 from passlib.context import CryptContext
 
 from app.config import settings

@@ -13,8 +13,10 @@ function harness(fetch, hostname = "localhost") {
     removeItem: (key) => values.delete(key),
   };
   let expire;
+  const listeners = {};
   const globals = {
-    fetch, localStorage: storage, window: { location: { hostname } },
+    fetch, localStorage: storage,
+    window: { location: { hostname }, addEventListener: (type, fn) => { listeners[type] = fn; } },
     process: { env: {} }, Headers, FormData, AbortController, atob,
     setTimeout: (callback) => { expire = callback; return 1; },
     clearTimeout: () => {},
@@ -35,7 +37,7 @@ function harness(fetch, hostname = "localhost") {
   }
   const api = load("api.ts");
   const auth = load("auth.ts", { "@/lib/api": api });
-  return { ...auth, api, storage, expire: () => expire() };
+  return { ...auth, api, storage, expire: () => expire(), fire: (type) => listeners[type]?.() };
 }
 
 const tokens = { access_token: "new-access", refresh_token: "new-refresh" };
@@ -192,4 +194,20 @@ test("a wrong second-step code leaves no session", async () => {
   const h = harness(async () => failure(401, "That code is not right, or has already been used."));
   await assert.rejects(h.completeSecondStep("challenge", "000000"), /not right/);
   assert.equal(h.api.getAccessToken(), null);
+});
+
+test("leaving the page does not retry its aborted requests against the direct host", async () => {
+  const calls = [];
+  const h = harness(async (url) => { calls.push(url); throw new TypeError("Failed to fetch"); }, "www.peopleopslab.in");
+  h.fire("beforeunload");
+  await assert.rejects(h.api.apiFetch("/api/org/portfolio"), TypeError);
+  assert.deepEqual(calls, ["/api/proxy/api/org/portfolio"]);
+});
+
+test("a relay that cannot be reached is still retried directly while the page stays", async () => {
+  const calls = [];
+  const h = harness(async (url) => { calls.push(url); throw new TypeError("Failed to fetch"); }, "www.peopleopslab.in");
+  await assert.rejects(h.api.apiFetch("/api/org/portfolio"), TypeError);
+  assert.equal(calls[0], "/api/proxy/api/org/portfolio");
+  assert.equal(calls.length, 2);
 });

@@ -52,6 +52,14 @@ class RefreshToken(Base):
     # expires so that the same token arriving again can be recognised as a
     # replay rather than read as merely unknown.
     rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # One sign-in, carried across every rotation, so a person can see their
+    # sessions and end one (OWASP ASVS 5.0 7.5.2). Empty on rows from before.
+    session_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    signed_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    portal: Mapped[str | None] = mapped_column(String(16))
+    # As the browser reported it, trimmed. Shown to the person, so they can
+    # recognise their own devices; never used to decide anything.
+    user_agent: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="refresh_tokens")

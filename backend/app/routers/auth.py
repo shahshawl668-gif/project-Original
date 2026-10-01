@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from jose import JWTError
+from jwt import PyJWTError as JWTError
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -47,23 +47,37 @@ STAFF_ROLES = {"owner", "admin", "support"}
 
 
 def _issue_tokens(db: Session, user: User, *, portal: str = "client", org_id: uuid.UUID | None = None,
-                  auth_time: int | None = None) -> TokenPair:
-    """``auth_time`` is when the person signed in; a refresh carries it forward, a sign-in starts it."""
+                  auth_time: int | None = None, session_id: str | None = None,
+                  request: Request | None = None) -> TokenPair:
+    """
+    ``auth_time`` is when the person signed in and ``session_id`` which sign-in
+    this is: a refresh carries both forward, a sign-in starts both.
+    """
     if portal == "client" and org_id is None:
         membership = tenancy.get_membership(db, user)
         org_id = membership.org_id if membership else None
+    started = int(auth_time or time.time())
+    try:
+        sid = uuid.UUID(str(session_id)) if session_id else uuid.uuid4()
+    except ValueError:
+        sid = uuid.uuid4()
     claims = {"portal": portal, "org_id": str(org_id) if org_id else None, "sv": int(user.session_version or 0),
-              "auth_time": int(auth_time or time.time())}
+              "auth_time": started, "sid": str(sid)}
     if guard.mfa_required_but_missing(db, user, portal, org_id):
         # Signed in to do one thing: set up two-step sign-in (see deps).
         claims["enrol_mfa"] = True
     access = create_access_token(str(user.id), extra=claims)
     refresh = create_refresh_token(str(user.id), extra=claims)
     guard.prune_refresh_tokens(db, user.id)
+    agent = (request.headers.get("user-agent") or "")[:200] if request is not None else ""
     rt = RefreshToken(
         user_id=user.id,
         token_hash=token_fingerprint(refresh),
         expires_at=datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days),
+        session_id=sid,
+        signed_in_at=datetime.fromtimestamp(started, UTC),
+        portal=portal,
+        user_agent=agent or None,
     )
     db.add(rt)
     db.commit()
@@ -81,7 +95,7 @@ def _signed_in(db: Session, request: Request, user: User, *, kind: str, portal: 
         return {"mfa_required": True, "mfa_token": token}
     guard.clear_failures(db, kind, identifier)
     guard.event(db, request, kind=kind, outcome="success", user=user, detail={"mfa": False})
-    return _issue_tokens(db, user, portal=portal, org_id=org_id).model_dump()
+    return _issue_tokens(db, user, portal=portal, org_id=org_id, request=request).model_dump()
 
 
 def _refuse(db: Session, request: Request, kind: str, identifier: str, user: User | None,
@@ -93,7 +107,7 @@ def _refuse(db: Session, request: Request, kind: str, identifier: str, user: Use
 
 
 @router.post("/signup")
-def signup(body: SignupRequest, db: Session = Depends(get_db)):
+def signup(body: SignupRequest, request: Request, db: Session = Depends(get_db)):
     if not settings.allow_public_signup:
         raise HTTPException(status_code=404, detail="Workspace registration is invitation-only")
     email = body.email.lower().strip()
@@ -125,7 +139,7 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(user)
-    tokens = _issue_tokens(db, user)
+    tokens = _issue_tokens(db, user, request=request)
     return ok(tokens.model_dump())
 
 
@@ -192,7 +206,8 @@ def mfa_verify(body: MfaVerify, request: Request, db: Session = Depends(get_db))
     guard.clear_failures(db, claims.get("scope", "login"), claims.get("identifier", user.email))
     guard.event(db, request, kind="mfa", outcome="success", user=user,
                 detail={"method": method, "recovery_codes_left": len(user.mfa_recovery_hashes or [])})
-    return ok(_issue_tokens(db, user, portal=portal, org_id=uuid.UUID(org_id) if org_id else None).model_dump())
+    return ok(_issue_tokens(db, user, portal=portal, org_id=uuid.UUID(org_id) if org_id else None,
+                            request=request).model_dump())
 
 
 @router.post("/platform-invitations/register")
@@ -213,7 +228,7 @@ def register_platform_staff(body: PlatformInviteAccept, request: Request, db: Se
     guard.event(db, request, kind="platform_invitation", outcome="success", user=user, detail={"role": invite.role})
     db.commit()
     db.refresh(user)
-    return ok(_issue_tokens(db, user, portal="platform").model_dump())
+    return ok(_issue_tokens(db, user, portal="platform", request=request).model_dump())
 
 
 @router.post("/support-session")
@@ -224,7 +239,7 @@ def open_support_session(body: SupportSessionRequest, request: Request, staff: U
                     detail={"org_id": str(body.org_id), "reason": "no active grant"}, commit=True)
         raise HTTPException(status_code=403, detail="An active support grant is required")
     guard.event(db, request, kind="support_session", outcome="success", user=staff, detail={"org_id": str(body.org_id)})
-    return ok(_issue_tokens(db, staff, portal="support", org_id=body.org_id).model_dump())
+    return ok(_issue_tokens(db, staff, portal="support", org_id=body.org_id, request=request).model_dump())
 
 
 @router.post("/refresh")
@@ -290,7 +305,9 @@ def refresh_token(body: RefreshRequest, request: Request, db: Session = Depends(
 
     started = payload.get("auth_time")
     tokens = _issue_tokens(db, user, portal=portal, org_id=uuid.UUID(org_id) if org_id else None,
-                           auth_time=int(started) if isinstance(started, (int, float)) else None)
+                           auth_time=int(started) if isinstance(started, (int, float)) else None,
+                           session_id=payload.get("sid") or (str(row.session_id) if row.session_id else None),
+                           request=request)
     return ok(tokens.model_dump())
 
 
@@ -319,6 +336,49 @@ def revoke_all_sessions(request: Request, user: User = Depends(get_current_user)
     guard.end_all_sessions(db, request, user, reason="user_request")
     db.commit()
     return ok({"signed_out": True})
+
+
+@router.get("/sessions")
+def list_sessions(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Where you are signed in (OWASP ASVS 5.0 7.5.2): one row per sign-in, its
+    portal, when it began, when it last refreshed, and the browser it named.
+    """
+    current = (getattr(request.state, "auth_claims", {}) or {}).get("sid")
+    rows = (db.query(RefreshToken)
+            .filter(RefreshToken.user_id == user.id, RefreshToken.rotated_at.is_(None),
+                    RefreshToken.expires_at > datetime.now(UTC))
+            .order_by(RefreshToken.created_at.desc()).all())
+    return ok([{
+        "id": str(r.session_id or r.id),
+        "portal": r.portal,
+        "signed_in_at": r.signed_in_at.isoformat() if r.signed_in_at else None,
+        "last_active_at": r.created_at.isoformat() if r.created_at else None,
+        "browser": r.user_agent,
+        "current": bool(current and r.session_id and str(r.session_id) == current),
+    } for r in rows])
+
+
+@router.post("/sessions/{session_id}/end")
+def end_session(session_id: uuid.UUID, body: PasswordConfirm, request: Request,
+                user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    End one sign-in, after confirming the password. Its refresh is refused at
+    once; an access token it already holds lasts until it expires (at most
+    ACCESS_TOKEN_EXPIRE_MINUTES). "Sign out everywhere" is immediate.
+    """
+    _own_account(request, user)
+    _recheck_password(db, request, user, body.password)
+    ended = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user.id,
+        (RefreshToken.session_id == session_id) | (RefreshToken.id == session_id),
+    ).delete(synchronize_session=False)
+    if not ended:
+        raise HTTPException(status_code=404, detail="No such session")
+    guard.event(db, request, kind="session_ended", outcome="changed", user=user,
+                detail={"session": str(session_id)})
+    db.commit()
+    return ok({"ended": True})
 
 
 @router.get("/me")
@@ -390,7 +450,7 @@ def mfa_enable(body: MfaEnable, request: Request, user: User = Depends(get_curre
     db.commit()
     claims = request.state.auth_claims or {}
     tokens = _issue_tokens(db, user, portal=claims.get("portal", "client"), org_id=_claim_org(request),
-                           auth_time=claims.get("auth_time"))
+                           auth_time=claims.get("auth_time"), session_id=claims.get("sid"), request=request)
     return ok({"recovery_codes": codes, **tokens.model_dump()})
 
 

@@ -1,6 +1,6 @@
 {
   "_about": "Known advisories assessed as not exploitable here, or accepted until a named fix. tools/dependency_audit.py fails CI on any advisory not listed, and on any entry past its review_by date. Changing this file is a security decision: say why in the commit.",
-  "reviewed_on": "2026-09-30",
+  "reviewed_on": "2026-10-01",
   "exceptions": [
     {
       "id": "GHSA-9g9p-9gw9-jx7f",
@@ -289,19 +289,6 @@
       "assessment": "Build-time only, on this repository's own CSS; no untrusted CSS is ever processed. Cleared by the Next.js upgrade.",
       "fixed_in": "via next upgrade",
       "review_by": "2026-11-30"
-    },
-    {
-      "id": "PYSEC-2026-1325",
-      "aliases": [
-        "CVE-2024-23342",
-        "GHSA-wj6h-64fc-37mp"
-      ],
-      "package": "ecdsa",
-      "severity": "high",
-      "title": "Minerva timing attack on P-256 signing",
-      "assessment": "Pulled in by python-jose. Tokens are signed HS256 only (JWT_ALGORITHM); no ECDSA key exists or is used, and verification is unaffected by the advisory. Upstream will not fix. Removal: replace python-jose with PyJWT (open item).",
-      "fixed_in": "none upstream",
-      "review_by": "2026-12-31"
     }
   ]
 }
