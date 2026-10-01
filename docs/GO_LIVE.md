@@ -417,7 +417,6 @@ These do not block a controlled first go-live, but you are accepting them:
 |---|---|---|
 | No retention/deletion policy engine | DPDP erasure requests need manual handling | Document a manual procedure with an owner and an SLA |
 | Sign-in throttling is per account only (`LOGIN_LOCKOUT_MINUTES`), not per IP | Password spraying across many accounts | An edge rate rule (e.g. Cloudflare) in front of `/api/auth/*` |
-| `xlsx` npm advisory | Frontend dependency finding | Confirm server-side `openpyxl` is the generation path |
 | Bank presets unverified | A wrong column mapping | The test-against-a-file step is mandatory, not optional |
 | Python pinned to 3.12 (`passlib`/`crypt`) | Cannot upgrade runtime | Replace `passlib` before 3.13 |
 

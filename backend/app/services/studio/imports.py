@@ -865,6 +865,28 @@ def dry_run(
     }
 
 
+def _frame(content: bytes, filename: str, nrows: int | None = None):
+    """Every cell as text; an .xlsx is size-checked before it is opened."""
+    import io
+
+    lower = (filename or "").lower()
+    if lower.endswith(".csv"):
+        return pd.read_csv(io.BytesIO(content), dtype=str, keep_default_na=False, nrows=nrows)
+    if lower.endswith(".xlsx"):
+        check_workbook(content)
+        try:
+            return pd.read_excel(io.BytesIO(content), dtype=str, keep_default_na=False, engine="openpyxl", nrows=nrows)
+        except ValueError:
+            raise
+        except Exception as exc:  # a zip that is not a workbook, or a damaged one: refused, not a 500
+            raise ValueError("The file is not a readable .xlsx workbook.") from exc
+    raise ValueError("Upload a .csv or .xlsx file.")
+
+
+def _records(frame) -> list[dict[str, Any]]:
+    return [{str(k): (v if v != "" else None) for k, v in row.items()} for row in frame.to_dict(orient="records")]
+
+
 def records_from_file(content: bytes, filename: str, max_rows: int | None = None) -> list[dict[str, Any]]:
     """
     A CSV or Excel file as records of text, exactly as written.
@@ -873,17 +895,18 @@ def records_from_file(content: bytes, filename: str, max_rows: int | None = None
     number is reinterpreted — because the mapping decides how each field is
     read. Empty cells are absent, not empty strings.
     """
-    import io
-
-    lower = (filename or "").lower()
-    if lower.endswith(".csv"):
-        frame = pd.read_csv(io.BytesIO(content), dtype=str, keep_default_na=False)
-    elif lower.endswith(".xlsx"):
-        check_workbook(content)
-        frame = pd.read_excel(io.BytesIO(content), dtype=str, keep_default_na=False, engine="openpyxl")
-    else:
-        raise ValueError("Upload a .csv or .xlsx file.")
+    frame = _frame(content, filename)
     limit = max_rows or settings.integration_max_records
     if len(frame) > limit:
         raise ValueError(f"The file has {len(frame):,} rows; at most {limit:,} can be imported at once.")
-    return [{str(k): (v if v != "" else None) for k, v in row.items()} for row in frame.to_dict(orient="records")]
+    return _records(frame)
+
+
+def sample_records(content: bytes, filename: str, rows: int) -> tuple[list[dict[str, Any]], bool]:
+    """
+    The first ``rows`` records of a file, read as ``records_from_file`` reads
+    them, and whether there were more. For previewing a mapping: a sample is
+    cut short rather than refused.
+    """
+    frame = _frame(content, filename, nrows=rows + 1)
+    return _records(frame.head(rows)), len(frame) > rows

@@ -1,24 +1,5 @@
 {
   "_about": "Known advisories assessed as not exploitable here, or accepted until a named fix. tools/dependency_audit.py fails CI on any advisory not listed, and on any entry past its review_by date. Changing this file is a security decision: say why in the commit.",
   "reviewed_on": "2026-10-01",
-  "exceptions": [
-    {
-      "id": "GHSA-4r6h-8v6p-xvw6",
-      "package": "xlsx",
-      "severity": "high",
-      "title": "Prototype Pollution in sheetJS",
-      "assessment": "APPLIES in the browser when a user opens a workbook in the Studio mapping preview. Fixed builds are published only at cdn.sheetjs.com, which this build environment cannot reach. Fix: install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz from a machine that can, and commit the lockfile.",
-      "fixed_in": "xlsx 0.19.3 (SheetJS CDN)",
-      "review_by": "2026-11-30"
-    },
-    {
-      "id": "GHSA-5pgg-2g8v-p4x9",
-      "package": "xlsx",
-      "severity": "high",
-      "title": "SheetJS Regular Expression Denial of Service (ReDoS)",
-      "assessment": "APPLIES client-side only (a user's own browser tab). Same fix as GHSA-4r6h-8v6p-xvw6.",
-      "fixed_in": "xlsx 0.20.2 (SheetJS CDN)",
-      "review_by": "2026-11-30"
-    }
-  ]
+  "exceptions": []
 }

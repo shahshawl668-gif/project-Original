@@ -282,6 +282,12 @@ export const studioMapApi = {
       `/api/studio/mappings/${encodeURIComponent(id)}/compare?other=${encodeURIComponent(other)}`),
   preview: (spec: MappingSpec, object_type: string, records: unknown[]) =>
     send<PreviewResult>("/api/studio/mappings/preview", "POST", { spec, object_type, records }),
+  /** The first rows of a sample file, read on the server as text. */
+  sample: async (file: File): Promise<{ records: Record<string, unknown>[]; truncated: boolean; rows: number }> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return apiJson("/api/studio/mappings/sample", { method: "POST", body: fd });
+  },
   previewFile: async (id: string, file: File): Promise<PreviewResult> => {
     const fd = new FormData();
     fd.append("file", file);

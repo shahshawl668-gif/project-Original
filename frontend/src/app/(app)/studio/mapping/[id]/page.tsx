@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
 import { ArrowLeft, Copy, Eye, FileUp, GitCompare, Plus, Save, Send, Trash2 } from "lucide-react";
 
 import { useEntity } from "@/context/EntityContext";
@@ -42,12 +41,19 @@ function linesToTable(text: string): Record<string, string> {
 }
 const tableToLines = (t?: Record<string, string>) => Object.entries(t ?? {}).map(([k, v]) => `${k}=${v}`).join("\n");
 
-/** Read a CSV or Excel file in the browser, as text, so "0042" stays "0042". */
+/**
+ * A CSV or Excel sample, read as text so "0042" stays "0042". The server
+ * reads it: spreadsheets are never parsed in the browser.
+ */
 async function readSample(file: File): Promise<Record<string, unknown>[]> {
-  const isCsv = file.name.toLowerCase().endsWith(".csv");
-  const wb = isCsv ? XLSX.read(await file.text(), { type: "string", raw: true }) : XLSX.read(await file.arrayBuffer(), { type: "array" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { raw: false, defval: null }).slice(0, 500);
+  try {
+    const out = await studioMapApi.sample(file);
+    if (out.truncated) toast.info(`Using the first ${out.rows} rows of the sample`);
+    return out.records;
+  } catch (e) {
+    toast.error("The sample could not be read", { description: e instanceof Error ? e.message : "" });
+    return [];
+  }
 }
 
 export default function MappingEditorPage() {
