@@ -69,6 +69,11 @@ you have.
 
 **Where you are signed in** on the same page lists each sign-in — browser, when it began, when it was last active — and marks this device. **End…** one, after confirming your password: it stops refreshing at once, though a page already open there keeps working for up to 30 minutes.
 
+**Change password**, at the top of the same page, asks for your current
+password and the new one twice. It signs you out on every other device; this
+one stays signed in. Use it whenever you think someone else may know your
+password.
+
 **Sign out everywhere** ends every session on every device,
 this one included — use it if a laptop is lost or you think someone else knows
 your password. Resetting your password does the same. It stops further access;

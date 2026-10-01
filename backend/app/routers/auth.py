@@ -21,6 +21,7 @@ from app.schemas.auth import (
     MfaChange,
     MfaEnable,
     MfaVerify,
+    PasswordChange,
     PasswordConfirm,
     PlatformInviteAccept,
     SupportSessionRequest,
@@ -388,10 +389,10 @@ def me(user: User = Depends(get_current_user)):
 
 # ── two-step sign-in ────────────────────────────────────────────────────────
 
-def _own_account(request: Request, user: User) -> None:
+def _own_account(request: Request, user: User, what: str = "two-step sign-in") -> None:
     """A support session acts inside a client's workspace; it never changes the staff member's own sign-in."""
     if (getattr(request.state, "auth_claims", {}) or {}).get("portal") == "support" or user.role in ("system", "machine"):
-        raise HTTPException(status_code=403, detail="Change two-step sign-in from your own session")
+        raise HTTPException(status_code=403, detail=f"Change {what} from your own session")
 
 
 def _recheck_password(db: Session, request: Request, user: User, password: str) -> None:
@@ -497,6 +498,36 @@ def _claim_org(request: Request) -> uuid.UUID | None:
         return uuid.UUID(raw) if raw else None
     except ValueError:
         return None
+
+
+# ── password change ─────────────────────────────────────────────────────────
+
+@router.post("/password")
+def change_password(body: PasswordChange, request: Request, user: User = Depends(get_current_user),
+                    db: Session = Depends(get_db)):
+    """
+    Change your own password (OWASP ASVS 5.0 6.2.2, 6.2.3): the current one
+    first, and the new one held to the same rules as sign-up.
+
+    Every other sign-in ends, on every device — the usual reason to change a
+    password is that someone else may know it. This device carries on with the
+    pair returned. Two-step sign-in is untouched: the password is what changes.
+    """
+    _own_account(request, user, "your password")
+    _recheck_password(db, request, user, body.current_password)
+    if verify_password(body.new_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="The new password is the same as the current one")
+    user.password_hash = hash_password(body.new_password)
+    # A reset link issued earlier would otherwise undo this change.
+    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.id,
+                                        PasswordResetToken.used_at.is_(None)).update({"used_at": datetime.now(UTC)})
+    guard.event(db, request, kind="password_changed", outcome="changed", user=user)
+    guard.end_all_sessions(db, request, user, reason="password_changed")
+    db.commit()
+    claims = request.state.auth_claims or {}
+    tokens = _issue_tokens(db, user, portal=claims.get("portal", "client"), org_id=_claim_org(request),
+                           auth_time=claims.get("auth_time"), session_id=claims.get("sid"), request=request)
+    return ok(tokens.model_dump())
 
 
 # ── password reset ──────────────────────────────────────────────────────────

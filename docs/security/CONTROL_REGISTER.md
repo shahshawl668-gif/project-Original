@@ -72,10 +72,10 @@ Owners are roles. Priority: P0 now · P1 this month · P2 this quarter.
 - **Status:** Implemented — verified (message and status); timing not measured.
 
 ### AU-03 — Password policy
-- **Requirement:** A.5.17 *Authentication information*. ASVS 6.2.1, 6.2.4, 6.2.9, 6.2.12.
-- **Implementation / evidence:** 8–128 characters; refused if among the 10,000 most common (SecLists / NCSC list, MIT, in `app/data`); checked at sign-up, invitation and reset; refused values not echoed in 422 bodies.
+- **Requirement:** A.5.17 *Authentication information*. ASVS 6.2.1, 6.2.2, 6.2.3, 6.2.4, 6.2.9, 6.2.12.
+- **Implementation / evidence:** 8–128 characters; refused if among the 10,000 most common (SecLists / NCSC list, MIT, in `app/data`); checked at sign-up, invitation, reset and change; refused values not echoed in 422 bodies. A signed-in person changes their own password at `POST /api/auth/password` (`/account/security`) with the current one (6.2.2, 6.2.3), throttled like sign-in; it ends every other session, spends outstanding reset links and is logged as `password_changed` (added 1 Oct 2026).
 - **Remediation required:** breached-password check (6.2.12); bcrypt 72-byte limit (R9).
-- **Verification · result:** `test_a_common_password_is_refused…` — pass.
+- **Verification · result:** `test_a_common_password_is_refused…`, `test_a_person_changes_their_password_and_every_other_session_ends`, `test_a_new_password_meets_the_same_rules_and_must_differ`, `test_guessing_the_current_password_locks_the_change`, `test_a_password_change_keeps_two_step_sign_in` — pass.
 - **Status:** Partial (6.2.12 not met).
 
 ### AU-04 — Multi-factor authentication

@@ -86,6 +86,13 @@ class PasswordConfirm(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)
+
+    _policy = field_validator("new_password")(_password_policy)
+
+
 class MfaEnable(BaseModel):
     code: str = Field(min_length=6, max_length=12)
 

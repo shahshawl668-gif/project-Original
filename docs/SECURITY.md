@@ -133,6 +133,7 @@ Each item has a regression test that fails without the fix.
 | F15 | Next.js 14.2.18 with a critical middleware-bypass advisory and several DoS advisories | High | 14.2.35, image optimiser off; DOMPurify ≥ 3.4.16; then Next.js 15.5.27 / React 19 and PostCSS ≥ 8.5.28 (1 Oct 2026) | `npm audit` + `tools/dependency_audit.py` |
 | F16 | Literal passwords in two documents | Low–Medium | Placeholders; `.gitleaksignore` records the review | gitleaks: no findings |
 | F17 | No dependency audit, SBOM or secret scan; CI tests SQLite only | Medium | CI jobs `backend-postgres`, `supply-chain`; Dependabot | Run locally (§6); first CI run on the PR |
+| F18 | No one could change a password: no change form, and reset links had no mail service to deliver them (ASVS 6.2.2, 6.2.3) | Medium | `POST /api/auth/password` and a form on `/account/security`: current password required, throttled, same policy, every other session ended (1 Oct 2026) | `…::test_a_person_changes_their_password…` and three more |
 
 Nothing was changed in production: no deploy, no setting, no data. The fixes
 reach production when the pull request is merged and Render auto-deploys `main`.
@@ -198,7 +199,7 @@ month, P2 this quarter.
 |---|---|---|---|---|
 | R1 | Free database deleted on 22 Oct; no backups | Business owner | **P0** | Paid plan with point-in-time recovery; then run `restore_drill.py` against a restored production backup in a separate instance and file the record |
 | R2 | Data and logs outside India | Business owner + legal | **P0** | Legal view on CERT-In and DPDP; if needed, move to an India region. Render offers Oregon, Ohio, Virginia, Frankfurt and Singapore (render.com/docs/regions, checked 30 Sep 2026), so this means another host |
-| R3 | Possible production account with a published password (`qa@peopleopslab.in`) | Platform owner | **P0** | Check whether it exists; if so, change its password or remove its access |
+| R3 | Possible production account with a published password (`qa@peopleopslab.in`) | Platform owner | **P0** | Check whether it exists. If it does, sign in as it and use **Change password** on `/account/security` (added 1 Oct 2026; before that no user could change a password, since reset links have no mail service to send them) — or remove its access |
 | R4 | ~~Next.js App Router DoS advisories~~ | Engineering | Done | Upgraded to Next.js 15.5.27 and React 19 (1 Oct 2026); every Next.js advisory cleared, 30 provisional exceptions removed |
 | R5 | `xlsx` advisories (browser-side parsing) | Engineering | P1 | Install 0.20.3 from cdn.sheetjs.com, or parse previews server-side |
 | R6 | Two-step sign-in is optional until an owner turns it on | Each client owner; platform owner for staff | P1 | Enrol all platform staff, then set `REQUIRE_MFA_FOR_PLATFORM_STAFF=true`; recommend clients turn on `members_require_mfa` |
