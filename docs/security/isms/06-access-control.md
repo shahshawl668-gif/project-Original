@@ -12,7 +12,7 @@ enforcement; session revocation.
 1. Platform staff are invited, never promoted from client accounts; every
    member of staff uses two-step sign-in (`REQUIRE_MFA_FOR_PLATFORM_STAFF=true`
    _once all are enrolled_).
-2. Access to Render, GitHub, DNS and the domain registrar is personal (no
+2. Access to Render, GitHub and GoDaddy (the domain and its DNS) is personal (no
    shared logins), protected by two-step sign-in, and listed here with its
    owner: _list_.
 3. _Quarterly_ access review of platform staff, hosting accounts and

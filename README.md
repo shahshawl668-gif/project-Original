@@ -146,9 +146,14 @@ CI runs via `.github/workflows/ci.yml`.
 
 ## DNS
 
-- **peopleopslab.in** → Next.js
-- **www** → Next.js
-- **api** → FastAPI
+The domain is registered at **GoDaddy**, and its DNS is managed there. No other
+hosting account is involved.
+
+- **peopleopslab.in** → the Render web service (A record — GoDaddy cannot CNAME the bare domain)
+- **www** → the Render web service (CNAME `peopleopslab-web.onrender.com`)
+- **api** → not created; the API keeps its `*.onrender.com` address
+
+Exact records and how to check them: [`DEPLOYMENT.md`](DEPLOYMENT.md) §0.
 
 ## Security reminders
 

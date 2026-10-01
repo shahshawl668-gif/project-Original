@@ -5,9 +5,10 @@ document focuses on getting `peopleopslab.in` live end-to-end on:
 
 | Layer        | Service              | Reason                                              |
 | ------------ | -------------------- | --------------------------------------------------- |
-| Frontend     | **Vercel**           | Native Next.js App Router support                   |
+| Frontend     | **Render** (Vercel also works) | Same vendor and region as the API; built from `docker/Dockerfile.frontend` |
 | Backend API  | **Render** (or Railway) | Docker-friendly, $7 starter, free Postgres add-on |
 | Database     | **Render Postgres**  | Auto-provisioned by `render.yaml`                   |
+| Domain & DNS | **GoDaddy**          | Where `peopleopslab.in` is registered               |
 
 ---
 
@@ -19,53 +20,64 @@ that Render offers, and the same region as the database.
 | Piece | URL | Render service |
 |---|---|---|
 | API | https://payroll-saas-api-r6a8.onrender.com | `payroll-saas-api` |
-| Web | https://peopleopslab-web.onrender.com | `peopleopslab-web` |
+| Web | https://peopleopslab-web.onrender.com, served as https://www.peopleopslab.in | `peopleopslab-web` |
 | Database | internal only | `payroll-saas-db` (PostgreSQL 16) |
 
 Both deploy automatically from `main`. The API is built from
 `docker/Dockerfile.backend`, the web app from `docker/Dockerfile.frontend`.
-
-### Two things still to do by hand
-
-**1. Point the API at PostgreSQL.** The database exists but is not yet wired to
-the API, so the API is currently running on SQLite on an ephemeral disk —
-everything written to it is lost on the next deploy. Until this is done, treat
-the deployment as a demo, not a place to put client data.
-
-> Render dashboard → `payroll-saas-api` → Environment → Add environment
-> variable → *Add from database* → `payroll-saas-db` → **Internal Connection
-> String** → save as `DATABASE_URL`. The service redeploys and picks it up;
-> `app/migrations.py` builds the schema on startup.
-
-The connection string is deliberately not written down here or anywhere in the
+The API reads `DATABASE_URL` from Render's environment and runs on the
+PostgreSQL database — its startup line says `database=postgresql://…`. The
+connection string is deliberately not written down here or anywhere in the
 repository. It is a credential; it belongs only in Render's environment.
 
-**2. The free database expires.** Render's free PostgreSQL is deleted 30 days
-after creation. Move it to a paid plan before real data goes in, and set up
-backups — see [`docs/GO_LIVE.md`](docs/GO_LIVE.md).
+### Still to do by hand: the free database expires
+
+Render's free PostgreSQL is deleted 30 days after creation — this one on
+**22 October 2026** — and the free plan takes no backups. Move it to a paid
+plan before real client data goes in, and prove a restore — see
+[`docs/DATABASE_MIGRATION.md`](docs/DATABASE_MIGRATION.md) and
+[`docs/GO_LIVE.md`](docs/GO_LIVE.md).
 
 ### The domain
 
-`peopleopslab.in` is registered but is **not** in the connected Hostinger
-account (which holds only `manasalarix.com`), so its DNS cannot be changed from
-there. Once you have access to whoever holds the domain:
+`peopleopslab.in` is registered at **GoDaddy**, and its DNS is managed there
+unless someone has changed the domain's nameservers (GoDaddy → My Products →
+`peopleopslab.in` → DNS shows which). Nothing else is involved: no other
+hosting account — Hostinger included — holds any part of this product.
 
-| Record | Name | Value |
+Both names point at the **web** service. The API has no name of its own;
+browsers reach it through the web app's same-origin `/api/proxy` route.
+
+| Type | Name | Value |
 |---|---|---|
-| CNAME | `@` (or A/ALIAS if the registrar refuses apex CNAME) | `peopleopslab-web.onrender.com` |
+| A | `@` | the IP address Render shows for `peopleopslab.in` |
 | CNAME | `www` | `peopleopslab-web.onrender.com` |
-| CNAME | `api` | `payroll-saas-api-r6a8.onrender.com` |
 
-Then add each hostname under its Render service → Settings → Custom Domains,
-and set `CORS_ORIGINS` on the API to the real origins. The frontend already
-switches to its same-origin `/api/proxy` route automatically on
-`peopleopslab.in`, so no frontend change is needed.
+GoDaddy cannot put a CNAME on the bare domain, which is why `@` is an A
+record. Take the address from Render → `peopleopslab-web` → Settings → Custom
+Domains, which lists the exact records for each name it serves; do not copy an
+address from an old note. Delete any other A or AAAA records on `@` or `www`,
+including GoDaddy's default "Parked" record and any domain forwarding — a name
+with two answers sends some visitors somewhere else.
+
+These records could not be read from this repository or its tooling. When the
+site misbehaves after a DNS change, compare GoDaddy's DNS page with this table
+first, then check both names show as verified in Render's Custom Domains.
+
+`api.peopleopslab.in` does not exist and nothing needs it. Creating it is
+optional (§2 step 5); if you do, add it to `CORS_ORIGINS` only if browsers will
+call it directly.
+
+**Protect the GoDaddy account.** Whoever controls the domain's DNS can send
+your users anywhere, including a copy of the sign-in page. Two-step
+verification and the domain's transfer lock should both be on; the supplier
+register (`docs/security/isms/08-suppliers.md`) records who checked.
 
 ## 1) Prerequisites
 
 * GitHub repo pushed to `main`.
-* Domain `peopleopslab.in` you control (Cloudflare / Namecheap / GoDaddy / Route 53).
-* Vercel + Render accounts.
+* The GoDaddy account that holds `peopleopslab.in`.
+* A Render account (Vercel only if you choose it for the frontend, §3b).
 
 ---
 
@@ -88,9 +100,10 @@ service + database in one click.
    curl https://payroll-saas-api.onrender.com/api/health
    # {"success": true, "data": {"status": "ok", "version": "1.1.0", "env": "production"}, "error": null}
    ```
-5. Add custom domain `api.peopleopslab.in`:
+5. Optional — the live deployment does not do this. To give the API its own
+   name, `api.peopleopslab.in`:
    * Render → Service → Settings → **Custom Domain** → `api.peopleopslab.in`.
-   * In your DNS, create a `CNAME api → <service>.onrender.com`.
+   * In GoDaddy's DNS, create a `CNAME api → <service>.onrender.com`.
    * Wait for the green TLS lock in Render.
 
 ### 2b) Alternative — Railway
@@ -101,35 +114,49 @@ service + database in one click.
 
 ---
 
-## 3) Frontend on Vercel
+## 3) Frontend
 
-1. Vercel → **Add New** → **Project** → import the GitHub repo.
-2. **Root Directory:** `frontend` (Vercel detects Next.js).
-3. **Environment Variables (Production):**
+### 3a) On Render — the live setup
+
+The Blueprint does not create the web service; add it once by hand.
+
+1. Render → **New** → **Web Service** → the GitHub repo → runtime **Docker**,
+   Dockerfile path `./docker/Dockerfile.frontend`, same region as the API.
+2. **Environment:**
    * `BACKEND_URL=<the API's address>`   ← server-only (NO `NEXT_PUBLIC_` prefix).
-     That is `https://api.peopleopslab.in` **only if** §2 step 5's custom domain
-     exists and shows a green lock; otherwise the API's own
-     `https://<service>.onrender.com` address. The live site uses the latter —
+     That is the API's own `https://<service>.onrender.com` address, unless
+     §2 step 5's custom domain exists and shows a green lock.
      `api.peopleopslab.in` was never created, and pointing `BACKEND_URL` at it
      fails every sign-in.
    * Optional: `NEXT_PUBLIC_API_URL=<the same address>` (for any direct fallback path)
-4. Deploy. Verify on the assigned URL:
+3. Deploy. Verify on the `*.onrender.com` address:
    * `/` — login page renders.
    * `/api/proxy/api/health` — returns the health JSON envelope through the proxy.
-5. Add custom domains:
-   * Vercel → Project → Domains → add `peopleopslab.in` and `www.peopleopslab.in`.
-   * Apex (`peopleopslab.in`) → A record `76.76.21.21`.
-   * `www`  → CNAME `cname.vercel-dns.com`.
+4. Add custom domains: Render → the web service → Settings → **Custom
+   Domains** → add `peopleopslab.in` and `www.peopleopslab.in`, then create the
+   records it shows at GoDaddy (§0, The domain). Wait for both to verify and
+   show a certificate.
+
+### 3b) On Vercel — an alternative
+
+The repo also ships `frontend/vercel.json` (region `bom1`, Mumbai). Moving the
+frontend there changes the DNS records, so do it as a planned change.
+
+1. Vercel → **Add New** → **Project** → import the GitHub repo.
+2. **Root Directory:** `frontend` (Vercel detects Next.js).
+3. Set `BACKEND_URL` as in §3a.
+4. Vercel → Project → Domains → add both names, then at GoDaddy replace the
+   §0 records with the ones Vercel shows for each name.
 
 ---
 
-## 4) DNS summary
+## 4) DNS summary — at GoDaddy
 
-| Host                       | Type  | Target                       |
-| -------------------------- | ----- | ---------------------------- |
-| `peopleopslab.in`          | A     | `76.76.21.21` (Vercel)       |
-| `www.peopleopslab.in`      | CNAME | `cname.vercel-dns.com`       |
-| `api.peopleopslab.in`      | CNAME | `<service>.onrender.com`     |
+| Host                       | Type  | Target                                   |
+| -------------------------- | ----- | ---------------------------------------- |
+| `peopleopslab.in`          | A     | the IP Render shows for it (§0)          |
+| `www.peopleopslab.in`      | CNAME | `peopleopslab-web.onrender.com`          |
+| `api.peopleopslab.in`      | —     | none; only if §2 step 5 is done: CNAME `<service>.onrender.com` |
 
 ---
 
@@ -155,21 +182,23 @@ you want to narrow it down.
 
 
 ```bash
-# 1) Backend direct
-curl https://api.peopleopslab.in/api/health
+API=https://payroll-saas-api-r6a8.onrender.com
 
-# 2) Backend through Vercel proxy (must work for the SPA)
-curl https://peopleopslab.in/api/proxy/api/health
+# 1) Backend direct
+curl $API/api/health
+
+# 2) Backend through the web app's proxy (must work for the SPA)
+curl https://www.peopleopslab.in/api/proxy/api/health
 
 # 3) Tax engine sanity
-curl -X POST https://api.peopleopslab.in/api/income-tax/compare \
+curl -X POST $API/api/income-tax/compare \
   -H 'Content-Type: application/json' \
   -d '{"annual_gross": 1500000}'
 
 # 4) Auth: signup → login
-curl -X POST https://api.peopleopslab.in/api/auth/signup \
+curl -X POST $API/api/auth/signup \
   -H 'Content-Type: application/json' \
-  -d '{"email":"qa@peopleopslab.in","password":"<a long unique password — never a real one in a document>","company_name":"QA Co"}'
+  -d '{"email":"<a throwaway address you own>","password":"<a long unique password — never a real one in a document>","company_name":"QA Co"}'
 ```
 
 All four must return HTTP 200 with `{"success": true, ...}`.
@@ -191,12 +220,12 @@ All four must return HTTP 200 with `{"success": true, ...}`.
 | `PORT`               | platform | Render/Railway inject this                                 |
 | `WEB_CONCURRENCY`    | no       | `2`                                                        |
 
-### Frontend (Vercel)
+### Frontend (Render web service, or Vercel)
 
 | Var                          | Required | Example                          |
 | ---------------------------- | -------- | -------------------------------- |
-| `BACKEND_URL` (server-only)  | yes      | `https://api.peopleopslab.in`    |
-| `NEXT_PUBLIC_API_URL`        | optional | `https://api.peopleopslab.in`    |
+| `BACKEND_URL` (server-only)  | yes      | `https://payroll-saas-api-r6a8.onrender.com` |
+| `NEXT_PUBLIC_API_URL`        | optional | the same address                 |
 | `NEXT_PUBLIC_USE_API_RELAY`  | optional | `1` to force proxy on any host   |
 | `NEXT_PUBLIC_DIRECT_API`     | optional | `1` to disable proxy entirely    |
 
@@ -227,9 +256,12 @@ cd frontend && npm ci && npm run dev
 
 ## 8) Rollbacks
 
-* **Render**: Service → Deploys → click any prior green deploy → **Redeploy**.
-* **Vercel**: Deployments → previous → **Promote to Production**.
-* **Database**: Render Postgres → Backups → **Restore**.
+* **Render** (API and web): Service → Deploys → click any prior green deploy → **Redeploy**.
+* **Vercel**, only if the frontend moved there: Deployments → previous → **Promote to Production**.
+* **Database**: Render Postgres → Backups → **Restore** — on a paid plan only;
+  the free plan has no backups to restore.
+* **DNS**: note a record's old value at GoDaddy before editing it — putting
+  it back is the rollback.
 
 ---
 
@@ -237,7 +269,10 @@ cd frontend && npm ci && npm run dev
 
 * **"Could not reach the API" on the SPA:** open
   `https://peopleopslab.in/api/proxy/api/health`. If that returns
-  `proxy_misconfigured`, your `BACKEND_URL` is unset on Vercel.
+  `proxy_misconfigured`, `BACKEND_URL` is unset on the web service.
+* **The domain does not load, but `peopleopslab-web.onrender.com` does:** the
+  problem is DNS or the certificate, not the app. Compare GoDaddy's DNS page
+  with §0 and check both names show as verified in Render → Custom Domains.
 * **CORS error in browser console:** the API's `CORS_ORIGINS` does not include
   the SPA host. Update the Render env var and redeploy.
 * **502 from Render:** check Render → Service → Logs. Common causes: app

@@ -20,9 +20,9 @@ Settle these first. Changing them later is expensive.
 
 | # | Decision | Default | Why it matters |
 |---|---|---|---|
-| D1 | Hosting shape | Vercel (frontend) + Render (API + Postgres) | Repo ships `render.yaml` and `railway.json` Blueprints |
+| D1 | Hosting shape | Render (web, API and Postgres); Vercel is an alternative for the web app | Repo ships `render.yaml` and `railway.json` Blueprints, and `frontend/vercel.json` |
 | D2 | Region | India / Singapore | This is salary, PAN, Aadhaar and bank data. Under the DPDP Act 2023, where it rests is a decision you must be able to defend |
-| D3 | Domain | `peopleopslab.in`, API at `api.` | Already wired through `render.yaml` and `vercel.json` |
+| D3 | Domain | `peopleopslab.in` and `www.`, registered and with DNS at GoDaddy; the API keeps its Render address | Browsers reach the API through the web app's `/api/proxy`, so no `api.` name is needed. Records: `DEPLOYMENT.md` §0 |
 | D4 | First client | One friendly entity, one month | A bureau's book is not a pilot |
 | D5 | Who signs off | Named payroll lead at the client | Acceptance is theirs, not yours |
 | D6 | Statutory verification | Client's own payroll expert reviews every seeded rate | The seeds are a starting point with **no legal force** |
@@ -165,11 +165,12 @@ Provisions `payroll-saas-api` (Docker, health check `/api/health`) and
 | `ENV` | `staging` |
 | `ALLOW_ANONYMOUS_API` | `false` |
 | `JWT_SECRET` | generated — **different from production** |
-| `CORS_ORIGINS` | your staging Vercel URL |
+| `CORS_ORIGINS` | your staging web app's URL |
 | `DATABASE_URL` | injected by Render |
 
-Frontend on Vercel, root directory `frontend`, with `BACKEND_URL` pointing at
-the staging API. **`BACKEND_URL` has no `NEXT_PUBLIC_` prefix** — it is read
+Frontend as a second Render web service built from
+`docker/Dockerfile.frontend` (or on Vercel, root directory `frontend`), with
+`BACKEND_URL` pointing at the staging API. **`BACKEND_URL` has no `NEXT_PUBLIC_` prefix** — it is read
 server-side by the proxy route and must never reach the browser.
 
 ### 2.2 Confirm the deployment is actually up
@@ -182,7 +183,7 @@ curl -s https://<staging-frontend>/api/proxy/api/health
 # the same envelope, proving the Next.js proxy reaches the API
 ```
 
-If the second fails with `proxy_misconfigured`, `BACKEND_URL` is unset on Vercel.
+If the second fails with `proxy_misconfigured`, `BACKEND_URL` is unset on the web service.
 
 ### Gate 2
 
@@ -390,19 +391,19 @@ fabricated finding will not trust the ninety that are real.
 | P1 | Generate a **fresh** `JWT_SECRET` (`openssl rand -hex 48`), different from staging |
 | P2 | Set `ENV=production` and confirm `ALLOW_ANONYMOUS_API=false` |
 | P3 | `CORS_ORIGINS` = exactly your production hosts, no wildcard |
-| P4 | Set `BACKEND_URL` on Vercel production to the production API |
+| P4 | Set `BACKEND_URL` on the production web service to the production API |
 | P5 | Confirm the Postgres plan is paid, not free — free tiers expire and delete |
 | P6 | Confirm automated daily backups are on, and **restore one** to prove it works |
-| P7 | Point DNS: apex A `76.76.21.21`, `www` CNAME `cname.vercel-dns.com`, `api` CNAME the Render host |
-| P8 | Wait for TLS to go green on all three |
+| P7 | Point DNS at GoDaddy: `@` A record to the IP Render's Custom Domains page shows, `www` CNAME `peopleopslab-web.onrender.com`; delete GoDaddy's parked record and any forwarding (`DEPLOYMENT.md` §0) |
+| P8 | Wait for both names to verify and show a certificate in Render |
 | P9 | Tag the release: `git tag -a v1.0.0 -m "First production release" && git push --tags` |
 
 ### 5.2 The switch
 
 ```bash
-API=https://api.peopleopslab.in
+API=https://payroll-saas-api-r6a8.onrender.com
 curl -s $API/api/health | jq '.data.env'      # "production"
-curl -s https://peopleopslab.in/api/proxy/api/health | jq .success   # true
+curl -s https://www.peopleopslab.in/api/proxy/api/health | jq .success   # true
 ```
 
 Then repeat Layer 2 and Layer 6 against production. Create the client's real
@@ -415,7 +416,7 @@ These do not block a controlled first go-live, but you are accepting them:
 | Gap | Risk you are taking | Mitigate by |
 |---|---|---|
 | No retention/deletion policy engine | DPDP erasure requests need manual handling | Document a manual procedure with an owner and an SLA |
-| No rate limiting on auth | Credential stuffing | Cloudflare or Vercel rate rules in front of `/api/auth/*` |
+| Sign-in throttling is per account only (`LOGIN_LOCKOUT_MINUTES`), not per IP | Password spraying across many accounts | An edge rate rule (e.g. Cloudflare) in front of `/api/auth/*` |
 | `xlsx` npm advisory | Frontend dependency finding | Confirm server-side `openpyxl` is the generation path |
 | Bank presets unverified | A wrong column mapping | The test-against-a-file step is mandatory, not optional |
 | Python pinned to 3.12 (`passlib`/`crypt`) | Cannot upgrade runtime | Replace `passlib` before 3.13 |
@@ -459,7 +460,7 @@ single noisy rule (suppress it instead), or a slow report.
 
 | Layer | How | Time |
 |---|---|---|
-| Frontend | Vercel → Deployments → previous → Promote to Production | under 1 min |
+| Frontend | Render → `peopleopslab-web` → Deploys → last green → Redeploy (Vercel, if used: Promote to Production) | 2–5 min |
 | API | Render → Deploys → last green → Redeploy | 2–5 min |
 | Database | Render → Postgres → Backups → Restore | 10–30 min, **loses data since the backup** |
 
@@ -502,8 +503,8 @@ cd backend && ruff check app tests && bandit -c pyproject.toml -r app && pytest 
 cd ../frontend && npm run lint && npm run build
 
 # production health
-curl -s https://api.peopleopslab.in/api/health | jq .
-curl -s https://peopleopslab.in/api/proxy/api/health | jq .
+curl -s https://payroll-saas-api-r6a8.onrender.com/api/health | jq .
+curl -s https://www.peopleopslab.in/api/proxy/api/health | jq .
 
 # rotate the JWT secret (invalidates every session — announce first)
 openssl rand -hex 48

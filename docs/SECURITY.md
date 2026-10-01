@@ -29,7 +29,7 @@ CI — and the production configuration visible through the Render API
 **Out of scope, and why:** active testing of production (not authorised, and
 the brief forbids it); third-party scanning; the people and processes of the
 business, which cannot be assessed from a repository; Render, GitHub and the
-domain registrar as organisations.
+domain registrar (GoDaddy) as organisations.
 
 **Method.** Read the code for each trust boundary; write a test that tries the
 attack; fix what the test finds; keep the test. Every "Implemented" in the
