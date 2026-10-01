@@ -14,7 +14,7 @@ httpx2>=2.13
 # NameError on every call; bandit keeps the two expression sandboxes and the
 # hand-built migration SQL under review.
 ruff>=0.15
-bandit>=1.9
+bandit>=1.9.4
 
 # Reads generated PDFs back in the report tests, to check what they say.
 pypdf>=4.0
