@@ -1317,8 +1317,11 @@ def period_integration(period: str, db: Session = Depends(get_db), entity: Entit
         "latest_by_input": latest,
         "attention": [{"run_id": r["id"], "object_type": r["object_type"], "status": r["status"],
                        "rejected": (r.get("counts") or {}).get("rejected", 0)} for r in unreconciled],
-        "connections": [{"id": str(c.id), "name": c.name, "health": conns.describe(db, c)["health"],
-                         "last_error": c.last_error if conns.describe(db, c)["health"] == "failing" else None}
+        # Health is a stored column. Describing the connection would decrypt
+        # its secrets for nothing, and a key problem would then take Month
+        # close and Validations down with it.
+        "connections": [{"id": str(c.id), "name": c.name, "health": c.health,
+                         "last_error": c.last_error if c.health == "failing" else None}
                         for c in conns_],
     })
 
