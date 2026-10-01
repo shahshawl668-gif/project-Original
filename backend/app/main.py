@@ -29,6 +29,7 @@ from app.deps import SYSTEM_USER_EMAIL
 from app.envelope import err_payload, ok
 from app.http_guard import BodyLimit, SecurityHeaders
 from app.security import safe_request_id
+from app.services.studio.secrets import SecretStoreUnavailable
 from app.models import User
 from app.routers import api_router
 from app.seed import seed_reference_data
@@ -217,6 +218,22 @@ async def validation_exception_envelope(_, exc: RequestValidationError):
             "data": None,
             "error": err_payload(_redacted(exc.errors()), code="validation_error"),
         },
+    )
+
+
+@app.exception_handler(SecretStoreUnavailable)
+async def secret_store_envelope(_, exc: SecretStoreUnavailable):
+    """
+    The secrets key cannot open what is stored. Not a server fault to hide
+    behind "Internal server error": the message says what changed and how to
+    fix it. Routes that catch it already answer 503; this covers the ones that
+    do not, and any added later.
+    """
+    logger.error("Secret store unavailable: %s", exc)
+    return JSONResponse(
+        status_code=503,
+        content={"success": False, "data": None,
+                 "error": err_payload(str(exc), code="secret_store_unavailable")},
     )
 
 
