@@ -193,7 +193,7 @@ Owners are roles. Priority: P0 now · P1 this month · P2 this quarter.
 - **Requirement:** A.8.8 *Management of technical vulnerabilities*.
 - **Implementation / evidence:** `tools/dependency_audit.py` fails on unassessed advisories and expired reviews; `security/dependency-exceptions.json`; Dependabot; Next.js 14.2.35; DOMPurify ≥ 3.4.16.
 - **Verification · result:** audit gate run locally: 34 advisories reported, 0 unassessed; a synthetic unknown advisory fails it (checked).
-- **Remediation required:** Next.js 15.5+ (R4); `xlsx` 0.20.3 (R5). python-jose → PyJWT done; `pip-audit` now reports no known vulnerabilities.
+- **Remediation required:** `xlsx` 0.20.3 (R5). Next.js 15.5.27 / React 19 done (1 Oct 2026): no Next.js advisory remains. python-jose → PyJWT done; `pip-audit` now reports no known vulnerabilities.
 - **Status:** Partial.
 
 ### SD-03 — Software bill of materials

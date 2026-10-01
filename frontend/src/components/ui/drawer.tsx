@@ -13,7 +13,7 @@ const FOCUSABLE =
  * focus back to whatever opened it. Without the last part a keyboard user who
  * closes a drawer lands at the top of the page and loses their row.
  */
-function useModalFocus(open: boolean, panel: React.RefObject<HTMLElement>, onClose: () => void) {
+function useModalFocus(open: boolean, panel: React.RefObject<HTMLElement | null>, onClose: () => void) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {

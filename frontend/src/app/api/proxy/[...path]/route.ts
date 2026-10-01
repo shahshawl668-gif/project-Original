@@ -119,25 +119,26 @@ async function proxy(req: NextRequest, segments: string[]): Promise<Response> {
   });
 }
 
-type Ctx = { params: { path: string[] } };
+// Next.js 15: route parameters arrive as a Promise.
+type Ctx = { params: Promise<{ path: string[] }> };
 
 export async function GET(req: NextRequest, ctx: Ctx) {
-  return proxy(req, ctx.params.path);
+  return proxy(req, (await ctx.params).path);
 }
 export async function POST(req: NextRequest, ctx: Ctx) {
-  return proxy(req, ctx.params.path);
+  return proxy(req, (await ctx.params).path);
 }
 export async function PUT(req: NextRequest, ctx: Ctx) {
-  return proxy(req, ctx.params.path);
+  return proxy(req, (await ctx.params).path);
 }
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  return proxy(req, ctx.params.path);
+  return proxy(req, (await ctx.params).path);
 }
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  return proxy(req, ctx.params.path);
+  return proxy(req, (await ctx.params).path);
 }
 export async function HEAD(req: NextRequest, ctx: Ctx) {
-  return proxy(req, ctx.params.path);
+  return proxy(req, (await ctx.params).path);
 }
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });

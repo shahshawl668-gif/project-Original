@@ -2,7 +2,7 @@
  * Response headers for every page.
  *
  * The content policy is enforced, and deliberately no stricter than what can
- * be verified to work: Next.js 14 inlines its hydration scripts, so scripts
+ * be verified to work: Next.js inlines its hydration scripts, so scripts
  * need 'unsafe-inline' until nonces are wired through (docs/SECURITY.md, the
  * open item on a nonce-based policy). What it does close off today: framing
  * by any other site, plugins, <base> hijacking, forms posting elsewhere, and
