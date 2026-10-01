@@ -525,6 +525,16 @@ decision for the client, not a housekeeping task.
   audit_events; DROP TRIGGER append_only ON security_events;`. Anyone who had
   enrolled signs in with the password alone under the old release.
 
+### Upgrading to Next.js 15 (web app)
+
+- **The web app only.** Next.js 15.5.27 and React 19, replacing Next.js 14.
+  No database change, no setting, no API change; the API is untouched.
+- **Nothing for users to do.** Sessions carry on; pages look the same (the
+  built CSS is byte-identical, and the Team page was compared pixel for pixel).
+- **Why:** it clears every published Next.js advisory, including several
+  denial-of-service issues in the App Router that 14.x never received fixes for.
+- **Rollback:** redeploy the previous web release.
+
 ---
 
 ## 8b. PeopleOps Studio — keys for other systems
