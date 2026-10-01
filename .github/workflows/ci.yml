@@ -121,7 +121,7 @@ jobs:
           pip-audit -r backend/requirements-postgres.txt -f json -o pip-audit.json || true
           (cd frontend && npm audit --omit=dev --json > ../npm-audit.json) || true
           python tools/dependency_audit.py pip-audit.json npm-audit.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: sbom-and-audit
