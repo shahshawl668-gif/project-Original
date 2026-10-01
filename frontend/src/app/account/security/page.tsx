@@ -31,7 +31,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 /**
- * Your own sign-in: two-step sign-in, recovery codes, and signing out everywhere.
+ * Your own sign-in: password, two-step sign-in, recovery codes, and signing out everywhere.
  *
  * Reachable from a client or a platform session; a support session is inside
  * someone else's workspace and changes nothing here. The secret and the
@@ -51,6 +51,10 @@ export default function AccountSecurityPage() {
   const [sessions, setSessions] = useState<SignedIn[] | null>(null);
   const [ending, setEnding] = useState<string | null>(null);
   const [endPassword, setEndPassword] = useState("");
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
+  const [changed, setChanged] = useState(false);
   const portal = getSessionPortal();
   const home = portal === "platform" ? "/platform" : "/dashboard";
 
@@ -80,6 +84,17 @@ export default function AccountSecurityPage() {
       setBusy(false);
     }
   }
+
+  const changePassword = (e: FormEvent) => { e.preventDefault(); void run(async () => {
+    setChanged(false);
+    if (next !== again) throw new Error("The two new passwords do not match.");
+    const done = await post<{ access_token: string; refresh_token: string }>("/api/auth/password", { current_password: current, new_password: next });
+    // Every other session has ended; this device carries on with the pair it was just given.
+    setTokens(done.access_token, done.refresh_token);
+    setCurrent(""); setNext(""); setAgain("");
+    setChanged(true);
+    await load();
+  }); };
 
   const begin = (e: FormEvent) => { e.preventDefault(); void run(async () => {
     setSetup(await post<Setup>("/api/auth/mfa/setup", { password }));
@@ -147,6 +162,27 @@ export default function AccountSecurityPage() {
           Your organisation requires two-step sign-in for platform staff. Set it up below to continue.
         </p>
       ) : null}
+
+      <section aria-labelledby="password-heading" className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft">
+        <h2 id="password-heading" className="text-[15px] font-semibold">Password</h2>
+        <p className="mt-1 text-[13px] text-ink-600">
+          At least 8 characters and not a commonly used password. A long phrase is easier to remember than symbols.
+          Changing it signs you out on every other device; this one stays signed in.
+        </p>
+        {changed ? <p role="status" className="mt-3 rounded-lg border border-success-200 bg-success-50 p-3 text-[13px] text-success-800">Password changed. Every other device has been signed out.</p> : null}
+        <form onSubmit={changePassword} className="mt-4 space-y-3">
+          <label className="block text-xs font-medium text-ink-700">Current password
+            <input type="password" autoComplete="current-password" className={field} value={current} onChange={(e) => setCurrent(e.target.value)} required />
+          </label>
+          <label className="block text-xs font-medium text-ink-700">New password
+            <input type="password" autoComplete="new-password" className={field} value={next} onChange={(e) => setNext(e.target.value)} required minLength={8} maxLength={128} />
+          </label>
+          <label className="block text-xs font-medium text-ink-700">New password again
+            <input type="password" autoComplete="new-password" className={field} value={again} onChange={(e) => setAgain(e.target.value)} required minLength={8} maxLength={128} />
+          </label>
+          <Button type="submit" size="sm" disabled={busy || !current || next.length < 8 || !again}>Change password</Button>
+        </form>
+      </section>
 
       <section aria-labelledby="mfa-heading" className="rounded-xl border border-ink-200 bg-white p-5 shadow-soft">
         <h2 id="mfa-heading" className="text-[15px] font-semibold">Two-step sign-in</h2>

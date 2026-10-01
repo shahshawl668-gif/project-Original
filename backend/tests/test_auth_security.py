@@ -506,3 +506,78 @@ def test_a_person_sees_their_sessions_and_ends_one(client):
     assert client.post(f"/api/auth/sessions/{mine}/end", headers=_bearer(stranger),
                        json={"password": PASSWORD}).status_code == 404
     assert _me(client, laptop) == 200
+
+
+# ── changing your own password ──────────────────────────────────────────────
+
+def test_a_person_changes_their_password_and_every_other_session_ends(client):
+    """ASVS 6.2.2/6.2.3: the current password first; the old one stops working."""
+    email, laptop = _signup(client, "change")
+    phone = _login(client, email).json()["data"]
+    new = "An0ther-Passw0rd"
+
+    wrong = client.post("/api/auth/password", headers=_bearer(laptop),
+                        json={"current_password": "not-it", "new_password": new})
+    assert wrong.status_code == 401
+    assert _login(client, email).status_code == 200                 # nothing changed
+
+    # A reset link issued before the change must not be able to undo it.
+    raw = secrets.token_urlsafe(32)
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.email == email).one()
+        db.add(PasswordResetToken(user_id=user.id, token_hash=token_fingerprint(raw),
+                                  expires_at=datetime.now(UTC) + timedelta(hours=1)))
+        db.commit()
+
+    done = client.post("/api/auth/password", headers=_bearer(laptop),
+                       json={"current_password": PASSWORD, "new_password": new})
+    assert done.status_code == 200, done.text
+    fresh = done.json()["data"]
+    assert _me(client, fresh) == 200                                 # this device carries on
+    assert _me(client, laptop) == _me(client, phone) == 401          # the old tokens do not
+    assert client.post("/api/auth/refresh", json={"refresh_token": phone["refresh_token"]}).status_code == 401
+    assert client.post("/api/auth/refresh", json={"refresh_token": fresh["refresh_token"]}).status_code == 200
+
+    assert _login(client, email).status_code == 401
+    assert _login(client, email, new).status_code == 200
+    assert client.post("/api/auth/password-reset-confirm",
+                       json={"token": raw, "new_password": "Th1rd-Passw0rd"}).status_code == 400
+
+    kinds = [(e.kind, e.outcome) for e in _events(email)]
+    assert ("password_changed", "changed") in kinds
+    blob = json.dumps([e.detail for e in _events(email)])
+    assert PASSWORD not in blob and new not in blob
+
+
+def test_a_new_password_meets_the_same_rules_and_must_differ(client):
+    email, tokens = _signup(client, "changerules")
+    common = client.post("/api/auth/password", headers=_bearer(tokens),
+                         json={"current_password": PASSWORD, "new_password": "password123"})
+    assert common.status_code == 422 and "password123" not in common.text
+    same = client.post("/api/auth/password", headers=_bearer(tokens),
+                       json={"current_password": PASSWORD, "new_password": PASSWORD})
+    assert same.status_code == 400
+    assert _me(client, tokens) == 200                                # a refusal ends nothing
+    assert client.post("/api/auth/password", json={"current_password": PASSWORD,
+                                                    "new_password": "An0ther-Passw0rd"}).status_code == 401
+
+
+def test_guessing_the_current_password_locks_the_change(client):
+    email, tokens = _signup(client, "changeguess")
+    for _ in range(settings.login_max_failures):
+        assert client.post("/api/auth/password", headers=_bearer(tokens),
+                           json={"current_password": "guess", "new_password": "An0ther-Passw0rd"}).status_code == 401
+    locked = client.post("/api/auth/password", headers=_bearer(tokens),
+                         json={"current_password": PASSWORD, "new_password": "An0ther-Passw0rd"})
+    assert locked.status_code == 429
+    assert _login(client, email).status_code == 200                  # the password did not change
+
+
+def test_a_password_change_keeps_two_step_sign_in(client):
+    email, tokens = _signup(client, "changemfa")
+    _, _, tokens = _enrol(client, tokens)
+    done = client.post("/api/auth/password", headers=_bearer(tokens),
+                       json={"current_password": PASSWORD, "new_password": "An0ther-Passw0rd"})
+    assert done.status_code == 200, done.text
+    after = _login(client, email, "An0ther-Passw0rd").json()["data"]
+    assert after.get("mfa_required") is True and "access_token" not in after
