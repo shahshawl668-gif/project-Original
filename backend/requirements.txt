@@ -7,7 +7,7 @@ python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 bcrypt<4.1
 python-multipart>=0.0.17
-pandas>=2.2.3
+pandas>=3.0.6
 openpyxl>=3.1.5
 # openpyxl parses uploaded workbooks with it when present, refusing XML entity
 # expansion (billion-laughs) and external entities. Arrived only through fpdf2;
