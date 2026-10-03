@@ -389,3 +389,108 @@ def test_salary_held_in_full_is_not_expected_in_the_file():
     result = _pay(rows, {"net_pay", "salary_hold", "total_payable"}, [("E2", "30000.00")])
     assert not any(f.rule_id == "DSB-15" for f in result.findings)
     assert result.verdict == config.CLEAR
+
+
+# ---------------------------------------------------------------------------
+# What people receive: the exception report and the approver summary
+# ---------------------------------------------------------------------------
+META = {"period": PERIOD, "entity_name": "Synthetic Co", "run_by": "checker@example.test",
+        "generated_at": "2026-10-03T10:00:00+00:00"}
+
+
+@cache
+def _checked(scenario: str, layout: str, **settings_over):
+    from app.services.disbursement.check import run_check
+
+    pack = generate(500, SEED, scenario, layout)
+    settings = config.build_settings(PERIOD, {**pack.settings, **dict(settings_over)}, pack.value_date)
+    return pack, run_check(pack.files, inputs.builtin_profiles()[pack.profile],
+                           template.builtin_templates()[pack.template], settings, META)
+
+
+def _csv_rows(content: bytes) -> list[dict[str, str]]:
+    import csv
+
+    assert content.startswith(b"\xef\xbb\xbf")
+    return list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
+
+
+@pytest.mark.parametrize("layout", list(LAYOUTS))
+def test_the_exception_report_lists_every_finding_including_checks_that_did_not_run(layout):
+    from app.services.disbursement import outputs
+
+    pack, checked = _checked("D", layout)
+    rows = _csv_rows(outputs.exception_csv(checked.report))
+    assert len(rows) == len(checked.result.findings)
+    assert {(r["Check"], r["Employee ID"]) for r in rows} == _found(checked.result)
+    not_run = {r["Check"] for r in rows if r["Severity"] == config.NOT_RUN}
+    assert not_run == {r.rule_id for r in checked.result.rules if r.status == config.NOT_RUN} != set()
+    assert all(r["Reason"] for r in rows if r["Severity"] == config.NOT_RUN)
+
+
+def test_a_switched_off_check_is_reported_as_switched_off_not_left_out():
+    from app.services.disbursement import outputs
+
+    _, checked = _checked("A", "generic", enabled=(("DSB-14", False),))
+    rows = _csv_rows(outputs.exception_csv(checked.report))
+    assert [(r["Check"], r["Severity"]) for r in rows] == [("DSB-14", config.DISABLED)]
+
+
+def test_exports_do_not_run_text_from_the_files_as_formulas_and_keep_accounts_in_full():
+    from openpyxl import load_workbook
+
+    from app.services.disbursement import outputs
+
+    _, checked = _checked("B", "generic")
+    report = {**checked.report, "findings": [
+        *checked.report["findings"],
+        {"rule_id": "DSB-14", "severity": config.FLAG, "employee_id": "E1",
+         "employee_name": '=HYPERLINK("http://x","y")', "field": "beneficiary_name",
+         "expected": "+91 Rao", "actual": "-Rao", "reason": "@cmd", "rows": [4], "amount": "-12.50"},
+    ]}
+    csv_rows = _csv_rows(outputs.exception_csv(report))
+    last = csv_rows[-1]
+    assert last["Employee name"].startswith("'=") and last["Expected"] == "'+91 Rao"
+    assert last["Actual"] == "'-Rao" and last["Reason"] == "'@cmd"
+    assert last["Amount in file"] == "-12.50"             # a number, not escaped text
+    book = load_workbook(io.BytesIO(outputs.exception_xlsx(report)))
+    assert book.sheetnames == ["Summary", "Findings", "Checks", "Bridge", "Inputs", "Notes"]
+    cells = [c for row in book["Findings"].iter_rows() for c in row]
+    assert not any(c.data_type == "f" for c in cells)
+    # Bank accounts are shown in full: the approver is being asked whether they are right.
+    accounts = [f for f in checked.report["findings"] if f["rule_id"] == "DSB-16" and f["actual"].isdigit()]
+    assert accounts and any(accounts[0]["actual"] == r["Actual"] for r in csv_rows)
+
+
+@pytest.mark.parametrize("scenario", SCENARIOS)
+def test_the_approver_summary_is_a_pdf_and_the_same_report_gives_the_same_bytes(scenario):
+    from app.services.disbursement import outputs
+
+    _, checked = _checked(scenario, "darwinbox_style")
+    first = outputs.approver_pdf(checked.report)
+    assert first.startswith(b"%PDF") and first == outputs.approver_pdf(checked.report)
+    approved = outputs.approver_pdf(checked.report, {"approver": "Approver One", "approved_at": "2026-10-03T11:00",
+                                                     "fingerprint": checked.report["clean_sha256"] or "",
+                                                     "acknowledged": ["DSB-13"]})
+    assert approved != first
+
+
+def test_the_report_carries_the_clean_file_fingerprint_and_every_input_fingerprint():
+    _, checked = _checked("B", "generic")
+    assert checked.report["clean_sha256"] == template.fingerprint(checked.clean)
+    assert checked.report["clean_filename"] == "bank_file_clean.csv"
+    slots = [i["slot"] for i in checked.report["inputs"]]
+    assert slots[:2] == ["bank_file", "register"] and all(len(i["sha256"]) == 64 for i in checked.report["inputs"])
+    assert checked.report["settings"]["variance_pct"] == "25"
+    _, stopped = _checked("C", "generic")
+    assert stopped.clean is None and stopped.report["clean_sha256"] is None
+
+
+def test_held_employees_are_grouped_with_every_reason():
+    from app.services.disbursement import outputs
+
+    _, checked = _checked("B", "generic")
+    held = outputs.held_employees(checked.report)
+    assert len(held) == checked.report["totals"]["held_employees"]
+    assert sum(h["amount"] for h in held) == Decimal(checked.report["totals"]["held_amount"])
+    assert all(h["reasons"] for h in held)

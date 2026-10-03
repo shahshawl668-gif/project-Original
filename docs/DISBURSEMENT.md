@@ -13,7 +13,7 @@ approval pack.
 | Step | What | State |
 |---|---|---|
 | 1 | Rule engine (DSB-01 … DSB-17), verdict, bridge; bank file templates and clean file with SHA-256; input readers and the two mapping profiles; synthetic generator with answer keys; tests | **Built** (1 Oct 2026) |
-| 2 | Exception report (CSV, XLSX) and approver summary (PDF) | Planned |
+| 2 | Exception report (CSV, XLSX) and approver summary (PDF), all drawn from one stored report | **Built** (3 Oct 2026) |
 | 3 | Storage: runs, per-company settings, approval records; API with tenancy and roles | Planned |
 | 4 | Page: upload, verdict, findings, downloads, printable summary, approval | Planned |
 | 5 | Manuals and handbook routes | Planned |
@@ -199,6 +199,33 @@ that in the HRMS. The bank master's verification column carries it.
 Checks that could not run (NOT_RUN) do not change the verdict but are listed with
 it, every time, with the reason; the approval step (step 3) will require each to be
 acknowledged.
+
+## What people receive
+
+Every output is drawn from one *report* — plain data the run produces and the
+database keeps — so a report downloaded a week later is the same document
+(`services/disbursement/outputs.py`; `check.py` runs a check end to end).
+
+* **Exception report, CSV** — one row per finding: check, severity, employee,
+  field, expected, actual, amount in the file, bank file rows, reason. Checks that
+  did not run are rows with severity NOT_RUN and the reason; checks the company
+  switched off are rows with severity DISABLED. Free text that a spreadsheet would
+  run as a formula (`= + - @`) is written with a leading apostrophe; amounts stay
+  numbers. UTF-8 with a byte-order mark so Excel reads ₹.
+* **Exception report, Excel** — sheets Summary, Findings, Checks (every check's
+  status), Bridge, Inputs (each file's name, rows and SHA-256) and Notes (values
+  that could not be read, defaults used). No cell is a formula; IDs and accounts
+  are text.
+* **Approver summary, PDF** — the verdict and what it means; amount and headcount
+  the clean file pays; held employees with every reason and the amount held;
+  flags by check; the checks that did not run; total against the previous period;
+  the register-to-file bridge; the clean file's SHA-256 and each input's; and the
+  approval block. The same report gives the same bytes. When the file is stopped
+  the held figures are labelled "would be held": nothing is released.
+
+**Account numbers and IFSCs are shown in full** in all three. Masking them would
+defeat the check — the approver is being asked whether these are the right
+accounts. Who can download them is therefore the control (step 3).
 
 ## Settings and defaults
 
