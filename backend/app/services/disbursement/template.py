@@ -25,6 +25,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -294,7 +295,12 @@ def _deterministic_zip(data: bytes) -> bytes:
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o600 << 16
-            dst.writestr(info, src.read(name))
+            content = src.read(name)
+            if name == "docProps/core.xml":
+                # openpyxl stamps the save time into "modified" whatever the workbook says.
+                content = re.sub(rb"(<dcterms:modified[^>]*>)[^<]*(</dcterms:modified>)",
+                                 rb"\g<1>2000-01-01T00:00:00Z\g<2>", content)
+            dst.writestr(info, content)
     return out.getvalue()
 
 

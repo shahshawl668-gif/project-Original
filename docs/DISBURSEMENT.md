@@ -336,6 +336,10 @@ read, checked and given a clean file in about 2 s (CSV) and 4 s (XLSX).
   bank file template.
 * A quoted field containing a line break inside a delimited bank file is not
   supported; such files are rare and would be reported as unreadable lines.
+* An Excel clean file is rebuilt with fixed properties and zip timestamps, so the
+  same content always has the same SHA-256 (openpyxl stamps the save time into
+  the workbook; that stamp is pinned).
+* The generator needs about 100 employees or more to plant every case.
 * Checks run inside the request. 10,000 employees take about 2–4 s; a far larger
   file would need the background queue the validation module uses.
 * A bank file that is itself the previous period (rather than a table) is not

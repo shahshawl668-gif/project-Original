@@ -179,6 +179,7 @@ def test_an_excel_payment_file_round_trips_with_fixed_bytes():
     assert parsed.bank.header["value_date"] == date(2026, 9, 30)
     keep = {parsed.bank.rows[0].line, parsed.bank.rows[2].line}
     first = template.write_clean(parsed, keep, tmpl)
+    time.sleep(1.1)   # openpyxl stamps the save time; a later second must not change the bytes
     second = template.write_clean(template.read(buf.getvalue(), "pay.xlsx", tmpl), keep, tmpl)
     assert first == second
     again = template.read(first, "clean.xlsx", tmpl).bank
