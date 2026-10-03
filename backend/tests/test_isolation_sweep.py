@@ -126,6 +126,13 @@ def _populate(client, headers, hrms) -> list[str]:
     base = _data(client.get("/api/config/statutory", headers=headers))
     client.post("/api/config/statutory/versions", headers=headers, json={
         "effective_from": "2026-09-01", "config": {k: base[k] for k in ("pf", "esic", "component_mapping")}})
+    # A checked salary payment file (synthetic), with its clean file and report.
+    from tools.disbursement_synth import generate
+
+    pack = generate(120, 20260901, "B", "generic")
+    client.put("/api/disbursement/settings", headers=headers, json={"overrides": pack.settings})
+    client.post("/api/disbursement/runs", headers=headers, data={"period": "2026-09"},
+                files={slot: (name, io.BytesIO(content)) for slot, (name, content) in pack.files.items()})
     # Studio
     client.post("/api/studio/destinations", headers=headers, json={"host": "127.0.0.1"})
     account = client.post("/api/studio/service-accounts", headers=headers, json={

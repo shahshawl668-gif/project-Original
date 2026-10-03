@@ -14,12 +14,9 @@ approval pack.
 |---|---|---|
 | 1 | Rule engine (DSB-01 … DSB-17), verdict, bridge; bank file templates and clean file with SHA-256; input readers and the two mapping profiles; synthetic generator with answer keys; tests | **Built** (1 Oct 2026) |
 | 2 | Exception report (CSV, XLSX) and approver summary (PDF), all drawn from one stored report | **Built** (3 Oct 2026) |
-| 3 | Storage: runs, per-company settings, approval records; API with tenancy and roles | Planned |
-| 4 | Page: upload, verdict, findings, downloads, printable summary, approval | Planned |
-| 5 | Manuals and handbook routes | Planned |
-
-Step 1 has no page or endpoint yet. It is reachable from code and from the
-generator's `--check` mode only.
+| 3 | Storage: runs, per-company settings, approval records; API with tenancy and roles; previous period from last month's approved check | **Built** (3 Oct 2026) |
+| 4 | Page `/reconciliation/disbursement`: upload, verdict, bridge, held list, findings, downloads, approval, history, settings | **Built** (3 Oct 2026) |
+| 5 | Manuals, handbook routes, security inventory | **Built** (3 Oct 2026) |
 
 ## Inputs
 
@@ -77,6 +74,10 @@ register) and the bridge all use this amount. An employee whose salary is held
 in full has nothing payable and is not expected in the file. DSB-13 (variance)
 stays on net pay when both periods give it, because total salary swings with
 reimbursements and holds; it falls back to total salary otherwise and says so.
+
+Other deductions after gross — loans, advances recovered, and anything else the
+payroll subtracts before arriving at net pay — are already **inside net pay**.
+Only the adjustments that come *after* net (the three above) are added here.
 
 **DSB-17** checks the register against itself: when it states total salary *and*
 the parts, the total must equal net pay + reimbursements + released holds − held.
@@ -227,6 +228,54 @@ database keeps — so a report downloaded a week later is the same document
 defeat the check — the approver is being asked whether these are the right
 accounts. Who can download them is therefore the control (step 3).
 
+## Storage, API and approval
+
+Endpoints under `/api/disbursement` (router `app/routers/disbursement.py`):
+
+| Endpoint | Who |
+|---|---|
+| `GET /catalogue` — the checks, profiles, templates, inputs, retention | any member |
+| `GET /settings`, `PUT /settings` | read: any member; change: owner / manager |
+| `POST /runs` (multipart: period, value date, profile, and the files) | analyst, manager, owner |
+| `GET /runs` — history, headline figures only, no bank details | any member |
+| `GET /runs/{id}` — the full report | analyst, manager, owner |
+| `GET /runs/{id}/download/{clean,exceptions.csv,exceptions.xlsx,summary.pdf}` | analyst, manager, owner |
+| `POST /runs/{id}/approve` | owner / manager |
+
+Another company's run is **404**. Support (break-glass) sessions do not reach
+the report or any download — they show account numbers in full.
+
+**What is stored** (`app/models/disbursement.py`, new tables via `create_all`):
+the report, gzipped, with every input's name, row count and SHA-256 and the
+settings used; the clean file and its SHA-256; and the *paid list* (employee,
+amount, account, IFSC of each payment in the clean file). The uploaded files are
+not stored. The clean file and paid list are cleared after
+`DISBURSEMENT_FILE_RETENTION_DAYS` (default 60); the report and fingerprints stay.
+Clearing happens whenever the company runs its next check — there is no
+background job. The clean file is re-hashed against its stored SHA-256 before
+every download; a mismatch refuses the download.
+
+**Previous period.** When no previous-period file is uploaded, the most recent
+*approved* check of the month before is used — its paid list stands in, and the
+report's inputs name it ("Approved check for Aug 2026") with its fingerprint.
+Turning this off (`use_previous_approved=false`) leaves DSB-13 NOT_RUN, as before.
+A register is always uploaded, never taken from the validation module's stored
+register: a stored register can be a revision behind the one the HRMS used to
+produce the bank file, and checking against the wrong revision would be a silent
+error.
+
+**Approval** (`disbursement_approvals`, written once, never edited) is refused
+when the verdict is DO_NOT_RELEASE; when the run is already approved; when a
+newer check of the same month exists; when the clean file has been cleared; when
+the fingerprint sent is not the clean file's; or when any NOT_RUN or DISABLED
+check is not acknowledged. When the organisation turns on
+`disbursement_release_requires_independent_approver`, the person who ran the
+check cannot approve it (one-person teams leave it off). Every approval records
+the approver's name and role, the fingerprint, the acknowledged checks, and
+whether it was independent. Checks, approvals, downloads and settings changes
+are in the audit trail (`disbursement.checked`, `.approved`, `.downloaded`,
+`.settings_saved`). Approval is a record: nothing is sent anywhere.
+
 ## Settings and defaults
 
 | Setting | Default |
@@ -271,15 +320,25 @@ must produce no findings.
 cd backend && python -m pytest tests/test_disbursement.py -q
 ```
 
+API tests: `tests/test_disbursement_api.py` (roles, tenancy, approval rules,
+independence, retention, previous period from an approved check), and the
+cross-company sweep in `tests/test_isolation_sweep.py` now includes a checked
+payment file.
+
 Results at step 1 (500 employees, both layouts, 41 tests): every rule planted at
 least twice, every planted case caught, zero false positives. 10,000 employees are
 read, checked and given a clean file in about 2 s (CSV) and 4 s (XLSX).
 
-## Known limitations at step 1
+## Known limitations
 
 * Fixed-width bank files are not supported by the template layer yet.
 * The previous period is read as a table (CSV/XLSX with columns), not through a
   bank file template.
 * A quoted field containing a line break inside a delimited bank file is not
   supported; such files are rare and would be reported as unreadable lines.
-* Results are not stored yet, and there is no approval record until step 3.
+* Checks run inside the request. 10,000 employees take about 2–4 s; a far larger
+  file would need the background queue the validation module uses.
+* A bank file that is itself the previous period (rather than a table) is not
+  read through a template.
+* There is no edit-in-place for a profile or template: a company's own are
+  pasted as JSON in Settings, validated on save.

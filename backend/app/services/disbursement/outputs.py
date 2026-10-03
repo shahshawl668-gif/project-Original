@@ -200,7 +200,7 @@ def exception_xlsx(report: dict[str, Any]) -> bytes:
     table(wb.create_sheet("Bridge"), ["Step", "Amount", "Lines"],
           [[b["label"], Decimal(b["amount"]) if b.get("amount") is not None else None, b.get("count")]
            for b in report["bridge"]], [90, 18, 10])
-    table(wb.create_sheet("Inputs"), ["Input", "File", "Rows", "SHA-256"],
+    table(wb.create_sheet("Inputs"), ["Input", "File", "Rows", "SHA-256 fingerprint"],
           [[i.get("label", ""), i.get("filename", ""), i.get("rows"), i.get("sha256", "")]
            for i in report.get("inputs", [])], [28, 40, 10, 70])
     table(wb.create_sheet("Notes"), ["Source", "Row", "Employee ID", "Note"],
