@@ -1,0 +1,56 @@
+{
+  "key": "darwinbox_style",
+  "name": "Darwinbox-style",
+  "note": "Column names and status words in the style of a Darwinbox export. Built from a synthetic layout, not copied from any client's configuration; check each column against your own export.",
+  "bank_template": "batch_pipe_hdt",
+  "inputs": {
+    "register": {"fields": [
+      {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
+      {"target": "employee_name", "source": "Employee Name"},
+      {"target": "net_pay", "source": "Net Salary"},
+      {"target": "status", "source": "Employment Status",
+       "lookup": {"Active": "active", "Notice Period": "active", "Resigned": "separated", "Terminated": "separated", "Inactive": "separated"},
+       "on_unmatched": "keep"},
+      {"target": "date_of_joining", "source": "Date Of Joining"},
+      {"target": "date_of_exit", "source": "Date Of Exit"},
+      {"target": "ff_processed", "source": "FnF Status", "lookup": {"FnF Processed": "yes", "Pending": "no"}, "on_unmatched": "keep"},
+      {"target": "on_hold", "source": "Payroll Hold", "lookup": {"Hold": "yes", "Released": "no"}, "on_unmatched": "keep"},
+      {"target": "arrears", "source": "Arrear Amount"},
+      {"target": "increment", "source": "Increment Applied"}
+    ]},
+    "bank_master": {"fields": [
+      {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
+      {"target": "account_number", "source": "Bank Account Number"},
+      {"target": "ifsc", "source": "IFSC Code"},
+      {"target": "beneficiary_name", "source": "Name As Per Bank"},
+      {"target": "verification_status", "source": "Bank Details Status"},
+      {"target": "last_changed", "source": "Bank Details Updated On"}
+    ]},
+    "change_log": {"fields": [
+      {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
+      {"target": "field_changed", "source": "Changed Field"},
+      {"target": "old_value", "source": "Previous Value"},
+      {"target": "new_value", "source": "New Value"},
+      {"target": "changed_on", "source": "Changed On"},
+      {"target": "verification_status", "source": "Approval Status"}
+    ]},
+    "previous": {"fields": [
+      {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
+      {"target": "net_pay", "source": "Net Salary"},
+      {"target": "account_number", "source": "Bank Account Number"},
+      {"target": "ifsc", "source": "IFSC Code"}
+    ]},
+    "hold_list": {"fields": [
+      {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
+      {"target": "category", "source": "Hold Type"},
+      {"target": "reason", "source": "Hold Reason"},
+      {"target": "effective_date", "source": "Hold From"}
+    ]},
+    "offcycle": {"fields": [
+      {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
+      {"target": "amount", "source": "Off Cycle Amount"},
+      {"target": "payment_date", "source": "Paid On"},
+      {"target": "reference", "source": "Payment Reference"}
+    ]}
+  }
+}

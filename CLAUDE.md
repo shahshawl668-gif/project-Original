@@ -52,6 +52,7 @@ code does not do.
 | `docs/GO_LIVE.md` | Internal. Six phases, three gates, and the D6 statutory sign-off |
 | `docs/BACKGROUND_JOBS.md` | Design and current state of the validation queue |
 | `docs/STUDIO.md` | PeopleOps Studio: assessment, design, current state per phase, quick starts |
+| `docs/DISBURSEMENT.md` | Disbursement validation: release checks, verdict, bank file templates, current state per step |
 | `docs/DATABASE_MIGRATION.md` | Tested procedure for moving to another Postgres host |
 | `docs/SECURITY.md` | Security assessment, threat model, fixes, remaining risks — and what is *not* claimed |
 | `docs/security/` | Control register, incident runbook, pentest brief, ISMS templates (marked as such) |

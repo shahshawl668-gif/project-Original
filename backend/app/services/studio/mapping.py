@@ -60,6 +60,11 @@ _CURRENCY = re.compile(r"(₹|rs\.?|inr)", re.I)
 def targets_for(object_type: str, components: list[str] | None = None) -> list[dict[str, str]]:
     """The product fields a mapping for this object type can fill."""
     components = sorted(components or [])
+    from app.services.disbursement.fields import TARGETS as DISBURSEMENT_TARGETS
+    from app.services.disbursement.fields import targets as disbursement_targets
+
+    if object_type in DISBURSEMENT_TARGETS:
+        return disbursement_targets(object_type)
     if object_type == "employee_master":
         fields = list(EMPLOYEE_MASTER_ALIASES)
     elif object_type == "attendance":
