@@ -16,7 +16,11 @@
       {"target": "ff_processed", "source": "FnF Status", "lookup": {"FnF Processed": "yes", "Pending": "no"}, "on_unmatched": "keep"},
       {"target": "on_hold", "source": "Payroll Hold", "lookup": {"Hold": "yes", "Released": "no"}, "on_unmatched": "keep"},
       {"target": "arrears", "source": "Arrear Amount"},
-      {"target": "increment", "source": "Increment Applied"}
+      {"target": "increment", "source": "Increment Applied"},
+      {"target": "reimbursement", "source": "Reimbursements"},
+      {"target": "salary_hold", "source": "Salary On Hold"},
+      {"target": "hold_release", "source": "Hold Released"},
+      {"target": "total_payable", "source": "Total Salary Payable"}
     ]},
     "bank_master": {"fields": [
       {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
@@ -37,6 +41,7 @@
     "previous": {"fields": [
       {"target": "employee_id", "source": "Employee Code", "type": "id", "required": true},
       {"target": "net_pay", "source": "Net Salary"},
+      {"target": "total_payable", "source": "Total Salary Payable"},
       {"target": "account_number", "source": "Bank Account Number"},
       {"target": "ifsc", "source": "IFSC Code"}
     ]},

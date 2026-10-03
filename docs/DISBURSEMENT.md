@@ -12,7 +12,7 @@ approval pack.
 
 | Step | What | State |
 |---|---|---|
-| 1 | Rule engine (DSB-01 … DSB-16), verdict, bridge; bank file templates and clean file with SHA-256; input readers and the two mapping profiles; synthetic generator with answer keys; tests | **Built** (1 Oct 2026) |
+| 1 | Rule engine (DSB-01 … DSB-17), verdict, bridge; bank file templates and clean file with SHA-256; input readers and the two mapping profiles; synthetic generator with answer keys; tests | **Built** (1 Oct 2026) |
 | 2 | Exception report (CSV, XLSX) and approver summary (PDF) | Planned |
 | 3 | Storage: runs, per-company settings, approval records; API with tenancy and roles | Planned |
 | 4 | Page: upload, verdict, findings, downloads, printable summary, approval | Planned |
@@ -26,10 +26,10 @@ generator's `--check` mode only.
 | Input | Needed | Read as |
 |---|---|---|
 | Bank payment file (the file under test) | Required | A bank file template |
-| Payroll register, current period | Required | A mapping profile |
+| Payroll register, current period: net pay, and where the HRMS gives them reimbursements, salary held, held salary released and **total salary** | Required | A mapping profile |
 | Bank master: account, IFSC, beneficiary name, verification status, last changed | Optional | A mapping profile |
 | Bank detail change log | Optional | A mapping profile |
-| Previous period (register or bank file, as a table) | Optional | A mapping profile |
+| Previous period (register or bank file, as a table): net pay and/or total salary | Optional | A mapping profile |
 | Hold list: F&F processed, separated, on hold, with reason | Optional | A mapping profile |
 | Off-cycle payments already made this period | Optional | A mapping profile |
 
@@ -52,6 +52,38 @@ Two profiles ship, both built from synthetic layouts and copied from no client:
 * **Darwinbox-style** — column names and status words in the style of a Darwinbox
   export (`Employee Code`, `Net Salary`, `Employment Status: Resigned` …); bank
   file `batch_pipe_hdt`. Check each column against your own export.
+
+## What the bank should pay: total salary, not net pay
+
+The bank file does not pay net pay. After net pay come **reimbursements** (paid
+with salary but outside it), **salary held** this month (withheld, paid later) and
+**held salary released** from an earlier month. The amount a payment line must
+equal is the **total salary payable**:
+
+    total salary = net pay + reimbursements + held salary released − salary held
+
+The engine takes it, in this order:
+
+1. **The register's own total salary column** (`Total Salary`, `Total Salary
+   Payable`, `Net Payable`, `Take Home` …) — what the HRMS told the bank to pay.
+2. **Built from its parts** when there is no total column but there are
+   reimbursement / salary hold / hold release columns. DSB-08 says so.
+3. **Net pay** when the register has none of these. DSB-08 says plainly that
+   reimbursements and held salary could not be allowed for, so the difference
+   it reports may be one of them.
+
+DSB-08 (amount), DSB-15 (missing from the file), DSB-01 (clean file against the
+register) and the bridge all use this amount. An employee whose salary is held
+in full has nothing payable and is not expected in the file. DSB-13 (variance)
+stays on net pay when both periods give it, because total salary swings with
+reimbursements and holds; it falls back to total salary otherwise and says so.
+
+**DSB-17** checks the register against itself: when it states total salary *and*
+the parts, the total must equal net pay + reimbursements + released holds − held.
+The bank pays the stated total, so a total that does not add up is money that
+may be wrong even though the file matches the register. Default FLAG; a company
+can make it HOLD_ROW. It is NOT_RUN when the register gives no total, or a total
+with no reimbursement or hold column to explain how it differs from net pay.
 
 ## Bank file templates
 
@@ -84,19 +116,21 @@ Either way the same input gives the same bytes and so the same SHA-256.
 | DSB-05 | Same account number on two or more employees — all of them held | HOLD_ROW | bank file |
 | DSB-06 | Bank details changed since the previous period and not verified | HOLD_ROW | bank master with verification column, plus change log or previous period |
 | DSB-07 | Amount zero, negative, or unreadable | HOLD_ROW | bank file |
-| DSB-08 | Amount differs from net pay in the register | HOLD_ROW | bank file, register |
+| DSB-08 | Amount differs from total salary payable in the register (see above) | HOLD_ROW | bank file, register |
 | DSB-09 | Separated before the period, F&F processed, or on hold | HOLD_ROW | hold list or register status columns |
 | DSB-10 | Employee appears more than once — every line held | HOLD_ROW | bank file |
 | DSB-11 | Already paid off-cycle this period | HOLD_ROW | off-cycle payments |
 | DSB-12 | IFSC not 4 letters + 0 + 6 letters/digits; account blank, not digits, or outside 9–18 digits | HOLD_ROW | bank file |
-| DSB-13 | Net pay changed more than 25% against the previous period, excluding joiners, exits, arrears and increments | FLAG | register, previous period |
+| DSB-13 | Net pay changed more than 25% against the previous period, excluding joiners, exits, arrears and increments (total salary if the previous period has no net pay) | FLAG | register, previous period |
 | DSB-14 | Beneficiary name does not match (case, spacing, salutations, initials, small spelling differences ignored; threshold 0.80) | FLAG | bank file and register names |
 | DSB-15 | Due in the register, not in the file, not on hold or already paid off-cycle | FLAG | bank file, register |
 | DSB-16 | Account or IFSC in the file is not the one on the bank master | HOLD_ROW | bank master |
+| DSB-17 | Total salary in the register is not net pay + reimbursements + released holds − salary held | FLAG | register with total salary, net pay and a reimbursement or hold column |
 
-DSB-16 was not in the original brief; it was added at review because a file that
+DSB-16 and DSB-17 were not in the original brief. DSB-16 was added at review because a file that
 pays an account other than the one on record is the most direct way money goes
-astray, and it is how a lost leading zero shows itself.
+astray, and it is how a lost leading zero shows itself. DSB-17 came with the correction that
+the bank pays total salary, not net pay (above).
 
 **Severities are per company.** Each check can be switched off (reported as
 DISABLED, never as passed) or moved between the severities that make sense for
@@ -121,7 +155,8 @@ Under C, DSB-01 stops the file when:
 1. the header or footer states a total that is not the sum of the lines — the
    file disagrees with itself;
 2. after the held lines are removed, the clean file does not equal the register's
-   net pay for the employees it pays (beyond `total_tolerance`, default ₹0);
+   total salary payable for the employees it pays (beyond `total_tolerance`,
+   default ₹0);
 3. the held lines add up to more than `max_hold_share_pct` (default 25%) of the
    file's value — a file that wrong is more likely the wrong run or month than a
    file with a few wrong lines.
@@ -172,7 +207,7 @@ acknowledged.
 | `variance_pct` (DSB-13) | 25 |
 | `name_similarity` (DSB-14) | 0.80 |
 | `account_length_min` / `max` (DSB-12) | 9 / 18 |
-| `amount_tolerance` per employee (DSB-08) | ₹0.00 |
+| `amount_tolerance` per employee (DSB-08, DSB-17) | ₹0.00 |
 | `total_tolerance` clean file (DSB-01) | ₹0.00 |
 | `max_hold_share_pct` (DSB-01, DSB-02; 0 = off) | 25 |
 | `debit_account` (DSB-04) | none — DSB-04 NOT_RUN until set |
@@ -193,7 +228,8 @@ Writes `scenario_{A,B,C,D}_{generic,darwinbox_style}/` with every input file,
 `expected_findings.csv` and `scenario.json`, and with `--check` prints planted /
 caught / false positives per rule. Names come from generic lists; IFSC codes use
 the made-up prefixes `ZZZA0` … `ZZZH0`; account numbers are random. The clean
-population is untidy on purpose — trailing spaces, lower-case IFSC, amounts as
+population claims reimbursements (about a fifth), has some salary held in part or
+in full and some earlier holds released, and is untidy on purpose — trailing spaces, lower-case IFSC, amounts as
 text with commas, salutations and initials, masters that lost leading zeros — and
 must produce no findings.
 
@@ -208,9 +244,9 @@ must produce no findings.
 cd backend && python -m pytest tests/test_disbursement.py -q
 ```
 
-Results at step 1 (500 employees, both layouts): every rule planted at least
-twice, every planted case caught, zero false positives. 10,000 employees are read,
-checked and given a clean file in about 1.5 s (CSV) and 3.4 s (XLSX).
+Results at step 1 (500 employees, both layouts, 41 tests): every rule planted at
+least twice, every planted case caught, zero false positives. 10,000 employees are
+read, checked and given a clean file in about 2 s (CSV) and 4 s (XLSX).
 
 ## Known limitations at step 1
 

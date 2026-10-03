@@ -19,6 +19,16 @@ Order matters, and it is the design:
    went: who is missing, who was paid but not due, duplicates, amount
    differences. It is arithmetic, not a check, and is shown as such.
 
+What the bank should pay
+------------------------
+Not net pay. After net pay come reimbursements (paid with salary, outside it)
+and salary held this period (withheld, paid later), and later still the held
+salary released. The amount a payment line must equal is the **total salary
+payable**: the register's own figure when it gives one; otherwise net pay plus
+reimbursements and released holds, less salary held, from whichever of those
+columns the register has; otherwise net pay, and the checks say so, because
+reimbursements and holds then cannot be allowed for.
+
 A check whose input was not supplied reports NOT_RUN with the reason. A check a
 company switched off reports DISABLED. Neither is ever reported as passed.
 """
@@ -104,22 +114,50 @@ class _Run:
         self._index()
 
     # -- inputs -----------------------------------------------------------
+    def _payable(self, row: RegisterRow) -> Decimal | None:
+        if self.basis == "total":
+            return row.total_payable
+        if row.net_pay is None:
+            return None
+        if self.basis == "computed":
+            return row.net_pay + (row.reimbursement or ZERO) + (row.hold_release or ZERO) - (row.salary_hold or ZERO)
+        return row.net_pay
+
     def _index(self) -> None:
+        cols = self.inp.register.columns
+        self.adjustments = cols & {"reimbursement", "salary_hold", "hold_release"}
+        if "total_payable" in cols:
+            self.basis = "total"
+            self.basis_text = "total salary payable in the register"
+        elif self.adjustments and "net_pay" in cols:
+            self.basis = "computed"
+            self.basis_text = "net pay plus reimbursements and released holds, less salary held"
+        else:
+            self.basis = "net"
+            self.basis_text = "net pay"
         reg: dict[str, RegisterRow] = {}
         self.reg_net: dict[str, Decimal | None] = {}
+        self.reg_pay: dict[str, Decimal | None] = {}
         counts: dict[str, int] = defaultdict(int)
+
+        def add(store: dict[str, Decimal | None], key: str, value: Decimal | None, first: bool) -> None:
+            if first:
+                store[key] = value
+            elif value is not None and store.get(key) is not None:
+                store[key] = store[key] + value
+            else:
+                store[key] = None
+
         for row in self.inp.register.rows:
             counts[row.key] += 1
-            if row.key not in reg:
+            first = row.key not in reg
+            if first:
                 reg[row.key] = row
-                self.reg_net[row.key] = row.net_pay
-            elif row.net_pay is not None and self.reg_net.get(row.key) is not None:
-                self.reg_net[row.key] = self.reg_net[row.key] + row.net_pay
-            else:
-                self.reg_net[row.key] = None
+            add(self.reg_net, row.key, row.net_pay, first)
+            add(self.reg_pay, row.key, self._payable(row), first)
         for key, n in counts.items():
             if n > 1:
-                self.notes.append(Note("register", f"appears {n} times in the register; net pay is the sum "
+                self.notes.append(Note("register", f"appears {n} times in the register; pay is the sum "
                                        "of its rows", employee_id=reg[key].employee_id))
         self.reg = reg
         self.master = self._first(self.inp.bank_master, "bank master")
@@ -159,6 +197,27 @@ class _Run:
                 continue
             out[row.key] = row
         return out
+
+    def _parts(self, key: str, total: bool = True) -> str:
+        """' (net 40,000.00 + reimbursements 2,500.00 − held 5,000.00)' — how a payable figure is made up."""
+        r = self.reg.get(key)
+        if r is None or (total and self.basis == "net") or r.net_pay is None:
+            return ""
+        bits = [f"net {_money(r.net_pay)}"]
+        if r.reimbursement:
+            bits.append(f"+ reimbursements {_money(r.reimbursement)}")
+        if r.hold_release:
+            bits.append(f"+ released hold {_money(r.hold_release)}")
+        if r.salary_hold:
+            bits.append(f"− held {_money(r.salary_hold)}")
+        return f" ({' '.join(bits)})" if len(bits) > 1 or not total else ""
+
+    def _lines(self, key: str) -> list[int]:
+        """The payment lines for an employee: what a hold on them removes."""
+        return [r.row for r in self.rows_by_key.get(key, [])]
+
+    def _paid(self, key: str) -> Decimal:
+        return sum((r.amount or ZERO for r in self.rows_by_key.get(key, [])), ZERO)
 
     def _name(self, key: str | None) -> str | None:
         r = self.reg.get(key) if key else None
@@ -208,13 +267,17 @@ class _Run:
         return None
 
     def due(self) -> dict[str, Decimal]:
-        """Who the file should pay: positive net, not excluded, not already paid off-cycle."""
+        """
+        Who the file should pay, and how much: a positive total payable, not
+        excluded, not already paid off-cycle. Salary held in full leaves nothing
+        payable, so that employee is not expected in the file.
+        """
         if self._due is None:
             self._due = {}
             for key in self.reg:
-                net = self.reg_net.get(key)
-                if net is not None and net > 0 and not self.exclusion(key) and key not in self.offcycle:
-                    self._due[key] = net
+                pay = self.reg_pay.get(key)
+                if pay is not None and pay > 0 and not self.exclusion(key) and key not in self.offcycle:
+                    self._due[key] = pay
         return self._due
 
     # -- the checks ------------------------------------------------------------
@@ -257,23 +320,55 @@ class _Run:
                               employee_id=row.employee_id)
 
         if self.active("DSB-08"):
+            if self.basis == "net":
+                self.rules["DSB-08"].reason = ("Compared with net pay: the register has no total salary, "
+                                               "reimbursement or salary hold column, so those cannot be allowed for.")
+            elif self.basis == "computed":
+                self.rules["DSB-08"].reason = ("The register has no total salary column; the amount due was taken "
+                                               f"as {self.basis_text}.")
             for key, rows in self.rows_by_key.items():
                 if key in dup_keys or key not in self.reg:
                     continue
                 row = rows[0]
                 if row.amount is None or row.amount <= 0:
                     continue                      # DSB-07 already holds it
-                net = self.reg_net.get(key)
-                if net is None:
-                    raw = self.reg[key].net_raw
-                    self.emit("DSB-08", "the register's net pay for this employee is blank or unreadable"
+                pay = self.reg_pay.get(key)
+                if pay is None:
+                    r = self.reg[key]
+                    raw = r.total_raw if self.basis == "total" else r.net_raw
+                    what = "total salary" if self.basis == "total" else "net pay"
+                    self.emit("DSB-08", f"the register's {what} for this employee is blank or unreadable"
                               f"{' (' + repr(raw) + ')' if raw else ''}, so the amount cannot be confirmed",
                               key=key, field="amount", expected="(missing in register)",
                               actual=_money(row.amount), rows=[row.row], amount=row.amount)
-                elif abs(row.amount - net) > s.amount_tolerance:
-                    self.emit("DSB-08", f"the file pays {_money(row.amount)} but net pay in the register is "
-                              f"{_money(net)} (difference {_money(row.amount - net)})", key=key, field="amount",
-                              expected=_money(net), actual=_money(row.amount), rows=[row.row], amount=row.amount)
+                elif abs(row.amount - pay) > s.amount_tolerance:
+                    self.emit("DSB-08", f"the file pays {_money(row.amount)} but the {self.basis_text} is "
+                              f"{_money(pay)}{self._parts(key)} (difference {_money(row.amount - pay)})",
+                              key=key, field="amount", expected=_money(pay), actual=_money(row.amount),
+                              rows=[row.row], amount=row.amount)
+
+        if self.active("DSB-17"):
+            reg_cols = self.inp.register.columns
+            if "total_payable" not in reg_cols:
+                self.not_run("DSB-17", "The register has no total salary column, so there is no stated total to "
+                             "check against its parts.")
+            elif "net_pay" not in reg_cols:
+                self.not_run("DSB-17", "The register has no net pay column to build the total from.")
+            elif not self.adjustments:
+                self.not_run("DSB-17", "The register gives total salary but no reimbursement, salary hold or hold "
+                             "release column, so a difference from net pay cannot be explained or checked.")
+            else:
+                for key in self.rows_by_key:
+                    r = self.reg.get(key)
+                    if r is None or r.total_payable is None or r.net_pay is None:
+                        continue
+                    built = r.net_pay + (r.reimbursement or ZERO) + (r.hold_release or ZERO) - (r.salary_hold or ZERO)
+                    if abs(r.total_payable - built) > s.amount_tolerance:
+                        self.emit("DSB-17", f"total salary is {_money(r.total_payable)} but its parts make "
+                                  f"{_money(built)}{self._parts(key, total=False)} (difference "
+                                  f"{_money(r.total_payable - built)}); the bank pays the total, so check it",
+                                  key=key, field="total_payable", expected=_money(built),
+                                  actual=_money(r.total_payable), rows=self._lines(key), amount=self._paid(key))
 
         if self.active("DSB-05"):
             by_account: dict[str, set[str]] = defaultdict(set)
@@ -451,11 +546,15 @@ class _Run:
             prev_table = self.inp.previous
             if prev_table is None:
                 self.not_run("DSB-13", "No previous period file was supplied.")
-            elif "net_pay" not in prev_table.columns:
-                self.not_run("DSB-13", "The previous period file has no net pay or amount column.")
+            elif not prev_table.columns & {"net_pay", "total_payable"}:
+                self.not_run("DSB-13", "The previous period file has neither a net pay nor a total salary column.")
             else:
                 cols = self.inp.register.columns
-                caveats = []
+                # Like with like. Net pay against net pay when both periods give it: it moves
+                # less than total salary, which swings with reimbursements and held salary.
+                by_net = "net_pay" in prev_table.columns and "net_pay" in cols
+                measure = "net pay" if by_net else "total salary"
+                caveats = [] if by_net else ["compared on total salary, which moves with reimbursements and holds"]
                 if "date_of_joining" not in cols:
                     caveats.append("no joining date column: only employees absent last period are treated as joiners")
                 if not cols & {"arrears", "increment"}:
@@ -465,11 +564,12 @@ class _Run:
                 limit = s.variance_pct
                 for key in self.rows_by_key:
                     r = self.reg.get(key)
-                    cur = self.reg_net.get(key)
+                    cur = self.reg_net.get(key) if by_net else self.reg_pay.get(key)
                     if r is None or cur is None or cur <= 0:
                         continue
                     p = self.previous.get(key)
-                    if p is None or p.net_pay is None:
+                    before = (p.net_pay if by_net else p.total_payable) if p is not None else None
+                    if before is None:
                         continue                          # not paid last period: a joiner
                     if r.date_of_joining and r.date_of_joining >= s.previous_start:
                         continue
@@ -477,15 +577,18 @@ class _Run:
                         continue
                     if (r.arrears or ZERO) > 0 or r.increment:
                         continue
-                    if p.net_pay <= 0:
-                        self.emit("DSB-13", f"net pay is {_money(cur)}; the previous period paid {_money(p.net_pay)}",
-                                  key=key, field="net_pay", expected=_money(p.net_pay), actual=_money(cur))
+                    field = "net_pay" if by_net else "total_payable"
+                    if before <= 0:
+                        self.emit("DSB-13", f"{measure} is {_money(cur)}; the previous period's was {_money(before)}",
+                                  key=key, field=field, expected=_money(before), actual=_money(cur),
+                                  rows=self._lines(key), amount=self._paid(key))
                         continue
-                    change = (cur - p.net_pay) / p.net_pay * 100
+                    change = (cur - before) / before * 100
                     if abs(change) > limit:
-                        self.emit("DSB-13", f"net pay changed {change:+.1f}% against the previous period "
-                                  f"({_money(p.net_pay)} → {_money(cur)}); the threshold is {limit}%",
-                                  key=key, field="net_pay", expected=_money(p.net_pay), actual=_money(cur))
+                        self.emit("DSB-13", f"{measure} changed {change:+.1f}% against the previous period "
+                                  f"({_money(before)} → {_money(cur)}); the threshold is {limit}%",
+                                  key=key, field=field, expected=_money(before), actual=_money(cur),
+                                  rows=self._lines(key), amount=self._paid(key))
 
         if self.active("DSB-15"):
             for key, net in self.due().items():
@@ -494,11 +597,12 @@ class _Run:
                               "is not on the hold list", key=key, field="employee_id", expected="in the file",
                               actual="missing", amount=net)
             for key, r in self.reg.items():
-                if self.reg_net.get(key) is None and key not in self.rows_by_key and not self.exclusion(key) \
+                if self.reg_pay.get(key) is None and key not in self.rows_by_key and not self.exclusion(key) \
                         and key not in self.offcycle:
-                    self.emit("DSB-15", "the register's net pay is blank or unreadable and the employee is not "
-                              "in the file; confirm they are not due", key=key, field="net_pay",
-                              expected="a net pay", actual=r.net_raw or "(blank)")
+                    raw = r.total_raw if self.basis == "total" else r.net_raw
+                    self.emit("DSB-15", f"the register's {'total salary' if self.basis == 'total' else 'net pay'} "
+                              "is blank or unreadable and the employee is not in the file; confirm they are not "
+                              "due", key=key, field="amount_due", expected="an amount", actual=raw or "(blank)")
 
     # -- file checks -------------------------------------------------------------
     def held(self) -> tuple[set[int], set[str]]:
@@ -570,10 +674,10 @@ class _Run:
                               actual=_money(stated))
             pays = [r for r in clean if r.key and r.key in self.reg and r.amount is not None]
             paid = sum((r.amount for r in pays), ZERO)
-            owed = sum((self.reg_net.get(r.key) or ZERO for r in pays), ZERO)
+            owed = sum((self.reg_pay.get(r.key) or ZERO for r in pays), ZERO)
             if abs(paid - owed) > s.total_tolerance:
                 self.emit("DSB-01", f"after the held lines are removed the file pays {_money(paid)}, but the "
-                          f"register's net pay for the same employees is {_money(owed)}", field="total",
+                          f"{self.basis_text} for the same employees is {_money(owed)}", field="total",
                           expected=_money(owed), actual=_money(paid))
             if cap > 0 and file_total > 0 and held_amount * 100 / file_total > cap:
                 self.emit("DSB-01", f"{_money(held_amount)} of {_money(file_total)} "
@@ -636,11 +740,11 @@ class _Run:
         clean_rows = [r for r in self.bank.rows if r.row not in held_rows]
         clean_total = sum((r.amount for r in clean_rows if r.amount is not None), ZERO)
         lines = [
-            {"label": "Net pay due per the register", "amount": due_total, "count": len(due)},
+            {"label": f"Due per the register ({self.basis_text})", "amount": due_total, "count": len(due)},
             {"label": "Due but not in the bank file (DSB-15)", "amount": -missing_total, "count": -len(missing)},
             {"label": "Paid but not in the register (DSB-03)", "amount": not_in_register, "count": n_not_in_register},
-            {"label": "Paid but not due: on hold, separated, F&F, already paid off-cycle, zero or negative net "
-                      "(DSB-09, DSB-11, DSB-07)",
+            {"label": "Paid but not due: on hold, separated, F&F, already paid off-cycle, nothing payable "
+                      "(DSB-09, DSB-11, DSB-07, DSB-08)",
              "amount": not_due, "count": n_not_due},
             {"label": "Extra lines for employees already paid once (DSB-10)", "amount": duplicate_extra,
              "count": n_duplicate},
@@ -650,8 +754,12 @@ class _Run:
             {"label": "Clean file to release", "amount": clean_total, "count": len(clean_rows), "total": True},
         ]
         employees_paid = len({r.key for r in clean_rows if r.key})
-        prev_total = sum((p.net_pay for p in self.previous.values() if p.net_pay is not None), ZERO) \
-            if self.inp.previous and "net_pay" in self.inp.previous.columns else None
+        prev_field = None
+        if self.inp.previous:
+            prev_field = "total_payable" if "total_payable" in self.inp.previous.columns else \
+                "net_pay" if "net_pay" in self.inp.previous.columns else None
+        prev_total = sum((getattr(p, prev_field) for p in self.previous.values()
+                          if getattr(p, prev_field) is not None), ZERO) if prev_field else None
         totals = {
             "due_total": due_total, "due_count": len(due),
             "file_total": file_total, "file_rows": len(self.bank.rows), "unreadable_amounts": unreadable,
@@ -660,6 +768,8 @@ class _Run:
             "release_amount": clean_total, "release_rows": len(clean_rows), "release_employees": employees_paid,
             "flags": sum(1 for f in self.findings if f.severity == FLAG),
             "previous_total": prev_total,
+            "previous_total_basis": {"total_payable": "total salary", "net_pay": "net pay"}.get(prev_field or ""),
+            "amount_basis": self.basis_text,
             "variance_vs_previous": (clean_total - prev_total) if prev_total is not None else None,
             "variance_pct_vs_previous": (round(float((clean_total - prev_total) * 100 / prev_total), 2)
                                          if prev_total else None),

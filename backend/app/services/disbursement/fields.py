@@ -14,6 +14,7 @@ TARGETS: dict[str, tuple[tuple[str, str], ...]] = {
         ("employee_id", "id"), ("employee_name", "text"), ("net_pay", "text"), ("status", "text"),
         ("date_of_joining", "text"), ("date_of_exit", "text"), ("ff_processed", "text"),
         ("on_hold", "text"), ("arrears", "text"), ("increment", "text"),
+        ("total_payable", "text"), ("reimbursement", "text"), ("salary_hold", "text"), ("hold_release", "text"),
     ),
     "bank_master": (
         ("employee_id", "id"), ("account_number", "text"), ("ifsc", "text"), ("beneficiary_name", "text"),
@@ -25,6 +26,7 @@ TARGETS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
     "previous_period": (
         ("employee_id", "id"), ("net_pay", "text"), ("account_number", "text"), ("ifsc", "text"),
+        ("total_payable", "text"),
     ),
     "hold_list": (
         ("employee_id", "id"), ("category", "text"), ("reason", "text"), ("effective_date", "text"),

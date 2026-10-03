@@ -14,6 +14,11 @@ B  row-level errors only               → RELEASE_WITH_HOLDS (every hold/flag c
 C  file-level breaks                   → DO_NOT_RELEASE
 D  optional inputs missing             → those checks NOT_RUN, the rest still run
 
+The bank pays **total salary**, not net pay: net pay plus reimbursements and any
+held salary released, less salary held this month. About a fifth of employees
+claim reimbursements; a few have part or all of their salary held, or an earlier
+hold released.
+
 The clean population is deliberately untidy the way real exports are — trailing
 spaces, lower-case IFSC, amounts written as text with commas, salutations and
 initials in beneficiary names, account numbers whose leading zeros a spreadsheet
@@ -67,23 +72,25 @@ LAYOUTS = {
 HEADERS = {
     "generic": {
         "register": ["Employee ID", "Employee Name", "Work State", "Net Pay", "Status", "Date of Joining",
-                     "Date of Exit", "FnF Processed", "On Hold", "Arrears", "Increment"],
+                     "Date of Exit", "FnF Processed", "On Hold", "Arrears", "Increment", "Reimbursement",
+                     "Salary Hold", "Hold Release", "Total Salary"],
         "bank_master": ["Employee ID", "Account Number", "IFSC", "Beneficiary Name", "Verification Status",
                         "Last Changed"],
         "change_log": ["Employee ID", "Field", "Old Value", "New Value", "Changed On", "Verification Status"],
-        "previous": ["Employee ID", "Net Pay", "Account Number", "IFSC"],
+        "previous": ["Employee ID", "Net Pay", "Total Salary", "Account Number", "IFSC"],
         "hold_list": ["Employee ID", "Category", "Reason", "Effective Date"],
         "offcycle": ["Employee ID", "Amount", "Payment Date", "Reference"],
     },
     "darwinbox_style": {
         "register": ["Employee Code", "Employee Name", "Work Location State", "Net Salary", "Employment Status",
                      "Date Of Joining", "Date Of Exit", "FnF Status", "Payroll Hold", "Arrear Amount",
-                     "Increment Applied"],
+                     "Increment Applied", "Reimbursements", "Salary On Hold", "Hold Released",
+                     "Total Salary Payable"],
         "bank_master": ["Employee Code", "Bank Account Number", "IFSC Code", "Name As Per Bank",
                         "Bank Details Status", "Bank Details Updated On"],
         "change_log": ["Employee Code", "Changed Field", "Previous Value", "New Value", "Changed On",
                        "Approval Status"],
-        "previous": ["Employee Code", "Net Salary", "Bank Account Number", "IFSC Code"],
+        "previous": ["Employee Code", "Net Salary", "Total Salary Payable", "Bank Account Number", "IFSC Code"],
         "hold_list": ["Employee Code", "Hold Type", "Hold Reason", "Hold From"],
         "offcycle": ["Employee Code", "Off Cycle Amount", "Paid On", "Payment Reference"],
     },
@@ -111,6 +118,11 @@ class Emp:
     last_changed: date = date(2022, 1, 1)
     arrears: Decimal = Decimal("0")
     increment: bool = False
+    reimbursement: Decimal = Decimal("0")
+    salary_hold: Decimal = Decimal("0")
+    hold_release: Decimal = Decimal("0")
+    total_override: Decimal | None = None     # a register whose total salary does not add up
+    prev_reimbursement: Decimal = Decimal("0")
     offcycle: list[tuple[Decimal, date, str]] = field(default_factory=list)
     changes: list[tuple[str, str, str, date, bool | None]] = field(default_factory=list)
     in_file: bool = True
@@ -124,6 +136,17 @@ class Emp:
     in_register: bool = True
     kind: str = "plain"
     messy: set[str] = field(default_factory=set)
+
+    @property
+    def total(self) -> Decimal:
+        """What the bank pays: net + reimbursements + released hold − salary held."""
+        if self.total_override is not None:
+            return self.total_override
+        return self.net + self.reimbursement + self.hold_release - self.salary_hold
+
+    @property
+    def prev_total(self) -> Decimal | None:
+        return None if self.prev_net is None else self.prev_net + self.prev_reimbursement
 
 
 @dataclass
@@ -202,7 +225,7 @@ class Builder:
             e.hold_entry = ("On hold", "Pending documents")
         for e in take(max(2, share // 2)):    # paid off-cycle already: not in the file
             e.kind, e.in_file = "offcycle", False
-            e.offcycle.append((e.net, P_START + timedelta(days=12), f"OFC{e.eid[1:]}"))
+            e.offcycle.append((e.total, P_START + timedelta(days=12), f"OFC{e.eid[1:]}"))
         for e in take(share):                 # arrears this month: big change, explained
             e.kind, e.arrears = "arrears", self._money(5000, 40000)
             e.net = (e.prev_net * Decimal("1.4")).quantize(Decimal("0.01"))
@@ -218,7 +241,18 @@ class Builder:
             e.changes.append(("Account Number", old, e.account, e.last_changed, True))
         for e in take(max(2, share // 2)):    # changed years ago: outside the window
             e.changes.append(("IFSC", self._ifsc(), e.ifsc, date(2023, 3, 14), True))
+        for e in take(max(2, share // 2)):    # part of this month's salary held
+            e.kind, e.salary_hold = "partial_hold", (e.net * Decimal("0.3")).quantize(Decimal("0.01"))
+        for e in take(max(2, share // 2)):    # all of it held: nothing payable, not in the file
+            e.kind, e.salary_hold, e.in_file = "held_full", e.net, False
+        for e in take(max(2, share // 2)):    # an earlier hold released this month
+            e.kind, e.hold_release = "released", self._money(5000, 40000)
         self.plain = [self.emps[i] for i in pool]
+        for e in self.emps:                   # about a fifth claim reimbursements
+            if e.kind in ("plain", "partial_hold", "released", "leaver") and self.rng.random() < 0.2:
+                e.reimbursement = self._money(500, 15000)
+            if e.prev_net is not None and self.rng.random() < 0.2:
+                e.prev_reimbursement = self._money(500, 15000)
         # Untidy but correct: must produce no findings.
         for e in self.plain[: max(4, self.n // 25)]:
             e.messy.add(self.rng.choice(["space_id", "lower_ifsc", "salutation", "initials", "amount_text"]))
@@ -255,11 +289,17 @@ class Builder:
         z.net = z.prev_net = Decimal("0.00")
         neg.net = neg.prev_net = Decimal("-1250.00")
         for e in (z, neg):
+            e.reimbursement = e.prev_reimbursement = Decimal("0")
+        for e in (z, neg):
             self.expect("DSB-07", "HOLD_ROW", e.eid, "zero or negative amount")
         up, down = self.pick(2)               # DSB-08 file amount differs
-        up.file_amount, down.file_amount = up.net + Decimal("1500.00"), down.net - Decimal("0.50")
+        up.file_amount, down.file_amount = up.total + Decimal("1500.00"), down.total - Decimal("0.50")
         for e in (up, down):
-            self.expect("DSB-08", "HOLD_ROW", e.eid, "amount differs from register")
+            self.expect("DSB-08", "HOLD_ROW", e.eid, "amount differs from total salary")
+        for e in self.pick(2):                # DSB-17 the register's total does not add up; the bank pays it
+            e.reimbursement = self._money(1000, 8000)
+            e.total_override = e.net + e.reimbursement + Decimal("2000.00")
+            self.expect("DSB-17", "FLAG", e.eid, "total salary is not net + reimbursements − held")
         h, s, f = self.pick(3)                # DSB-09 should not be in the file
         h.hold, h.hold_entry = True, ("On hold", "Disciplinary review")
         s.status, s.exit = "separated", PREV_START + timedelta(days=15)
@@ -270,7 +310,7 @@ class Builder:
             e.copies = 2
             self.expect("DSB-10", "HOLD_ROW", e.eid, "duplicate line")
         for e in self.pick(2):                # DSB-11 already paid off-cycle
-            e.offcycle.append((e.net, P_START + timedelta(days=18), f"OFC{e.eid[1:]}"))
+            e.offcycle.append((e.total, P_START + timedelta(days=18), f"OFC{e.eid[1:]}"))
             self.expect("DSB-11", "HOLD_ROW", e.eid, "paid off-cycle this period")
         bad_ifsc, letters, short = self.pick(3)  # DSB-12 (the master carries the same bad value)
         bad_ifsc.ifsc = bad_ifsc.prev_ifsc = "ZZZB1A2B3C4"
@@ -321,14 +361,14 @@ class Builder:
             self.plain = self.plain[len(wrong):]
             for e in wrong:                   # a file from the wrong run: amounts all off
                 e.kind = "planted"
-                e.file_amount = (e.net * Decimal("1.07")).quantize(Decimal("0.01"))
+                e.file_amount = (e.total * Decimal("1.07")).quantize(Decimal("0.01"))
                 self.expect("DSB-08", "HOLD_ROW", e.eid, "amount differs (wrong run)")
             self.expect("DSB-01", "STOP_FILE", "", "held amount share above the cap")
             self.expect("DSB-02", "STOP_FILE", "", "held row share above the cap")
 
     def plant_missing_inputs(self) -> None:
         up, down = self.pick(2)
-        up.file_amount, down.file_amount = up.net + Decimal("250.00"), down.net - Decimal("99.00")
+        up.file_amount, down.file_amount = up.total + Decimal("250.00"), down.total - Decimal("99.00")
         for e in (up, down):
             self.expect("DSB-08", "HOLD_ROW", e.eid, "amount differs from register")
         bad, short = self.pick(2)
@@ -380,6 +420,10 @@ class Builder:
                 (yes if e.hold else no) if g else ("Hold" if e.hold else None),
                 self._amount_out(e.arrears, False) if e.arrears else ("" if g else None),
                 (yes if e.increment else no) if g else ("Yes" if e.increment else None),
+                self._amount_out(e.reimbursement, False) if e.reimbursement else ("" if g else None),
+                self._amount_out(e.salary_hold, False) if e.salary_hold else ("" if g else None),
+                self._amount_out(e.hold_release, False) if e.hold_release else ("" if g else None),
+                self._amount_out(e.total, "amount_text" in e.messy),
             ])
             account = e.master_account or e.account
             if not g and e.master_account and e.master_account.isdigit():
@@ -392,7 +436,8 @@ class Builder:
                     status = "Pending" if g else "Pending Approval"
                 out["change_log"].append([e.eid, what, old, new, self._date_out(when), status])
             if e.prev_net is not None:
-                out["previous"].append([e.eid, self._amount_out(e.prev_net, False), e.prev_account, e.prev_ifsc])
+                out["previous"].append([e.eid, self._amount_out(e.prev_net, False),
+                                        self._amount_out(e.prev_total, False), e.prev_account, e.prev_ifsc])
             if e.hold_entry:
                 cat, why = e.hold_entry
                 out["hold_list"].append([e.eid, cat, why, self._date_out(P_START)])
@@ -419,7 +464,7 @@ class Builder:
             if "lower_ifsc" in e.messy:
                 ifsc = ifsc.lower()
             eid = e.eid + ("  " if "space_id" in e.messy else "")
-            amount = e.file_amount if e.file_amount is not None else e.net
+            amount = e.file_amount if e.file_amount is not None else e.total
             for _ in range(e.copies):
                 lines.append({"eid": eid, "name": name, "account": e.file_account or e.account, "ifsc": ifsc,
                               "amount": amount})

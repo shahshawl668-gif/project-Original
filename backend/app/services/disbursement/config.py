@@ -75,6 +75,9 @@ RULES: tuple[Rule, ...] = (
          "bank file, register", (STOP_FILE, FLAG)),
     Rule("DSB-16", "Account or IFSC in the file is not the one on the bank master", ROW, HOLD_ROW,
          "bank file, bank master", (STOP_FILE, HOLD_ROW, FLAG)),
+    Rule("DSB-17", "Total salary in the register does not equal net pay plus reimbursements and released "
+         "holds, less salary held", ROW, FLAG,
+         "register with total salary, net pay and a reimbursement or salary hold column", (STOP_FILE, HOLD_ROW, FLAG)),
 )
 RULE_BY_ID = {r.rule_id: r for r in RULES}
 

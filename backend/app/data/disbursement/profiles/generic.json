@@ -12,9 +12,13 @@
       {"target": "date_of_joining", "source": "Date of Joining", "aliases": ["DOJ", "Joining Date"]},
       {"target": "date_of_exit", "source": "Date of Exit", "aliases": ["DOE", "Exit Date", "Last Working Day"]},
       {"target": "ff_processed", "source": "FnF Processed", "aliases": ["F&F Processed", "FnF Status"]},
-      {"target": "on_hold", "source": "On Hold", "aliases": ["Payroll Hold", "Salary Hold"]},
+      {"target": "on_hold", "source": "On Hold", "aliases": ["Payroll Hold"]},
       {"target": "arrears", "source": "Arrears", "aliases": ["Arrear Amount"]},
-      {"target": "increment", "source": "Increment", "aliases": ["Increment Applied"]}
+      {"target": "increment", "source": "Increment", "aliases": ["Increment Applied"]},
+      {"target": "reimbursement", "source": "Reimbursement", "aliases": ["Reimbursements", "Reimbursement Amount"]},
+      {"target": "salary_hold", "source": "Salary Hold", "aliases": ["Salary On Hold", "Hold Amount"]},
+      {"target": "hold_release", "source": "Hold Release", "aliases": ["Hold Released", "Released Hold"]},
+      {"target": "total_payable", "source": "Total Salary", "aliases": ["Total Payable", "Net Payable", "Total Salary Payable", "Amount Payable", "Take Home"]}
     ]},
     "bank_master": {"fields": [
       {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code", "Emp ID"]},
@@ -34,7 +38,8 @@
     ]},
     "previous": {"fields": [
       {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code"]},
-      {"target": "net_pay", "source": "Net Pay", "aliases": ["Net Salary", "Amount"]},
+      {"target": "net_pay", "source": "Net Pay", "aliases": ["Net Salary"]},
+      {"target": "total_payable", "source": "Total Salary", "aliases": ["Total Payable", "Total Salary Payable", "Amount", "Amount Paid"]},
       {"target": "account_number", "source": "Account Number", "aliases": ["Bank Account Number"]},
       {"target": "ifsc", "source": "IFSC", "aliases": ["IFSC Code"]}
     ]},

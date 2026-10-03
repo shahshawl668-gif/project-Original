@@ -40,6 +40,13 @@ class RegisterRow:
     on_hold: bool | None = None
     arrears: Decimal | None = None
     increment: bool | None = None
+    #: What the bank should pay: net pay plus reimbursements and released holds,
+    #: less salary held this period. The HRMS's own figure when it gives one.
+    total_payable: Decimal | None = None
+    total_raw: str | None = None
+    reimbursement: Decimal | None = None
+    salary_hold: Decimal | None = None
+    hold_release: Decimal | None = None
 
 
 @dataclass
@@ -74,6 +81,7 @@ class PreviousRow:
     net_pay: Decimal | None = None
     account_number: str | None = None
     ifsc: str | None = None
+    total_payable: Decimal | None = None
 
 
 @dataclass

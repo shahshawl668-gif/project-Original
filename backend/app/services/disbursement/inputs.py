@@ -179,6 +179,10 @@ def read_slot(slot: str, content: bytes, filename: str, spec: dict[str, Any], no
         if slot == "register":
             net, net_raw = _decimal(g("net_pay"), slot, "net pay", row, emp, notes)
             arrears, _ = _decimal(g("arrears"), slot, "arrears", row, emp, notes)
+            total, total_raw = _decimal(g("total_payable"), slot, "total salary", row, emp, notes)
+            reimb, _ = _decimal(g("reimbursement"), slot, "reimbursement", row, emp, notes)
+            held, _ = _decimal(g("salary_hold"), slot, "salary hold", row, emp, notes)
+            released, _ = _decimal(g("hold_release"), slot, "hold release", row, emp, notes)
             built.append(RegisterRow(
                 row, emp, key, employee_name=values.text(g("employee_name")), net_pay=net,
                 net_raw=net_raw, status=values.text(g("status")),
@@ -186,7 +190,9 @@ def read_slot(slot: str, content: bytes, filename: str, spec: dict[str, Any], no
                 date_of_exit=_date(g("date_of_exit"), slot, "date of exit", row, emp, notes),
                 ff_processed=_flag(g("ff_processed"), slot, "F&F processed", row, emp, notes),
                 on_hold=_flag(g("on_hold"), slot, "on hold", row, emp, notes),
-                arrears=arrears, increment=_flag(g("increment"), slot, "increment", row, emp, notes)))
+                arrears=arrears, increment=_flag(g("increment"), slot, "increment", row, emp, notes),
+                total_payable=total, total_raw=total_raw, reimbursement=reimb, salary_hold=held,
+                hold_release=released))
         elif slot == "bank_master":
             built.append(MasterRow(
                 row, emp, key, account_number=values.account(g("account_number")), ifsc=values.ifsc(g("ifsc")),
@@ -201,8 +207,9 @@ def read_slot(slot: str, content: bytes, filename: str, spec: dict[str, Any], no
                 verification_status=values.text(g("verification_status"))))
         elif slot == "previous":
             net, _ = _decimal(g("net_pay"), slot, "net pay", row, emp, notes)
+            total, _ = _decimal(g("total_payable"), slot, "total salary", row, emp, notes)
             built.append(PreviousRow(row, emp, key, net_pay=net, account_number=values.account(g("account_number")),
-                                     ifsc=values.ifsc(g("ifsc"))))
+                                     ifsc=values.ifsc(g("ifsc")), total_payable=total))
         elif slot == "hold_list":
             built.append(HoldRow(row, emp, key, category=values.text(g("category")), reason=values.text(g("reason")),
                                  effective_date=_date(g("effective_date"), slot, "effective date", row, emp, notes)))

@@ -323,3 +323,69 @@ def test_ten_thousand_employees_are_validated_in_under_ten_seconds():
     assert result.verdict == config.WITH_HOLDS and clean
     assert _expected(pack) == _found(result)
     assert elapsed < 10, f"{elapsed:.2f}s"
+
+
+# ---------------------------------------------------------------------------
+# What the bank should pay: total salary, not net pay
+# ---------------------------------------------------------------------------
+def _pay(register_rows, columns, bank_amounts, **settings):
+    bank = BankFile(rows=[
+        BankRow(i, i + 1, emp, emp, None, f"{i}234567890", "ZZZA0AB1234", Decimal(amount), amount)
+        for i, (emp, amount) in enumerate(bank_amounts, start=1)
+    ], columns={"employee_id", "account_number", "ifsc", "amount"})
+    reg = Table(register_rows, {"employee_id", *columns})
+    return engine.run(Inputs(bank_file=bank, register=reg),
+                      config.build_settings(PERIOD, {"max_hold_share_pct": "0", **settings}))
+
+
+def _row(emp, net, **kw):
+    return RegisterRow(2, emp, emp, None, Decimal(net), **{k: Decimal(v) for k, v in kw.items()})
+
+
+def test_the_bank_amount_is_checked_against_total_salary_not_net_pay():
+    # Net 40,000 + reimbursement 2,500 − 10,000 held = 32,500 payable.
+    rows = [_row("E1", "40000.00", reimbursement="2500.00", salary_hold="10000.00", total_payable="32500.00")]
+    cols = {"net_pay", "reimbursement", "salary_hold", "total_payable"}
+    assert _pay(rows, cols, [("E1", "32500.00")]).verdict == config.CLEAR
+    paid_net = _pay(rows, cols, [("E1", "40000.00")])
+    finding = next(f for f in paid_net.findings if f.rule_id == "DSB-08")
+    assert finding.expected == "32,500.00" and finding.actual == "40,000.00"
+    assert "total salary payable" in finding.reason and "reimbursements 2,500.00" in finding.reason
+    assert "held 10,000.00" in finding.reason
+
+
+def test_without_a_total_column_the_amount_is_built_from_its_parts_and_said_so():
+    rows = [_row("E1", "40000.00", reimbursement="2500.00", hold_release="5000.00")]
+    result = _pay(rows, {"net_pay", "reimbursement", "hold_release"}, [("E1", "47500.00")])
+    assert result.verdict == config.CLEAR
+    rules = {r.rule_id: r for r in result.rules}
+    assert "no total salary column" in rules["DSB-08"].reason
+    assert rules["DSB-17"].status == config.NOT_RUN           # nothing stated to check the parts against
+    assert result.totals["amount_basis"].startswith("net pay plus reimbursements")
+
+
+def test_with_net_pay_only_the_comparison_says_what_it_cannot_allow_for():
+    result = _pay([_row("E1", "40000.00")], {"net_pay"}, [("E1", "40000.00")])
+    rules = {r.rule_id: r for r in result.rules}
+    assert "cannot be allowed for" in rules["DSB-08"].reason
+    assert rules["DSB-17"].status == config.NOT_RUN
+
+
+def test_a_total_that_does_not_add_up_is_flagged():
+    rows = [_row("E1", "40000.00", reimbursement="2500.00", total_payable="44500.00")]
+    result = _pay(rows, {"net_pay", "reimbursement", "total_payable"}, [("E1", "44500.00")])
+    finding = next(f for f in result.findings if f.rule_id == "DSB-17")
+    assert finding.severity == config.FLAG and finding.expected == "42,500.00" and finding.actual == "44,500.00"
+    assert result.verdict == config.CLEAR                      # a flag: paid, and shown to the approver
+    rows.append(_row("E2", "30000.00", total_payable="30000.00"))
+    held = _pay(rows, {"net_pay", "reimbursement", "total_payable"}, [("E1", "44500.00"), ("E2", "30000.00")],
+                severities={"DSB-17": "HOLD_ROW"})
+    assert held.verdict == config.WITH_HOLDS and held.totals["held_employees"] == 1
+
+
+def test_salary_held_in_full_is_not_expected_in_the_file():
+    rows = [_row("E1", "40000.00", salary_hold="40000.00", total_payable="0.00"),
+            _row("E2", "30000.00", total_payable="30000.00")]
+    result = _pay(rows, {"net_pay", "salary_hold", "total_payable"}, [("E2", "30000.00")])
+    assert not any(f.rule_id == "DSB-15" for f in result.findings)
+    assert result.verdict == config.CLEAR
