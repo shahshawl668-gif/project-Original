@@ -299,6 +299,36 @@ before saving — testing stores nothing.
 
 ![Bank payments](images/06-bank-payments.png)
 
+### Step 8b — Payment file check (optional)
+
+**Reconciliation & approvals → Payment file check → Settings** (owner or manager). Two choices
+and some thresholds:
+
+- **Column layout (profile)** — how the client's register, bank master, change log, previous
+  period, hold list and off-cycle files name their columns. Two are shipped: *Generic* and
+  *Darwinbox-style*. Both are built from synthetic files; check each column against the client's
+  real export. A profile is an ordinary Studio mapping (target, source column, aliases, lookups)
+  per file, so a client with other column names needs a new profile, not a code change.
+- **Bank file layout (template)** — the payment file's shape: delimited or Excel, delimiter,
+  column header, header and trailer records with their fields (debit account, value date,
+  record count, total) and the amount's unit and decimals. Two examples are shipped
+  (*Generic CSV*, *Batch pipe H/D/T*). **Neither is any bank's official format**; build the
+  client's from their bank's specification and test it with a real file.
+
+Add a client's own profile or template under *Your own layouts (JSON)*, in the same shape as
+the built-in ones in `backend/app/data/disbursement/`. Anything wrong is refused with the
+reason.
+
+Thresholds and severities have stated defaults (`docs/DISBURSEMENT.md`): per-employee and
+file tolerance ₹0.00, month-on-month change 25%, at most 25% of the file held before the whole
+file stops, account numbers 9–18 digits. Set the **company debit account** if the bank file
+carries one in its header; without it that check reports "not run". Each of the 17 checks can
+be switched off or made stricter or softer within what it allows — a check switched off is still
+listed with every result and must be acknowledged at approval.
+
+Agree with the client whether one person may check and approve (common in small teams) or a
+second person must approve: **Team & invitations → Approval controls**.
+
 ### Step 9 — JV template
 
 **Configuration & admin → JV templates.** How payroll posts to the ledger, which no two

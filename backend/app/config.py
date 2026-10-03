@@ -96,6 +96,12 @@ class Settings(BaseSettings):
     report_artifact_max_mb: int = 10
     report_artifact_retention_days: int = 30
 
+    # --- Disbursement validation ---------------------------------------------
+    # Days a checked payment file's clean copy and paid list (bank details in
+    # full) are kept before being cleared. Long enough that next month's check
+    # can compare against this month's approved payments.
+    disbursement_file_retention_days: int = 60
+
     # --- PeopleOps Studio: integration API -----------------------------------
     # Requests per minute per API key. Enforced in the API process: with more
     # than one API instance the effective ceiling multiplies (see ratelimit.py).

@@ -1,0 +1,37 @@
+{
+  "key": "batch_pipe_hdt",
+  "name": "Pipe-delimited batch file with header and trailer records",
+  "note": "Synthetic and generic: an H record naming the debit account, value date, count and total; one D record per payment; a T record repeating count and total. Not any bank's official format; check it against a real file from your bank channel before use.",
+  "layout": "delimited",
+  "delimiter": "|",
+  "encoding": "utf-8",
+  "employee_id_transform": "trim",
+  "column_header": false,
+  "columns": [
+    {"field": "ignore", "literal": "D"},
+    {"field": "employee_id"},
+    {"field": "beneficiary_name"},
+    {"field": "account_number"},
+    {"field": "ifsc"},
+    {"field": "amount"},
+    {"field": "reference"}
+  ],
+  "header_record": {
+    "fields": [
+      {"name": "record_type", "position": 0, "literal": "H"},
+      {"name": "debit_account", "position": 1},
+      {"name": "value_date", "position": 2, "format": "%d%m%Y"},
+      {"name": "record_count", "position": 3},
+      {"name": "total_amount", "position": 4}
+    ]
+  },
+  "footer_record": {
+    "fields": [
+      {"name": "record_type", "position": 0, "literal": "T"},
+      {"name": "record_count", "position": 1},
+      {"name": "total_amount", "position": 2}
+    ]
+  },
+  "amount": {"unit": "rupees", "decimals": 2},
+  "date_format": "%d%m%Y"
+}

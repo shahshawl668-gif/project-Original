@@ -21,6 +21,7 @@ import {
   ClipboardCheck,
   Code2,
   FileBarChart,
+  FileCheck2,
   FileDown,
   FileSpreadsheet,
   FolderArchive,
@@ -91,6 +92,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Reconciliation & approvals",
     items: [
       { href: "/reconciliation", label: "Month close & approval", icon: Scale },
+      { href: "/reconciliation/disbursement", label: "Payment file check", icon: FileCheck2 },
       { href: "/reconciliation/bank", label: "Bank payments", icon: Banknote },
       { href: "/reconciliation/jv", label: "Journal voucher", icon: BookOpen },
     ],

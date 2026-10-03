@@ -772,6 +772,11 @@ const APPROVAL_SETTINGS: { key: keyof ApprovalPolicy; label: string; hint: strin
     hint: "The person who drafted a change to PF, ESIC or component mapping cannot put it in force.",
   },
   {
+    key: "disbursement_release_requires_independent_approver",
+    label: "Salary payment files need a second person to approve",
+    hint: "The person who checked a bank payment file cannot approve its release. Leave off where one person does both.",
+  },
+  {
     key: "members_require_mfa",
     label: "Everyone signs in with two steps",
     hint: "Members without two-step sign-in can sign in only to set it up. Turn it on for your own account first, under Sign-in & security.",

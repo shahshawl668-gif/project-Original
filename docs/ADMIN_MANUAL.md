@@ -115,6 +115,7 @@ trail with the before and after.
 | Validation rules need a second person to publish | The person who drafted a rule cannot publish it |
 | Studio mappings need a second person to publish | The person who drafted a data mapping cannot publish it |
 | Dated statutory changes need a second person to publish | The person who drafted a dated change to PF, ESIC or component mapping cannot put it in force |
+| Salary payment files need a second person to approve | The person who checked a bank payment file (Payment file check) cannot approve its release. Leave off where one person does both; every approval records whether it was independent either way |
 | Everyone signs in with two steps | Members without two-step sign-in can sign in only to set it up. You must have set it up yourself (Sign-in & security) before you can turn this on, so it can never leave the organisation with nobody able to administer it |
 
 All are **off** by default, so a one-person practice can still close a month.
@@ -346,6 +347,15 @@ and is always safe — a failed attempt writes nothing.
 
 **A job stuck in `queued`** means no worker is running. Check the API boot log
 line `validation_workers=N`; `0` means the setting is off.
+
+### Payment file checks: what is kept
+
+Each check of a salary payment file keeps its report (verdict, findings, settings, the SHA-256
+of every input) for good. The uploaded files themselves are not kept. The **clean file** and
+the **paid list** — both carrying bank account numbers in full — are cleared after
+`DISBURSEMENT_FILE_RETENTION_DAYS` (default 60); the report and fingerprints stay. A clean file
+cleared before it was approved has to be checked again. Every download is in the audit trail
+(`disbursement.downloaded`), as are checks, approvals and settings changes.
 
 ### Run history and storage
 
