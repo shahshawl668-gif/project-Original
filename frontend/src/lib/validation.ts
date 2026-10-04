@@ -285,6 +285,7 @@ export type ApprovalPolicy = {
   matrix_publish_requires_independent_approver: boolean;
   studio_publish_requires_independent_approver: boolean;
   statutory_publish_requires_independent_approver: boolean;
+  disbursement_release_requires_independent_approver: boolean;
   members_require_mfa: boolean;
 };
 

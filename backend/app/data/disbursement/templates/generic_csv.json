@@ -1,0 +1,22 @@
+{
+  "key": "generic_csv",
+  "name": "Generic CSV payment file",
+  "note": "Synthetic and generic: one row of column names, then one line per payment. Not any bank's official format; check it against a real file from your bank channel before use.",
+  "layout": "delimited",
+  "delimiter": ",",
+  "encoding": "utf-8",
+  "employee_id_transform": "trim",
+  "column_header": true,
+  "columns": [
+    {"field": "employee_id", "header": "Employee ID"},
+    {"field": "beneficiary_name", "header": "Beneficiary Name"},
+    {"field": "account_number", "header": "Account Number"},
+    {"field": "ifsc", "header": "IFSC"},
+    {"field": "amount", "header": "Amount"},
+    {"field": "reference", "header": "Narration"}
+  ],
+  "header_record": null,
+  "footer_record": null,
+  "amount": {"unit": "rupees", "decimals": 2},
+  "date_format": "%Y-%m-%d"
+}

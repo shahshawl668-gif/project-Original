@@ -90,6 +90,7 @@ from app.models.dashboard import CustomKpi, Dashboard
 from app.models.report_definition import ReportDefinition, ReportDefinitionVersion
 from app.models.report_job import ReportJob, ReportSchedule
 from app.models.derived_cache import InputDigestCache, InputRevision, RegisterCosting
+from app.models.disbursement import DisbursementApproval, DisbursementRun, DisbursementSettings
 from app.models.findings import (
     ENGINE_VERSION,
     RUN_STATUSES,
@@ -103,6 +104,9 @@ from app.models.findings import (
 )
 
 __all__ = [
+    "DisbursementApproval",
+    "DisbursementRun",
+    "DisbursementSettings",
     "LoginThrottle",
     "SecurityEvent",
     "StatutoryConfigVersion",

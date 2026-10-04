@@ -1,0 +1,59 @@
+{
+  "key": "generic",
+  "name": "Generic",
+  "note": "Plain column names, with common alternatives accepted. Built from a synthetic layout, not from any client's configuration.",
+  "bank_template": "generic_csv",
+  "inputs": {
+    "register": {"fields": [
+      {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code", "Emp ID", "Emp Code"]},
+      {"target": "employee_name", "source": "Employee Name", "aliases": ["Name"]},
+      {"target": "net_pay", "source": "Net Pay", "aliases": ["Net Salary", "Net Amount"]},
+      {"target": "status", "source": "Status", "aliases": ["Employment Status"]},
+      {"target": "date_of_joining", "source": "Date of Joining", "aliases": ["DOJ", "Joining Date"]},
+      {"target": "date_of_exit", "source": "Date of Exit", "aliases": ["DOE", "Exit Date", "Last Working Day"]},
+      {"target": "ff_processed", "source": "FnF Processed", "aliases": ["F&F Processed", "FnF Status"]},
+      {"target": "on_hold", "source": "On Hold", "aliases": ["Payroll Hold"]},
+      {"target": "arrears", "source": "Arrears", "aliases": ["Arrear Amount"]},
+      {"target": "increment", "source": "Increment", "aliases": ["Increment Applied"]},
+      {"target": "reimbursement", "source": "Reimbursement", "aliases": ["Reimbursements", "Reimbursement Amount"]},
+      {"target": "salary_hold", "source": "Salary Hold", "aliases": ["Salary On Hold", "Hold Amount"]},
+      {"target": "hold_release", "source": "Hold Release", "aliases": ["Hold Released", "Released Hold"]},
+      {"target": "total_payable", "source": "Total Salary", "aliases": ["Total Payable", "Net Payable", "Total Salary Payable", "Amount Payable", "Take Home"]}
+    ]},
+    "bank_master": {"fields": [
+      {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code", "Emp ID"]},
+      {"target": "account_number", "source": "Account Number", "aliases": ["Bank Account Number", "Account No"]},
+      {"target": "ifsc", "source": "IFSC", "aliases": ["IFSC Code"]},
+      {"target": "beneficiary_name", "source": "Beneficiary Name", "aliases": ["Name As Per Bank", "Account Holder Name"]},
+      {"target": "verification_status", "source": "Verification Status", "aliases": ["Bank Details Status", "Verified"]},
+      {"target": "last_changed", "source": "Last Changed", "aliases": ["Bank Details Updated On", "Last Modified"]}
+    ]},
+    "change_log": {"fields": [
+      {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code"]},
+      {"target": "field_changed", "source": "Field", "aliases": ["Changed Field"]},
+      {"target": "old_value", "source": "Old Value", "aliases": ["Previous Value"]},
+      {"target": "new_value", "source": "New Value"},
+      {"target": "changed_on", "source": "Changed On", "aliases": ["Change Date"]},
+      {"target": "verification_status", "source": "Verification Status", "aliases": ["Approval Status"]}
+    ]},
+    "previous": {"fields": [
+      {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code"]},
+      {"target": "net_pay", "source": "Net Pay", "aliases": ["Net Salary"]},
+      {"target": "total_payable", "source": "Total Salary", "aliases": ["Total Payable", "Total Salary Payable", "Amount", "Amount Paid"]},
+      {"target": "account_number", "source": "Account Number", "aliases": ["Bank Account Number"]},
+      {"target": "ifsc", "source": "IFSC", "aliases": ["IFSC Code"]}
+    ]},
+    "hold_list": {"fields": [
+      {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code"]},
+      {"target": "category", "source": "Category", "aliases": ["Hold Type"]},
+      {"target": "reason", "source": "Reason", "aliases": ["Hold Reason"]},
+      {"target": "effective_date", "source": "Effective Date", "aliases": ["Hold From"]}
+    ]},
+    "offcycle": {"fields": [
+      {"target": "employee_id", "source": "Employee ID", "type": "id", "required": true, "aliases": ["Employee Code"]},
+      {"target": "amount", "source": "Amount", "aliases": ["Off Cycle Amount"]},
+      {"target": "payment_date", "source": "Payment Date", "aliases": ["Paid On"]},
+      {"target": "reference", "source": "Reference", "aliases": ["Payment Reference"]}
+    ]}
+  }
+}

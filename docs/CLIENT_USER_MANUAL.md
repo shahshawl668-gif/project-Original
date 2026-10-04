@@ -156,6 +156,7 @@ Once payroll is run and before it is paid:
   1  Upload attendance        →  do the days add up?
   2  Upload the register      →  does the pay match the statute and the days?
   3  Work the findings        →  fix, or explain (Validation & findings → Issues)
+  3b Check the payment file   →  is the file for the bank safe to release? (before it goes)
   4  Reconcile the bank file  →  did the right money reach the right accounts?
   5  Post the journal voucher →  does the ledger agree?
   6  Sign the period off      →  closed, with a record of who closed it
@@ -381,6 +382,59 @@ What it finds, among others:
 - An account that is **not the one on the employee master** — occasionally a
   genuine change the employee requested, and the single most important line in
   the report. Verify it through a channel that is not email alone.
+
+### Step 3b — Check the payment file before it goes to the bank
+
+**Reconciliation & approvals → Payment file check.** Bank payments (step 4) asks afterwards
+whether the right money went out. This asks *before* the file leaves you whether it is safe to
+send — and gives you a clean copy without the lines that are not.
+
+**Peopleopslab never sends the file and never pays anyone.** You approve here; then you upload
+the clean file to your bank yourself.
+
+Upload, for the pay month:
+
+| File | Needed? | Without it |
+|---|---|---|
+| The **bank file** your HRMS produced, exactly as it would go to the bank | Required | — |
+| This month's **register**, with net pay and total salary payable | Required | — |
+| **Bank master** (account, IFSC, name as per bank, verification status) | Optional | The checks against it say "not run" |
+| **Bank change log** | Optional | "Changed and not verified" uses the master's dates only, or does not run |
+| **Previous period** payments | Optional | Last month's *approved* check here is used instead, and the report says so |
+| **Hold list**, **off-cycle payments** | Optional | Their checks say "not run" |
+
+The bank should pay **total salary payable**, not net pay: net pay plus reimbursements and
+released holds, less salary held this month. If the register has a total column, that is what
+is checked; if not, it is worked out from the parts and the report says which.
+
+![Payment file check](images/39-payment-file-check.png)
+
+You get one of three answers:
+
+- **Clear to release** — nothing that ran found a problem; the clean file is your file.
+- **Release with holds** — some employees are held back, each with every reason. The clean
+  file pays everyone else, with its header and trailer totals recalculated.
+- **Do not release** — a problem with the whole file (its own totals disagree, the register
+  does not add up to it, or more than a quarter of it would be held). There is no clean file.
+
+Seventeen checks run (DSB-01 … DSB-17): duplicates, people not on the register or not due
+(separated, F&F settled, on hold, already paid off-cycle), wrong amounts, account and IFSC
+format, shared accounts, an account that is not the one on the bank master, bank details
+changed and not verified, beneficiary names that do not match, and month-on-month swings.
+**Flags** hold no one but should be read.
+
+**A check that could not run is never a pass.** It is listed with the verdict, every time, with
+the reason — and before approving, each one must be ticked to say you accept it was not checked.
+
+Downloads: the **clean bank file** with its SHA-256 fingerprint, the **approver summary**
+(PDF, printable for a signature), and the **exception report** (Excel or CSV) listing every
+finding. Account numbers are shown **in full** in all of them — you are checking whether they
+are right — so treat them as you treat the bank file itself.
+
+**Approving** needs an owner or manager, your name as you sign, and the fingerprint of the file
+on screen. If your organisation has turned on *salary payment files need a second person*, the
+person who checked the file cannot approve it. When you upload the clean file to the bank,
+compare its SHA-256 with the one approved.
 
 ### Step 5 — Journal voucher
 

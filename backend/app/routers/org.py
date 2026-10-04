@@ -848,6 +848,7 @@ class ApprovalPolicyUpdate(BaseModel):
     matrix_publish_requires_independent_approver: bool | None = None
     studio_publish_requires_independent_approver: bool | None = None
     statutory_publish_requires_independent_approver: bool | None = None
+    disbursement_release_requires_independent_approver: bool | None = None
     members_require_mfa: bool | None = None
 
 
