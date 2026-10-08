@@ -16,6 +16,7 @@ from datetime import date, timedelta
 import pytest
 
 from app.database import SessionLocal
+from app.services.clock import india_today
 from app.models import AuditEvent, FindingState, FindingStateEvent
 from tests.test_coverage import BASE_ROWS, _register, _run
 from tests.test_run_history import PERIOD, PASSWORD, _company, _data, _empty_queue  # noqa: F401
@@ -166,12 +167,12 @@ def test_a_waiver_always_ends(client, company):
     fp = _issue(client, company, "STAT-001")["fingerprint"]
     out = _data(client.post(f"/api/findings/{fp}/decision", headers=company,
                             json={"state": "waived", "reason": "Vendor correcting next cycle"}))
-    assert out["waived_until"] == (date.today() + timedelta(days=90)).isoformat()
-    too_long = (date.today() + timedelta(days=400)).isoformat()
+    assert out["waived_until"] == (india_today() + timedelta(days=90)).isoformat()
+    too_long = (india_today() + timedelta(days=400)).isoformat()
     r = client.post(f"/api/findings/{fp}/decision", headers=company,
                     json={"state": "waived", "reason": "x" * 10, "waived_until": too_long})
     assert r.status_code == 400 and "366" in r.text
-    past = (date.today() - timedelta(days=1)).isoformat()
+    past = (india_today() - timedelta(days=1)).isoformat()
     r = client.post(f"/api/findings/{fp}/decision", headers=company,
                     json={"state": "waived", "reason": "x" * 10, "waived_until": past})
     assert r.status_code == 400
