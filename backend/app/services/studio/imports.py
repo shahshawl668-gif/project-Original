@@ -44,7 +44,7 @@ from app.services import ingest, register_ingest
 from app.services.ctc_parse import RESERVED_KEYS as CTC_RESERVED
 from app.services.ctc_parse import _parse_date as ctc_parse_date
 from app.services.ctc_parse import parse_ctc_frame
-from app.services.payroll_parse import normalize_col, suggested_mapping
+from app.services.payroll_parse import REGISTER_AMOUNT_FIELDS, normalize_col, suggested_mapping
 from app.services.studio import runs
 from app.services.workforce_parse import (
     ATTENDANCE_ALIASES,
@@ -74,14 +74,6 @@ LABELS = {
 META_KEYS = ("_source_record_id", "__source_row__", "_extra")
 ROW_KEY = "__pol_row__"
 
-#: Register fields that hold amounts or day counts. A value in one of these
-#: that is not a number is rejected — never read as zero, never as text.
-REGISTER_AMOUNT_FIELDS = {
-    "total_days", "paid_days", "lop_days", "gross", "total_deductions", "net", "pf_employee",
-    "pf_employer", "esic_employee", "esic_employer", "pt", "lwf_employee", "lwf_employer", "tds",
-    "arrear_days", "arrear_months", "increment_arrear", "increment_arrear_total",
-    "previous_months_lop_days", "notice_period_recovery", "loan_recovery", "pf_eps", "bonus", "gratuity",
-}
 _ID_KEYS = ("employee_id", "emp_id", "employee_code")
 
 

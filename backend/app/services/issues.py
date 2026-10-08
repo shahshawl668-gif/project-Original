@@ -26,6 +26,7 @@ from typing import Any
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.models import (
     Entity,
     FindingAttachment,
@@ -74,7 +75,7 @@ def _is_text(data: bytes) -> bool:
 # ---------------------------------------------------------------------------
 def waiver_end(requested: date | None, today: date | None = None) -> date:
     """The date a new waiver ends: as asked, within bounds, never open-ended."""
-    today = today or date.today()
+    today = today or india_today()
     if requested is None:
         return today + timedelta(days=WAIVER_DEFAULT_DAYS)
     if requested < today:
@@ -86,7 +87,7 @@ def waiver_end(requested: date | None, today: date | None = None) -> date:
 
 def expire_waivers(db: Session, entity_id: Any, today: date | None = None) -> int:
     """Reopen every waiver whose end date has passed, recording why."""
-    today = today or date.today()
+    today = today or india_today()
     lapsed = (
         db.query(FindingState)
         .filter(
@@ -286,7 +287,7 @@ def worklist(
     state: str | None, severity: str | None, rule_id: str | None, owner: str | None,
     overdue: bool, recurring: bool, q: str | None, sort: str,
 ) -> dict[str, Any]:
-    today = date.today()
+    today = india_today()
     base = db.query(FindingState).filter(FindingState.entity_id == entity.id)
 
     counts = dict(

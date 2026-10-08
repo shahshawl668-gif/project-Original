@@ -47,6 +47,7 @@ from app.models import (
     User,
 )
 from app.services import audit, tenancy
+from app.services.clock import india_today
 from app.services.studio import runs
 
 #: Events a workflow can start on. ``inputs.ready`` is derived: it is checked
@@ -597,7 +598,7 @@ def schedule_due(db: Session, limit: int = 20) -> int:
 # Executing a run
 # ---------------------------------------------------------------------------
 def _period_for(param: str, context: dict[str, Any]) -> date | None:
-    today = _now().date().replace(day=1)
+    today = india_today().replace(day=1)
     if param == "current_month":
         return today
     if param == "previous_month":
@@ -744,7 +745,7 @@ def _execute(db: Session, run: StudioRun, entity: Entity, step: dict[str, Any], 
             q = q.filter(FindingState.severity.in_(params["severities"]))
         if params.get("only_unassigned", True):
             q = q.filter(FindingState.owner_user_id.is_(None))
-        due = _now().date() + timedelta(days=int(params.get("due_in_days") or 0)) if params.get("due_in_days") else None
+        due = india_today() + timedelta(days=int(params.get("due_in_days") or 0)) if params.get("due_in_days") else None
         n = 0
         try:
             for state in q.all():

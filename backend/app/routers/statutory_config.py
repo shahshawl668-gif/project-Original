@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
@@ -436,7 +437,7 @@ def list_versions(
     rows = (db.query(StatutoryConfigVersion)
             .filter(StatutoryConfigVersion.entity_id == entity.id, StatutoryConfigVersion.status != "discarded")
             .order_by(StatutoryConfigVersion.effective_from.desc(), StatutoryConfigVersion.number.desc()).all())
-    today = date.today().replace(day=1)
+    today = india_today().replace(day=1)
     svc = ConfigService(db, as_of=today)
     svc.get_full_config(entity.id)
     return ok({"versions": [_describe_version(db, entity, r) for r in rows],

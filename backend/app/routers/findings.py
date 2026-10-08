@@ -16,6 +16,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
@@ -62,7 +63,7 @@ class BulkRequest(BaseModel):
 def _issue_out(db: Session, state: FindingState) -> dict:
     owners = issues.owners_by_id(db, {state.owner_user_id})
     counts = issues._counts(db, [state.id])
-    return issues.describe(state, owners, counts, date.today())
+    return issues.describe(state, owners, counts, india_today())
 
 
 @router.get("")
@@ -125,7 +126,7 @@ def findings_summary(
     if issues.expire_waivers(db, entity.id):
         db.commit()
     rows = db.query(FindingState).filter(FindingState.entity_id == entity.id).all()
-    today = date.today()
+    today = india_today()
 
     buckets: dict[str, dict] = {}
     for row in rows:

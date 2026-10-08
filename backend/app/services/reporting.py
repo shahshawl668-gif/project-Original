@@ -22,6 +22,7 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.models import SalaryRegister
 from app.branding import REPORT_HEADING
 from app.services.export_safety import neutralise_workbook
@@ -743,6 +744,6 @@ def build(
     neutralise_workbook(wb)
     wb.save(buffer)
     buffer.seek(0)
-    stamp = date.today().isoformat()
+    stamp = india_today().isoformat()
     code = getattr(entity, "code", None) or "entity"
     return buffer.getvalue(), f"{code}-{kind}-{stamp}.xlsx"

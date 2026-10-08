@@ -27,6 +27,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models import BudgetLine, BudgetVersion, ENTITY_SCOPE
+from app.services.workforce_parse import parse_decimal
 
 CENT = Decimal("0.01")
 
@@ -135,7 +136,11 @@ def parse_budget_rows(
         if amount_raw is None:
             problems.append(f"Row {index}: no budget amount.")
             continue
-        amount = _dec(amount_raw)
+        amount = parse_decimal(amount_raw)
+        if amount is None:
+            # "5,00,000" is an amount; "five lakh" is not, and is never a ₹0 budget.
+            problems.append(f"Row {index}: budget amount “{amount_raw}” is not a number.")
+            continue
         if amount < 0:
             problems.append(f"Row {index}: a negative budget ({amount}) — check the sign.")
             continue

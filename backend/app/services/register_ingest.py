@@ -29,15 +29,18 @@ from app.services import audit, register_uploads
 from app.services.cost_model import capture_net_pay, capture_reported
 from app.services.dimensions import snapshot as dimension_snapshot
 from app.services.payroll_parse import (
+    REGISTER_AMOUNT_FIELDS,
     apply_mapping,
     check_mapping,
     dataframe_to_employees,
+    normalize_col,
     suggested_mapping,
     validate_required_columns,
 )
 from app.services.pf_basis import from_row as pf_flag_from_row
 from app.services.validation import _component_key_map, split_row_amounts
 from app.services.workforce import master_as_of
+from app.services.workforce_parse import parse_decimal
 
 
 def _to_first_of_month(d: date | None) -> date | None:
@@ -149,6 +152,38 @@ def persist_salary_register(
     return register.id
 
 
+def amount_keys(comp_names: set[str]) -> set[str]:
+    """The register fields that must hold numbers: components, their arrears, and the standard amounts."""
+    components = {normalize_col(c) for c in comp_names}
+    return components | {f"{c}_arrear" for c in components} | set(REGISTER_AMOUNT_FIELDS)
+
+
+def read_amounts(rows: list[dict[str, Any]], keys: set[str]) -> list[str]:
+    """
+    Turn amounts a spreadsheet wrote as text — ``"30,000"``, ``"₹1,800.50"`` —
+    into numbers, in place, and say which values are not amounts at all.
+
+    Without this the engines read ``"30,000"`` as zero: a PF deduction of
+    ``"1,700"`` against ``"1,800"`` due was compared as nought against nought,
+    and passed. A blank stays absent; it is never made zero.
+    """
+    problems: list[str] = []
+    for index, row in enumerate(rows):
+        for key in keys & row.keys():
+            value = row[key]
+            if not isinstance(value, str):
+                continue
+            if value.strip().lower() in {"", "nan", "none", "-", "na", "n/a"}:
+                row[key] = None
+                continue
+            amount = parse_decimal(value)
+            if amount is None:
+                problems.append(f"row {index + 2}, {key} “{value}”")   # the header is row 1
+            else:
+                row[key] = float(amount)
+    return problems
+
+
 def ingest_register(
     db: Session,
     *,
@@ -179,6 +214,13 @@ def ingest_register(
     check_mapping(list(df.columns), column_mapping, comp_names)
     df = apply_mapping(df, column_mapping)
     columns, employees = dataframe_to_employees(df)
+    unreadable = read_amounts(employees, amount_keys(comp_names))
+    if unreadable:
+        raise ValueError(
+            f"{len(unreadable)} amount(s) in the register are not numbers, so nothing was stored: "
+            + "; ".join(unreadable[:10]) + ("; …" if len(unreadable) > 10 else "")
+            + ". Correct them and upload again — a value that cannot be read is never taken as zero."
+        )
     missing, warnings = validate_required_columns(columns, comp_names, strict=strict)
     if unmapped_sources:
         warnings.append("Unmapped source columns were ignored: " + ", ".join(unmapped_sources[:20]))

@@ -30,6 +30,7 @@ from urllib.parse import quote
 
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.services.formula_eval import ALLOWED_FUNCS, FormulaError, evaluate_formula
 
 
@@ -95,7 +96,7 @@ def resolve_period(db: Session, entity_id: Any, period: dict[str, Any] | None) -
     except (IndexError, ValueError) as exc:
         raise QueryError("Unknown period preset") from exc
     latest = db.query(func.max(SalaryRegister.period_month)).filter(SalaryRegister.entity_id == entity_id).scalar()
-    anchor = latest or date.today().replace(day=1)
+    anchor = latest or india_today().replace(day=1)
     start = _add_months(anchor, -(n - 1))
     return start, anchor, f"Last {n} months to {anchor:%b %Y}"
 
@@ -196,7 +197,7 @@ def _run_findings(db, entity, *, breakdown, granularity, date_from, date_to, fil
         q = q.filter(FindingState.last_seen_period >= date_from)
     if date_to:
         q = q.filter(FindingState.last_seen_period <= date_to)
-    today = date.today()
+    today = india_today()
     owners = {}
     groups: dict[str, dict[str, Any]] = {}
     for s in q.all():

@@ -23,6 +23,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, load_only
 
+from app.services.clock import india_today
 from app.models import FindingState, SalaryRegister, SalaryRegisterRow
 
 CENT = Decimal("0.01")
@@ -298,7 +299,7 @@ def statutory_exposure(
     * **findings that later resolved are excluded**, since the underlying
       shortfall was corrected.
     """
-    as_of = as_of or date.today()
+    as_of = as_of or india_today()
 
     states = (
         db.query(FindingState)
