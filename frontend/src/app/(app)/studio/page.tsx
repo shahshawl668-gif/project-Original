@@ -70,6 +70,7 @@ export default function StudioOverviewPage() {
             <Link href="/studio/mapping" className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold">Map a client file</Link>
             <Link href="/studio/api" className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold">Create an API key</Link>
             <Link href="/studio/developer" className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold">Test custom logic</Link>
+            <Link href="/studio/python" className="rounded-lg border border-ink-200 px-3 py-2 text-sm font-semibold">Build a Python integration</Link>
           </div>
         </CardContent></Card>
       )}
