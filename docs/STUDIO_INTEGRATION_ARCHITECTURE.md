@@ -7,7 +7,7 @@
 - Company-scoped connections, mappings, workflows, run history, release records, and a developer workspace for formulas, conditions and lookups.
 - REST/file connectors, inbound/outbound webhooks, retries, validation handoff, and mapping version publication are present. Review each connector against a real provider before declaring it production-ready.
 - The development/test/production service-account environment must match each named company. It is checked again per integration request. These companies still share infrastructure and a database; the environment is **not** a separate deployment.
-- Customer-supplied Python is **not executable** in the shared API process. The Developer workspace runs a restricted expression evaluator for test samples.
+- Studio now has a client-side Python template at `/studio/python`: edit `transform(row)`, download, run a check, then submit deliberately with `--send` using a company-scoped key. The script executes in the client's controlled environment and returns an asynchronous run ID; it is not stored or executed by Studio. Customer-supplied Python is **not executable** in the shared API process. The Developer workspace runs a restricted expression evaluator for test samples.
 
 ## Client and group company model
 
