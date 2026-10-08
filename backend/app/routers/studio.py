@@ -99,6 +99,8 @@ SECTIONS = [
     {"key": "webhooks", "label": "Webhooks", "href": "/studio/webhooks", "available": True,
      "summary": "Signed events to your systems, delivered at least once with retries and a failed queue; "
                 "signed inbound endpoints that push records in."},
+    {"key": "python", "label": "Client Python integration", "href": "/studio/python", "available": True,
+     "summary": "Edit and download a client-side Python importer; rehearse data before sending it with a company key."},
     {"key": "developer", "label": "Developer workspace", "href": "/studio/developer", "available": True,
      "summary": "Test formulas, conditions and lookups on sample rows, with explanations. Scripting is disabled "
                 "until it can be genuinely isolated."},
