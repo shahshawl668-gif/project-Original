@@ -71,6 +71,7 @@ export default function StudioOverviewPage() {
             <Button asChild variant="outline"><Link href="/studio/mapping">Map a client file</Link></Button>
             <Button asChild variant="outline"><Link href="/studio/api">Create an API key</Link></Button>
             <Button asChild variant="outline"><Link href="/studio/developer">Test custom logic</Link></Button>
+            <Button asChild variant="outline"><Link href="/studio/python">Build a Python integration</Link></Button>
           </div>
         </CardContent></Card>
       )}
