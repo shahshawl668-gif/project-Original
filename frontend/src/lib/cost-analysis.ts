@@ -252,11 +252,15 @@ export function fetchReadiness(period: string): Promise<Readiness> {
 
 /** Indian digit grouping, which is what every figure here is read in. */
 export function formatINR(value: number, compact = false): string {
+  // The sign goes before the rupee: "−₹1,200", never "₹-1,200".
+  const sign = value < 0 ? "−" : "";
+  const abs = Math.abs(value);
   if (compact) {
-    if (Math.abs(value) >= 1e7) return `₹${(value / 1e7).toFixed(2)} Cr`;
-    if (Math.abs(value) >= 1e5) return `₹${(value / 1e5).toFixed(2)} L`;
+    if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(2)} Cr`;
+    if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(2)} L`;
   }
-  return `₹${Math.round(value).toLocaleString("en-IN")}`;
+  const rounded = Math.round(abs);
+  return `${rounded === 0 ? "" : sign}₹${rounded.toLocaleString("en-IN")}`;
 }
 
 /** A signed change, with the sign kept — a fall is not a smaller rise. */

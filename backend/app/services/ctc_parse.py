@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 import pandas as pd
 
 from app.services.payroll_parse import normalize_col, parse_payroll_file
-
+from app.services.workforce_parse import parse_date, parse_decimal
 
 RESERVED_KEYS = {
     "employee_id",
@@ -27,23 +27,35 @@ RESERVED_KEYS = {
 
 
 def _parse_date(value: Any) -> date | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, date):
-        return value
+    """
+    The effective date, read day first as Indian files write it.
+
+    pandas guesses month first, so "01/04/2026" — 1 April, the start of the
+    financial year — used to become 4 January. The employee master's reader
+    already reads it correctly; this uses the same one. A blank is None, never
+    the "NaT" pandas produces.
+    """
+    parsed = parse_date(value)
+    if parsed is not None:
+        return parsed
+    text = str(value).strip() if value is not None else ""
     try:
-        return pd.to_datetime(value).date()
-    except Exception:
+        # "2026-04-01 00:00:00", as a spreadsheet date often arrives in a CSV.
+        return datetime.fromisoformat(text).date() if text else None
+    except ValueError:
         return None
 
 
-def _dec(v: Any) -> Decimal:
-    if v is None or v == "" or (isinstance(v, float) and pd.isna(v)):
+def _dec(v: Any, where: str) -> Decimal:
+    """An amount. Blank is zero here (a CTC component not paid); text that is not a number is refused."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
         return Decimal("0")
-    try:
-        return Decimal(str(v))
-    except Exception:
+    if isinstance(v, str) and v.strip().lower() in {"", "nan", "none", "-", "na", "n/a"}:
         return Decimal("0")
+    amount = parse_decimal(v)
+    if amount is None:
+        raise ValueError(f"{where} “{v}” is not an amount. Nothing was stored; correct it and upload again.")
+    return amount
 
 
 def parse_ctc_file(
@@ -75,7 +87,9 @@ def parse_ctc_frame(
     columns = list(df.columns)
 
     records: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
+    undated: list[str] = []
+    for position, (_, row) in enumerate(df.iterrows()):
+        line = position + 2   # the header is row 1
         eid_raw = row.get("employee_id") or row.get("emp_id") or row.get("employee_code")
         if eid_raw is None or (isinstance(eid_raw, float) and pd.isna(eid_raw)):
             continue
@@ -103,6 +117,9 @@ def parse_ctc_frame(
         )
         eff = _parse_date(eff_raw) or default_effective_from
         if eff is None:
+            # Skipping it quietly would leave this employee on an older CTC
+            # with nothing to say a row was dropped.
+            undated.append(f"row {line} ({eid})")
             continue
 
         annual: dict[str, float] = {}
@@ -111,12 +128,12 @@ def parse_ctc_frame(
                 continue
             if k not in component_keys:
                 continue
-            amt = _dec(v)
+            amt = _dec(v, f"Row {line}, {k}")
             if amt != 0:
                 annual[k] = float(amt)
 
         annual_ctc_raw = row.get("annual_ctc") or row.get("ctc")
-        annual_ctc = _dec(annual_ctc_raw) if annual_ctc_raw is not None else Decimal("0")
+        annual_ctc = _dec(annual_ctc_raw, f"Row {line}, annual CTC") if annual_ctc_raw is not None else Decimal("0")
         if annual_ctc == 0 and annual:
             annual_ctc = sum((Decimal(str(v)) for v in annual.values()), start=Decimal("0"))
 
@@ -130,4 +147,10 @@ def parse_ctc_frame(
             }
         )
 
+    if undated:
+        raise ValueError(
+            f"{len(undated)} row(s) have no readable effective date and no default was given: "
+            + ", ".join(undated[:10]) + ("…" if len(undated) > 10 else "")
+            + ". Add an effective_from column or choose a default date."
+        )
     return columns, records

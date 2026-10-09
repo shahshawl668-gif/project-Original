@@ -16,6 +16,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
@@ -39,6 +40,7 @@ from app.services.payroll_parse import parse_payroll_file
 from app.services.workforce_parse import (
     parse_attendance,
     parse_employee_master,
+    unreadable_warning,
 )
 
 router = APIRouter()
@@ -95,9 +97,10 @@ async def upload_master(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    records, header_map, unmapped = parse_employee_master(df)
+    problems: list[str] = []
+    records, header_map, unmapped = parse_employee_master(df, problems)
 
-    warnings: list[str] = []
+    warnings: list[str] = [unreadable_warning(problems)] if problems else []
     if not records:
         warnings.append("No rows with an employee id were found.")
     if "date_of_joining" not in header_map.values():
@@ -174,7 +177,7 @@ def list_master_records(
     """The master as it stood on ``as_of`` (default: today)."""
     from app.services.workforce import master_as_of
 
-    cutoff = date.fromisoformat(as_of) if as_of else date.today()
+    cutoff = date.fromisoformat(as_of) if as_of else india_today()
     records = master_as_of(db, entity.id, cutoff)
     return ok(
         [EmployeeRecordOut.model_validate(r).model_dump(mode="json") for r in records.values()]
@@ -198,9 +201,10 @@ async def upload_attendance(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    records, header_map, unmapped = parse_attendance(df)
+    problems: list[str] = []
+    records, header_map, unmapped = parse_attendance(df, problems)
 
-    warnings: list[str] = []
+    warnings: list[str] = [unreadable_warning(problems)] if problems else []
     if not records:
         warnings.append("No rows with an employee id were found.")
     recognised = set(header_map.values())

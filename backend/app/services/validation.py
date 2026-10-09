@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.models import (
     ComponentConfig,
     CtcRecord,
@@ -882,7 +883,7 @@ def validate_employees(
     if as_of is None and period_month is not None:
         end_day = calendar.monthrange(period_month.year, period_month.month)[1]
         as_of = period_month.replace(day=end_day)
-    as_of = as_of or date.today()
+    as_of = as_of or india_today()
 
     # ── Load configs ──────────────────────────────────────────────────────────
     # ConfigService provides the config-driven PF/ESIC settings; we also keep

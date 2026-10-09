@@ -43,6 +43,7 @@
   },
   "overrides": {
     "dompurify": "^3.4.16",
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "source-map-js": "^1.2.2"
   }
 }

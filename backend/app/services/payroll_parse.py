@@ -14,6 +14,14 @@ IDENTIFIER_HEADERS = EMPLOYEE_ID_HEADERS | {
     "esi_no", "esic_ip_number", "esic_number", "aadhaar", "aadhar", "aadhaar_number",
 }
 OPTIONAL_HEADERS = {"employee name", "location", "employment type"}
+# Register fields that hold an amount or a count of days. Component columns,
+# which also hold amounts, are added per company.
+REGISTER_AMOUNT_FIELDS = frozenset({
+    "total_days", "paid_days", "lop_days", "gross", "total_deductions", "net", "pf_employee",
+    "pf_employer", "esic_employee", "esic_employer", "pt", "lwf_employee", "lwf_employer", "tds",
+    "arrear_days", "arrear_months", "increment_arrear", "increment_arrear_total",
+    "previous_months_lop_days", "notice_period_recovery", "loan_recovery", "pf_eps", "bonus", "gratuity",
+})
 
 # Fields understood by the validator. Component destinations are added per entity.
 IMPORT_FIELDS = (
@@ -61,9 +69,17 @@ def normalize_col(c: str) -> str:
 def parse_payroll_file(content: bytes, filename: str) -> pd.DataFrame:
     lower = filename.lower()
     if lower.endswith(".csv"):
-        headers = pd.read_csv(io.BytesIO(content), nrows=0).columns
+        # Excel's "CSV UTF-8" carries a byte-order mark; its plain "CSV" on
+        # Windows is Windows-1252, where one accented name used to make the
+        # whole register unreadable.
+        try:
+            content.decode("utf-8")
+            encoding = "utf-8-sig"
+        except UnicodeDecodeError:
+            encoding = "cp1252"
+        headers = pd.read_csv(io.BytesIO(content), nrows=0, encoding=encoding).columns
         id_types = {h: str for h in headers if normalize_col(h) in IDENTIFIER_HEADERS}
-        return pd.read_csv(io.BytesIO(content), dtype=id_types)
+        return pd.read_csv(io.BytesIO(content), dtype=id_types, encoding=encoding)
     if lower.endswith(".xlsx"):
         check_workbook(content)
         headers = pd.read_excel(io.BytesIO(content), engine="openpyxl", nrows=0).columns

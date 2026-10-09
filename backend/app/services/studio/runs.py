@@ -26,6 +26,7 @@ from typing import Any
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.models import StudioRun, StudioRunRejection
 
 LEASE_SECONDS = 120
@@ -241,7 +242,7 @@ def reject(
         disposition=disposition, code=code, field=field, message=message[:2000],
         source_ref={k: v for k, v in ref.items() if v is not None},
         payload_gz=gz(record) if record is not None else None,
-        retain_until=date.today() + timedelta(days=retain_days),
+        retain_until=india_today() + timedelta(days=retain_days),
     )
     db.add(row)
     return row
@@ -278,7 +279,7 @@ def describe_rejection(row: StudioRunRejection, *, with_payload: bool = False) -
 
 def purge_expired_payloads(db: Session, today: date | None = None) -> int:
     """Drop retained record copies past their date. The rejection itself stays."""
-    today = today or date.today()
+    today = today or india_today()
     n = (
         db.query(StudioRunRejection)
         .filter(StudioRunRejection.retain_until < today, StudioRunRejection.payload_gz.is_not(None))

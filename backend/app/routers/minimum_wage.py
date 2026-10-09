@@ -16,6 +16,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
@@ -52,7 +53,7 @@ def get_applicability(
     user: User = Depends(get_current_user),
     entity: Entity = Depends(get_current_entity),
 ):
-    decision = mw.applicability_as_of(db, entity.id, as_of or date.today())
+    decision = mw.applicability_as_of(db, entity.id, as_of or india_today())
     history = (
         db.query(MinimumWageApplicability)
         .filter(MinimumWageApplicability.entity_id == entity.id)
@@ -173,7 +174,7 @@ def coverage(
     Worth looking at before a run rather than after: every gap here becomes an
     employee the tool cannot vouch for.
     """
-    cutoff = date.fromisoformat(as_of) if as_of else date.today()
+    cutoff = date.fromisoformat(as_of) if as_of else india_today()
     master = master_as_of(db, entity.id, cutoff)
     required = [
         (r.work_state, r.skill_category)

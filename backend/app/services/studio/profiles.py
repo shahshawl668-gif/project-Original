@@ -21,6 +21,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.models import ComponentConfig, Entity, StudioMapping, User
 from app.services import approvals, audit
 from app.services.payroll_parse import normalize_col
@@ -127,7 +128,7 @@ def retire(db: Session, entity: Entity, row: StudioMapping, actor: User, reason:
 
 
 def in_force(db: Session, entity_id: Any, key: str, on: date | None = None, pinned: int | None = None) -> StudioMapping | None:
-    on = on or date.today()
+    on = on or india_today()
     rows = versions(db, entity_id, key)
     if pinned is not None:
         return next((r for r in rows if r.version == pinned and r.status in ("published", "retired")), None)

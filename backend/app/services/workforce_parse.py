@@ -136,12 +136,17 @@ def parse_date(value: Any) -> date | None:
     return None
 
 
+_BLANK = {"nan", "nat", "none", "-", "na", "n/a"}
+
+
 def parse_decimal(value: Any) -> Decimal | None:
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     text = str(value).strip().replace(",", "")
     if not text or text.lower() in {"nan", "none", "-", "na", "n/a"}:
         return None
+    # "₹1,800.50", "Rs. 1800", "INR 1800": the currency is not part of the amount.
+    text = re.sub(r"^(?:₹|rs\.?|inr)\s*", "", text, flags=re.IGNORECASE)
     try:
         return Decimal(text)
     except (InvalidOperation, ValueError):
@@ -165,13 +170,18 @@ def _coerce_employee_id(value: Any) -> str | None:
 
 
 def _rows_from_frame(
-    df: pd.DataFrame, aliases: dict[str, tuple[str, ...]]
+    df: pd.DataFrame, aliases: dict[str, tuple[str, ...]], problems: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
+    """
+    ``problems``, when given, collects each value that was present but could
+    not be read ("twenty" paid days, a 31st of February). Such a value is left
+    blank — never zero — and the caller says so instead of dropping it quietly.
+    """
     header_map = build_header_map(list(df.columns), aliases)
     unmapped = [c for c in df.columns if c not in header_map]
 
     records: list[dict[str, Any]] = []
-    for _, source in df.iterrows():
+    for position, (_, source) in enumerate(df.iterrows()):
         record: dict[str, Any] = {}
         extra: dict[str, Any] = {}
 
@@ -186,8 +196,14 @@ def _rows_from_frame(
                 record[canonical] = _coerce_employee_id(value)
             elif canonical in DATE_FIELDS:
                 record[canonical] = parse_date(value)
+                if record[canonical] is None and problems is not None and _clean_text(value) is not None \
+                        and str(value).strip().lower() not in _BLANK:
+                    problems.append(f"row {position + 2}, {canonical} “{value}” is not a date")
             elif canonical in DECIMAL_FIELDS:
                 record[canonical] = parse_decimal(value)
+                if record[canonical] is None and problems is not None and _clean_text(value) is not None \
+                        and str(value).strip().lower() not in _BLANK:
+                    problems.append(f"row {position + 2}, {canonical} “{value}” is not a number")
             elif canonical in BOOLEAN_FIELDS:
                 from app.services.pf_basis import parse_flag
 
@@ -202,14 +218,24 @@ def _rows_from_frame(
     return records, header_map, unmapped
 
 
-def parse_employee_master(df: pd.DataFrame) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
+def parse_employee_master(
+    df: pd.DataFrame, problems: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
     """Return (records, header_map, unmapped_columns) for an employee master file."""
-    return _rows_from_frame(df, EMPLOYEE_MASTER_ALIASES)
+    return _rows_from_frame(df, EMPLOYEE_MASTER_ALIASES, problems)
 
 
-def parse_attendance(df: pd.DataFrame) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
+def parse_attendance(
+    df: pd.DataFrame, problems: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
     """Return (records, header_map, unmapped_columns) for an attendance file."""
-    return _rows_from_frame(df, ATTENDANCE_ALIASES)
+    return _rows_from_frame(df, ATTENDANCE_ALIASES, problems)
+
+
+def unreadable_warning(problems: list[str]) -> str:
+    return (f"{len(problems)} value(s) could not be read and were left blank, not zero: "
+            + "; ".join(problems[:10]) + ("; …" if len(problems) > 10 else "")
+            + ". Correct them if they matter, and upload again.")
 
 
 def derive_attendance_gaps(record: dict[str, Any], calendar_days: Decimal) -> dict[str, Any]:

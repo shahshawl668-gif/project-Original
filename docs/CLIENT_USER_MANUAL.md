@@ -183,6 +183,11 @@ that does not add up produces confident, wrong conclusions about the pay.
 
 Fix the file and upload again. When it validates clean, commit it.
 
+A value the upload cannot read — `twenty` paid days, a 31st of February — is
+listed on the preview with its row, and left blank rather than taken as zero.
+Dates are read day first, as Indian files write them: `01/04/2026` is
+1 April. Files saved by Excel as "CSV" or "CSV UTF-8" are both readable.
+
 ### Step 2 — Upload the register
 
 **Data & imports → Salary register.** Four stages, shown across the top; each
@@ -204,10 +209,14 @@ says what happened before the next one starts.
    month.
 3. **Server check** — the file is uploaded and read on the server: employees
    read, columns imported and ignored, the revision number for the month, and
-   whether it replaced the month's register. Rows are not rejected here; a row
-   with a wrong or missing value is reported by validation as a finding against
-   that employee. Uploading the same month again adds a new revision; earlier
-   revisions are kept with the runs that read them.
+   whether it replaced the month's register. Amounts may be written the way
+   Excel writes them — `30,000`, `3,00,000`, `₹1,800.50` — and are read as
+   numbers. An amount that is not a number at all (`thirty`, `#REF!`) stops the
+   upload, naming the row and column: it is never quietly read as zero. A blank
+   or `-` is read as *not stated*, not as zero. Otherwise rows are not rejected
+   here; a wrong or missing value is reported by validation as a finding
+   against that employee. Uploading the same month again adds a new revision;
+   earlier revisions are kept with the runs that read them.
 4. **Validate** — queues the full statutory pass.
 
 **Validation runs on the server, not in your browser.** After you press

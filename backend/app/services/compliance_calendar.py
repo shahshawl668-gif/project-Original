@@ -44,6 +44,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.models import FindingState, PeriodSignOff, SalaryRegister
 
 # Rule families whose shortfalls would make a filing wrong, per obligation.
@@ -159,7 +160,7 @@ def filing_readiness(
     * ``ready`` — nothing visible is blocking, and the period is signed off;
     * ``open`` — nothing blocking, not yet signed, not yet near the date.
     """
-    as_of = as_of or date.today()
+    as_of = as_of or india_today()
     period = period.replace(day=1)
 
     register = (
@@ -249,7 +250,7 @@ def filing_calendar(
     as_of: date | None = None,
 ) -> dict:
     """Readiness for the most recent periods, newest first."""
-    as_of = as_of or date.today()
+    as_of = as_of or india_today()
     periods = (
         db.query(SalaryRegister.period_month)
         .filter(SalaryRegister.entity_id == entity_id)

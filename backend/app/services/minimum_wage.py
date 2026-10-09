@@ -24,6 +24,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.orm import Session
 
+from app.services.clock import india_today
 from app.models import MinimumWageApplicability, MinimumWageRate
 from app.models.minimum_wage import ANY_SCHEDULE, ANY_ZONE
 
@@ -215,7 +216,7 @@ def coverage_report(
     Surfaced as its own report so a practice can see the gaps in its rate table
     before a validation run turns each one into a finding.
     """
-    cutoff = as_of or date.today()
+    cutoff = as_of or india_today()
     missing = []
     covered = []
     for state, skill in sorted(set(required)):
