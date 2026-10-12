@@ -354,8 +354,12 @@ better than one.
 1. Client uploads the real employee master, CTC, attendance and register for a
    **closed** month — one already paid, so nothing is at risk.
 2. Run validation, cost analysis and both reconciliations.
-3. Sit with the client's payroll lead and walk every finding.
-4. Classify each one:
+3. Download the **parallel-run pack** from the run (**Validation results →
+   Parallel-run pack**): every finding with an empty verdict cell, the checks
+   the run could not perform, and an *Exit criteria* tab that counts the
+   verdicts as they are filled in. Nothing in it is pre-filled.
+4. Sit with the client's payroll lead and walk every finding.
+5. Classify each one in the pack:
 
 | Verdict | Meaning | Action |
 |---|---|---|
@@ -366,6 +370,10 @@ better than one.
 
 ### 4.2 Exit criteria
 
+The pack's *Exit criteria* tab reads **PASSED** only when all of these hold;
+the last four are the client's own Y/N answers.
+
+- [ ] Every finding has a verdict
 - [ ] Zero unexplained false positives
 - [ ] At least one true positive the client did not already know about — if
       there are none across two months, the product is not earning its place
@@ -415,7 +423,7 @@ These do not block a controlled first go-live, but you are accepting them:
 
 | Gap | Risk you are taking | Mitigate by |
 |---|---|---|
-| No retention/deletion policy engine | DPDP erasure requests need manual handling | Document a manual procedure with an owner and an SLA |
+| Restoring a backup brings back data erased since it was taken | An employee's erased data reappears after a restore | After any restore, re-run the erasures listed under Configuration & admin → Data protection; agree an owner and an SLA for erasure requests with the client |
 | Sign-in throttling is per account only (`LOGIN_LOCKOUT_MINUTES`), not per IP | Password spraying across many accounts | An edge rate rule (e.g. Cloudflare) in front of `/api/auth/*` |
 | Bank presets unverified | A wrong column mapping | The test-against-a-file step is mandatory, not optional |
 | Python pinned to 3.12 (`passlib`/`crypt`) | Cannot upgrade runtime | Replace `passlib` before 3.13 |
@@ -529,7 +537,9 @@ weeks from this document to a client's first production month.
 
 ### D6 — the verification worksheet
 
-The sign-off is an artefact, not a conversation. Generate it:
+The sign-off is an artefact, not a conversation. The client's expert can
+download it themselves — **Configuration & admin → Income tax & thresholds →
+Verification worksheet** — or you can generate it:
 
 ```bash
 cd backend
@@ -537,9 +547,9 @@ python tools/statutory_worksheet.py statutory_verification_worksheet.xlsx
 ```
 
 It reads the values out of the application rather than a typed copy, so the
-worksheet cannot disagree with what the software computes with. 164 values
-across four tabs: income tax for the current FY, PF and ESIC, PT for 22 states,
-LWF for 15.
+worksheet cannot disagree with what the software computes with. 172 values
+across five tabs: income tax for the current FY, PF and ESIC, the Labour Codes,
+PT for 22 states, LWF for 15.
 
 Give it to the reviewer with one instruction — fill every yellow cell. The
 Sign-off tab counts Y, N and unchecked per tab on its own and will not read
@@ -548,12 +558,31 @@ Sign-off tab counts Y, N and unchecked per tab on its own and will not read
 Re-run it whenever a Budget lands or a state amends a schedule. The tool is the
 same; only the numbers it extracts change.
 
-Two things it deliberately leaves out, both stated on its first tab:
+One thing it deliberately leaves out, stated on its first tab:
 
 * **Minimum wages** — per state, per skill category, revised about twice a year,
   and held as tenant data rather than a shipped default. They need their own
   review. A missing rate already surfaces as a finding rather than a pass, so an
   unmaintained table reads as unverified instead of clean.
-* **The Labour Codes** — everything here assumes the Acts currently in force. If
-  the Codes have commenced, the definition of "wages" moves and PF basis,
-  gratuity and bonus move with it. That is a redesign, not a rate correction.
+
+**The Labour Codes** took effect on 21 November 2025. This document used to
+call them "a redesign, not a rate correction" and stop there; what shipped is
+narrower and says where it stops:
+
+* **LC-001** checks the Code on Wages s.2(y) definition for every pay period
+  ending on or after the effective date. Wages are the components set as wages
+  (default: those marked PF-applicable); remuneration is every earning except
+  one-off payments (exit payments, annual bonus, ex gratia) — a judgement the
+  reviewer confirms on the worksheet. Exclusions above 50% are reported as the deemed
+  addition, with what it would add to employee PF on the employee's own PF
+  basis. A WARNING, never a correction.
+* **Gratuity** at an exit on or after the effective date is checked on the
+  deemed wages (GRAT-003), and a fixed-term employee — by `employment_type` —
+  is eligible after one year counted in days (GRAT-002, GRAT-005), not five.
+* **Not changed:** the PF expectation (STAT-001) and statutory bonus (BON-*)
+  still follow the configured components. Whether a company pays PF on the
+  deemed wages is a policy the reviewer settles on the worksheet's "PF on the
+  deemed wages" row; LC-001 shows its cost per employee meanwhile.
+
+The Labour Codes tab carries every value these checks use. Its first row, the
+effective date, and the cap are the ones to verify against the gazette.

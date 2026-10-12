@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { apiBlob } from "@/lib/api";
+import { saveBlob } from "@/lib/download";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
   Landmark, SlidersHorizontal, ChevronDown, ChevronUp, Plus, Trash2,
-  Save, RefreshCw, Star, Calculator, ToggleLeft, ToggleRight,
+  Save, RefreshCw, Star, Calculator, ToggleLeft, ToggleRight, FileCheck2,
 } from "lucide-react";
 import {
   type IncomeTaxConfig, type TaxYearConfig, type RegimeConfig, type TaxSlab,
@@ -377,6 +379,24 @@ export default function TaxConfigPage() {
       <PageHeader
         title="Income tax & thresholds"
         description="Every slab, rebate, surcharge, cess and rule threshold is data — editable per financial year"
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            title="Every statutory default the product ships, with empty columns for your payroll expert to verify and sign (GO_LIVE D6)"
+            onClick={async () => {
+              try {
+                saveBlob(await apiBlob("/api/config/statutory/verification-worksheet.xlsx"),
+                  "statutory-verification-worksheet.xlsx");
+                toast.success("Verification worksheet downloaded", { description: "For your payroll expert to verify and sign." });
+              } catch (e) {
+                toast.error("Download failed", { description: e instanceof Error ? e.message : "" });
+              }
+            }}
+          >
+            <FileCheck2 size={14} className="mr-1" /> Verification worksheet
+          </Button>
+        }
       />
 
       {/* FY picker */}
@@ -566,6 +586,7 @@ export default function TaxConfigPage() {
             ["bonus", "Statutory bonus (BON-*)"],
             ["gratuity_formula", "Gratuity formula (GRAT-*)"],
             ["tds_deep", "TDS projection (TDS-*)"],
+            ["labour_codes", "Labour Codes — wage definition and fixed-term gratuity (LC-001, GRAT-*)"],
           ] as const).map(([groupKey, title]) => {
             const group = thresholds[groupKey] as Record<string, string | string[]>;
             if (!group) return null;
@@ -589,6 +610,18 @@ export default function TaxConfigPage() {
                                 ...group,
                                 [field]: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
                               },
+                            } as typeof thresholds)
+                          }
+                        />
+                      ) : /^\d{4}-\d{2}-\d{2}$/.test(String(value)) ? (
+                        <input
+                          type="date"
+                          value={String(value)}
+                          className={inputCls}
+                          onChange={(e) =>
+                            setThresholds({
+                              ...thresholds,
+                              [groupKey]: { ...group, [field]: e.target.value },
                             } as typeof thresholds)
                           }
                         />

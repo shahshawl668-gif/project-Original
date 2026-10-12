@@ -8,7 +8,8 @@ Each loop turn tries a validation job first, then a Studio run.
 
 Housekeeping rides along at most once every ten minutes: expired idempotency
 keys are deleted and retained copies of rejected records past their date are
-dropped (the rejection itself, with its reason, stays with the run).
+dropped (the rejection itself, with its reason, stays with the run), and each
+company's payroll retention period is applied, at most once a day.
 """
 from __future__ import annotations
 
@@ -38,6 +39,10 @@ def housekeeping(db: Session, force: bool = False) -> None:
     try:
         idempotency.purge_expired(db)
         runs.purge_expired_payloads(db)
+        # Each company's retention period, at most once a day per company.
+        from app.services import data_protection
+
+        data_protection.apply_due(db)
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.exception("studio housekeeping failed")

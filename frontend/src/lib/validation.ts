@@ -418,6 +418,7 @@ export const validationApi = {
   periodStatus: (period: string) =>
     get<PeriodStatus>(`/api/validation/periods/${encodeURIComponent(period)}/status`),
   exportRun: (runId: string) => apiBlob(`/api/validation/runs/${encodeURIComponent(runId)}/export.xlsx`),
+  parallelRunPack: (runId: string) => apiBlob(`/api/validation/runs/${encodeURIComponent(runId)}/parallel-run.xlsx`),
 };
 
 /** Month sign-off: preparation, independent approval, reopening and the evidence pack. */

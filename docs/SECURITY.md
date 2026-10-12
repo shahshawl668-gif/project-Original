@@ -58,6 +58,7 @@ and the reverse is also true. They are assessed separately (§8).
 | Generated reports and evidence packs | `report_jobs.artifact` (in the database, 30-day retention) | Confidential — personal data | Leave the product by design |
 | Configuration, statutory settings, rules | config tables | Internal | Wrong configuration → wrong findings |
 | Audit trail | `audit_events` | Confidential — integrity critical | Evidence of who did what |
+| Retention periods and erasure records | `retention_policies`, `erasure_requests` (employee code, reason, requester, counts — never the pseudonym) | Confidential — personal data (the employee code) | The record that a deletion was asked for and carried out |
 | Security event log | `security_events` (new) | Internal — contains sign-in identifiers | Evidence of attacks on accounts |
 | Password hashes, refresh-token digests, TOTP secrets (sealed), recovery-code digests | `users`, `refresh_tokens` | **Secret** | Account takeover |
 | Integration keys (SHA-256), connection secrets (Fernet) | `studio_credentials`, `studio_connections` | **Secret** | Access to clients' other systems |
@@ -186,6 +187,16 @@ needs qualified review:
   detailed within 72 hours) falls on the fiduciary, who will need the
   processor's help within that clock; the runbook's notification step is built
   for that. Most operative rules commence in 2027; confirm dates.
+  What the product now provides for the fiduciary to use: a per-company
+  **retention period** applied daily, and **erasure of one person** that
+  deletes their master, CTC and attendance and replaces them in kept months
+  with an anonymous token, all identifiers removed (`services/data_protection.py`,
+  owner only, audited). Signed records — month sign-offs, payment-file checks,
+  the audit trail — are not rewritten; each erasure names what still mentions
+  the person. Whether that retention meets the fiduciary's obligations, and
+  whether a token with amounts attached is anonymous enough in a very small
+  company, are legal questions this document does not answer. Backups restore
+  erased data; erasures must be re-run after a restore.
 - **CERT-In directions (2022).** 6-hour reporting of specified incidents;
   180-day log retention in India. Hosting in Singapore needs a view.
 - **Client contracts.** Security schedules, breach-notice periods, audit

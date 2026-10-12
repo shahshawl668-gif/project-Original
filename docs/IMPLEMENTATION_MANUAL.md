@@ -138,6 +138,22 @@ structure, each flagged for its statutory treatment:
 > not mirroring it. Configure what the statute says; let the validation report
 > the difference.
 
+**The Labour Codes wage definition (LC-001).** From 21 November 2025 wages are
+Basic, DA and retaining allowance, and whatever the other earnings pay above
+half of all remuneration is deemed wages. LC-001 needs to know which components
+are wages. By default it takes the PF-applicable ones — which is wrong for a
+client whose Special Allowance is, correctly, PF-applicable. For such a client,
+name the wage components under **Configuration & admin → Income tax & thresholds → Labour
+Codes → wage component keys** (`basic`, `da`, and `retaining_allowance` if paid).
+Remuneration is every earning on the register except the one-off payments
+listed there (gratuity, leave encashment, retrenchment compensation, notice pay,
+bonus, ex gratia). A client that pays bonus monthly, as part of the salary,
+removes `bonus` from that list.
+
+LC-001 is a WARNING that reports the deemed addition and what it would add to
+PF. It does not change the PF the product expects: whether the client pays PF on
+the deemed wages is for the D6 reviewer to settle (GO_LIVE.md).
+
 ### Step 3 — Statutory engine
 
 **Configuration & admin → Statutory engine.** Rates, ceilings, rounding and eligibility.
@@ -188,6 +204,11 @@ Maharashtra has gender-specific slabs.
 **Data & imports → (workforce master).** ID, name, gender, date of joining, date of
 exit, work state, department, cost centre, designation, employment type, bank
 account and IFSC.
+
+Record fixed-term employees with an employment type of `Fixed Term` (or
+`Fixed-Term`, `FTC` — the list is under Income tax & thresholds → Labour Codes). A fixed-term
+employee leaving on or after 21 November 2025 is entitled to gratuity after one
+year, and without the type the gratuity check holds them to five.
 
 These are snapshotted onto each register row at upload. If the master is thin,
 every breakdown in the product collapses into "Unassigned" — and the bank
@@ -345,6 +366,18 @@ when it changes.
 
 Exports: generic CSV, Tally, SAP and Zoho.
 
+### Step 9b — Data protection
+
+Ask the client's owner how long this copy of their payroll data should be kept
+— a decision for them and their adviser, not for the implementer — and have
+them set it under **Configuration & admin → Data protection**. **Preview**
+shows what the period would remove today before anything is saved. Leaving it
+unset keeps everything, and the page says that in so many words.
+
+Agree, too, who in the client receives employees' erasure requests. Only an
+owner can carry one out; the page shows what it will change and what will
+still name the person before anything is erased.
+
 ### Step 10 — Month close
 
 **Reconciliation & approvals → Month close & approval** brings the period together: bank reconciliation, JV
@@ -378,6 +411,16 @@ Do not go live on a single month.
 
 **Exit criterion:** every remaining finding is one the client agrees is real.
 Not zero findings — zero *unexplained* findings.
+
+Record it in the **parallel-run pack** (**Validation results → Parallel-run
+pack**, one per run): the payroll lead gives each finding a verdict — true
+positive, known and accepted, configuration error, false positive — and the
+*Exit criteria* tab counts them, reading **PASSED** only with every finding
+reviewed, no false positive, at least one true positive, and the client's own
+yes to the four statements beneath. Before month one, give the client's payroll
+expert the **verification worksheet** (Income tax & thresholds → Verification
+worksheet): every statutory default the product ships, to verify and sign
+(GO_LIVE.md D6).
 
 ---
 

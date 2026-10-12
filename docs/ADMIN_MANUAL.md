@@ -359,11 +359,28 @@ cleared before it was approved has to be checked again. Every download is in the
 
 ### Run history and storage
 
-Validation runs are **never deleted**: re-validating a month supersedes the
-previous run and keeps it. Uploads are kept too, with the rows as parsed,
-compressed. Budget the database for it — measured sizes per 1,000 employees are
-in `docs/BACKGROUND_JOBS.md` §15. There is no purge; removing evidence is a
-decision for the client, not a housekeeping task.
+Validation runs are never deleted by housekeeping: re-validating a month
+supersedes the previous run and keeps it. Uploads are kept too, with the rows as
+parsed, compressed. Budget the database for it — measured sizes per 1,000
+employees are in `docs/BACKGROUND_JOBS.md` §15.
+
+Removing data is the client's decision, made by its owner under **Configuration &
+admin → Data protection**:
+
+- **A retention period** (12–180 months). Once set, the worker's housekeeping
+  removes every payroll period older than the window once a day, everywhere it
+  is held, and leavers whose exit is older leave the master and CTC history. No
+  period set means nothing is deleted, and the page says so.
+- **Erasure of one person** on the client's request: master, CTC and attendance
+  deleted; in kept months the person becomes an anonymous token with every
+  identifier removed. Sign-offs, payment-file checks and the audit trail are not
+  rewritten — the erasure names each one that still mentions the person.
+
+Each is written to the client's audit trail (`retention.policy_set`,
+`retention.applied`, `data.erasure`). The platform team has no switch for
+either, and break-glass support access cannot reach them: both need the
+client's owner. A restore from backup brings erased data back — after a
+restore, re-run the erasures listed on the page.
 
 ### Upgrading to the run-history release (October 2026)
 

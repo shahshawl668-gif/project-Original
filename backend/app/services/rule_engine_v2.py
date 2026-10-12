@@ -19,11 +19,13 @@ Every finding exposes:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from app.schemas.rule_thresholds import RuleThresholdsConfig
 from app.services import identity_checks as idc
+from app.services import labour_codes
 
 CENT = Decimal("0.01")
 HALF_UP = __import__("decimal").ROUND_HALF_UP
@@ -356,6 +358,34 @@ def build_findings(
                  f"Restructure Basic to be ≥ {t.structural.recommended_pf_wage_pct}-50% of CTC. "
                  "Consult CA before changing.",
                  float(_q((calc_gross * rec_pf_frac - pf_wage_total) * pf_emp_rate)))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # P2c – LABOUR CODES: the 50% wage definition (Code on Wages s.2(y))
+    # ═══════════════════════════════════════════════════════════════════
+
+    lc = t.labour_codes
+    lc_period = period_month if isinstance(period_month, date) else None
+    lc_wage = labour_codes.wage_test(regular, comp_by_key, lc) if labour_codes.in_force(lc, lc_period) else None
+    # The structure test is about a month's salary: an arrears-only row is not one.
+    lc_regular = composition is None or getattr(composition, "has_regular", True)
+    if lc_wage is not None and lc_regular and lc_wage.basis_known and lc_wage.remuneration > 0:
+        cap = lc.wage_exclusion_cap_pct
+        floor_pct = Decimal("100") - cap
+        if lc_wage.deemed_addition > 0:
+            pf_more, pf_text = labour_codes.pf_effect(pf_calc, lc_wage.deemed_addition)
+            fail("LC-001", "Wages Below Half of Remuneration (Labour Codes)", "wages",
+                 f"≥ {floor_pct}% of remuneration ({_fmt(_q(lc_wage.remuneration * floor_pct / Decimal('100')))})",
+                 _fmt(lc_wage.wages), "WARNING",
+                 f"Wages ({lc_wage.basis}) are {_fmt(lc_wage.wages)}, {float(lc_wage.wage_pct):.1f}% of "
+                 f"remuneration {_fmt(lc_wage.remuneration)}. Under the Code on Wages s.2(y), exclusions above "
+                 f"{cap}% ({_fmt(lc_wage.allowed)}) are deemed wages: {_fmt(lc_wage.deemed_addition)} is added, "
+                 f"so wages for PF, gratuity and bonus are {_fmt(lc_wage.code_wages)}. {pf_text}".rstrip(),
+                 "Restructure so Basic, DA and retaining allowance are at least half of remuneration, or "
+                 "compute PF, gratuity and bonus on the deemed wages. Confirm the treatment with the payroll expert.",
+                 float(pf_more))
+        else:
+            pass_("LC-001", "Wages Below Half of Remuneration (Labour Codes)", "wages", _fmt(lc_wage.wages),
+                  f"Wages are {float(lc_wage.wage_pct):.1f}% of remuneration; exclusions are within {cap}%.")
 
     # Allowance-heavy structure
     allow_heavy_pct = t.structural.allowance_heavy_pct
@@ -971,15 +1001,33 @@ def build_findings(
         grat_actual = _dec(grat_raw)
         years = idc.completed_service_years(doj, dol)
         waived = idc.row_flag(row, "death_or_disablement")
-        if years < float(t.gratuity_formula.min_service_years) and not waived:
-            fail("GRAT-002", "Gratuity Paid Below Minimum Service", "gratuity",
-                 f"≥ {t.gratuity_formula.min_service_years} years service", f"{years} years",
-                 "WARNING",
-                 f"Service {doj} → {dol} is {years} completed years — below the eligibility threshold "
-                 "(waived only on death/disablement).",
-                 "Verify eligibility (4y240d case law) or reclassify the payment.")
+        lc_exit = labour_codes.in_force_on(lc, dol)
+        # A fixed-term employee leaving under the Codes earns gratuity after
+        # one year (Social Security Code s.53); everyone else after five.
+        if lc_exit and labour_codes.is_fixed_term(row.get("employment_type"), lc):
+            min_years = lc.fixed_term_gratuity_min_years
+            eligible = labour_codes.fixed_term_eligible(doj, dol, lc)
+            served = f"{(dol - doj).days} days"
+            why = (f"Service {doj} → {dol} is {served} — below the {min_years}-year minimum for a "
+                   "fixed-term employee (Social Security Code s.53), counted in days")
+            fix = "Verify the contract dates, or reclassify the payment."
         else:
-            basic_da = pf_wage_total
+            min_years = t.gratuity_formula.min_service_years
+            eligible = years >= float(min_years)
+            served = f"{years} years"
+            why = f"Service {doj} → {dol} is {years} completed years — below the eligibility threshold"
+            fix = "Verify eligibility (4y240d case law) or reclassify the payment."
+        if not eligible and not waived:
+            fail("GRAT-002", "Gratuity Paid Below Minimum Service", "gratuity",
+                 f"≥ {min_years} years service", served,
+                 "WARNING",
+                 f"{why} (waived only on death/disablement).",
+                 fix)
+        else:
+            # Under the Codes gratuity is on wages as s.2(y) defines them,
+            # deemed addition included — the last month drawn, as before.
+            on_code_wages = lc_exit and lc_wage is not None and lc_wage.basis_known
+            basic_da = lc_wage.code_wages if on_code_wages else pf_wage_total
             expected_grat = _q(basic_da * t.gratuity_formula.factor_numerator
                                / t.gratuity_formula.factor_denominator * Decimal(years))
             if expected_grat > 0:
@@ -987,7 +1035,8 @@ def build_findings(
                 if dev_pct > float(t.gratuity_formula.amount_tolerance_pct):
                     fail("GRAT-003", "Gratuity Deviates from Formula", "gratuity",
                          _fmt(expected_grat), _fmt(grat_actual), "WARNING",
-                         f"(Basic+DA {_fmt(basic_da)}) × {t.gratuity_formula.factor_numerator}/"
+                         f"({'wages under the Labour Codes' if on_code_wages else 'Basic+DA'} {_fmt(basic_da)}) "
+                         f"× {t.gratuity_formula.factor_numerator}/"
                          f"{t.gratuity_formula.factor_denominator} × {years} years = {_fmt(expected_grat)} "
                          f"(deviation {dev_pct:.1f}%).",
                          "Recheck last-drawn Basic+DA and completed service years.",

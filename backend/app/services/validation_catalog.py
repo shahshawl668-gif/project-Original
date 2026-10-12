@@ -50,6 +50,7 @@ BUILTIN_RULES = [
     ("ID-006", "Below Minimum Working Age"),
     ("ID-007", "Paid Before Date of Joining"),
     ("ID-008", "Salary After Exit Without Arrear Flag"),
+    ("LC-001", "Wages Below Half of Remuneration (Labour Codes)"),
     ("LOP-001", "Paid Days + LOP Days ≠ Days in Month"),
     ("LOP-003", "Paid Days Exceed Days in Month"),
     ("MOM-001", "New Joiner Detected"),

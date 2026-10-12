@@ -272,6 +272,9 @@ finding, go back, and the list is as you left it. **Columns** hides or shows
 columns and **Compact** fits more rows; both are remembered on this computer.
 Click a row (or press Enter on it) for a quick look without leaving the table;
 **Excel** downloads the whole run exactly as it was recorded, not re-computed.
+**Parallel-run pack** is for the months you run alongside your old process
+before relying on the product: every finding with an empty cell for your
+verdict, and a tab that tells you whether the month passed.
 
 Each finding carries a rule ID, a severity, what was expected, what the register
 actually said, the difference in rupees, and a suggested fix. Where the product
@@ -790,6 +793,33 @@ lapses the finding reopens, and the history says why.
 **Why does a finding say "Impact not calculated"?**
 Because the product did not work out a rupee figure for it — not because it
 costs nothing. Open **Why this result?** to see what was compared.
+
+**What is LC-001, "Wages Below Half of Remuneration"?**
+The Labour Codes, in force from 21 November 2025, count Basic, DA and retaining
+allowance as wages, and add back anything the other earnings pay above half of
+total pay. LC-001 shows the amount that would be added and what it does to PF.
+It is a warning, not a correction: the PF check still follows your configured
+components until your payroll adviser decides how the company applies the new
+definition.
+
+**A fixed-term employee's gratuity was flagged.**
+Under the Labour Codes a fixed-term employee leaving on or after 21 November 2025
+earns gratuity after one year of service. The check applies that only when the
+employee master records the employment type as fixed-term; ask your administrator
+to set it.
+
+**An employee has asked us to delete their data.**
+Your owner can do it under **Configuration & admin → Data protection**. Enter the
+employee ID and **Find their data** shows everything that will change; erasing
+then removes their master, CTC and attendance records, and replaces them with an
+anonymous token in the months you keep, so your totals still add up. A month's
+sign-off, a payment-file check and the audit trail are records of decisions and
+are not rewritten; the page lists any that still name the person. It cannot be
+undone.
+
+**How long is our payroll data kept here?**
+Until your owner sets a retention period under **Configuration & admin → Data
+protection**. Then anything older is removed automatically, once a day.
 
 **Who changed this setting?**
 **Configuration & admin → Audit trail.** Append-only, and it records who did what and when.

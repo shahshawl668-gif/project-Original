@@ -288,6 +288,38 @@ def reset_income_tax_config(
     return ok(svc.reset_income_tax_config(entity.id).model_dump(mode="json"))
 
 
+# ─── D6: the statutory verification worksheet ─────────────────────────────────
+
+@router.get("/verification-worksheet.xlsx")
+def verification_worksheet(
+    entity: Entity = Depends(get_current_entity),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Every statutory value the product ships as a default, with empty reviewer
+    columns (GO_LIVE.md D6). The shipped defaults, not this company's own
+    edits: those are in its audit trail. Holds no client data.
+    """
+    import io
+
+    from fastapi.responses import StreamingResponse
+
+    from app.services import statutory_worksheet
+
+    content, counts = statutory_worksheet.to_bytes()
+    total = sum(c for c, *_ in counts.values())
+    audit.record(db, entity_id=entity.id, user=user, action="export.downloaded", object_type="statutory_worksheet",
+                 summary=f"Downloaded the statutory verification worksheet ({total} values)",
+                 detail={"format": "xlsx", "values": total})
+    db.commit()
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="statutory-verification-worksheet-{india_today():%Y-%m-%d}.xlsx"'},
+    )
+
+
 # ─── Rule-engine thresholds ───────────────────────────────────────────────────
 
 @router.get("/rule-thresholds")

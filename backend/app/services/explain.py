@@ -50,7 +50,7 @@ MONETARY_RULES = {
     "STAT-010", "STAT-014", "PF-004", "PF-008", "PF-009", "ESI-006", "PT-002", "PT-003",
     "LOP-002", "MOM-002", "MOM-003", "MOM-005", "MOM-006", "ADV-002", "ADV-003",
     "AGG-001", "AGG-002", "BON-002", "GRAT-003", "TDS-001", "TDS-002", "DATA-003",
-    "ATT-020", "ATT-022", "ATT-023", "MW-001", "STRUCT-001",
+    "ATT-020", "ATT-022", "ATT-023", "MW-001", "STRUCT-001", "LC-001",
 }
 
 #: Findings that describe the same rupees from two angles. Counting both would
@@ -63,6 +63,8 @@ OVERLAP_GROUPS: tuple[frozenset[str], ...] = (
     # A month-on-month salary movement reported per component and as a whole.
     frozenset({"MOM-002", "ADV-002"}),
     frozenset({"MOM-003", "MOM-005", "ADV-003"}),
+    # PF a low Basic leaves unpaid, by the structure test and by the Labour Codes wage definition.
+    frozenset({"STRUCT-001", "LC-001"}),
 )
 
 

@@ -205,6 +205,11 @@ def _redacted(errors: list) -> list:
         field = str((error.get("loc") or ("",))[-1]).lower()
         if any(word in field for word in _SECRET_FIELDS):
             error = {k: v for k, v in error.items() if k not in ("input", "ctx")}
+        elif isinstance(error.get("ctx"), dict):
+            # A validator's ValueError rides in ctx; as an object it cannot be
+            # serialised, and the refusal would become a 500.
+            error = {**error, "ctx": {k: v if isinstance(v, str | int | float | bool | None) else str(v)
+                                      for k, v in error["ctx"].items()}}
         out.append(error)
     return out
 

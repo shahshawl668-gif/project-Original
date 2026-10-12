@@ -478,7 +478,7 @@ found exactly, no misses, no false positives, at every size.
 | Findings in the run | 11,384 | 11,384 | 28,444 | 11,384 | 28,444 |
 
 The **coverage release** adds, inside every validation, minimum wage and a
-verdict on all 97 registered checks for every employee (handbook blueprint,
+verdict on all 98 registered checks for every employee (handbook blueprint,
 stage 5). Its first build held those verdicts as 97 small dicts
 per employee and measured **40.5 s and 265 → 512 MB at 8,000** — enough to put
 an 8,000-employee client at risk on a 512 MB instance. Verdicts are now stored

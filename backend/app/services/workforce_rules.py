@@ -21,7 +21,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services import attendance_rules
+from app.services import attendance_rules, labour_codes
 from app.services.workforce import attendance_for_period, master_as_of, service_years
 
 # Attendance figures are quoted to half-days in most systems; a difference
@@ -101,6 +101,12 @@ def check_against_inputs(
     have_master = bool(master)
     have_attendance = bool(attendance)
 
+    # The tenant's own gratuity threshold, as GRAT-002 uses it, over the default.
+    grat_cfg = getattr(thresholds, "gratuity_formula", None)
+    if grat_cfg is not None:
+        gratuity_min_service_years = grat_cfg.min_service_years
+    labour = getattr(thresholds, "labour_codes", None)
+
     attendance_cfg = getattr(thresholds, "attendance", None)
     basis = getattr(attendance_cfg, "paid_days_basis", "calendar")
     day_tolerance = _dec(getattr(attendance_cfg, "day_tolerance", None)) or DAY_TOLERANCE
@@ -121,7 +127,7 @@ def check_against_inputs(
         record = master.get(employee_id)
         if have_master:
             findings.extend(_master_rules(employee_id, name, row, record, period_month, month_end,
-                                          gratuity_min_service_years))
+                                          gratuity_min_service_years, labour))
         if have_attendance:
             attendance_row = attendance.get(employee_id)
             findings.extend(_attendance_rules(employee_id, name, row, attendance_row))
@@ -181,6 +187,7 @@ def _master_rules(
     period_month: date,
     month_end: date,
     gratuity_min_service_years: Decimal,
+    labour: Any = None,
 ) -> list[dict]:
     findings: list[dict] = []
     gross = _dec(row.get("gross")) or Decimal("0")
@@ -262,7 +269,21 @@ def _master_rules(
     # joining date, which is what the master now supplies.
     gratuity_paid = _dec(row.get("gratuity")) or Decimal("0")
     if gratuity_paid > 0:
-        years = service_years(record.date_of_joining, record.date_of_exit or month_end)
+        exit_day = record.date_of_exit or month_end
+        years = service_years(record.date_of_joining, exit_day)
+        # A fixed-term employee leaving under the Labour Codes earns gratuity
+        # after one year (Social Security Code s.53), counted in days.
+        fixed_term = (labour is not None and record.date_of_joining is not None
+                      and labour_codes.in_force_on(labour, exit_day)
+                      and labour_codes.is_fixed_term(record.employment_type, labour))
+        if fixed_term:
+            threshold = labour.fixed_term_gratuity_min_years
+            below = not labour_codes.fixed_term_eligible(record.date_of_joining, exit_day, labour)
+            who = "fixed-term"
+        else:
+            threshold = gratuity_min_service_years
+            below = years is not None and Decimal(str(years)) < threshold
+            who = ""
         if years is None:
             findings.append(
                 _finding(
@@ -273,17 +294,17 @@ def _master_rules(
                     fix="Add the joining date to the employee master.",
                 )
             )
-        elif Decimal(str(years)) < gratuity_min_service_years:
+        elif below:
             findings.append(
                 _finding(
                     employee_id=employee_id, employee_name=name,
                     rule_id="GRAT-005", rule_name="Gratuity Below Service Threshold",
                     component="gratuity", severity="WARNING",
-                    expected=f">= {gratuity_min_service_years} years",
+                    expected=f">= {threshold} years",
                     actual=f"{years} years",
                     reason=(
                         f"Gratuity of {gratuity_paid} paid on {years} years of service, below the "
-                        f"{gratuity_min_service_years}-year threshold."
+                        f"{threshold}-year {who + ' ' if who else ''}threshold."
                     ),
                     fix="Confirm this is death/disablement or a contractual payment above the statute.",
                     impact=float(gratuity_paid),

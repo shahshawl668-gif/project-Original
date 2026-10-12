@@ -23,7 +23,7 @@ from app.models import (
     Entity,
     StatutorySettings,
 )
-from app.services import validation_matrix
+from app.services import labour_codes, validation_matrix
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
@@ -1386,6 +1386,14 @@ def validate_employees(
                 "days_in_month": days_in_month,
                 "gross_total": float(sum(regular.values(), Decimal("0"))),
                 "gratuity_paid": float(regular.get("gratuity", Decimal("0"))),
+                # What LC-001's coverage gating needs: is the month under the
+                # Labour Codes, and is any component marked as wages.
+                "labour_codes": {
+                    "in_force": labour_codes.in_force(rule_thresholds.labour_codes, period_month or as_of)
+                    and composition.has_regular,
+                    "wage_basis_known": bool(rule_thresholds.labour_codes.wage_component_keys)
+                    or any(c is not None and c.pf_applicable for c in comp_by_key.values()),
+                },
                 "lop_check": {
                     "checked": bool(ctc_monthly) and (paid_days is not None or lop_days is not None),
                     "diffs": lop_diffs,

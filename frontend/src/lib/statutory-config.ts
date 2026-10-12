@@ -353,6 +353,7 @@ export interface RuleThresholdsConfig {
   bonus: Record<string, string>;
   gratuity_formula: Record<string, string>;
   tds_deep: Record<string, string>;
+  labour_codes: Record<string, string | string[]>;
 }
 
 export async function getRuleThresholds(): Promise<RuleThresholdsConfig> {

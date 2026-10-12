@@ -52,7 +52,7 @@ RUN_STATUSES = ("current", "superseded")
 
 #: Bumped whenever a change to the engine could change what a run reports.
 #: Stored on every run, so "this was validated by an older engine" is visible.
-ENGINE_VERSION = "2026.10.1"
+ENGINE_VERSION = "2026.10.2"
 
 
 class ValidationRun(Base):

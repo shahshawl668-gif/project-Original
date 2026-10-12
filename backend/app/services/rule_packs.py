@@ -54,7 +54,7 @@ PACKS: tuple[Pack, ...] = (
          "Paid only between joining and exit; PAN, Aadhaar, UAN, ESI number and IFSC present and well-formed.",
          _ids(families=("Employee lifecycle",))),
     Pack("salary_structure", "Salary structure and totals",
-         "Gross and net add up; structures are not engineered to avoid PF.",
+         "Gross and net add up; structures are not engineered to avoid PF; wages are at least half of remuneration (Labour Codes).",
          _ids(families=("Salary structure",))),
     Pack("pf", "Provident Fund",
          "Employee and employer PF, EPS, the wage ceiling and restricted basis, international workers.",
