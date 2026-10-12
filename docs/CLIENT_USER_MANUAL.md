@@ -791,6 +791,20 @@ lapses the finding reopens, and the history says why.
 Because the product did not work out a rupee figure for it — not because it
 costs nothing. Open **Why this result?** to see what was compared.
 
+**What is LC-001, "Wages Below Half of Remuneration"?**
+The Labour Codes, in force from 21 November 2025, count Basic, DA and retaining
+allowance as wages, and add back anything the other earnings pay above half of
+total pay. LC-001 shows the amount that would be added and what it does to PF.
+It is a warning, not a correction: the PF check still follows your configured
+components until your payroll adviser decides how the company applies the new
+definition.
+
+**A fixed-term employee's gratuity was flagged.**
+Under the Labour Codes a fixed-term employee leaving on or after 21 November 2025
+earns gratuity after one year of service. The check applies that only when the
+employee master records the employment type as fixed-term; ask your administrator
+to set it.
+
 **Who changed this setting?**
 **Configuration & admin → Audit trail.** Append-only, and it records who did what and when.
 

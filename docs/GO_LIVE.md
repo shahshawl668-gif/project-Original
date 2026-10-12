@@ -537,9 +537,9 @@ python tools/statutory_worksheet.py statutory_verification_worksheet.xlsx
 ```
 
 It reads the values out of the application rather than a typed copy, so the
-worksheet cannot disagree with what the software computes with. 164 values
-across four tabs: income tax for the current FY, PF and ESIC, PT for 22 states,
-LWF for 15.
+worksheet cannot disagree with what the software computes with. 172 values
+across five tabs: income tax for the current FY, PF and ESIC, the Labour Codes,
+PT for 22 states, LWF for 15.
 
 Give it to the reviewer with one instruction — fill every yellow cell. The
 Sign-off tab counts Y, N and unchecked per tab on its own and will not read
@@ -548,12 +548,31 @@ Sign-off tab counts Y, N and unchecked per tab on its own and will not read
 Re-run it whenever a Budget lands or a state amends a schedule. The tool is the
 same; only the numbers it extracts change.
 
-Two things it deliberately leaves out, both stated on its first tab:
+One thing it deliberately leaves out, stated on its first tab:
 
 * **Minimum wages** — per state, per skill category, revised about twice a year,
   and held as tenant data rather than a shipped default. They need their own
   review. A missing rate already surfaces as a finding rather than a pass, so an
   unmaintained table reads as unverified instead of clean.
-* **The Labour Codes** — everything here assumes the Acts currently in force. If
-  the Codes have commenced, the definition of "wages" moves and PF basis,
-  gratuity and bonus move with it. That is a redesign, not a rate correction.
+
+**The Labour Codes** took effect on 21 November 2025. This document used to
+call them "a redesign, not a rate correction" and stop there; what shipped is
+narrower and says where it stops:
+
+* **LC-001** checks the Code on Wages s.2(y) definition for every pay period
+  ending on or after the effective date. Wages are the components set as wages
+  (default: those marked PF-applicable); remuneration is every earning except
+  one-off payments (exit payments, annual bonus, ex gratia) — a judgement the
+  reviewer confirms on the worksheet. Exclusions above 50% are reported as the deemed
+  addition, with what it would add to employee PF on the employee's own PF
+  basis. A WARNING, never a correction.
+* **Gratuity** at an exit on or after the effective date is checked on the
+  deemed wages (GRAT-003), and a fixed-term employee — by `employment_type` —
+  is eligible after one year counted in days (GRAT-002, GRAT-005), not five.
+* **Not changed:** the PF expectation (STAT-001) and statutory bonus (BON-*)
+  still follow the configured components. Whether a company pays PF on the
+  deemed wages is a policy the reviewer settles on the worksheet's "PF on the
+  deemed wages" row; LC-001 shows its cost per employee meanwhile.
+
+The Labour Codes tab carries every value these checks use. Its first row, the
+effective date, and the cap are the ones to verify against the gazette.

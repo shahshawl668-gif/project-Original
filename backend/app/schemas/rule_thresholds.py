@@ -11,6 +11,7 @@ own; tenants tune them to their policy.
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
@@ -236,6 +237,54 @@ class AttendanceThresholds(BaseModel):
         return text
 
 
+class LabourCodeThresholds(BaseModel):
+    """
+    LC-001 and the fixed-term gratuity relaxation — the four Labour Codes,
+    in force from 21 November 2025.
+
+    The Code on Wages, s.2(y) (and the Social Security Code, s.2(88)) define
+    wages as Basic, DA and retaining allowance, then add back whatever the
+    exclusions — HRA, conveyance, overtime, commission and the rest — pay above
+    half of all remuneration. The Social Security Code, s.53, gives a
+    fixed-term employee gratuity after one year rather than five.
+
+    These are seed values from the Codes as notified. They carry no legal force
+    here; the D6 sign-off is where a payroll expert confirms them.
+    """
+
+    effective_from: date = Field(
+        date(2025, 11, 21),
+        description="The Codes apply to pay periods ending on or after this date, and to exits on or after it")
+    wage_exclusion_cap_pct: Decimal = Field(
+        Decimal("50"),
+        description="Exclusions above this %% of remuneration are deemed wages (s.2(y) proviso)")
+    wage_component_keys: list[str] = Field(
+        default_factory=list,
+        description="Components that are wages (Basic, DA, retaining allowance). Empty: the PF-applicable components")
+    one_off_component_keys: list[str] = Field(
+        default_factory=lambda: ["gratuity", "leave_encashment", "retrenchment_compensation", "notice_pay",
+                                 "bonus", "ex_gratia"],
+        description="One-off payments — exit payments, annual bonus, ex gratia — left out of the monthly "
+                    "50%% test. A company paying bonus monthly removes 'bonus'")
+    fixed_term_gratuity_min_years: Decimal = Field(
+        Decimal("1"), description="Service after which a fixed-term employee earns gratuity (s.53)")
+    fixed_term_markers: list[str] = Field(
+        default_factory=lambda: ["fixed term", "fixed term employee", "fixed term contract", "ftc"],
+        description="Employment types that mean fixed-term (case, hyphens and underscores ignored)")
+
+    @field_validator("wage_exclusion_cap_pct", "fixed_term_gratuity_min_years", mode="before")
+    @classmethod
+    def _parse(cls, v):
+        return _dec(v)
+
+    @field_validator("wage_exclusion_cap_pct")
+    @classmethod
+    def _cap(cls, v: Decimal) -> Decimal:
+        if not Decimal("0") <= v <= Decimal("100"):
+            raise ValueError("wage_exclusion_cap_pct must be between 0 and 100")
+        return v
+
+
 class RuleThresholdsConfig(BaseModel):
     """All tunable rule-engine thresholds for one tenant."""
     structural: StructuralThresholds = Field(default_factory=StructuralThresholds)
@@ -251,3 +300,4 @@ class RuleThresholdsConfig(BaseModel):
     gratuity_formula: GratuityFormulaThresholds = Field(default_factory=GratuityFormulaThresholds)
     tds_deep: TDSDeepThresholds = Field(default_factory=TDSDeepThresholds)
     attendance: AttendanceThresholds = Field(default_factory=AttendanceThresholds)
+    labour_codes: LabourCodeThresholds = Field(default_factory=LabourCodeThresholds)

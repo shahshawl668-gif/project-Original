@@ -27,6 +27,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from app.branding import PRODUCT_NAME
+from app.schemas.rule_thresholds import GratuityFormulaThresholds, LabourCodeThresholds
 from app.schemas.statutory_config import ESICConfig, PFConfig
 from app.services import lwf_defaults, pt_defaults
 from app.services.tax_year_defaults import DEFAULT_TAX_YEAR, default_tax_years
@@ -153,9 +154,13 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
          "table shows up as unverified instead of clean.", 10, False, None),
         ("", 10, False, None),
         ("The Labour Codes", 11, True, "0C4A6E"),
-        ("Everything here is built on the Acts currently in force. If the four Labour Codes have "
-         "commenced, the definition of 'wages' changes and PF basis, gratuity and bonus all move "
-         "with it. That is a redesign, not a rate correction — flag it on the Sign-off tab and stop.",
+        ("The four Labour Codes took effect on 21 November 2025. The product now checks the "
+         "Code on Wages s.2(y) wage definition (LC-001: exclusions above half of remuneration are "
+         "deemed wages), puts gratuity at an exit under the Codes on those wages, and gives a "
+         "fixed-term employee gratuity after one year (Social Security Code s.53). The 'Labour "
+         "Codes' tab lists every value those checks use. The PF expectation itself still follows "
+         "the components marked PF-applicable: whether the company computes PF on the deemed "
+         "wages is a decision for this review, and LC-001 shows its cost per employee.",
          10, False, None),
         ("", 10, False, None),
         (f"Generated {date.today().isoformat()} from the application's own defaults. "
@@ -252,6 +257,34 @@ def build(path: Path) -> dict[str, tuple[int, int, int, int]]:
         _data_row(ws, row, [label, value, unit, where], rc)
         row += 1
     counts["PF and ESIC"] = (len(pf_rows), rc, first_row, row - 1)
+
+    # ---------------------------------------------------------- Labour Codes
+    lc, grat = LabourCodeThresholds(), GratuityFormulaThresholds()
+    ws, row, rc = _sheet(
+        wb, "Labour Codes", "Labour Codes — wage definition and gratuity",
+        "In force from 21 November 2025. These values drive LC-001 and the gratuity checks "
+        "(GRAT-002, GRAT-003, GRAT-005). Each company can change them under Configuration & admin → Income tax & thresholds.",
+        [("Parameter", 40), ("Value in code", 26), ("Unit", 22), ("Where in code", 42)],
+    )
+    first_row = row
+    s = "app/schemas/rule_thresholds.py"
+    lc_rows = [
+        ("Codes effective from", lc.effective_from.isoformat(), "date"),
+        ("Wage definition — exclusions cap", float(lc.wage_exclusion_cap_pct), "% of remuneration"),
+        ("Wage components (empty = PF-applicable)", ", ".join(lc.wage_component_keys) or "PF-applicable components",
+         "component keys"),
+        ("One-off payments left out of the 50% test", ", ".join(lc.one_off_component_keys), "component keys"),
+        ("Fixed-term gratuity — minimum service", float(lc.fixed_term_gratuity_min_years), "years (counted in days)"),
+        ("Fixed-term employment types", ", ".join(lc.fixed_term_markers), "employment_type values"),
+        ("Gratuity — minimum service (others)", float(grat.min_service_years), "years (completed)"),
+        ("Gratuity — days of wages per year", f"{grat.factor_numerator}/{grat.factor_denominator}",
+         "fraction of monthly wages"),
+        ("PF on the deemed wages", "Reported by LC-001, not yet expected by STAT-001", "policy"),
+    ]
+    for label, value, unit in lc_rows:
+        _data_row(ws, row, [label, value, unit, s], rc)
+        row += 1
+    counts["Labour Codes"] = (len(lc_rows), rc, first_row, row - 1)
 
     # -------------------------------------------------------------------- PT
     ws, row, rc = _sheet(

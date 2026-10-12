@@ -566,6 +566,7 @@ export default function TaxConfigPage() {
             ["bonus", "Statutory bonus (BON-*)"],
             ["gratuity_formula", "Gratuity formula (GRAT-*)"],
             ["tds_deep", "TDS projection (TDS-*)"],
+            ["labour_codes", "Labour Codes — wage definition and fixed-term gratuity (LC-001, GRAT-*)"],
           ] as const).map(([groupKey, title]) => {
             const group = thresholds[groupKey] as Record<string, string | string[]>;
             if (!group) return null;
@@ -589,6 +590,18 @@ export default function TaxConfigPage() {
                                 ...group,
                                 [field]: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
                               },
+                            } as typeof thresholds)
+                          }
+                        />
+                      ) : /^\d{4}-\d{2}-\d{2}$/.test(String(value)) ? (
+                        <input
+                          type="date"
+                          value={String(value)}
+                          className={inputCls}
+                          onChange={(e) =>
+                            setThresholds({
+                              ...thresholds,
+                              [groupKey]: { ...group, [field]: e.target.value },
                             } as typeof thresholds)
                           }
                         />
