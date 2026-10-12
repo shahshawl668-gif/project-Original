@@ -11,23 +11,20 @@
     "prebuild": "npm run test:auth"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
     "@monaco-editor/react": "^4.7.0",
-    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-label": "^2.1.17",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
     "@tanstack/react-query": "^5.100.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",
     "next": "15.5.27",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-hook-form": "^7.72.1",
     "recharts": "^3.8.1",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.5.0",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
