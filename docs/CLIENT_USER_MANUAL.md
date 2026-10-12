@@ -805,6 +805,19 @@ earns gratuity after one year of service. The check applies that only when the
 employee master records the employment type as fixed-term; ask your administrator
 to set it.
 
+**An employee has asked us to delete their data.**
+Your owner can do it under **Configuration & admin → Data protection**. Enter the
+employee ID and **Find their data** shows everything that will change; erasing
+then removes their master, CTC and attendance records, and replaces them with an
+anonymous token in the months you keep, so your totals still add up. A month's
+sign-off, a payment-file check and the audit trail are records of decisions and
+are not rewritten; the page lists any that still name the person. It cannot be
+undone.
+
+**How long is our payroll data kept here?**
+Until your owner sets a retention period under **Configuration & admin → Data
+protection**. Then anything older is removed automatically, once a day.
+
 **Who changed this setting?**
 **Configuration & admin → Audit trail.** Append-only, and it records who did what and when.
 

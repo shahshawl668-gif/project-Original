@@ -225,7 +225,7 @@ Owners are roles. Priority: P0 now · P1 this month · P2 this quarter.
 | GV-02 | 5.9, 5.12 inventory and classification | Draft in `SECURITY.md` §2 | Owned, reviewed asset register |
 | GV-03 | 5.19, 5.23 suppliers and cloud | Not implemented | Supplier register with Render, GitHub; their assurance reports; DPAs |
 | GV-04 | 5.24–5.26 incidents | Draft runbook | Exercised runbook; incident log |
-| GV-05 | 5.31, 5.34 legal and privacy | Not implemented | Legal register; DPDP/CERT-In view (§8 of `SECURITY.md`) |
+| GV-05 | 5.31, 5.34 legal and privacy | Partly implemented — product: retention period and erasure (`/config/data-protection`, A.8.10 *Information deletion*); organisation: not implemented | Legal register; DPDP/CERT-In view (§8 of `SECURITY.md`); a decided retention period per client |
 | GV-06 | 5.35 *Independent review of information security* | Not implemented | Pentest report (`PENTEST_SCOPE.md`), internal audit |
 | GV-07 | 6.3 awareness and training | Not verifiable here | Training records |
 | GV-08 | Clause 4.1/4.2 climate (Amd 1:2024) | Template question | A recorded decision on relevance |

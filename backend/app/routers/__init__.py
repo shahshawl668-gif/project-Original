@@ -6,6 +6,7 @@ from app.routers import (
     auth,
     bi,
     dashboards,
+    data_protection,
     disbursement,
     budget,
     components,
@@ -52,6 +53,7 @@ api_router.include_router(
     reconciliation.router, prefix="/reconciliation", tags=["reconciliation"]
 )
 api_router.include_router(disbursement.router, prefix="/disbursement", tags=["disbursement"])
+api_router.include_router(data_protection.router, prefix="/data-protection", tags=["data-protection"])
 api_router.include_router(report_builder.router, prefix="/reports/builder", tags=["reports"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])

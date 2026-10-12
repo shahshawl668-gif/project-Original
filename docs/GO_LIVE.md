@@ -415,7 +415,7 @@ These do not block a controlled first go-live, but you are accepting them:
 
 | Gap | Risk you are taking | Mitigate by |
 |---|---|---|
-| No retention/deletion policy engine | DPDP erasure requests need manual handling | Document a manual procedure with an owner and an SLA |
+| Restoring a backup brings back data erased since it was taken | An employee's erased data reappears after a restore | After any restore, re-run the erasures listed under Configuration & admin → Data protection; agree an owner and an SLA for erasure requests with the client |
 | Sign-in throttling is per account only (`LOGIN_LOCKOUT_MINUTES`), not per IP | Password spraying across many accounts | An edge rate rule (e.g. Cloudflare) in front of `/api/auth/*` |
 | Bank presets unverified | A wrong column mapping | The test-against-a-file step is mandatory, not optional |
 | Python pinned to 3.12 (`passlib`/`crypt`) | Cannot upgrade runtime | Replace `passlib` before 3.13 |

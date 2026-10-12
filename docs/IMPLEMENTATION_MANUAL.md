@@ -366,6 +366,18 @@ when it changes.
 
 Exports: generic CSV, Tally, SAP and Zoho.
 
+### Step 9b — Data protection
+
+Ask the client's owner how long this copy of their payroll data should be kept
+— a decision for them and their adviser, not for the implementer — and have
+them set it under **Configuration & admin → Data protection**. **Preview**
+shows what the period would remove today before anything is saved. Leaving it
+unset keeps everything, and the page says that in so many words.
+
+Agree, too, who in the client receives employees' erasure requests. Only an
+owner can carry one out; the page shows what it will change and what will
+still name the person before anything is erased.
+
 ### Step 10 — Month close
 
 **Reconciliation & approvals → Month close & approval** brings the period together: bank reconciliation, JV
