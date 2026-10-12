@@ -272,6 +272,9 @@ finding, go back, and the list is as you left it. **Columns** hides or shows
 columns and **Compact** fits more rows; both are remembered on this computer.
 Click a row (or press Enter on it) for a quick look without leaving the table;
 **Excel** downloads the whole run exactly as it was recorded, not re-computed.
+**Parallel-run pack** is for the months you run alongside your old process
+before relying on the product: every finding with an empty cell for your
+verdict, and a tab that tells you whether the month passed.
 
 Each finding carries a rule ID, a severity, what was expected, what the register
 actually said, the difference in rupees, and a suggested fix. Where the product

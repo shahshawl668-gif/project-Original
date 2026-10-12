@@ -354,8 +354,12 @@ better than one.
 1. Client uploads the real employee master, CTC, attendance and register for a
    **closed** month — one already paid, so nothing is at risk.
 2. Run validation, cost analysis and both reconciliations.
-3. Sit with the client's payroll lead and walk every finding.
-4. Classify each one:
+3. Download the **parallel-run pack** from the run (**Validation results →
+   Parallel-run pack**): every finding with an empty verdict cell, the checks
+   the run could not perform, and an *Exit criteria* tab that counts the
+   verdicts as they are filled in. Nothing in it is pre-filled.
+4. Sit with the client's payroll lead and walk every finding.
+5. Classify each one in the pack:
 
 | Verdict | Meaning | Action |
 |---|---|---|
@@ -366,6 +370,10 @@ better than one.
 
 ### 4.2 Exit criteria
 
+The pack's *Exit criteria* tab reads **PASSED** only when all of these hold;
+the last four are the client's own Y/N answers.
+
+- [ ] Every finding has a verdict
 - [ ] Zero unexplained false positives
 - [ ] At least one true positive the client did not already know about — if
       there are none across two months, the product is not earning its place
@@ -529,7 +537,9 @@ weeks from this document to a client's first production month.
 
 ### D6 — the verification worksheet
 
-The sign-off is an artefact, not a conversation. Generate it:
+The sign-off is an artefact, not a conversation. The client's expert can
+download it themselves — **Configuration & admin → Income tax & thresholds →
+Verification worksheet** — or you can generate it:
 
 ```bash
 cd backend

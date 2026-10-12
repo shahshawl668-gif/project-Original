@@ -5,7 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRight, Download, GitCompare, HelpCircle, ListTodo, RefreshCw, Search, UploadCloud } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Download, GitCompare, HelpCircle, ListTodo, RefreshCw, Search, UploadCloud } from "lucide-react";
 
 import { DataTable, FilterSelect, Pagination, type Column, type Sort } from "@/components/data/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -723,6 +723,19 @@ function PayrollResultsContent() {
     }
   };
 
+  const downloadPack = async () => {
+    if (!run) return;
+    setExportBusy(true);
+    try {
+      saveBlob(await validationApi.parallelRunPack(run.id), `parallel-run-${run.period_month.slice(0, 7)}-run${run.run_number}.xlsx`);
+      toast.success("Parallel-run pack downloaded", { description: "Every finding awaits the payroll lead's verdict." });
+    } catch (e) {
+      toast.error("Download failed", { description: e instanceof Error ? e.message : "" });
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
   const revalidate = async () => {
     if (!run) return;
     setRevalidating(true);
@@ -810,6 +823,10 @@ function PayrollResultsContent() {
         actions={
           <>
             <Button variant="outline" disabled={exportBusy} onClick={() => void download()}><Download size={14} /> {exportBusy ? "Preparing…" : "Excel"}</Button>
+            <Button variant="outline" disabled={exportBusy} onClick={() => void downloadPack()}
+              title="GO_LIVE Phase 4: a verdict for every finding, the exit criteria and the sign-off">
+              <ClipboardCheck size={14} /> Parallel-run pack
+            </Button>
             {previous ? (
               <Button variant="outline" asChild>
                 <Link href={`/payroll/runs/compare?base=${encodeURIComponent(previous.id)}&target=${encodeURIComponent(run.id)}`}><GitCompare size={14} /> Compare with run {previous.run_number}</Link>

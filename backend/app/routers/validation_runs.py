@@ -817,6 +817,31 @@ def export_run(
     )
 
 
+@router.get("/runs/{run_id}/parallel-run.xlsx")
+def parallel_run_pack(
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """GO_LIVE.md Phase 4 as a workbook: every finding awaiting the client's verdict, and the exit criteria."""
+    from app.services import go_live
+
+    run = _run(db, entity, run_id)
+    content, counts = go_live.parallel_run_workbook(db, entity, run)
+    name = f"parallel-run-{run.period_month:%Y-%m}-run{run.run_number}.xlsx"
+    audit.record(db, entity_id=entity.id, user=user, action="export.downloaded", object_type="validation_run",
+                 object_id=str(run.id),
+                 summary=f"Downloaded the parallel-run pack for run {run.run_number}, {run.period_month:%b %Y}",
+                 detail={"format": "xlsx", "file": name, "kind": "parallel_run", "findings": counts["findings"]})
+    db.commit()
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
 # ---------------------------------------------------------------------------
 # The month, as one status
 # ---------------------------------------------------------------------------

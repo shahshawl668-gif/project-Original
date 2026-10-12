@@ -412,6 +412,16 @@ Do not go live on a single month.
 **Exit criterion:** every remaining finding is one the client agrees is real.
 Not zero findings — zero *unexplained* findings.
 
+Record it in the **parallel-run pack** (**Validation results → Parallel-run
+pack**, one per run): the payroll lead gives each finding a verdict — true
+positive, known and accepted, configuration error, false positive — and the
+*Exit criteria* tab counts them, reading **PASSED** only with every finding
+reviewed, no false positive, at least one true positive, and the client's own
+yes to the four statements beneath. Before month one, give the client's payroll
+expert the **verification worksheet** (Income tax & thresholds → Verification
+worksheet): every statutory default the product ships, to verify and sign
+(GO_LIVE.md D6).
+
 ---
 
 ## 4b. Connecting the client's systems (optional)
