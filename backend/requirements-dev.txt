@@ -1,7 +1,7 @@
 # Test-only dependencies. Not installed in production.
 -r requirements.txt
 
-pytest>=8.0
+pytest>=9.1.1
 
 # Starlette's TestClient needs an HTTP client, and which one depends on the
 # Starlette version pip resolves: 1.x wants httpx2, earlier releases want httpx.
