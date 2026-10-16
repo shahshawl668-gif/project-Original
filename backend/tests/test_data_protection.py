@@ -165,6 +165,37 @@ def test_retention_removes_old_periods_and_keeps_new_ones(client, company):
         db.close()
 
 
+def test_the_daily_pass_counts_days_in_india_not_utc(client, company):
+    """Applied at 20:39 UTC on 12 Oct is 02:09 IST on the 13th: already done for India's 13th.
+
+    Comparing the UTC date with India's date re-applied the policy on every
+    housekeeping pass from 18:30 to midnight UTC — an audit entry every ten
+    minutes for five and a half hours a night.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    client.put("/api/data-protection/retention", headers=company,
+               json={"payroll_months": 24, "reason": "Two years, per policy"})
+    e = _entity(company)
+    db = SessionLocal()
+    try:
+        policy = db.query(RetentionPolicy).filter(RetentionPolicy.entity_id == e).one()
+        late_evening_utc = datetime(2026, 10, 12, 20, 39, tzinfo=UTC)
+        policy.last_applied_at = late_evening_utc
+        db.commit()
+        dp.apply_due(db, today=date(2026, 10, 13))
+        db.expire_all()
+        stamp = db.query(RetentionPolicy).filter(RetentionPolicy.entity_id == e).one().last_applied_at
+        assert stamp.replace(tzinfo=None) == late_evening_utc.replace(tzinfo=None)   # not applied again
+        # The next Indian day is due.
+        dp.apply_due(db, today=date(2026, 10, 14))
+        db.expire_all()
+        stamp = db.query(RetentionPolicy).filter(RetentionPolicy.entity_id == e).one().last_applied_at
+        assert stamp.replace(tzinfo=None) > (late_evening_utc + timedelta(hours=1)).replace(tzinfo=None)
+    finally:
+        db.close()
+
+
 def test_retention_takes_leavers_out_of_the_master(client, company):
     content = (b"employee_id,employee_name,date_of_joining,date_of_exit\n"
                b"L1,Long Gone,2015-04-01,2019-03-31\n"
