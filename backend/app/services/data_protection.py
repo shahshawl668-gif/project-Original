@@ -75,7 +75,7 @@ from app.models import (
     ValidationRunEmployee,
 )
 from app.services import audit
-from app.services.clock import india_today
+from app.services.clock import IST, india_today
 from app.services.finding_store import fingerprint
 from app.services.payroll_parse import normalize_col
 from app.services.register_uploads import decode_rows, encode_rows, gzip_json
@@ -298,6 +298,18 @@ def apply_retention(db: Session, entity: Entity, policy: RetentionPolicy, user: 
     return counts
 
 
+def _india_date(moment: datetime) -> date:
+    """The Indian calendar day of a stored timestamp (SQLite returns it naive, in UTC).
+
+    ``today`` is India's day, so the last run must be read on the same calendar:
+    from 18:30 UTC India is already on tomorrow, and a UTC date would call the
+    day's run not yet done and repeat it on every housekeeping pass.
+    """
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone(IST).date()
+
+
 def apply_due(db: Session, today: date | None = None) -> int:
     """Apply every company's policy at most once a day. Called from the worker's housekeeping."""
     today = today or india_today()
@@ -305,7 +317,7 @@ def apply_due(db: Session, today: date | None = None) -> int:
     policies = db.query(RetentionPolicy).filter(RetentionPolicy.payroll_months.is_not(None)).all()
     for policy in policies:
         last = policy.last_applied_at
-        if last is not None and last.date() >= today:
+        if last is not None and _india_date(last) >= today:
             continue
         entity = db.get(Entity, policy.entity_id)
         if entity is None:
