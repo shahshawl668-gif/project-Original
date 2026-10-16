@@ -156,3 +156,15 @@ def test_the_evidence_pack_carries_the_run_its_inputs_and_its_coverage(client, c
     e002 = next(r for r in findings if r[0] == "E002" and r[4] == "STAT-001")
     assert e002[2] == 3 and e002[10] == 100.0          # file row 3, ₹100 short
     assert any(r[10] == "Impact not calculated" for r in findings)
+
+
+def test_a_period_must_be_a_date_not_anything_that_parses_as_one(client, company):
+    """date.fromisoformat reads YYYYMMDD too: the start of an id such as
+    49410827-5c87-… is 27 Aug 4941. The isolation sweep drew one at random and
+    got a 200 for a month nobody asked about."""
+    ok = client.get(f"/api/validation/periods/{PERIOD}/status", headers=company)
+    assert ok.status_code == 200
+    for bad in ("49410827-5c87-4c9e-a82f-c7e63e61e533", "20260601", "2026-06-01junk"):
+        r = client.get(f"/api/validation/periods/{bad}/status", headers=company)
+        assert r.status_code == 400, (bad, r.status_code)
+    assert client.get(f"/api/validation/periods/{PERIOD}T00:00:00/status", headers=company).status_code == 200

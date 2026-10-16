@@ -12,6 +12,7 @@ cannot be probed.
 from __future__ import annotations
 
 import io
+import re
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -59,10 +60,19 @@ def _uuid(value: str, what: str) -> uuid.UUID:
         raise HTTPException(status_code=404, detail=f"{what} not found") from None
 
 
+# A date, optionally with a time after it. Checked before parsing because
+# date.fromisoformat also reads the compact YYYYMMDD form: the first ten
+# characters of an id such as 49410827-5c87-… would otherwise parse as
+# 27 Aug 4941 and be answered as a month.
+_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[T ].*)?")
+
+
 def _month(value: str | None) -> date | None:
     if not value:
         return None
     try:
+        if not _ISO_DATE.fullmatch(value):
+            raise ValueError(value)
         return date.fromisoformat(value[:10]).replace(day=1)
     except ValueError:
         raise HTTPException(status_code=400, detail="period_month must be a date, e.g. 2026-06-01") from None
