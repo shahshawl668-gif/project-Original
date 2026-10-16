@@ -13,7 +13,7 @@ httpx2>=2.13
 # Static analysis. Ruff's first run found three shipped endpoints that raised
 # NameError on every call; bandit keeps the two expression sandboxes and the
 # hand-built migration SQL under review.
-ruff>=0.15
+ruff>=0.17.0
 bandit>=1.9.4
 
 # Reads generated PDFs back in the report tests, to check what they say.

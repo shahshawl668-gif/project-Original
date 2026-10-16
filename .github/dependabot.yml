@@ -10,6 +10,13 @@ updates:
     directory: /frontend
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    ignore:
+      # The types describe the Node the app runs on: node:20 in
+      # docker/Dockerfile.frontend and in CI. Types for a newer major would
+      # let code compile against APIs production does not have. Move this
+      # with the runtime, not ahead of it.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }

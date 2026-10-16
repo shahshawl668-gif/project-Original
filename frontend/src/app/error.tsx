@@ -10,7 +10,6 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // eslint-disable-next-line no-console
     console.error("App error boundary:", error);
   }, [error]);
 
