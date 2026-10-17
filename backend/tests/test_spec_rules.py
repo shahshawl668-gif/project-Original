@@ -133,11 +133,17 @@ def test_eps_cap_at_exactly_15000():
     assert "PF-004" in rules_failed(run_engine(row_bad))
 
 
-def test_eps_zero_for_post_2014_high_wage_joiner():
-    row = {"employee_id": "E1", "basic": 20000, "eps": 1250, "doj": "2015-01-01"}
-    assert "PF-004" in rules_failed(run_engine(row, pf_wage=Decimal("20000")))
-    row_ok = {**row, "eps": 0}
-    assert "PF-004" not in rules_failed(run_engine(row_ok, pf_wage=Decimal("20000")))
+def test_eps_for_a_post_2014_joiner_now_above_the_joining_limit():
+    # April 2026 (₹15,000 ceiling). Joined 2015, ₹20,000 now. EPS is 0 if they
+    # joined above ₹15,000, and 8.33% × 15,000 = 1,250 if they joined within
+    # it and were raised since. The register shows only today's wage: either
+    # is "not confirmed", never a fault; any other figure fails.
+    row = {"employee_id": "E1", "basic": 20000, "eps": 900, "doj": "2015-01-01"}
+    wrong = [f for f in run_engine(row, pf_wage=Decimal("20000")) if f.rule_id == "PF-004"]
+    assert wrong and wrong[0].severity == "CRITICAL"
+    for eps in (0, 1250):
+        found = [f for f in run_engine({**row, "eps": eps}, pf_wage=Decimal("20000")) if f.rule_id == "PF-004"]
+        assert [(f.severity, f.rule_name) for f in found] == [("INFO", "EPS Membership Not Confirmed")], eps
 
 
 def test_eps_stops_at_age_58():

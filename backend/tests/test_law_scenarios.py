@@ -88,10 +88,11 @@ def employee(eid, state, basic, *, gender="M", pf=None, esic=None, pt=0, lwf=Non
 def to_csv(rows: list[dict], days: int) -> str:
     cols: list[str] = []
     for r in rows:
-        cols += [k for k in r if k not in cols]
+        cols += [k for k in r if k not in cols and k not in ("paid_days", "lop_days")]
     lines = [",".join(["paid_days", "lop_days", *cols])]
     for r in rows:
-        lines.append(",".join([str(days), "0", *(str(r.get(c, "")) for c in cols)]))
+        lines.append(",".join([str(r.get("paid_days", days)), str(r.get("lop_days", 0)),
+                               *(str(r.get(c, "")) for c in cols)]))
     return "\n".join(lines) + "\n"
 
 
@@ -247,13 +248,39 @@ def test_a_register_flag_does_not_override_a_new_period(client, company):
 
 
 def test_a_wrong_deduction_does_not_vouch_for_the_next_month(client, company):
-    # April 2027 deducted ESIC on 22,225 (wrong, and caught above). May
-    # repeats it; last month's deduction is not evidence of coverage — April's
-    # wage was above the ceiling, so it is still wrong.
+    # April 2027 deducted ESIC on 22,225 — wrong: April starts a period and the
+    # wage is above the ceiling. May repeats it; last month's deduction is not
+    # evidence of coverage, so it is still wrong.
+    upload(client, company, "2027-04-01", [employee("EF1", "Karnataka", 11500, gross_extra=1500, esic=True)])
     may = validate(client, company, "2027-05-01", [
         employee("EF1", "Karnataka", 11500, gross_extra=1500, esic=True),
     ])
     assert rules(may["EF1"]) & {"STAT-006", "STAT-007"}
+
+
+def test_a_stored_month_without_the_employee_proves_nothing(client, company):
+    # April–July 2026 are stored but hold another location's staff. EA1 may
+    # have been covered on a register that a later upload for the month replaced.
+    for month in ("2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01"):
+        upload(client, company, month, [employee("EB1", "Karnataka", 13000)])
+    found = validate(client, company, "2026-08-01", [
+        employee("EA1", "Karnataka", 11500, gross_extra=1500, esic=False),
+    ])
+    assert not rules(found["EA1"]) & {"STAT-006", "STAT-007"}, found["EA1"]
+    assert _unconfirmed(found["EA1"]), found["EA1"]
+
+
+def test_a_part_month_is_read_on_its_full_month_rate(client, company):
+    # Joined 20 November 2027 on about ₹30,000 a month: November earns 11/30 of
+    # it, ₹12,594 — under ₹21,000 as earned, never within the ceiling as a rate.
+    upload(client, company, "2027-11-01", [
+        employee("EJ1", "Karnataka", 6663, doj="2027-11-20", paid_days=11, esic=False, pt=200),
+    ])
+    upload(client, company, "2027-12-01", [employee("EJ1", "Karnataka", 17212, doj="2027-11-20", pt=200)])
+    found = validate(client, company, "2028-01-01", [
+        employee("EJ1", "Karnataka", 17212, doj="2027-11-20", pt=200),        # no ESIC: correct
+    ])
+    assert not rules(found["EJ1"]) & {"STAT-006", "STAT-007"}, serious(found["EJ1"])
 
 
 # ---------------------------------------------------------------------------
@@ -339,12 +366,21 @@ def test_october_2026_eps_is_on_25000(client, company):
         employee("EP2", "Maharashtra", 30000, pt=200, eps=2083),                 # 8.33% × 25,000
         employee("EP3", "Maharashtra", 30000, pt=200, eps=1250),                 # still on 15,000
         employee("EP4", "Maharashtra", 20000, pt=200, eps=1666, doj="2026-10-05"),   # new entrant ≤ 25,000
-        employee("EP5", "Maharashtra", 20000, pt=200, eps=0, doj="2020-06-01"),      # joined above 15,000
+        # Joined in 2020, ₹20,000 now: EPS is 0 if they joined above ₹15,000, or
+        # 8.33% × 20,000 = 1,666 if they joined within it and were raised since.
+        # The register cannot say which, so neither is faulted; a third figure is.
+        employee("EP5", "Maharashtra", 20000, pt=200, eps=0, doj="2020-06-01"),
+        employee("EP6", "Maharashtra", 20000, pt=200, eps=1666, doj="2020-06-01"),
+        employee("EP7", "Maharashtra", 20000, pt=200, eps=900, doj="2020-06-01"),
     ])
     assert "PF-004" not in rules(found["EP2"]), found["EP2"]
     assert "PF-004" in rules(found["EP3"])
     assert "PF-004" not in rules(found["EP4"]), found["EP4"]
-    assert "PF-004" not in rules(found["EP5"]), found["EP5"]
+    for eid in ("EP5", "EP6"):
+        assert "PF-004" not in rules(found[eid]), found[eid]
+        assert any(f["rule_id"] == "PF-004" and f["rule_name"] == "EPS Membership Not Confirmed"
+                   for f in found[eid]), found[eid]
+    assert "PF-004" in rules(found["EP7"])
 
 
 def test_september_2026_eps_is_split_by_days(client, company):

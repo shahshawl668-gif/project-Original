@@ -966,11 +966,26 @@ def build_findings(
         join_limit = (value_on(PF_WAGE_CEILING, doj)
                       if doj and follows_statute(PF_WAGE_CEILING, t.pf_deep.eps_wage_cap)
                       else t.pf_deep.eps_wage_cap)
+        member_expected = eps_expected
+        membership_unknown = False
         if doj and cutoff and doj >= cutoff and pf_wage_total > join_limit:
+            # Membership turns on the wage *at joining*; the register shows
+            # this month's. Someone who joined within the limit and has since
+            # been raised above it is still a member. Either figure can be right.
             eps_expected, eps_zero_reason = Decimal("0"), f"joined {doj} (≥ {cutoff}) with PF wages above ₹{join_limit}"
+            membership_unknown = True
         if dob and ref_date and idc.age_in_years(dob, ref_date) >= float(t.pf_deep.eps_max_age_years):
             eps_expected, eps_zero_reason = Decimal("0"), f"age ≥ {t.pf_deep.eps_max_age_years} — EPS stops, full 12% to EPF"
-        if (eps_actual - eps_expected).copy_abs() > tol_stat:
+            membership_unknown = False
+        if membership_unknown and min((eps_actual - eps_expected).copy_abs(),
+                                      (eps_actual - member_expected).copy_abs()) <= tol_stat:
+            info("PF-004", "EPS Membership Not Confirmed", "eps",
+                 f"0 or {_fmt(member_expected)}", _fmt(eps_actual),
+                 (f"Joined {doj}, after {cutoff}, and PF wages are now above ₹{join_limit}. EPS is 0 if wages "
+                  f"were above ₹{join_limit} at joining, and {_fmt(member_expected)} if they were within it and "
+                  "have risen since. The register does not show the wage at joining."),
+                 "Confirm EPS membership from the joining record; the deduction matches one of the two.")
+        elif (eps_actual - eps_expected).copy_abs() > tol_stat:
             fail("PF-004", "EPS Contribution Mismatch", "eps", eps_expected, eps_actual, "CRITICAL",
                  (f"EPS should be 0: {eps_zero_reason}." if eps_zero_reason else
                   (f"EPS must be {t.pf_deep.eps_rate}×min(PF wages, ₹{eps_cap}) = {_fmt(eps_expected)}."

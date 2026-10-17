@@ -654,8 +654,8 @@ def esic_continuation(
       (only where the stored months cannot decide) the register's own
       ESIC-covered column says so;
     * ``not_covered`` — a new period starts this month, or every month of the
-      period so far is stored and none made them eligible, or the register's
-      column says not;
+      period since joining has them on a stored register and none made them
+      eligible, or the register's column says not;
     * ``unknown`` — months of the period are missing, so it cannot be told.
     """
     if period_month is None:
@@ -680,12 +680,16 @@ def esic_continuation(
             return "covered", (f"wages were within the ceiling in {_month_label(month)}, earlier in this "
                                "contribution period")
 
-    missing = [m for m in needed if m not in history]
+    # A month counts as known only if the employee is on its register, or the
+    # joining date shows they had not joined yet. A stored month without them
+    # proves nothing: an upload replaces the month, so a register holding one
+    # location's staff would otherwise vouch for everyone else.
+    missing = [m for m in needed
+               if m not in history or employee_id not in (history.get(m) or {})]
     if not missing:
         if not needed:
             return "not_covered", "joined this month above the ceiling"
-        return "not_covered", ("above the ceiling, or not on the register, in every month of this "
-                               "contribution period so far")
+        return "not_covered", "above the ceiling in every month of this contribution period so far"
 
     for key in _ESIC_COVERED_COLUMNS:
         value = str(row.get(key) if row.get(key) is not None else "").strip().casefold()
@@ -693,7 +697,8 @@ def esic_continuation(
             return "covered", "the register's ESIC-covered column says so (no earlier register shows it)"
         if value in _NO:
             return "not_covered", "the register's ESIC-covered column says not"
-    return "unknown", "no register is stored for " + ", ".join(_month_label(m) for m in missing)
+    return "unknown", ("no stored register shows this employee for "
+                       + ", ".join(_month_label(m) for m in missing))
 
 
 def _nil_tax_limit(cfg_svc: ConfigService, entity_id, on: date, row: dict[str, Any]) -> Decimal | None:
@@ -711,6 +716,32 @@ def _nil_tax_limit(cfg_svc: ConfigService, entity_id, on: date, row: dict[str, A
         return Decimal(str(regime.rebate.taxable_income_limit)) + Decimal(str(regime.standard_deduction))
     except Exception:
         return None
+
+
+def full_month_wage(wage: Decimal, stored: Any) -> Decimal:
+    """An earlier month's ESIC wage put back on a full month, to prove coverage from.
+
+    A joining month or a heavy loss-of-pay month earns a fraction of the wage
+    rate; read as earned, ₹30,000 a month joined on the 20th looks like a
+    ₹11,600 employee within the ceiling, and would wrongly carry coverage to the
+    end of the period. A month whose days are all accounted for (paid + loss
+    of pay of 28 or more) is scaled on the payroll's own basis; a shorter one
+    on the calendar month. Without paid days, the wage is used as earned.
+    """
+    try:
+        paid = Decimal(str(stored.paid_days)) if stored.paid_days is not None else None
+        lop = Decimal(str(stored.lop_days)) if stored.lop_days is not None else Decimal("0")
+    except Exception:
+        return wage
+    if paid is None or paid <= 0:
+        return wage
+    basis = paid + lop
+    if basis < 28:
+        month = stored.period_month
+        basis = Decimal(calendar.monthrange(month.year, month.month)[1])
+    if basis <= paid:
+        return wage
+    return wage * basis / paid
 
 
 def _parse_doj(row: dict[str, Any]) -> date | None:
@@ -1238,7 +1269,7 @@ def validate_employees(
                         {k: Decimal(str(v)) for k, v in (stored.components or {}).items()
                          if isinstance(v, (int, float, str, Decimal))},
                         comp_by_key, esic_cfg)
-                    return bool(compute_esic(wage, esic_cfg, _type)["esic_eligible"])
+                    return bool(compute_esic(full_month_wage(wage, stored), esic_cfg, _type)["esic_eligible"])
 
                 continuation, basis = esic_continuation(
                     row, esic_period_rows, eid, period_month, _eligible_on,
