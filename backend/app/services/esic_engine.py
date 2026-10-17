@@ -102,18 +102,20 @@ def compute_esic(
     # Evaluate eligibility expression
     if employment_type.lower() in [e.lower() for e in elig_cfg.exempt_employment_types]:
         eligible = False
-    elif covered and esic_wage > 0:
-        eligible = True
     else:
+        # A covered employee is judged as if the wage were within the ceiling,
+        # so the rest of a company's eligibility rule (trainees excluded, say)
+        # still applies; only the ceiling is set aside.
+        judged_wage = min(float(esic_wage), float(ceiling)) if covered else float(esic_wage)
         ctx: dict[str, Any] = {
-            "esic_wage":    float(esic_wage),
+            "esic_wage":    judged_wage,
             "esic_ceiling": float(ceiling),
             "employee_type": employment_type,
         }
         try:
             eligible = bool(safe_eval_expr(elig_cfg.expression, ctx))
         except Exception:
-            eligible = 0 < float(esic_wage) <= float(ceiling)
+            eligible = 0 < judged_wage <= float(ceiling)
 
     if not eligible:
         return {"esic_eligible": False, "esic_employee": 0.0, "esic_employer": 0.0,

@@ -19,10 +19,16 @@ applied when configuration is loaded for a payroll month:
   law when its ceiling is any statutory figure; a dated version follows it
   when its ceiling is the figure the law had on the version's first day (a
   version published in April 2026 for some other change, carrying ₹15,000, so
-  still moves to ₹25,000 from 17 September).
+  still moves to ₹25,000 from 17 September). Versions can only begin on the
+  first of a month, so a version from 1 September 2026 carrying ₹25,000 — the
+  figure the law reached during that month — follows the law too, and its
+  September is split like everyone else's.
 * A tenant who chose a figure the law did not have at that point — a
   non-statutory figure, or ₹25,000 published from July 2026 — made a
   deliberate decision; it is used exactly as configured.
+
+The ESI contribution periods are recorded here for the same reason: they are
+statutory structure, not engine logic.
 
 When a ceiling changes again: add a ``Change`` below with its source, re-run
 ``tools/statutory_worksheet.py``, and add the month to
@@ -50,6 +56,21 @@ PF_WAGE_CEILING: tuple[Change, ...] = (
     Change(date(2026, 9, 17), Decimal("25000"),
            "S.O. 5109(E), 17 September 2026; EPS amended by G.S.R. 847(E), 25 September 2026"),
 )
+
+
+# ESI contribution periods: 1 April – 30 September and 1 October – 31 March
+# (the "contribution period" of the ESI (Central) Rules, 1950). Coverage is settled at the start of each and
+# lasts to its end (ESI Act s.2(9) proviso).
+ESIC_CONTRIBUTION_PERIOD_STARTS: tuple[int, ...] = (4, 10)
+
+
+def esic_period_start(month: date) -> date:
+    """The first day of the ESI contribution period containing ``month``."""
+    starts = sorted(ESIC_CONTRIBUTION_PERIOD_STARTS)
+    earlier = [m for m in starts if m <= month.month]
+    if earlier:
+        return date(month.year, earlier[-1], 1)
+    return date(month.year - 1, starts[-1], 1)
 
 
 def value_on(changes: tuple[Change, ...], day: date) -> Decimal:
@@ -100,8 +121,23 @@ def follows_statute(changes: tuple[Change, ...], value: Decimal, since: date | N
     except Exception:
         return False
     if since is not None:
-        return value == value_on(changes, since)
+        # Either the figure on the version's first day, or — because a version
+        # can only start on the 1st — the figure the law reached during that
+        # first month.
+        month_end = since.replace(day=calendar.monthrange(since.year, since.month)[1])
+        return value in (value_on(changes, since), value_on(changes, month_end))
     return value in {c.value for c in changes}
+
+
+def ceiling_segments(value, month: date) -> list[tuple[Decimal, Decimal]]:
+    """Day-weighted PF wage ceilings for ``month`` given a configured ``value``.
+
+    A statutory figure follows the law (split in a month the ceiling changed);
+    any other figure is a single segment of itself.
+    """
+    if follows_statute(PF_WAGE_CEILING, value):
+        return month_segments(PF_WAGE_CEILING, month)
+    return [(Decimal("1"), Decimal(str(value)))]
 
 
 def apply_pf_ceiling(wage_cfg, month: date, since: date | None = None):

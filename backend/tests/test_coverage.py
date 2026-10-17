@@ -4,7 +4,10 @@ Every check has one of five outcomes, and a missing input is never a pass.
 Fixtures are built so each outcome has a specific, independently known cause:
 
 * E001 — complete register row, ESIC-ineligible, PF correct.
-      STAT-001 passed; STAT-006 not applicable (gross above ₹21,000).
+      STAT-001 passed. STAT-006: June is mid contribution period, so with
+      April and May not stored, coverage carried from earlier in the period
+      cannot be told — cannot validate; once they are stored and show gross
+      above ₹21,000 throughout, not applicable.
 * E002 — PF under-deducted by ₹100.            STAT-001 failed.
 * E003 — gross ₹16,000, ESIC deducted correctly. STAT-006 passed.
 * Register variant without a PF column:         STAT-001 cannot validate.
@@ -70,6 +73,15 @@ def _run(client, headers, content: bytes) -> str:
     return job["run_id"]
 
 
+def _store(client, headers, month: str, content: bytes) -> None:
+    """Store a register for another month (the ESI contribution period's earlier months)."""
+    r = client.post("/api/payroll/upload", headers=headers,
+                    files={"file": ("r.csv", io.BytesIO(content), "text/csv")},
+                    data={"meta": json.dumps({"period_month": month, "strict_header_check": False,
+                                              "return_employees": False})})
+    assert r.status_code == 200, r.text
+
+
 def _outcome(client, headers, run_id, employee, rule):
     detail = _data(client.get(f"/api/validation/runs/{run_id}/employees/{employee}", headers=headers))
     return detail["result"]["coverage"][rule]
@@ -87,9 +99,15 @@ def test_each_outcome_comes_from_its_cause(client, company):
     run_id = _run(client, company, _register(BASE_ROWS))
     assert _outcome(client, company, run_id, "E001", "STAT-001")["outcome"] == "passed"
     assert _outcome(client, company, run_id, "E002", "STAT-001")["outcome"] == "failed"
-    na = _outcome(client, company, run_id, "E001", "STAT-006")
-    assert na["outcome"] == "not_applicable" and "ESIC" in na["reason"]
+    unknown = _outcome(client, company, run_id, "E001", "STAT-006")
+    assert unknown["outcome"] == "cannot_validate", unknown
     assert _outcome(client, company, run_id, "E003", "STAT-006")["outcome"] == "passed"
+
+    for month in ("2026-04-01", "2026-05-01"):         # the period's earlier months
+        _store(client, company, month, _register(BASE_ROWS))
+    run_id = _run(client, company, _register(BASE_ROWS))
+    na = _outcome(client, company, run_id, "E001", "STAT-006")
+    assert na["outcome"] == "not_applicable" and "ESIC" in na["reason"], na
 
 
 def test_a_missing_column_is_cannot_validate_never_passed(client, company):
@@ -237,6 +255,10 @@ def test_no_failures_with_unperformed_statutory_checks_is_incomplete_not_ready(c
         assert client.put("/api/rule-preferences", headers=company,
                           json={"rule_id": rule, "suppressed": True}).status_code == 200
     clean = [_row("E001", 30000)]
+    # April and May stored, so ESIC is settled (above the ceiling all period)
+    # rather than unconfirmable.
+    for month in ("2026-04-01", "2026-05-01"):
+        _store(client, company, month, _register(clean))
     run_id = _run(client, company, _register(clean))
     run = _data(client.get(f"/api/validation/runs/{run_id}", headers=company))
     assert run["total_findings"] == 0, run

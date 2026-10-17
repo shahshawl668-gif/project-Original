@@ -124,8 +124,10 @@ def compute_pf(
         pf_type = "uncapped"
 
     # Above-ceiling mode
-    if pf_cfg.above_ceiling_mode == "employee_choice" and pf_wage > ceiling:
-        # Employee voluntarily contributes on full wage
+    if pf_cfg.above_ceiling_mode == "employee_choice" and pf_wage > restricted_wage:
+        # Employee voluntarily contributes on full wage. Compared with the
+        # restricted wage, not the month-end ceiling: in September 2026 a
+        # ₹20,000 wage is above the day-weighted cap though below ₹25,000.
         capped = pf_wage
         pf_type = "voluntary_full"
 

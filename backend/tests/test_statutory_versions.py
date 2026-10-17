@@ -182,3 +182,21 @@ def test_a_version_that_was_following_the_law_keeps_following_it(client):
     july = _draft(client, company, "2026-07-01", 25000, note="Early adoption")
     _data(client.post(f"/api/config/statutory/versions/{july['id']}/publish", headers=company))
     assert _ceiling(company, "2026-08-01") == "25000"
+
+
+def test_a_version_from_1_september_2026_at_25000_splits_september(client):
+    """Versions start on the 1st, so the natural way to record the new ceiling
+    is a version from September at ₹25,000. September must still be split by
+    days (1–16 on ₹15,000), not put wholly on ₹25,000."""
+    company = _company(client, "sv-sept")
+    sept = _draft(client, company, "2026-09-01", 25000, note="New EPF ceiling")
+    _data(client.post(f"/api/config/statutory/versions/{sept['id']}/publish", headers=company))
+    db = SessionLocal()
+    try:
+        entity_id = uuid.UUID(company["X-Entity-Id"])
+        wage = ConfigService(db, as_of=date(2026, 9, 1)).get_pf_config(entity_id).wage
+    finally:
+        db.close()
+    assert wage.ceiling_segments is not None
+    assert [str(cap) for _, cap in wage.ceiling_segments] == ["15000", "25000"]
+    assert _ceiling(company, "2026-10-01") == "25000"

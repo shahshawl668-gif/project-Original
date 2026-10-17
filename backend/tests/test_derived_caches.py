@@ -238,7 +238,9 @@ def test_an_input_digest_is_reused_until_that_input_is_written(client, workspace
     calls = _count_digests(monkeypatch)
 
     first = _digests(entity)
-    assert len(calls) == 4
+    # master, attendance, CTC, last month's register, and the ESI contribution
+    # period's earlier registers.
+    assert len(calls) == 5
     calls.clear()
     assert _digests(entity) == first
     assert calls == []
@@ -253,7 +255,9 @@ def test_an_input_digest_is_reused_until_that_input_is_written(client, workspace
     finally:
         db.close()
     third = _digests(entity)
-    assert calls == ["salary_register_rows"]
+    # Both register selections share the register revision, so both recompute;
+    # only last month's actually changed.
+    assert calls == ["salary_register_rows", "salary_register_rows"]
     assert third["prior_register"] != first["prior_register"]
     assert {k: v for k, v in third.items() if k != "prior_register"} == \
         {k: v for k, v in first.items() if k != "prior_register"}
@@ -268,7 +272,7 @@ def test_an_input_digest_is_reused_until_that_input_is_written(client, workspace
     finally:
         db.close()
     fourth = _digests(entity)
-    assert calls == ["salary_register_rows"]
+    assert calls == ["salary_register_rows", "salary_register_rows"]
     assert fourth["counts"]["prior_register_rows"] == 4
 
 
@@ -278,7 +282,9 @@ def test_one_company_writing_does_not_invalidate_another(client, workspace, monk
     _digests(entity)
     db = SessionLocal()
     try:
-        assert db.query(InputDigestCache).filter(InputDigestCache.entity_id == entity.id).count() == 4
+        # One cached digest per table selection: master, attendance, CTC, last
+        # month's register, and the ESI contribution period's earlier registers.
+        assert db.query(InputDigestCache).filter(InputDigestCache.entity_id == entity.id).count() == 5
     finally:
         db.close()
 

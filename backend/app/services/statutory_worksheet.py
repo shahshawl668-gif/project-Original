@@ -30,7 +30,7 @@ from app.branding import PRODUCT_NAME
 from app.schemas.rule_thresholds import GratuityFormulaThresholds, LabourCodeThresholds
 from app.schemas.statutory_config import ESICConfig, PFConfig
 from app.services import lwf_defaults, pt_defaults
-from app.services.statutory_calendar import PF_WAGE_CEILING
+from app.services.statutory_calendar import ESIC_CONTRIBUTION_PERIOD_STARTS, PF_WAGE_CEILING
 from app.services.tax_year_defaults import DEFAULT_TAX_YEAR, default_tax_years
 
 FONT = "Arial"
@@ -253,13 +253,18 @@ def build(path: Path | IO[bytes]) -> dict[str, tuple[int, int, int, int]]:
         ("PF — cap wage at ceiling by default", "Yes" if pf.wage.restrict_to_ceiling else "No", "flag"),
         ("ESIC — employee contribution", float(esic.rates.employee_rate), "rate (fraction)"),
         ("ESIC — employer contribution", float(esic.rates.employer_rate), "rate (fraction)"),
+        ("PF — EPS cap and post-2014 joiner limit follow the wage ceiling (joiner: ceiling on joining date)",
+         "Yes", "flag"),
         ("ESIC — eligibility ceiling", float(esic.wage.wage_ceiling), "INR per month"),
+        ("ESIC — contribution periods start (months); coverage lasts to period end, s.2(9)",
+         ", ".join(str(m) for m in ESIC_CONTRIBUTION_PERIOD_STARTS), "month numbers"),
         ("Gratuity — accrual fraction", "15/26 per year", "fraction of Basic+DA"),
     ]
     for label, value, unit in pf_rows:
         where = ("app/services/cost_model.py" if label.startswith("Gratuity")
                  else "app/services/statutory_calendar.py" if label.startswith("PF — wage ceiling")
-                 or label.startswith("PF — month") else s)
+                 or label.startswith("PF — month") or label.startswith("ESIC — contribution periods")
+                 else "app/services/rule_engine_v2.py (PF-004)" if label.startswith("PF — EPS cap") else s)
         _data_row(ws, row, [label, value, unit, where], rc)
         row += 1
     counts["PF and ESIC"] = (len(pf_rows), rc, first_row, row - 1)

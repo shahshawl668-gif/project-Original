@@ -563,7 +563,7 @@ export default function TaxConfigPage() {
               <NumInput value={thresholds.trends.salary_drop_ratio}
                 onChange={(v) => setThresholds({ ...thresholds, trends: { ...thresholds.trends, salary_drop_ratio: v } })} />
             </Field>
-            <Field label="TDS risk annual income (₹)" help="STAT-011 heuristic threshold">
+            <Field label="TDS risk annual income (₹)" help="STAT-011 upper limit — the employee's own regime's nil-tax limit applies when lower">
               <NumInput value={thresholds.tds.annual_income_threshold}
                 onChange={(v) => setThresholds({ ...thresholds, tds: { ...thresholds.tds, annual_income_threshold: v } })} />
             </Field>

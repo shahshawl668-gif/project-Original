@@ -57,6 +57,18 @@ class TestPF:
         aug = PFConfig().model_copy(update={"wage": apply_pf_ceiling(PFConfig().wage, date(2026, 8, 1))})
         assert round(compute_pf(pf_wage=Decimal("20000"), pf_cfg=aug)["pf_employee"]) == 1_800
 
+    def test_september_2026_full_wage_by_choice_is_not_capped(self):
+        # ₹20,000 is below the ₹25,000 month-end ceiling but above September's
+        # day-weighted cap (₹17,333.33). Someone contributing on full wage pays 12% of 20,000.
+        from datetime import date
+        from app.services.statutory_calendar import apply_pf_ceiling
+        cfg = PFConfig()
+        cfg = cfg.model_copy(update={"wage": apply_pf_ceiling(cfg.wage, date(2026, 9, 1)),
+                                     "above_ceiling_mode": "employee_choice"})
+        out = compute_pf(pf_wage=Decimal("20000"), pf_cfg=cfg)
+        assert round(out["pf_employee"]) == 2_400
+        assert round(out["pf_eps"]) == round(Decimal("17333.33") * Decimal("0.0833"))   # EPS stays capped
+
     def test_zero_wage(self):
         out = compute_pf(pf_wage=Decimal("0"), pf_cfg=PFConfig())
         assert out["pf_employee"] == 0
@@ -86,3 +98,22 @@ class TestESIC:
         out = compute_esic(esic_wage=wage, esic_cfg=ESICConfig())
         assert out["esic_eligible"] is False
         assert out["esic_employee"] == 0
+
+
+class TestESICContinuation:
+    def test_covered_sets_aside_only_the_ceiling(self):
+        cfg = ESICConfig()
+        cfg.eligibility.expression = "esic_wage > 0 and esic_wage <= esic_ceiling and employee_type != 'trainee'"
+        assert compute_esic(Decimal("22225"), cfg, "employee", covered=True)["esic_eligible"] is True
+        # A company rule that excludes trainees still excludes them.
+        assert compute_esic(Decimal("22225"), cfg, "trainee", covered=True)["esic_eligible"] is False
+        assert compute_esic(Decimal("0"), cfg, "employee", covered=True)["esic_eligible"] is False
+
+    def test_contribution_periods(self):
+        from datetime import date
+        from app.services.statutory_calendar import esic_period_start
+        assert esic_period_start(date(2026, 8, 1)) == date(2026, 4, 1)
+        assert esic_period_start(date(2026, 10, 1)) == date(2026, 10, 1)
+        assert esic_period_start(date(2027, 2, 1)) == date(2026, 10, 1)
+        assert esic_period_start(date(2027, 3, 1)) == date(2026, 10, 1)
+        assert esic_period_start(date(2027, 4, 1)) == date(2027, 4, 1)

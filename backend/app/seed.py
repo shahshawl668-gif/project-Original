@@ -104,6 +104,7 @@ def _add_odisha_march_pt(db: Session) -> None:
     operator edited is left alone. Idempotent.
     """
     from app.models import SlabRule
+    from app.services import audit
 
     top = (
         db.query(SlabRule)
@@ -136,6 +137,17 @@ def _add_odisha_march_pt(db: Session) -> None:
             source_reference="https://odishatax.gov.in/professional_tax.php",
             sort_order=(row.sort_order or 0) + 1,
         ))
+        # A change to a client's schedule that nobody at the client made is
+        # written to the client's own trail, saying who did it and why.
+        audit.record(
+            db, entity_id=row.entity_id, user=None,
+            action="slab_rule.platform_correction", object_type="slab_rule",
+            object_id=str(row.id),
+            summary="Odisha PT: added the March row (₹300) the bundled schedule was missing",
+            detail={"state": "Odisha", "rule_type": "PT", "applicable_months": [3],
+                    "deduction_amount_yearly": "3600", "effective_from": str(row.effective_from),
+                    "source": "https://odishatax.gov.in/professional_tax.php"},
+        )
         changed = True
     if changed:
         db.commit()

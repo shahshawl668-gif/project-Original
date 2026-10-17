@@ -269,14 +269,14 @@ Rules are grouped in layers (data quality → structure → aggregates → statu
 | COMP-*     | Unmapped columns, missing PF wage columns                                                                            |
 | STRUCT-*   | Low Basic % of gross (PF avoidance), allowance-heavy                                                                 |
 | AGG-*      | Gross vs sum of earnings; net vs gross minus statutory deductions                                                    |
-| STAT-001 … | PF / ESIC / PT / LWF mismatches; bonus eligibility (STAT-012/013); gratuity cap (STAT-014); TDS risk hint (STAT-011, only when no TDS was deducted) |
+| STAT-001 … | PF / ESIC / PT / LWF mismatches; bonus eligibility (STAT-012/013); gratuity cap (STAT-014); TDS risk hint (STAT-011: above the employee's own regime's nil-tax limit — ₹12.75 lakh new, ₹5.5 lakh old for FY 2026-27 — with no TDS deducted, or with arrears in the month) |
 | LOP-*      | paid_days + lop_days vs denominator; proration vs CTC monthly × paid/total                                           |
 | MOM-*      | New joiner, component spike/drop vs prior month, new components, increment arrear vs CTC                             |
 | ADV-*      | Salary spikes/drops vs prior gross                                                                                   |
 | ID-*       | PAN (206AA), Aadhaar (Verhoeff), UAN, ESI number, IFSC formats; working age; pay before DOJ / after DOL              |
-| PF-004/008 | EPS split vs cap, post-Sep-2014 joiner EPS=0, EPS stop at 58, international-worker ceiling                           |
+| PF-004/008 | EPS split vs cap (₹25,000 from 17 Sep 2026, September split by days), post-Sep-2014 joiner EPS=0 above the limit in force when they joined (₹15,000; ₹25,000 for joiners from 17 Sep 2026), EPS stop at 58, international-worker ceiling |
 | ESI-005/006| Disability coverage ceiling (₹25,000), daily-wage employee-share exemption (₹176)                                    |
-| STAT-005/6/7 ESIC period | Covered at the start of a contribution period (April, October) stays covered to its end: read from last month's register or an `esic_covered` (Y/N) column; with neither, *cannot validate* |
+| STAT-005/6/7 ESIC period | Coverage gained in a contribution period (April–September, October–March) lasts to its end. Proven from the employee's *wages* in the earlier months of the period, never from what those registers deducted. With every month of the period stored the answer is definite; with months missing, an `esic_covered` (Y/N) column is used, and without one the result is *cannot validate* whether or not ESIC was deducted. April and October start a new period: the month's own wage decides, whatever the column says |
 | PF ceiling | ₹15,000 to 16 Sep 2026, ₹25,000 from 17 Sep 2026 (EPF, EPS and EDLI); September 2026 split by days (1–16 / 17–30). A statutory figure in config follows these dates; any other figure is used as set |
 | PT-002/003 | Article 276 annual cap (₹2,500), PT deducted in a no-PT state                                                        |
 | BON-*      | Payment of Bonus Act eligibility (₹21,000) and 8.33–20% band on min(Basic+DA, ₹7,000)                                |
@@ -285,7 +285,7 @@ Rules are grouped in layers (data quality → structure → aggregates → statu
 | DATA-005…9 | Negative deductions; duplicate PAN / UAN / Aadhaar / bank account across employees                                   |
 
 Optional identity/master-data columns the register may carry: `pan`, `aadhaar`,
-`uan`, `esi_number`, `esic_covered` (Y/N: covered at the start of this ESIC contribution period), `bank_account`, `ifsc`, `dob`, `doj`, `dol`, `tax_regime`,
+`uan`, `esi_number`, `esic_covered` (Y/N: covered earlier in this ESIC contribution period — used only where the stored registers cannot tell), `bank_account`, `ifsc`, `dob`, `doj`, `dol`, `tax_regime`,
 `gender`, `disability`, `international_worker`, `adolescent_permit`,
 `death_or_disablement`, `eps`, `bonus`, `gratuity`, `tds`. Every threshold these
 rules use is editable under **Configuration → Income tax & thresholds**.

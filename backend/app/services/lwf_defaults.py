@@ -165,8 +165,24 @@ def default_due_months(state: str | None, frequency: str | None) -> list[int] | 
     return _DUE_BY_FREQUENCY.get(frequency or "")
 
 
-def levies_lwf(state: str | None) -> bool:
-    return bool(state) and any(k.casefold() == state.strip().casefold() for k in LWF_DEFAULTS)
+# The states this module's sources record as having no statutory LWF (see the
+# module docstring). A state in neither list — Chandigarh, Tripura, a typo — is
+# unknown, never assumed to levy nothing.
+NO_LWF_STATES = frozenset(s.casefold() for s in (
+    "Bihar", "Jharkhand", "Uttar Pradesh", "Uttarakhand", "Himachal Pradesh",
+    "Jammu and Kashmir", "Jammu & Kashmir", "Ladakh", "Sikkim",
+    "Arunachal Pradesh", "Assam", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
+))
+
+
+def levies_lwf(state: str | None) -> bool | None:
+    """True for a state in the LWF catalog, False for one recorded as levying none, None if unknown."""
+    if not state:
+        return None
+    folded = state.strip().casefold()
+    if any(k.casefold() == folded for k in LWF_DEFAULTS):
+        return True
+    return False if folded in NO_LWF_STATES else None
 
 
 def list_default_states() -> list[str]:

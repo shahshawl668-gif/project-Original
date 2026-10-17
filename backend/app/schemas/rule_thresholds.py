@@ -71,9 +71,10 @@ class TDSRiskThresholds(BaseModel):
     """STAT-011 — high-income month heuristic."""
     annual_income_threshold: Decimal = Field(
         Decimal("1275000"),
-        description=("Annualised taxable income above which a month with no TDS is flagged, ₹. Default: "
-                     "the new regime's nil-tax limit for FY 2026-27 (₹12 lakh after the 87A rebate, plus the "
-                     "₹75,000 standard deduction). Lower it for an old-regime workforce."))
+        description=("Annualised taxable income above which a month with no TDS, or with arrears, is "
+                     "flagged, ₹. The employee's own regime's nil-tax limit from the tax-year configuration "
+                     "(87A rebate limit + standard deduction) applies where it is lower — ₹5.5 lakh under the "
+                     "old regime for FY 2026-27. Default: the new regime's ₹12.75 lakh."))
     arrear_annualisation_factor: Decimal = Field(
         Decimal("0.3"), description="Fraction of the arrear total added to the month's taxable exposure")
 
@@ -113,7 +114,11 @@ class IdentityThresholds(BaseModel):
 
 class PFDeepThresholds(BaseModel):
     """PF-* rules — EPS split and international workers (EPF & MP Act / EPS-95)."""
-    eps_wage_cap: Decimal = Field(Decimal("15000"), description="EPS contribution base cap")
+    eps_wage_cap: Decimal = Field(
+        Decimal("25000"),
+        description=("EPS pensionable-wage cap and post-2014 joiner limit, ₹. A statutory figure (₹15,000 or "
+                     "₹25,000) follows the law month by month — ₹25,000 from 17 Sep 2026, September split by "
+                     "days; any other figure is used as set."))
     eps_rate: Decimal = Field(Decimal("0.0833"), description="EPS share of employer contribution")
     eps_join_cutoff: str = Field("2014-09-01", description="Joiners on/after this date with wages above cap get EPS 0")
     eps_max_age_years: Decimal = Field(Decimal("58"), description="EPS stops at this age; full 12% to EPF")

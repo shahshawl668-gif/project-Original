@@ -47,6 +47,7 @@ from app.models import (
     ValidationRuleVersion,
 )
 from app.models.findings import ENGINE_VERSION
+from app.services.statutory_calendar import esic_period_start
 
 #: Columns that identify or timestamp a row rather than describe it.
 _IGNORED = {
@@ -66,6 +67,7 @@ INPUT_LABELS = {
     "attendance": "Attendance register for the period",
     "ctc": "CTC records",
     "prior_register": "Previous month's register",
+    "esic_period_registers": "Earlier registers of the ESI contribution period",
     "configuration": "Configuration (components, statutory settings, slabs, rules)",
     "engine": "Validation engine version",
 }
@@ -306,12 +308,23 @@ def input_digests(
         SalaryRegisterRow,
         SalaryRegisterRow.entity_id == eid, SalaryRegisterRow.period_month == prior,
     )
+    # ESIC coverage carried to the end of a contribution period is read from
+    # the period's earlier registers, so a change to any of them — or one
+    # arriving — can change this month's verdict. Last month is covered above.
+    period_start = esic_period_start(period_month)
+    esic_period, n_esic_period = _cached_table_digest(
+        db, eid, "register_rows", f"from:{period_start.isoformat()}:before:{prior.isoformat()}",
+        SalaryRegisterRow,
+        SalaryRegisterRow.entity_id == eid,
+        SalaryRegisterRow.period_month >= period_start, SalaryRegisterRow.period_month < prior,
+    )
     return {
         "register": rows_sha256,
         "master": master,
         "attendance": attendance,
         "ctc": ctc,
         "prior_register": prior_register,
+        "esic_period_registers": esic_period,
         "configuration": digest(config),
         "engine": ENGINE_VERSION,
         "counts": {
@@ -319,6 +332,7 @@ def input_digests(
             "attendance_rows": n_attendance,
             "ctc_records": n_ctc,
             "prior_register_rows": n_prior,
+            "esic_period_register_rows": n_esic_period,
         },
     }
 

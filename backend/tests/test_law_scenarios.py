@@ -14,8 +14,13 @@ the product must report it. When a law changes, a scenario here changes first.
 Sources (also in docs/STATUTORY_RATE_AUDIT.md):
 * EPF/EPS/EDLI ceiling ₹25,000 from 17 Sep 2026 — S.O. 5109(E); September
   2026 contributions split: 1–16 Sep on ₹15,000, 17–30 Sep on ₹25,000.
-* ESI Act s.2(9) proviso — an employee covered at the start of a contribution
-  period (April–September, October–March) stays covered to its end.
+* ESI Act s.2(9) proviso — an employee whose wage rises above the ceiling
+  after a contribution period (April–September, October–March) begins stays
+  covered to its end. Coverage is proven from wages earlier in the period;
+  where months of the period are missing, it cannot be told either way.
+* EPS — the pensionable-wage cap follows the ₹25,000 ceiling, September 2026
+  split by days; new entrants are EPS members up to ₹25,000 (SGCMS summary of
+  G.S.R. 847(E)).
 * CBDT salary-TDS circular — no tax is deducted where income is below the
   taxable limit, PAN or not; the no-PAN rate applies only where tax is due.
 * State LWF schedules — Gujarat contributions on June and December wages.
@@ -50,7 +55,8 @@ def _ceil(x: float) -> int:
     return math.ceil(round(x, 4))
 
 
-def employee(eid, state, basic, *, gender="M", pf=None, esic=None, pt=0, lwf=None, pan=True, gross_extra=0):
+def employee(eid, state, basic, *, gender="M", pf=None, esic=None, pt=0, lwf=None, pan=True, gross_extra=0,
+             **extra):
     """One register row. ``pf``/``esic`` default to the correct figure for a full month."""
     parts = {"basic": basic, "hra": round(basic * 0.4), "special allowance": round(basic * 0.25) + gross_extra,
              "conveyance": 1600}
@@ -75,6 +81,7 @@ def employee(eid, state, basic, *, gender="M", pf=None, esic=None, pt=0, lwf=Non
     if lwf is not None:
         row["lwf_employee"] = lwf
     row["net_pay"] = gross - pf - esic[0] - pt - (lwf or 0)
+    row.update(extra)
     return row
 
 
@@ -180,11 +187,13 @@ def test_september_2026_is_split_at_the_17th(client, company):
 # ESIC: coverage runs to the end of the contribution period
 # ---------------------------------------------------------------------------
 def test_esic_continues_after_a_mid_period_raise(client, company):
-    upload(client, company, "2026-07-01", [
-        employee("EC1", "Karnataka", 11500),               # gross 20,725 → covered in July
-        employee("EC2", "Karnataka", 11500),
-        employee("EC3", "Karnataka", 13000),               # gross 23,050 → never covered
-    ])
+    # The whole period so far is stored, so coverage can be told either way.
+    for month in ("2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01"):
+        upload(client, company, month, [
+            employee("EC1", "Karnataka", 11500),           # gross 20,725 → covered from April
+            employee("EC2", "Karnataka", 11500),
+            employee("EC3", "Karnataka", 13000),           # gross 23,050 → never covered
+        ])
     found = validate(client, company, "2026-08-01", [
         employee("EC1", "Karnataka", 11500, gross_extra=1500, esic=True),    # gross 22,225: still covered
         employee("EC2", "Karnataka", 11500, gross_extra=1500, esic=False),   # stopped too early
@@ -203,19 +212,48 @@ def test_esic_coverage_ends_with_the_contribution_period(client, company):
     assert rules(found["EP1"]) & {"STAT-006", "STAT-007"}
 
 
-def test_esic_continuation_without_history_is_not_a_false_alarm(client, company):
+def _unconfirmed(findings: list[dict]) -> bool:
+    by_rule = {f["rule_id"]: f for f in findings if f["rule_id"] in ("STAT-006", "STAT-007")}
+    return (set(by_rule) == {"STAT-006", "STAT-007"}
+            and all(f.get("actual_value") == "(missing)" and f.get("status") != "PASS" for f in by_rule.values()))
+
+
+def test_esic_without_the_periods_registers_is_neither_passed_nor_failed(client, company):
+    # No register stored for October 2026 – January 2027 (the October tests
+    # store October, but not this employee, and November–January are absent).
     found = validate(client, company, "2027-02-01", [
-        employee("EU1", "Karnataka", 11500, gross_extra=1500, esic=True),    # no January register stored
+        employee("EU1", "Karnataka", 11500, gross_extra=1500, esic=True),    # deducted
+        employee("EU2", "Karnataka", 11500, gross_extra=1500, esic=False),   # not deducted
     ])
-    assert not rules(found["EU1"]) & {"STAT-006", "STAT-007"}
-    assert any(f["rule_id"] == "STAT-006" and f.get("actual_value") == "(missing)" for f in found["EU1"])
+    for eid in ("EU1", "EU2"):
+        assert not rules(found[eid]) & {"STAT-006", "STAT-007"}, found[eid]
+        assert _unconfirmed(found[eid]), found[eid]        # not a PASS: the commonest error hides here
 
 
-def test_a_register_column_can_state_esic_coverage(client, company):
+def test_a_register_column_can_state_esic_coverage_where_history_cannot(client, company):
     row = employee("EK1", "Karnataka", 11500, gross_extra=1500, esic=True)
     row["esic_covered"] = "Y"
     found = validate(client, company, "2027-03-01", [row])
     assert serious(found["EK1"]) == []
+
+
+def test_a_register_flag_does_not_override_a_new_period(client, company):
+    # April: a new contribution period, so this month's wage decides. A
+    # payroll system's own "covered" flag is the setting that goes wrong.
+    row = employee("EF1", "Karnataka", 11500, gross_extra=1500, esic=True)
+    row["esic_covered"] = "Y"
+    april = validate(client, company, "2027-04-01", [row])
+    assert rules(april["EF1"]) & {"STAT-006", "STAT-007"}
+
+
+def test_a_wrong_deduction_does_not_vouch_for_the_next_month(client, company):
+    # April 2027 deducted ESIC on 22,225 (wrong, and caught above). May
+    # repeats it; last month's deduction is not evidence of coverage — April's
+    # wage was above the ceiling, so it is still wrong.
+    may = validate(client, company, "2027-05-01", [
+        employee("EF1", "Karnataka", 11500, gross_extra=1500, esic=True),
+    ])
+    assert rules(may["EF1"]) & {"STAT-006", "STAT-007"}
 
 
 # ---------------------------------------------------------------------------
@@ -291,3 +329,71 @@ def test_companies_with_the_old_odisha_schedule_get_the_march_row(client, compan
         db.close()
     found = validate(client, company, "2027-03-01", [employee("OD3", "Odisha", 18000, pt=300)])
     assert "STAT-008" not in rules(found["OD3"])
+
+
+# ---------------------------------------------------------------------------
+# EPS: the pensionable-wage cap moves with the ceiling
+# ---------------------------------------------------------------------------
+def test_october_2026_eps_is_on_25000(client, company):
+    found = validate(client, company, "2026-10-01", [
+        employee("EP2", "Maharashtra", 30000, pt=200, eps=2083),                 # 8.33% × 25,000
+        employee("EP3", "Maharashtra", 30000, pt=200, eps=1250),                 # still on 15,000
+        employee("EP4", "Maharashtra", 20000, pt=200, eps=1666, doj="2026-10-05"),   # new entrant ≤ 25,000
+        employee("EP5", "Maharashtra", 20000, pt=200, eps=0, doj="2020-06-01"),      # joined above 15,000
+    ])
+    assert "PF-004" not in rules(found["EP2"]), found["EP2"]
+    assert "PF-004" in rules(found["EP3"])
+    assert "PF-004" not in rules(found["EP4"]), found["EP4"]
+    assert "PF-004" not in rules(found["EP5"]), found["EP5"]
+
+
+def test_september_2026_eps_is_split_by_days(client, company):
+    # 8.33% × (15,000 × 16/30 + 25,000 × 14/30) = 8.33% × 19,666.67 = 1,638
+    found = validate(client, company, "2026-09-01", [
+        employee("ES1", "Maharashtra", 40000, pf=2360, pt=200, eps=1638),
+        employee("ES2", "Maharashtra", 40000, pf=2360, pt=200, eps=2083),
+    ])
+    assert "PF-004" not in rules(found["ES1"]), found["ES1"]
+    assert "PF-004" in rules(found["ES2"])
+
+
+# ---------------------------------------------------------------------------
+# A state the catalog does not know is not a state that levies nothing
+# ---------------------------------------------------------------------------
+def test_an_unknown_lwf_state_is_reported_not_skipped(client, company):
+    found = validate(client, company, "2026-10-01", [
+        employee("US1", "Chandigarh", 20000),          # levies LWF; not in the bundled catalog
+        employee("US2", "Maharastra", 20000),          # a typo
+        employee("US3", "Uttar Pradesh", 20000),       # recorded as levying neither PT nor LWF
+    ])
+    assert "DATA-LWF-STATE" in rules(found["US1"])
+    assert "DATA-LWF-STATE" in rules(found["US2"]) and "DATA-PT-STATE" in rules(found["US2"])
+    assert not rules(found["US3"]) & {"DATA-LWF-STATE", "DATA-PT-STATE"}
+
+
+# ---------------------------------------------------------------------------
+# TDS risk: the employee's own regime, and arrears whatever was deducted
+# ---------------------------------------------------------------------------
+def _direct(client, headers, period: str, rows: list[dict]) -> dict[str, list[dict]]:
+    r = client.post("/api/payroll/validate", headers=headers, json={"employees": rows, "period_month": period})
+    assert r.status_code == 200, r.text
+    return {row["employee_id"]: row.get("findings", []) for row in r.json()["data"]["results"]}
+
+
+def test_tds_risk_follows_the_regime_and_arrears(client, company):
+    base = {"state": "Maharashtra", "paid_days": 31, "lop_days": 0, "pan": "ABCPE1234K", "pt": 200}
+    found = _direct(client, company, "2026-10-01", [
+        # ₹6.1 lakh a year, nothing deducted: tax is due under the old regime, not the new.
+        {**base, "employee_id": "TR1", "basic": 36000, "hra": 15000, "tds": 0, "tax_regime": "old"},
+        {**base, "employee_id": "TR2", "basic": 36000, "hra": 15000, "tds": 0, "tax_regime": "new"},
+        # ₹2 lakh of arrears bunched into the month, ₹5,000 deducted on regular pay only.
+        {**base, "employee_id": "TR3", "basic": 80000, "hra": 32000, "basic_arrear": 200000, "tds": 5000},
+        # The same pay with no arrears and tax deducted is not a risk month.
+        {**base, "employee_id": "TR4", "basic": 80000, "hra": 32000, "tds": 5000},
+    ])
+
+    def risk(eid):
+        return any(f["rule_id"] == "STAT-011" for f in found[eid])
+
+    assert risk("TR1") and not risk("TR2")
+    assert risk("TR3") and not risk("TR4")
