@@ -41,6 +41,7 @@ Thumbs.db
 
 # Generated / test artifacts (optional — remove lines if you want these in repo)
 backend/payroll_audit*.xlsx
+backend/statutory_verification_worksheet.xlsx
 backend/e2e_test_report.txt
 
 # Logs
