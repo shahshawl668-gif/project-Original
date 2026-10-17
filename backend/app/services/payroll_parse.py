@@ -40,6 +40,9 @@ IMPORT_FIELDS = (
     "aadhaar", "esi_number", "dob", "doj", "dol", "payment_mode", "tax_regime",
     "employment_type", "disability", "international_worker", "adolescent_permit",
     "death_or_disablement", "pf_eps", "bonus", "gratuity",
+    # Whether ESIC coverage carries over from the start of the contribution
+    # period (Y/N). Settles an above-ceiling month without last month's register.
+    "esic_covered",
 )
 ALIASES = {
     "emp_id": "employee_id", "employee_code": "employee_id",
@@ -55,6 +58,7 @@ ALIASES = {
     "aadhar": "aadhaar", "aadhaar_number": "aadhaar", "aadhaar_no": "aadhaar",
     "esi_no": "esi_number", "ip_number": "esi_number", "esic_ip_number": "esi_number",
     "esic_number": "esi_number", "esic_no": "esi_number",
+    "esi_covered": "esic_covered", "esic_coverage": "esic_covered", "esi_coverage": "esic_covered",
     "date_of_birth": "dob", "birth_date": "dob",
     "date_of_joining": "doj", "joining_date": "doj",
     "date_of_leaving": "dol", "date_of_exit": "dol", "exit_date": "dol", "leaving_date": "dol",

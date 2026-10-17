@@ -16,9 +16,15 @@ Each row carries:
                                     and divides amounts by the same factor to
                                     produce a per-month equivalent.
   * `applicable_months`          — list[int] for the months in which a full
-                                    contribution is due. A missing list keeps
-                                    monthly-equivalent behavior for states
-                                    whose collection month is unverified.
+                                    contribution is due: June and December
+                                    wages for half-yearly states, December
+                                    for yearly ones (state schedules, as
+                                    tabulated in Zoho Payroll's LWF guide,
+                                    https://www.zoho.com/in/payroll/academy/taxes-and-compliance/guide-to-lwf.html;
+                                    status VERIFY per docs/STATUTORY_RATE_AUDIT.md).
+                                    A row without a list falls back to
+                                    ``default_due_months`` and only then to a
+                                    monthly equivalent.
 
 States with NO statutory LWF (Bihar, Jharkhand, Uttar Pradesh, Uttarakhand,
 Himachal Pradesh, Jammu & Kashmir, Ladakh, Sikkim, all North-East states
@@ -73,7 +79,7 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
     # ---------- Yearly contributions (Dec / Jan) ----------
     "Andhra Pradesh": [
         # Deducted in December; remitted by 31 Jan.
-        _row(0, _TOP, 30, 70, freq="yearly"),
+        _row(0, _TOP, 30, 70, freq="yearly", months=[12]),
     ],
     "Karnataka": [
         # Karnataka Act 05 of 2025, published 10 Jan 2025, amended section 7A(2).
@@ -86,29 +92,29 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
     ],
     "Tamil Nadu": [
         # Annual contribution remitted by 31 Jan.
-        _row(0, _TOP, 20, 40, freq="yearly"),
+        _row(0, _TOP, 20, 40, freq="yearly", months=[12]),
     ],
     "Telangana": [
-        _row(0, _TOP, 2, 5, freq="yearly"),
+        _row(0, _TOP, 2, 5, freq="yearly", months=[12]),
     ],
 
     # ---------- Half-yearly contributions (Jun & Dec) ----------
     "Chhattisgarh": [
-        _row(0, _TOP, 15, 45, freq="half-yearly"),
+        _row(0, _TOP, 15, 45, freq="half-yearly", months=[6, 12]),
     ],
     "Delhi": [
-        _row(0, _TOP, 0.75, 2.25, freq="half-yearly"),
+        _row(0, _TOP, 0.75, 2.25, freq="half-yearly", months=[6, 12]),
     ],
     "Goa": [
         # Threshold ₹6500 splits the rate.
-        _row(0, 6500, 60, 180, freq="half-yearly"),
-        _row(6501, _TOP, 120, 360, freq="half-yearly"),
+        _row(0, 6500, 60, 180, freq="half-yearly", months=[6, 12]),
+        _row(6501, _TOP, 120, 360, freq="half-yearly", months=[6, 12]),
     ],
     "Gujarat": [
-        _row(0, _TOP, 6, 12, freq="half-yearly"),
+        _row(0, _TOP, 6, 12, freq="half-yearly", months=[6, 12]),
     ],
     "Madhya Pradesh": [
-        _row(0, _TOP, 10, 30, freq="half-yearly"),
+        _row(0, _TOP, 10, 30, freq="half-yearly", months=[6, 12]),
     ],
     "Maharashtra": [
         # Maharashtra Act XXV of 2024, section 6BB(2), gazetted 18 Mar 2024.
@@ -119,11 +125,11 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
              source_reference="https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf"),
     ],
     "Odisha": [
-        _row(0, _TOP, 20, 40, freq="half-yearly"),
+        _row(0, _TOP, 20, 40, freq="half-yearly", months=[6, 12]),
     ],
     "West Bengal": [
-        _row(0, 3500, 3, 15, freq="half-yearly"),
-        _row(3501, _TOP, 6, 18, freq="half-yearly"),
+        _row(0, 3500, 3, 15, freq="half-yearly", months=[6, 12]),
+        _row(3501, _TOP, 6, 18, freq="half-yearly", months=[6, 12]),
     ],
 
     # ---------- Monthly contributions ----------
@@ -139,6 +145,28 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
         _row(0, _TOP, 5, 20, freq="monthly"),
     ],
 }
+
+
+# When contributions fall due, by frequency, for rows that do not say. Half-yearly
+# LWF is on June and December wages and yearly LWF on December wages in every
+# state in this catalog; a state that differs must carry its own months.
+_DUE_BY_FREQUENCY = {"half-yearly": [6, 12], "yearly": [12]}
+
+
+def default_due_months(state: str | None, frequency: str | None) -> list[int] | None:
+    """The months a contribution of this frequency is due in ``state`` (None: spread monthly)."""
+    if not state:
+        return None
+    for name, rows in LWF_DEFAULTS.items():
+        if name.casefold() == state.strip().casefold():
+            for row in rows:
+                if row.get("frequency") == frequency and row.get("applicable_months"):
+                    return list(row["applicable_months"])
+    return _DUE_BY_FREQUENCY.get(frequency or "")
+
+
+def levies_lwf(state: str | None) -> bool:
+    return bool(state) and any(k.casefold() == state.strip().casefold() for k in LWF_DEFAULTS)
 
 
 def list_default_states() -> list[str]:

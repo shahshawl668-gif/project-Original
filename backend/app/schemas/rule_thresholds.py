@@ -70,8 +70,10 @@ class TrendThresholds(BaseModel):
 class TDSRiskThresholds(BaseModel):
     """STAT-011 — high-income month heuristic."""
     annual_income_threshold: Decimal = Field(
-        Decimal("500000"),
-        description="Annualised taxable income above which a high-income month is flagged, ₹")
+        Decimal("1275000"),
+        description=("Annualised taxable income above which a month with no TDS is flagged, ₹. Default: "
+                     "the new regime's nil-tax limit for FY 2026-27 (₹12 lakh after the 87A rebate, plus the "
+                     "₹75,000 standard deduction). Lower it for an old-regime workforce."))
     arrear_annualisation_factor: Decimal = Field(
         Decimal("0.3"), description="Fraction of the arrear total added to the month's taxable exposure")
 
@@ -96,8 +98,14 @@ class IdentityThresholds(BaseModel):
     min_working_age_years: Decimal = Field(Decimal("14"), description="Below this age: child labour, ERROR")
     adult_age_years: Decimal = Field(Decimal("18"), description="14-18 flagged unless adolescent permit column set")
     no_pan_tds_rate: Decimal = Field(Decimal("0.20"), description="Sec 206AA flat TDS rate when PAN is missing")
+    no_pan_min_annual_income: Decimal = Field(
+        Decimal("1275000"),
+        description=("Annualised taxable pay at or below which no tax is due, so the no-PAN rate does not "
+                     "apply (CBDT salary-TDS circular). Default: the new regime's nil-tax limit for FY 2026-27. "
+                     "Used only when the month has no TDS projection."))
 
-    @field_validator("min_working_age_years", "adult_age_years", "no_pan_tds_rate", mode="before")
+    @field_validator("min_working_age_years", "adult_age_years", "no_pan_tds_rate", "no_pan_min_annual_income",
+                     mode="before")
     @classmethod
     def _parse(cls, v):
         return _dec(v)

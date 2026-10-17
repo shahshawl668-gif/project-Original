@@ -629,8 +629,10 @@ def annotate_run(
         .scalar()
     )
     settings = db.query(StatutorySettings).filter(StatutorySettings.entity_id == entity.id).first()
-    pt_states = bool(settings and settings.pt_states)
-    lwf_states = bool(settings and settings.lwf_states)
+    # Ticked in settings, or else loaded as schedules — the same rule validation uses.
+    from app.services.validation import effective_pt_lwf_states
+    pt_list, lwf_list = effective_pt_lwf_states(db, entity.id, settings)
+    pt_states, lwf_states = bool(pt_list), bool(lwf_list)
 
     by_eid: dict[str, dict[str, Any]] = {}
     for row in source_rows:

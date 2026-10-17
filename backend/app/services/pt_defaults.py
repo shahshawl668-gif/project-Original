@@ -219,9 +219,15 @@ PT_DEFAULTS: dict[str, list[DefaultSlab]] = {
         _row(500001, _TOP, 2500, "yearly"),
     ],
     "Odisha": [
+        # Odisha Commercial Taxes, professional tax rate chart (salaried):
+        # ₹125/month for ₹1.6–3 lakh a year; above ₹3 lakh ₹200/month for the
+        # first eleven months and ₹300 for the last (March), ₹2,500 a year.
+        # https://odishatax.gov.in/professional_tax.php
         _row(0, 160000, 0, "yearly"),
         _row(160001, 300000, 1500, "yearly"),
         _row(300001, _TOP, 2400, "yearly"),
+        # March top-up: the month-specific row wins in March (₹3,600/12 = ₹300).
+        _row(300001, _TOP, 3600, "yearly", months=[3]),
     ],
     "Punjab": [
         # Punjab State Development Tax: ₹200/month for those above the IT
@@ -238,6 +244,26 @@ PT_DEFAULTS: dict[str, list[DefaultSlab]] = {
         _row(15001, _TOP, 208),
     ],
 }
+
+
+# States and UTs that levy no professional tax. An employee here owes none, so
+# not being in the company's PT schedules is not a gap to report.
+NO_PT_STATES = frozenset(s.casefold() for s in (
+    "Delhi", "NCT of Delhi", "Haryana", "Rajasthan", "Uttar Pradesh", "Uttarakhand", "Himachal Pradesh",
+    "Jammu and Kashmir", "Jammu & Kashmir", "Ladakh", "Goa", "Arunachal Pradesh", "Chandigarh",
+    "Andaman and Nicobar Islands", "Andaman & Nicobar Islands", "Dadra and Nagar Haveli and Daman and Diu",
+    "Daman and Diu", "Dadra and Nagar Haveli", "Lakshadweep",
+))
+
+
+def levies_pt(state: str | None) -> bool | None:
+    """True for a state in the PT catalog, False for one that levies none, None if unknown."""
+    if not state:
+        return None
+    folded = state.strip().casefold()
+    if any(k.casefold() == folded for k in PT_DEFAULTS):
+        return True
+    return False if folded in NO_PT_STATES else None
 
 
 def list_default_states() -> list[str]:

@@ -56,8 +56,16 @@ class PFWageConfig(BaseModel):
         default_factory=list,
         description="Component names to exclude from PF wage even if pf_applicable=True.",
     )
-    wage_ceiling:         Decimal = Field(Decimal("15000"), description="₹15,000 statutory ceiling")
+    wage_ceiling:         Decimal = Field(
+        Decimal("25000"),
+        description=("Statutory ceiling: ₹25,000 from 17 Sep 2026 (₹15,000 before). A statutory figure here "
+                     "follows the law month by month (services/statutory_calendar.py); any other figure is "
+                     "used as set."),
+    )
     restrict_to_ceiling:  bool    = Field(True, description="Cap PF wage at ceiling (default True)")
+    # Set only when configuration is loaded for a payroll month in which the
+    # ceiling changed: [(share of the month's days, ceiling), …]. Never stored.
+    ceiling_segments: list[tuple[Decimal, Decimal]] | None = Field(None, exclude=True)
 
     @field_validator("wage_ceiling", mode="before")
     @classmethod

@@ -176,11 +176,13 @@ def _alternate_basis_match(
     """
     full_wage = _dec(pf_calc.get("_pf_wage_full", pf_calc.get("pf_wage_capped", 0)))
     ceiling = _dec(pf_calc.get("_ceiling", 0))
-    if full_wage <= 0 or ceiling <= 0 or full_wage <= ceiling:
+    # Capped at the ceiling(s) in force for the month (split by days in a month the ceiling moved).
+    restricted_wage = _dec(pf_calc.get("_pf_wage_restricted", min(full_wage, ceiling) if ceiling > 0 else 0))
+    if full_wage <= 0 or ceiling <= 0 or full_wage <= restricted_wage:
         return None  # below the ceiling the two bases give the same answer
 
     rate = Decimal(str(rate_pct)) / Decimal("100")
-    restricted_amt = _q(ceiling * rate)
+    restricted_amt = _q(restricted_wage * rate)
     unrestricted_amt = _q(full_wage * rate)
 
     restricted_now = bool(pf_calc.get("_restrict", True))
@@ -533,7 +535,24 @@ def build_findings(
         start=Decimal("0"),
     )
 
-    if not esic_eligible and esic_wage_total > Decimal("0"):
+    continuation = esic_calc.get("_continuation")
+    esic_unconfirmed = (continuation == "unknown" and not esic_eligible
+                        and _dec(row.get("esic_employee") or 0) > 0)
+    if continuation == "covered":
+        pass_("STAT-005", "ESIC Eligibility", "esic_wage", _fmt(esic_wage_total),
+              f"Wages are above ₹{_fmt(esic_ceiling_cfg)} this month, but the employee was covered at the start "
+              "of the contribution period and stays covered to its end (ESI Act s.2(9)).")
+    elif esic_unconfirmed:
+        # Deducted above the ceiling with no earlier register to say whether
+        # coverage carried over from the start of the period. Saying "wrong"
+        # would be a guess; so would saying "right".
+        info("STAT-006", "ESIC Continuation Not Confirmed", "esic_employee",
+             "covered at the start of the contribution period", "(missing)",
+             f"ESIC is deducted on wages above ₹{_fmt(esic_ceiling_cfg)}. That is correct only if the employee "
+             "was covered at the start of this contribution period (April or October), and no earlier register "
+             "is stored to show it.",
+             "Upload the previous month's register, or add an 'esic_covered' (Y/N) column.")
+    elif not esic_eligible and esic_wage_total > Decimal("0"):
         info(
             "STAT-005",
             f"ESIC Ineligible — Above ₹{_fmt(esic_ceiling_cfg)}",
@@ -545,7 +564,9 @@ def build_findings(
         )
 
     esic_emp_raw = row.get("esic_employee")
-    if esic_emp_raw not in (None, ""):
+    if esic_unconfirmed:
+        pass                            # reported above as cannot validate
+    elif esic_emp_raw not in (None, ""):
         esic_emp_actual = _dec(esic_emp_raw)
         diff_esic = (esic_emp_actual - esic_emp_exp).copy_abs()
         if diff_esic > tol_stat:
@@ -564,7 +585,12 @@ def build_findings(
              "Add 'esic_employee' column to your salary register template.")
 
     esic_er_raw = row.get("esic_employer")
-    if esic_er_raw not in (None, ""):
+    if esic_unconfirmed:
+        info("STAT-007", "ESIC Continuation Not Confirmed", "esic_employer",
+             "covered at the start of the contribution period", "(missing)",
+             "Employer ESIC can be checked once coverage from the start of the period is known.",
+             "Upload the previous month's register, or add an 'esic_covered' (Y/N) column.")
+    elif esic_er_raw not in (None, ""):
         esic_er_actual = _dec(esic_er_raw)
         diff_er = (esic_er_actual - esic_er_exp).copy_abs()
         if diff_er > tol_stat:
@@ -1049,7 +1075,14 @@ def build_findings(
          if comp_by_key.get(k) and getattr(comp_by_key[k], "taxable", False)),
         start=Decimal("0"),
     )
-    if not pan_ok and tds_raw not in (None, "") and taxable_month > 0:
+    # The no-PAN rate applies only where tax is due at all: an employee whose
+    # income is below the taxable limit has no TDS deducted, PAN or not (CBDT
+    # salary-TDS circular). Use the month's projection when there is one.
+    if expected_monthly_tds is not None:
+        tax_due = expected_monthly_tds > 0
+    else:
+        tax_due = taxable_month * 12 > t.identity.no_pan_min_annual_income
+    if not pan_ok and tds_raw not in (None, "") and taxable_month > 0 and tax_due:
         required = _q(taxable_month * t.identity.no_pan_tds_rate)
         if _dec(tds_raw) < required - tol_stat:
             fail("TDS-001", "No-PAN TDS Below 20% (Sec 206AA)", "tds",

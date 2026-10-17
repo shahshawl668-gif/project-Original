@@ -202,10 +202,17 @@ def test_gratuity_formula_and_service_gate():
 # ── §8 TDS ───────────────────────────────────────────────────────────────────
 
 def test_no_pan_tds_must_be_20_pct():
-    row = {"employee_id": "E1", "basic": 50000, "tds": 2000}  # taxable 50,000 → need 10,000
+    # Taxable 1,50,000 a month (₹18 lakh a year) is above the nil-tax limit → need 30,000.
+    row = {"employee_id": "E1", "basic": 150000, "tds": 2000}
     assert "TDS-001" in rules_failed(run_engine(row, pf_wage=Decimal("15000")))
-    row_ok = {"employee_id": "E1", "basic": 50000, "tds": 10000}
+    row_ok = {"employee_id": "E1", "basic": 150000, "tds": 30000}
     assert "TDS-001" not in rules_failed(run_engine(row_ok, pf_wage=Decimal("15000")))
+
+
+def test_no_pan_with_no_tax_due_is_not_a_finding():
+    # ₹50,000 a month is ₹6 lakh a year: no tax is due under the new regime, PAN or not.
+    row = {"employee_id": "E1", "basic": 50000, "tds": 0}
+    assert "TDS-001" not in rules_failed(run_engine(row, pf_wage=Decimal("15000")))
 
 
 def test_tds_projection_deviation():

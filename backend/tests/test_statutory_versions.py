@@ -167,3 +167,18 @@ def test_publishing_is_for_managers_one_per_month_and_independent_when_required(
     listing = _data(client.get("/api/config/statutory/versions", headers=company))
     assert listing["independent_publish"] is True
     assert {v["status"] for v in listing["versions"]} == {"published", "draft"}
+
+
+def test_a_version_that_was_following_the_law_keeps_following_it(client):
+    """A version published in April 2026 for some other change carries ₹15,000,
+    the ceiling then in force. It covers every later month, so it must not
+    freeze ₹15,000 past 17 September 2026 (services/statutory_calendar.py)."""
+    company = _company(client, "sv-follow")
+    april = _draft(client, company, "2026-04-01", 15000, note="Component mapping")
+    _data(client.post(f"/api/config/statutory/versions/{april['id']}/publish", headers=company))
+    assert _ceiling(company, "2026-08-01") == "15000"
+    assert _ceiling(company, "2026-10-01") == "25000"
+    # A figure the law did not have when the version began is a decision, kept as published.
+    july = _draft(client, company, "2026-07-01", 25000, note="Early adoption")
+    _data(client.post(f"/api/config/statutory/versions/{july['id']}/publish", headers=company))
+    assert _ceiling(company, "2026-08-01") == "25000"

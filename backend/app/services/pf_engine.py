@@ -110,10 +110,15 @@ def compute_pf(
     # decision in; None means fall back to the entity's configured default.
     restrict = wage_cfg.restrict_to_ceiling if restrict_override is None else bool(restrict_override)
 
+    # The ceiling can change mid-month (17 Sep 2026): each part of the month is
+    # capped at the ceiling in force for those days, weighted by its days.
+    segments = wage_cfg.ceiling_segments or [(Decimal("1"), ceiling)]
+    restricted_wage = _q(sum((share * min(pf_wage, cap) for share, cap in segments), start=Decimal("0")))
+
     # Ceiling / voluntary logic
     if restrict:
-        capped = min(pf_wage, ceiling)
-        pf_type = "restricted" if pf_wage > ceiling else "unrestricted"
+        capped = restricted_wage
+        pf_type = "restricted" if pf_wage > restricted_wage else "unrestricted"
     else:
         capped = pf_wage
         pf_type = "uncapped"
@@ -127,11 +132,13 @@ def compute_pf(
     emp      = _q(capped * _dec(rates.employee_rate))
     emp_total = _q(capped * _dec(rates.employer_rate))
 
-    eps_base = min(capped, ceiling)   # EPS always capped even in uncapped mode
+    eps_base = restricted_wage        # EPS and EDLI are always capped, even in uncapped mode
     eps      = _q(eps_base * _dec(rates.eps_rate))
     epf      = _q(emp_total - eps)
     edli     = _q(eps_base * _dec(rates.edli_rate))
-    admin    = _q(eps_base * _dec(rates.admin_rate))
+    # Administration charges are on the wages contributions are actually paid
+    # on: the full wage for someone contributing above the ceiling.
+    admin    = _q(capped * _dec(rates.admin_rate))
 
     # Voluntary PF (above-ceiling employee-side)
     vol_emp = Decimal("0")
@@ -152,6 +159,10 @@ def compute_pf(
         "_ceiling":          float(ceiling),
         # The wage before any cap, so a rule can test the opposite basis.
         "_pf_wage_full":     float(pf_wage),
+        # The wage capped at the ceiling(s) in force for the month — what the
+        # restricted basis contributes on, split by days when the ceiling moved.
+        "_pf_wage_restricted": float(restricted_wage),
+        "_ceiling_segments": [[float(share), float(cap)] for share, cap in segments] if len(segments) > 1 else None,
         "_restrict":         restrict,
         "_emp_rate":         float(rates.employee_rate),
         "_er_rate":          float(rates.employer_rate),

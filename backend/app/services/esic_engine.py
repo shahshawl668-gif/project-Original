@@ -81,9 +81,14 @@ def compute_esic(
     esic_wage: Decimal,
     esic_cfg: ESICConfig,
     employment_type: str = "employee",
+    covered: bool = False,
 ) -> dict[str, Any]:
     """
     Compute ESIC employee + employer contributions using ESICConfig.
+
+    ``covered`` — the employee was covered at the start of the contribution
+    period and stays covered to its end whatever this month's wage (ESI Act
+    s.2(9) proviso); contributions are then on the actual wage.
 
     Returns:
         esic_eligible, esic_employee, esic_employer
@@ -97,6 +102,8 @@ def compute_esic(
     # Evaluate eligibility expression
     if employment_type.lower() in [e.lower() for e in elig_cfg.exempt_employment_types]:
         eligible = False
+    elif covered and esic_wage > 0:
+        eligible = True
     else:
         ctx: dict[str, Any] = {
             "esic_wage":    float(esic_wage),

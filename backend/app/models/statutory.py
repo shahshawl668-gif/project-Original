@@ -18,7 +18,7 @@ class StatutorySettings(Base):
     )
 
     # PF
-    pf_wage_ceiling: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("15000"))
+    pf_wage_ceiling: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("25000"))
     pf_employee_rate: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False, default=Decimal("0.12"))
     pf_employer_rate: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False, default=Decimal("0.12"))
     pf_eps_rate: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False, default=Decimal("0.0833"))

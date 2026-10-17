@@ -114,17 +114,22 @@ Define every earning column that appears in registers and CTC files. For each co
 
 **Tip:** Arrear columns (e.g. “Basic Arrear”) should be named with **“Arrear”** in the name so optional-arrear rules behave correctly.
 
-### 3.2 PT and LWF state lists (required for correct PT/LWF)
+### 3.2 PT and LWF state lists (optional)
 
 **API:** `PUT /api/settings/statutory`  
 **Fields:** `pt_states`, `lwf_states` (arrays of state names, e.g. `"Maharashtra"`, `"Karnataka"`).
 
-If these lists are **empty**, the engine may **not** compute PT/LWF for rows, which leads to **net pay mismatches** (register has PT/LWF but system expects zero).
+If a list is **empty**, PT (or LWF) is checked for every state whose schedule the company has loaded
+(§3.3) — loading a state's slabs is the statement that you pay it there. Set a list only to narrow
+checking to fewer states than you have loaded.
 
 - `**pt_states`:** States where you operate and need **Professional Tax** slabs.
 - `**lwf_states`:** States where **Labour Welfare Fund** applies.
 
-Per-row **state** comes from the upload column `state` (aliases: `work_state`, `state_pt`, `location_state`). The row’s state must appear in the corresponding list, or the tenant **default** (first list entry) is used.
+Per-row **state** comes from the upload column `state` (aliases: `work_state`, `state_pt`, `location_state`). The row’s state must be one of those states, or the tenant **default** (when exactly one state applies) is used.
+An employee in a state that levies no PT (Delhi, Haryana, Uttar Pradesh…) is simply not applicable. An
+employee in a state that levies PT or LWF with no schedule loaded gets **DATA-PT-STATE / DATA-LWF-STATE
+"Schedule Not Loaded"** — the check was not performed, and the finding says so rather than passing.
 
 ### 3.3 PT / LWF slabs
 
@@ -264,21 +269,23 @@ Rules are grouped in layers (data quality → structure → aggregates → statu
 | COMP-*     | Unmapped columns, missing PF wage columns                                                                            |
 | STRUCT-*   | Low Basic % of gross (PF avoidance), allowance-heavy                                                                 |
 | AGG-*      | Gross vs sum of earnings; net vs gross minus statutory deductions                                                    |
-| STAT-001 … | PF / ESIC / PT / LWF mismatches; bonus eligibility (STAT-012/013); gratuity cap (STAT-014); TDS risk hint (STAT-011) |
+| STAT-001 … | PF / ESIC / PT / LWF mismatches; bonus eligibility (STAT-012/013); gratuity cap (STAT-014); TDS risk hint (STAT-011, only when no TDS was deducted) |
 | LOP-*      | paid_days + lop_days vs denominator; proration vs CTC monthly × paid/total                                           |
 | MOM-*      | New joiner, component spike/drop vs prior month, new components, increment arrear vs CTC                             |
 | ADV-*      | Salary spikes/drops vs prior gross                                                                                   |
 | ID-*       | PAN (206AA), Aadhaar (Verhoeff), UAN, ESI number, IFSC formats; working age; pay before DOJ / after DOL              |
 | PF-004/008 | EPS split vs cap, post-Sep-2014 joiner EPS=0, EPS stop at 58, international-worker ceiling                           |
 | ESI-005/006| Disability coverage ceiling (₹25,000), daily-wage employee-share exemption (₹176)                                    |
+| STAT-005/6/7 ESIC period | Covered at the start of a contribution period (April, October) stays covered to its end: read from last month's register or an `esic_covered` (Y/N) column; with neither, *cannot validate* |
+| PF ceiling | ₹15,000 to 16 Sep 2026, ₹25,000 from 17 Sep 2026 (EPF, EPS and EDLI); September 2026 split by days (1–16 / 17–30). A statutory figure in config follows these dates; any other figure is used as set |
 | PT-002/003 | Article 276 annual cap (₹2,500), PT deducted in a no-PT state                                                        |
 | BON-*      | Payment of Bonus Act eligibility (₹21,000) and 8.33–20% band on min(Basic+DA, ₹7,000)                                |
 | GRAT-002/3 | Gratuity service gate (5y, waived on death/disablement) and 15/26 formula check                                      |
-| TDS-001/002| No-PAN 20% minimum (Sec 206AA); monthly TDS vs annualised projection for the declared regime                         |
+| TDS-001/002| No-PAN 20% minimum (Sec 206AA) where tax is due at all; monthly TDS vs annualised projection for the declared regime |
 | DATA-005…9 | Negative deductions; duplicate PAN / UAN / Aadhaar / bank account across employees                                   |
 
 Optional identity/master-data columns the register may carry: `pan`, `aadhaar`,
-`uan`, `esi_number`, `bank_account`, `ifsc`, `dob`, `doj`, `dol`, `tax_regime`,
+`uan`, `esi_number`, `esic_covered` (Y/N: covered at the start of this ESIC contribution period), `bank_account`, `ifsc`, `dob`, `doj`, `dol`, `tax_regime`,
 `gender`, `disability`, `international_worker`, `adolescent_permit`,
 `death_or_disablement`, `eps`, `bonus`, `gratuity`, `tds`. Every threshold these
 rules use is editable under **Configuration → Income tax & thresholds**.
@@ -851,8 +858,8 @@ Health: `**GET /api/health`**
 
 | Symptom                            | Likely cause                                 | What to do                                                                     |
 | ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------ |
-| PT always zero                     | `pt_states` empty or row `state` not in list | Set **PT states** in **Settings → Statutory** (API: `/api/settings/statutory`) |
-| LWF always zero                    | Same for `lwf_states`                        | Configure **LWF states** and import slabs                                      |
+| PT always zero / "Schedule Not Loaded" | No PT schedule loaded for the row's state | Import the state's slabs (**Rule Engine → PT/LWF slabs**); `pt_states` is optional |
+| LWF always zero                    | Same for LWF                                  | Import the LWF slabs; contributions are expected in their due months (June/December, or December) |
 | Net pay mismatch (AGG-002)         | PT/LWF not computed, or wrong PF/ESIC        | Fix settings; align register columns with engine                               |
 | Many LOP-002 warnings              | Calendar days vs 26-day payroll              | Add `**total_days: 26`** (or your standard) on each row                        |
 | “PF component missing” for arrears | Old data / naming                            | Name arrear columns with **“arrear”**; refresh components                      |

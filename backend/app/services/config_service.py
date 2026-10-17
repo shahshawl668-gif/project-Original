@@ -259,6 +259,14 @@ class ConfigService:
                 component_mapping=ComponentMappingConfig.model_validate(row.component_mapping_config or {}),
             )
             self.in_force = {"version": None, "id": None, "effective_from": None}
+        if self._as_of:
+            # The law's own dates, which need not be the first of a month: the
+            # EPF ceiling moved on 17 September 2026 (services/statutory_calendar.py).
+            from app.services.statutory_calendar import apply_pf_ceiling
+            wage = apply_pf_ceiling(cfg.pf.wage, self._as_of,
+                                    since=version.effective_from if version is not None else None)
+            if wage is not cfg.pf.wage:
+                cfg = cfg.model_copy(update={"pf": cfg.pf.model_copy(update={"wage": wage})})
         self._cache[key] = cfg
         return cfg
 

@@ -26,6 +26,8 @@ from app.models import (
 from app.services import labour_codes, validation_matrix
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
+from app.services.lwf_defaults import default_due_months, levies_lwf
+from app.services.pt_defaults import levies_pt
 from app.services.payroll_parse import normalize_col
 from app.services.pf_basis import resolve as resolve_pf_basis
 from app.services.row_composition import describe as describe_row
@@ -427,9 +429,10 @@ def lookup_lwf(
                 if lo <= w_period <= hi:
                     emp_period = Decimal(str(r.deduction_amount))
                     er_period = Decimal(str(r.employer_amount or 0))
-                    months = r.applicable_months or (
-                        [6, 12] if state == "Maharashtra" and r.frequency == "half-yearly" else None
-                    )
+                    # Rows imported before due months were catalogued carry none:
+                    # use the state's schedule (June/December, December) rather
+                    # than spreading the contribution over every month.
+                    months = r.applicable_months or default_due_months(state, r.frequency)
                     if months:
                         due = as_of.month in months
                         emp_monthly = emp_period if due else Decimal("0")
@@ -584,6 +587,70 @@ def _latest_ctcs(db: Session, entity_id, employee_id: str, as_of: date) -> list[
         .limit(2)
         .all()
     )
+
+
+def effective_pt_lwf_states(db: Session, entity_id, settings) -> tuple[list[str], list[str]]:
+    """The states PT and LWF are checked for: those ticked in settings, or else
+    every state whose schedule the company has loaded.
+
+    Loading a state's slabs is itself the statement that the company pays PT
+    there. Requiring a second tick in settings meant a company that imported
+    every schedule but ticked nothing had no PT checked at all, and nothing
+    said so.
+    """
+    pt = list(getattr(settings, "pt_states", None) or [])
+    lwf = list(getattr(settings, "lwf_states", None) or [])
+    if not pt or not lwf:
+        loaded: dict[str, set[str]] = {"PT": set(), "LWF": set()}
+        for rule_type, state in (
+            db.query(SlabRule.rule_type, SlabRule.state)
+            .filter(SlabRule.entity_id == entity_id, SlabRule.rule_type.in_(("PT", "LWF")))
+            .distinct()
+        ):
+            if state:
+                loaded[rule_type].add(state)
+        pt = pt or sorted(loaded["PT"])
+        lwf = lwf or sorted(loaded["LWF"])
+    return pt, lwf
+
+
+_ESIC_COVERED_COLUMNS = ("esic_covered", "esi_covered", "esic_coverage", "esic_applicable", "esi_applicable")
+_YES = {"y", "yes", "true", "1", "covered", "applicable"}
+_NO = {"n", "no", "false", "0", "not covered", "not applicable", "na", "n/a"}
+
+
+def esic_continuation(row: dict[str, Any], prior_rows: dict[str, Any], employee_id: str,
+                      period_month: date | None) -> str:
+    """Is an employee whose wage is above the ceiling this month still ESIC-covered?
+
+    Coverage is decided at the start of each contribution period (1 April,
+    1 October) and lasts to its end (ESI Act s.2(9) proviso). Returns:
+
+    * ``covered`` — the register says so, or they were covered last month in
+      the same period;
+    * ``not_covered`` — the register says not, a new period starts this month,
+      last month shows no ESIC, or they are not on last month's register;
+    * ``unknown`` — there is no earlier register to tell from.
+    """
+    for key in _ESIC_COVERED_COLUMNS:
+        value = str(row.get(key) if row.get(key) is not None else "").strip().casefold()
+        if value in _YES:
+            return "covered"
+        if value in _NO:
+            return "not_covered"
+    if period_month is None:
+        return "unknown"
+    if period_month.month in (4, 10):
+        return "not_covered"            # a new contribution period: this month's wage decides
+    prior = prior_rows.get(employee_id)
+    if prior is None:
+        # A stored register without this person means they joined this month,
+        # above the ceiling. No register at all means we cannot tell.
+        return "not_covered" if prior_rows else "unknown"
+    stated = (prior.deductions or {}).get("ee_esi")
+    if stated is None:
+        return "unknown"
+    return "covered" if float(stated) > 0 else "not_covered"
 
 
 def _prior_register_rows(db: Session, entity_id, period_month: date) -> dict[str, SalaryRegisterRow]:
@@ -897,8 +964,7 @@ def validate_employees(
     settings = _get_or_default_settings(db, entity)  # still used for PT/LWF states
 
     comp_by_key = _component_key_map(components)
-    pt_states_cfg: list[str] = list(settings.pt_states or [])
-    lwf_states_cfg: list[str] = list(settings.lwf_states or [])
+    pt_states_cfg, lwf_states_cfg = effective_pt_lwf_states(db, entity.id, settings)
     default_pt_state = pt_states_cfg[0] if len(pt_states_cfg) == 1 else None
     default_lwf_state = lwf_states_cfg[0] if len(lwf_states_cfg) == 1 else None
     months = num_months(effective_from, effective_to)
@@ -1065,6 +1131,13 @@ def validate_employees(
         effective_esic_wage = esic_wage_cfg if esic_wage_cfg > Decimal("0") else esic_wage
 
         esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type)
+        if not esic_calc["esic_eligible"] and effective_esic_wage > 0:
+            # Above the ceiling this month — but coverage is fixed for the whole
+            # contribution period by the wage at its start (ESI Act s.2(9)).
+            continuation = esic_continuation(row, prior_rows, eid, period_month)
+            if continuation == "covered":
+                esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type, covered=True)
+            esic_calc["_continuation"] = continuation
 
         # Overwrite the locally computed pf_wage / esic_wage so the rest of the
         # function (PT, LWF, findings) uses the config-driven values.
@@ -1222,10 +1295,16 @@ def validate_employees(
         )
         errors.extend(prior_errors)
 
-        # TDS risk heuristic (thresholds configurable per tenant)
+        # TDS risk heuristic (thresholds configurable per tenant). Only where no
+        # TDS was deducted: a month that did deduct tax has not skipped the slab.
         taxable = taxable_exposure(components, regular)
         spike = taxable + (arrear_total * rule_thresholds.tds.arrear_annualisation_factor)
-        if spike > rule_thresholds.tds.annual_income_threshold / 12:
+        tds_stated = row.get("tds") if row.get("tds") not in (None, "") else row.get("income_tax")
+        try:
+            no_tds = tds_stated in (None, "") or Decimal(str(tds_stated)) <= 0
+        except Exception:
+            no_tds = True
+        if spike > rule_thresholds.tds.annual_income_threshold / 12 and no_tds:
             tds_risk.append("TDS slab not applied; high-income month possible due to arrears/bunching.")
 
         # Sec 192 projection: expected monthly TDS from the tenant's FY tax
@@ -1308,7 +1387,20 @@ def validate_employees(
         for scheme, configured, selected in (
             ("PT", pt_states_cfg, state_pt), ("LWF", lwf_states_cfg, state_lwf),
         ):
-            if configured and selected is None:
+            levies = levies_pt(row_state) if scheme == "PT" else (levies_lwf(row_state) if row_state else None)
+            if selected is None and row_state and levies is False:
+                pass        # this state levies no PT / LWF: nothing to check, nothing missing
+            elif selected is None and not configured and levies:
+                emp_findings.append(ValidationFinding(
+                    employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
+                    rule_id=f"DATA-{scheme}-STATE", rule_name=f"{scheme} Schedule Not Loaded",
+                    component="state", expected_value=f"{scheme} schedule for {row_state}",
+                    actual_value="(missing)", difference="", severity="CRITICAL", status="FAIL",
+                    reason=(f"{row_state} levies {scheme}, but no {scheme} schedule is loaded for this company, "
+                            f"so {scheme} was not checked."),
+                    suggested_fix=f"Load the {row_state} schedule under Rule Engine → PT/LWF slabs, then validate again.",
+                ))
+            elif configured and selected is None:
                 emp_findings.append(ValidationFinding(
                     employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
                     rule_id=f"DATA-{scheme}-STATE", rule_name=f"{scheme} State Not Mapped",

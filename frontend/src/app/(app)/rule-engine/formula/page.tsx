@@ -41,7 +41,7 @@ import {
 const RULE_TYPES: FormulaRuleType[] = ["PF", "ESIC"];
 
 const PRESETS: Record<FormulaRuleType, string> = {
-  PF: "min(pf_wage, 15000) * 0.12",
+  PF: "min(pf_wage, 25000) * 0.12",
   ESIC: "if(gross <= 21000, gross * 0.0075, 0)",
 };
 
@@ -189,7 +189,7 @@ export default function FormulaPage() {
                 <Label htmlFor="formula-name">Name (optional)</Label>
                 <Input
                   id="formula-name"
-                  placeholder="e.g. PF v1 — capped at 15000"
+                  placeholder="e.g. PF v2 — capped at 25000"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
