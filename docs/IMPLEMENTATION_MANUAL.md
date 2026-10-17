@@ -160,9 +160,23 @@ the deemed wages is for the D6 reviewer to settle (GO_LIVE.md).
 
 ![Statutory configuration](images/10-settings-statutory.png)
 
-Shipped defaults: PF 12% employee and employer, EPS 8.33%, ceiling ₹15,000,
+Shipped defaults: PF 12% employee and employer, EPS 8.33%, ceiling ₹25,000,
 EDLI and admin 0.5% each, ESIC 0.75% employee / 3.25% employer. Restrict-to-
 ceiling is on by default.
+
+The PF ceiling follows the law by date: ₹15,000 for months up to August 2026,
+₹25,000 from October 2026, and September 2026 split by days (1–16 on ₹15,000,
+17–30 on ₹25,000, S.O. 5109(E)). Leave the ceiling on a statutory figure and
+nobody needs to publish a dated change for it. Type any other figure and it is
+used exactly as typed, for every month. A dated change from 1 September 2026 at
+₹25,000 also follows the law, so September is still split. The EPS cap under
+rule thresholds behaves the same way.
+
+ESIC coverage that carries to the end of a contribution period is proven from
+the employee's wages in the period's earlier months. Load the client's
+registers from the start of the current period (April or October) before the
+first validation. Without them, an employee above ₹21,000 is reported as
+*cannot validate* for ESIC rather than guessed.
 
 **Basic** shows the rates, ceilings and switches most companies change;
 **Advanced** adds component lists, eligibility expressions (with a tester),

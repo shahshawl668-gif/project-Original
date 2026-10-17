@@ -287,7 +287,8 @@ REGISTRY: list[RuleCoverage] = [
                  applies=lambda c: c.num("gratuity") > 0, na_reason="No gratuity paid"),
     RuleCoverage("PF-004", "EPS Contribution", "Statutory",
                  applies=lambda c: _pf_expected(c) > 0, na_reason="No PF due",
-                 requires=(("EPS column", STATED("eps", "pf_eps", "eps_employer")),)),
+                 requires=(("EPS column", STATED("eps", "pf_eps", "eps_employer")),),
+                 cannot_marker=lambda f: f.get("rule_name") == "EPS Membership Not Confirmed"),
     RuleCoverage("PF-008", "International Worker PF", "Statutory",
                  applies=lambda c: c.flag("international_worker"), na_reason="Not an international worker"),
     RuleCoverage("ESI-005", "Disability ESI Coverage", "Statutory",
@@ -629,8 +630,10 @@ def annotate_run(
         .scalar()
     )
     settings = db.query(StatutorySettings).filter(StatutorySettings.entity_id == entity.id).first()
-    pt_states = bool(settings and settings.pt_states)
-    lwf_states = bool(settings and settings.lwf_states)
+    # Ticked in settings, or else loaded as schedules — the same rule validation uses.
+    from app.services.validation import effective_pt_lwf_states
+    pt_list, lwf_list = effective_pt_lwf_states(db, entity.id, settings)
+    pt_states, lwf_states = bool(pt_list), bool(lwf_list)
 
     by_eid: dict[str, dict[str, Any]] = {}
     for row in source_rows:

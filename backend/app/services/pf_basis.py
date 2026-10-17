@@ -32,7 +32,7 @@ RESTRICTION_KEYS = (
 )
 
 # Values meaning "capped at the ceiling".
-_RESTRICTED = {"y", "yes", "true", "1", "restricted", "capped", "limited", "ceiling", "15000"}
+_RESTRICTED = {"y", "yes", "true", "1", "restricted", "capped", "limited", "ceiling", "15000", "25000"}
 # Values meaning "PF on full wage".
 _UNRESTRICTED = {"n", "no", "false", "0", "unrestricted", "uncapped", "full", "actual", "full_wage"}
 

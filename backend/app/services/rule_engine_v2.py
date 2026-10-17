@@ -26,6 +26,7 @@ from typing import Any
 from app.schemas.rule_thresholds import RuleThresholdsConfig
 from app.services import identity_checks as idc
 from app.services import labour_codes
+from app.services.statutory_calendar import PF_WAGE_CEILING, ceiling_segments, follows_statute, value_on
 
 CENT = Decimal("0.01")
 HALF_UP = __import__("decimal").ROUND_HALF_UP
@@ -176,11 +177,13 @@ def _alternate_basis_match(
     """
     full_wage = _dec(pf_calc.get("_pf_wage_full", pf_calc.get("pf_wage_capped", 0)))
     ceiling = _dec(pf_calc.get("_ceiling", 0))
-    if full_wage <= 0 or ceiling <= 0 or full_wage <= ceiling:
+    # Capped at the ceiling(s) in force for the month (split by days in a month the ceiling moved).
+    restricted_wage = _dec(pf_calc.get("_pf_wage_restricted", min(full_wage, ceiling) if ceiling > 0 else 0))
+    if full_wage <= 0 or ceiling <= 0 or full_wage <= restricted_wage:
         return None  # below the ceiling the two bases give the same answer
 
     rate = Decimal(str(rate_pct)) / Decimal("100")
-    restricted_amt = _q(ceiling * rate)
+    restricted_amt = _q(restricted_wage * rate)
     unrestricted_amt = _q(full_wage * rate)
 
     restricted_now = bool(pf_calc.get("_restrict", True))
@@ -533,7 +536,32 @@ def build_findings(
         start=Decimal("0"),
     )
 
-    if not esic_eligible and esic_wage_total > Decimal("0"):
+    continuation = esic_calc.get("_continuation")
+    continuation_basis = esic_calc.get("_continuation_basis") or ""
+    # Coverage that cannot be told is reported as such whatever the register
+    # did: a nil deduction is as unconfirmed as a deduction, and passing it would
+    # hide the commonest error of all — ESIC stopped the month a raise crosses
+    # the ceiling.
+    esic_unconfirmed = continuation == "unknown" and not esic_eligible
+    esic_stated = stated(row, "esic_employee")
+    esic_deducted_now = esic_stated not in (None, "") and _dec(esic_stated) > 0
+    unconfirmed_reason = (
+        f"Wages are above ₹{_fmt(esic_ceiling_cfg)} this month. ESIC is still due if the employee was covered "
+        "earlier in this contribution period (ESI Act s.2(9)), and not otherwise — but "
+        f"{continuation_basis or 'no earlier register of the period is stored'}, so the register's "
+        f"{'deduction' if esic_deducted_now else 'nil deduction'} can be neither confirmed nor faulted."
+    )
+    unconfirmed_fix = ("Upload the registers for the earlier months of this contribution period, "
+                       "or add an 'esic_covered' (Y/N) column.")
+    if continuation == "covered":
+        pass_("STAT-005", "ESIC Eligibility", "esic_wage", _fmt(esic_wage_total),
+              f"Wages are above ₹{_fmt(esic_ceiling_cfg)} this month, but coverage gained earlier in the "
+              f"contribution period lasts to its end (ESI Act s.2(9)): {continuation_basis}.")
+    elif esic_unconfirmed:
+        info("STAT-006", "ESIC Continuation Not Confirmed", "esic_employee",
+             "coverage from earlier in the contribution period", "(missing)",
+             unconfirmed_reason, unconfirmed_fix)
+    elif not esic_eligible and esic_wage_total > Decimal("0"):
         info(
             "STAT-005",
             f"ESIC Ineligible — Above ₹{_fmt(esic_ceiling_cfg)}",
@@ -545,7 +573,9 @@ def build_findings(
         )
 
     esic_emp_raw = row.get("esic_employee")
-    if esic_emp_raw not in (None, ""):
+    if esic_unconfirmed:
+        pass                            # reported above as cannot validate
+    elif esic_emp_raw not in (None, ""):
         esic_emp_actual = _dec(esic_emp_raw)
         diff_esic = (esic_emp_actual - esic_emp_exp).copy_abs()
         if diff_esic > tol_stat:
@@ -564,7 +594,12 @@ def build_findings(
              "Add 'esic_employee' column to your salary register template.")
 
     esic_er_raw = row.get("esic_employer")
-    if esic_er_raw not in (None, ""):
+    if esic_unconfirmed:
+        info("STAT-007", "ESIC Continuation Not Confirmed", "esic_employer",
+             "coverage from earlier in the contribution period", "(missing)",
+             "Employer ESIC can be checked once coverage earlier in the contribution period is known.",
+             unconfirmed_fix)
+    elif esic_er_raw not in (None, ""):
         esic_er_actual = _dec(esic_er_raw)
         diff_er = (esic_er_actual - esic_er_exp).copy_abs()
         if diff_er > tol_stat:
@@ -916,18 +951,48 @@ def build_findings(
     eps_raw = stated(row, "eps", "pf_eps", "eps_employer")
     if eps_raw not in (None, ""):
         eps_actual = _dec(eps_raw)
-        eps_cap = t.pf_deep.eps_wage_cap
-        eps_expected = _q(min(pf_wage_total, eps_cap) * t.pf_deep.eps_rate)
+        # The pensionable-wage cap follows the PF wage ceiling: ₹25,000 from
+        # 17 Sep 2026, September split by days (services/statutory_calendar.py).
+        # A non-statutory figure in the thresholds is used as set.
+        eps_segments = (ceiling_segments(t.pf_deep.eps_wage_cap, ref_date) if isinstance(ref_date, date)
+                        else [(Decimal("1"), t.pf_deep.eps_wage_cap)])
+        eps_cap = eps_segments[-1][1]
+        eps_base = sum((share * min(pf_wage_total, cap) for share, cap in eps_segments), start=Decimal("0"))
+        eps_expected = _q(eps_base * t.pf_deep.eps_rate)
         eps_zero_reason = ""
         cutoff = idc.parse_cell_date(t.pf_deep.eps_join_cutoff)
-        if doj and cutoff and doj >= cutoff and pf_wage_total > eps_cap:
-            eps_expected, eps_zero_reason = Decimal("0"), f"joined {doj} (≥ {cutoff}) with PF wages above ₹{eps_cap}"
+        # Membership for a post-2014 joiner turns on the limit in force when
+        # they joined: ₹15,000 before 17 Sep 2026, ₹25,000 from it.
+        join_limit = (value_on(PF_WAGE_CEILING, doj)
+                      if doj and follows_statute(PF_WAGE_CEILING, t.pf_deep.eps_wage_cap)
+                      else t.pf_deep.eps_wage_cap)
+        member_expected = eps_expected
+        membership_unknown = False
+        if doj and cutoff and doj >= cutoff and pf_wage_total > join_limit:
+            # Membership turns on the wage *at joining*; the register shows
+            # this month's. Someone who joined within the limit and has since
+            # been raised above it is still a member. Either figure can be right.
+            eps_expected, eps_zero_reason = Decimal("0"), f"joined {doj} (≥ {cutoff}) with PF wages above ₹{join_limit}"
+            membership_unknown = True
         if dob and ref_date and idc.age_in_years(dob, ref_date) >= float(t.pf_deep.eps_max_age_years):
             eps_expected, eps_zero_reason = Decimal("0"), f"age ≥ {t.pf_deep.eps_max_age_years} — EPS stops, full 12% to EPF"
-        if (eps_actual - eps_expected).copy_abs() > tol_stat:
+            membership_unknown = False
+        if membership_unknown and min((eps_actual - eps_expected).copy_abs(),
+                                      (eps_actual - member_expected).copy_abs()) <= tol_stat:
+            info("PF-004", "EPS Membership Not Confirmed", "eps",
+                 f"0 or {_fmt(member_expected)}", _fmt(eps_actual),
+                 (f"Joined {doj}, after {cutoff}, and PF wages are now above ₹{join_limit}. EPS is 0 if wages "
+                  f"were above ₹{join_limit} at joining, and {_fmt(member_expected)} if they were within it and "
+                  "have risen since. The register does not show the wage at joining."),
+                 "Confirm EPS membership from the joining record; the deduction matches one of the two.")
+        elif (eps_actual - eps_expected).copy_abs() > tol_stat:
             fail("PF-004", "EPS Contribution Mismatch", "eps", eps_expected, eps_actual, "CRITICAL",
                  (f"EPS should be 0: {eps_zero_reason}." if eps_zero_reason else
-                  f"EPS must be {t.pf_deep.eps_rate}×min(PF wages, ₹{eps_cap}) = {_fmt(eps_expected)}."),
+                  (f"EPS must be {t.pf_deep.eps_rate}×min(PF wages, ₹{eps_cap}) = {_fmt(eps_expected)}."
+                   if len(eps_segments) == 1 else
+                   f"EPS must be {t.pf_deep.eps_rate}×{_fmt(eps_base)} (PF wages capped day by day: "
+                   + " + ".join(f"{float(sh) * 100:.1f}% at ₹{cp}" for sh, cp in eps_segments)
+                   + f") = {_fmt(eps_expected)}.")),
                  f"Correct EPS to ₹{_fmt(eps_expected)} and route the balance to EPF.",
                  float((eps_actual - eps_expected).copy_abs()))
 
@@ -1049,7 +1114,14 @@ def build_findings(
          if comp_by_key.get(k) and getattr(comp_by_key[k], "taxable", False)),
         start=Decimal("0"),
     )
-    if not pan_ok and tds_raw not in (None, "") and taxable_month > 0:
+    # The no-PAN rate applies only where tax is due at all: an employee whose
+    # income is below the taxable limit has no TDS deducted, PAN or not (CBDT
+    # salary-TDS circular). Use the month's projection when there is one.
+    if expected_monthly_tds is not None:
+        tax_due = expected_monthly_tds > 0
+    else:
+        tax_due = taxable_month * 12 > t.identity.no_pan_min_annual_income
+    if not pan_ok and tds_raw not in (None, "") and taxable_month > 0 and tax_due:
         required = _q(taxable_month * t.identity.no_pan_tds_rate)
         if _dec(tds_raw) < required - tol_stat:
             fail("TDS-001", "No-PAN TDS Below 20% (Sec 206AA)", "tds",

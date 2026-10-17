@@ -75,7 +75,7 @@ export default function DeveloperPage() {
 }
 
 function FormulaTester() {
-  const [expression, setExpression] = useState("min(pf_wage, 15000) * 0.12");
+  const [expression, setExpression] = useState("min(pf_wage, 25000) * 0.12");
   const [sample, setSample] = useState('[{"employee_id": "00123", "pf_wage": "18,000"}, {"employee_id": "00124", "pf_wage": ""}]');
   const [out, setOut] = useState<FormulaResult | null>(null);
   const run = async () => {

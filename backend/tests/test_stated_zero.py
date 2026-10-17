@@ -144,9 +144,10 @@ def test_professional_tax_of_zero_is_checked_against_the_slab(client, workspace)
 
 
 def test_no_pan_with_zero_tds_still_trips_section_206aa(client, workspace):
-    # Section 206AA requires 20% where there is no PAN. An employee with no PAN
-    # and no tax deducted is the violation, and it was the case being skipped.
-    findings = validate(client, workspace, {**BASE, "pf_employee": 1800, "tds": 0})
+    # Section 206AA requires 20% where there is no PAN and tax is due. An
+    # employee with no PAN and no tax deducted is the violation, and it was the
+    # case being skipped. ₹1,50,000 a month is well above the nil-tax limit.
+    findings = validate(client, workspace, {**BASE, "basic": 150000, "pf_employee": 1800, "tds": 0})
     tds_001 = find(findings, "TDS-001")
     assert tds_001 is not None
     assert tds_001["severity"] == "CRITICAL"

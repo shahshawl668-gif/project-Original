@@ -3,8 +3,10 @@
 import type { FormulaRuleType } from "@/lib/rule-engine";
 
 const PREVIEW_HINTS: Record<string, string> = {
-  "min(pf_wage, 15000) * 0.12": "PF = 12% of min(pf_wage, 15000)",
-  "min(pf_wage, 15000) * 0.0833": "EPS = 8.33% of min(pf_wage, 15000)",
+  "min(pf_wage, 25000) * 0.12": "PF = 12% of min(pf_wage, 25000)",
+  "min(pf_wage, 25000) * 0.0833": "EPS = 8.33% of min(pf_wage, 25000)",
+  "min(pf_wage, 15000) * 0.12": "PF = 12% of min(pf_wage, 15000) — the ceiling before 17 Sep 2026",
+  "min(pf_wage, 15000) * 0.0833": "EPS = 8.33% of min(pf_wage, 15000) — the ceiling before 17 Sep 2026",
   "gross * 0.0075": "ESIC EE = 0.75% of gross",
   "gross * 0.0325": "ESIC ER = 3.25% of gross",
 };

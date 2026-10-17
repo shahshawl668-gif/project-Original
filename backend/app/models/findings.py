@@ -52,7 +52,7 @@ RUN_STATUSES = ("current", "superseded")
 
 #: Bumped whenever a change to the engine could change what a run reports.
 #: Stored on every run, so "this was validated by an older engine" is visible.
-ENGINE_VERSION = "2026.10.2"
+ENGINE_VERSION = "2026.10.3"   # Oct 2026 law: PF/EPS ceiling calendar, ESIC continuation, TDS, PT/LWF
 
 
 class ValidationRun(Base):

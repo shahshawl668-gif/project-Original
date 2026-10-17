@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class StatutorySettingsBase(BaseModel):
-    pf_wage_ceiling: Decimal = Field(default=Decimal("15000"))
+    pf_wage_ceiling: Decimal = Field(default=Decimal("25000"))
     pf_employee_rate: Decimal = Field(default=Decimal("0.12"))
     pf_employer_rate: Decimal = Field(default=Decimal("0.12"))
     pf_eps_rate: Decimal = Field(default=Decimal("0.0833"))

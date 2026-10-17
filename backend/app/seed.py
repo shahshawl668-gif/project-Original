@@ -94,8 +94,68 @@ def _fix_legacy_reference_rows(db: Session) -> None:
         db.commit()
 
 
+def _add_odisha_march_pt(db: Session) -> None:
+    """Give companies that loaded Odisha PT before October 2026 the March row.
+
+    Odisha's top slab is ₹200 a month for eleven months and ₹300 in March
+    (odishatax.gov.in). The earlier catalog had only the ₹2,400-a-year row, so a
+    correct March deduction of ₹300 read as an error. Only a schedule that still
+    holds exactly that bundled row, and no March row, is touched — anything an
+    operator edited is left alone. Idempotent.
+    """
+    from app.models import SlabRule
+    from app.services import audit
+
+    top = (
+        db.query(SlabRule)
+        .filter(
+            SlabRule.rule_type == "PT",
+            SlabRule.state == "Odisha",
+            SlabRule.min_salary == Decimal("300001"),
+            SlabRule.deduction_amount == Decimal("2400"),
+            SlabRule.frequency == "yearly",
+        )
+        .all()
+    )
+    changed = False
+    for row in top:
+        if row.applicable_months:
+            continue
+        siblings = (
+            db.query(SlabRule)
+            .filter(SlabRule.entity_id == row.entity_id, SlabRule.rule_type == "PT", SlabRule.state == "Odisha")
+            .all()
+        )
+        if any(s.applicable_months and 3 in s.applicable_months and s.effective_from == row.effective_from
+               for s in siblings):
+            continue
+        db.add(SlabRule(
+            user_id=row.user_id, entity_id=row.entity_id, state="Odisha", rule_type="PT",
+            min_salary=row.min_salary, max_salary=row.max_salary, deduction_amount=Decimal("3600"),
+            employer_amount=row.employer_amount, frequency="yearly", gender=row.gender or "ALL",
+            applicable_months=[3], effective_from=row.effective_from, effective_to=row.effective_to,
+            source_reference="https://odishatax.gov.in/professional_tax.php",
+            sort_order=(row.sort_order or 0) + 1,
+        ))
+        # A change to a client's schedule that nobody at the client made is
+        # written to the client's own trail, saying who did it and why.
+        audit.record(
+            db, entity_id=row.entity_id, user=None,
+            action="slab_rule.platform_correction", object_type="slab_rule",
+            object_id=str(row.id),
+            summary="Odisha PT: added the March row (₹300) the bundled schedule was missing",
+            detail={"state": "Odisha", "rule_type": "PT", "applicable_months": [3],
+                    "deduction_amount_yearly": "3600", "effective_from": str(row.effective_from),
+                    "source": "https://odishatax.gov.in/professional_tax.php"},
+        )
+        changed = True
+    if changed:
+        db.commit()
+
+
 def seed_reference_data(db: Session) -> None:
     _fix_legacy_reference_rows(db)
+    _add_odisha_march_pt(db)
 
     if db.query(PtSlab).count() == 0:
         slabs = [

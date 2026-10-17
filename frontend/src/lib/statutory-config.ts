@@ -112,7 +112,7 @@ export const defaultPFConfig: PFConfig = {
     use_pf_applicable_flag: true,
     include_components: [],
     exclude_components: [],
-    wage_ceiling: "15000",
+    wage_ceiling: "25000",
     restrict_to_ceiling: true,
   },
   eligibility: {
