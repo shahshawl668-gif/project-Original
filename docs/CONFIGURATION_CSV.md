@@ -53,3 +53,7 @@ Each included section **replaces all existing records** in that category for the
 Configuration upload is separate from salary register upload. A `salary_import_profiles` mapping lets the register importer recognize client column headings, while `components` defines how named salary columns are treated for PF, ESIC, PT, LWF and other checks. Download the register's own sample CSV from its upload screen; this configuration CSV is for setup, not payroll rows.
 
 PT/LWF and minimum wage notifications change by state, locality, employment and effective date. A CSV edit does not verify a legal rate; check the source notification and effective period before applying statutory values.
+
+## A ready-made file for trying the product
+
+`testdata/payroll-validation/1_configuration.csv` is a complete example for validation: five salary components with their PF/ESIC/PT flags, a PF ceiling of 25,000, an ESIC ceiling of 21,000, Karnataka and Maharashtra professional tax, a minimum-wage decision, and PF/ESIC formulas written the way you would in Excel. It sits beside an employee master, CTC report, attendance report and two salary registers. The folder's `README.md` gives the load order and a list of the deliberate mistakes the tool should find. The slab and wage values are test data; do not use them for a real company.

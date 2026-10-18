@@ -138,7 +138,7 @@ Configuration, open when you are in them.
 | Group | What is inside |
 |---|---|
 | **Overview** | Payroll Control Centre, Companies |
-| **Data & imports** | Salary register, Register history, Attendance, CTC upload and history, Budget |
+| **Data & imports** | Salary register, Register history, Attendance, Employee master, CTC upload and history, Budget |
 | **Validation & findings** | Validation runs, Results, Issues |
 | **Reconciliation & approvals** | Month close & approval, Bank payments, Journal voucher |
 | **Analytics & dashboards** | Dashboards, Cost analysis |
@@ -192,6 +192,14 @@ product tell you that someone lost three days the register never deducted.
 ---
 
 ## 5. Step by step
+
+### Before Step 1 — Employee master
+
+**Data & imports → Employee master.** Choose the month the list is effective
+from, drop the file, **Check the file** to see how each column was understood,
+then **Store**. The master is what lets validation catch someone paid after
+leaving, someone on the register who is not an employee, and the wrong state
+for professional tax. Sending the same month again replaces that version.
 
 ### Step 1 — Attendance
 
@@ -855,3 +863,13 @@ protection**. Then anything older is removed automatically, once a day.
 Before raising a ticket, have ready: the **company**, the **period**, the **rule
 ID**, and the **employee ID**. Those four make almost any question answerable
 without anyone needing to look at your salary data.
+
+
+## Trying the product with test data
+
+`testdata/payroll-validation/` holds a ready-made set for August 2026: one
+configuration file plus an employee master, CTC report, attendance report and
+salary register, with sixteen deliberate mistakes. Its `README.md` gives the load
+order and an answer key saying which employee has which mistake. Load the
+configuration through **Configuration & admin → Configuration upload** (preview,
+then apply) and the other four files through the Data & imports screens.

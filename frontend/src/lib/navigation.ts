@@ -45,6 +45,7 @@ import {
   Target,
   UploadCloud,
   UserPlus,
+  Users,
   Webhook,
   Workflow,
 } from "lucide-react";
@@ -59,7 +60,7 @@ import {
  *   NEXT_PUBLIC_ENABLED_MODULES=analytics,reports             pick modules
  *   (unset)                                                   validation only
  *
- * Modules: ctc_budget, reconciliation, analytics, reports, studio.
+ * Modules: ctc_budget (Budget only; CTC upload feeds validation and stays), reconciliation, analytics, reports, studio.
  * It is read at build time, so changing it means a rebuild.
  */
 const ENABLED_MODULES = new Set(
@@ -94,8 +95,9 @@ const ALL_NAV_GROUPS: NavGroup[] = [
       { href: "/payroll/upload", label: "Salary register", icon: UploadCloud },
       { href: "/payroll/history", label: "Register history", icon: History },
       { href: "/payroll/attendance", label: "Attendance", icon: CalendarDays },
-      { href: "/ctc/upload", label: "CTC upload", icon: FileSpreadsheet, module: "ctc_budget" },
-      { href: "/ctc/history", label: "CTC history", icon: FolderArchive, module: "ctc_budget" },
+      { href: "/payroll/master", label: "Employee master", icon: Users },
+      { href: "/ctc/upload", label: "CTC upload", icon: FileSpreadsheet },
+      { href: "/ctc/history", label: "CTC history", icon: FolderArchive },
       { href: "/budget/upload", label: "Budget", icon: Target, module: "ctc_budget" },
     ],
   },

@@ -200,6 +200,12 @@ export default function FormulaPage() {
         }
       />
 
+      <AlertBanner variant="info" title="Where saved formulas are used">
+        Formulas are saved as versions you can test and roll back here. Payroll validation
+        currently works out PF and ESIC from the Statutory engine settings (wage components,
+        ceilings, rates, rounding), not from a saved formula.
+      </AlertBanner>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>

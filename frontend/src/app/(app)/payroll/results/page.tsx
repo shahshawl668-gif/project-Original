@@ -414,6 +414,16 @@ function EmployeeView({ runId, mode }: { runId: string; mode: EmployeeMode }) {
     ],
   };
 
+  // A register can carry the same employee id twice (that is itself a finding),
+  // and a row key has to stay unique for the table to keep each row's identity.
+  const seen = new Map<string, number>();
+  const rowKeys = new Map<object, string>();
+  for (const item of data?.items ?? []) {
+    const n = (seen.get(item.employee_id) ?? 0) + 1;
+    seen.set(item.employee_id, n);
+    rowKeys.set(item, n === 1 ? item.employee_id : `${item.employee_id}#${n}`);
+  }
+
   return (
     <>
       <DataTable
@@ -421,7 +431,7 @@ function EmployeeView({ runId, mode }: { runId: string; mode: EmployeeMode }) {
         caption="Employees in this run"
         columns={cols[mode]}
         rows={data?.items}
-        rowKey={(r) => r.employee_id}
+        rowKey={(r) => rowKeys.get(r) ?? r.employee_id}
         loading={query.isLoading}
         refreshing={query.isFetching && !query.isLoading}
         error={query.isError ? <AlertBanner variant="error" title="Employees could not be loaded" details={(query.error as Error)?.message}>Try again in a moment.</AlertBanner> : undefined}

@@ -245,7 +245,7 @@ function PFConfigPanel({ cfg, onChange, advanced }: { cfg: PFConfig; onChange: (
           PF wage computation
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Wage ceiling (₹)" help="Statutory ceiling — ₹15,000">
+          <Field label="Wage ceiling (₹)" help="The ceiling your company applies (the shipped default is ₹15,000; change it here when the ceiling is revised)">
             <NumberInput value={cfg.wage.wage_ceiling} onChange={v => setWage("wage_ceiling", v)} step="500" min="0" max="999999"/>
           </Field>
           <div className="flex flex-col gap-3 pt-1">

@@ -1,0 +1,66 @@
+[
+ [
+  "E004",
+  "ESIC not deducted although ESIC wage is within 21,000"
+ ],
+ [
+  "E005",
+  "PF not deducted at all (PF Employee = 0)"
+ ],
+ [
+  "E015",
+  "Professional tax missing for a Karnataka employee earning above 25,000"
+ ],
+ [
+  "E019",
+  "ESIC deducted although ESIC wage is above 21,000"
+ ],
+ [
+  "E021",
+  "PF deducted on full Basic above the ceiling (12% of the whole wage, not capped at 25,000)"
+ ],
+ [
+  "E024",
+  "Professional tax is 150, the Karnataka slab says 200"
+ ],
+ [
+  "E026",
+  "Gross does not equal the sum of the earnings"
+ ],
+ [
+  "E027",
+  "Net does not equal Gross minus Total Deductions"
+ ],
+ [
+  "E028",
+  "Paid days (31) disagree with the attendance report (28)"
+ ],
+ [
+  "E029",
+  "Basic is 5,000 higher than the CTC letter allows"
+ ],
+ [
+  "E030",
+  "Paid in August after the exit date of 31 Jul 2026"
+ ],
+ [
+  "E033",
+  "Salary lines appear twice in the register (duplicate row)"
+ ],
+ [
+  "E036",
+  "8 overtime hours in attendance but no overtime paid"
+ ],
+ [
+  "E037",
+  "Attendance file contradicts itself: 20 present + 4 off + 1 holiday does not reach 31"
+ ],
+ [
+  "E038",
+  "On the attendance report and master, but missing from the salary register"
+ ],
+ [
+  "E040",
+  "On the attendance report and in the register, but NOT in the employee master"
+ ]
+]
