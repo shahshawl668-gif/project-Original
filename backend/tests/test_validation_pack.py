@@ -31,13 +31,14 @@ EXPECTED = {
     "E028": {"ATT-001", "ATT-002", "ATT-020"},   # paid days vs attendance
     "E029": {"LOP-002"},         # basic above the CTC letter
     "E030": {"MST-003"},         # paid after exit
+    "E031": {"MST-006"},         # full month paid to a mid-month joiner
     "E033": {"DATA-002"},        # duplicate row
     "E036": {"ATT-022"},         # overtime hours, none paid
     "E038": {"ATT-015"},         # on attendance, not on the register
     "E040": {"MST-001"},         # not in the master
 }
-# Informational/background rules that fire for many people by design
-BACKGROUND = {"STAT-011"}
+# Rules that may fire on people who are otherwise correct
+BACKGROUND: set[str] = set()
 
 
 def _file(name: str):

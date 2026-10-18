@@ -223,6 +223,29 @@ def _master_rules(
             )
         )
 
+    # Joined part-way through the month but paid for more days than they were employed.
+    joined = record.date_of_joining
+    paid_days = _dec(row.get("paid_days"))
+    if joined and period_month < joined <= month_end and paid_days is not None:
+        employed = Decimal(month_end.day - joined.day + 1)
+        if paid_days > employed + Decimal("0.5"):
+            excess = paid_days - employed
+            findings.append(
+                _finding(
+                    employee_id=employee_id, employee_name=name,
+                    rule_id="MST-006", rule_name="Full Month Paid To A Mid-Month Joiner",
+                    component="paid_days", severity="WARNING",
+                    expected=f"{employed} days (joined {joined.isoformat()})", actual=f"{paid_days} days",
+                    difference=excess,
+                    reason=(
+                        f"Joined on {joined.isoformat()}, so {employed} of the month's {month_end.day} "
+                        f"days were in employment, but {paid_days} days were paid."
+                    ),
+                    fix="Pay from the joining date, or correct the joining date in the master.",
+                    impact=float(gross * excess / paid_days) if paid_days else 0.0,
+                )
+            )
+
     # Paid after exit. The single most expensive thing this tool can catch,
     # because it keeps recurring until someone notices.
     if record.date_of_exit and record.date_of_exit < period_month:

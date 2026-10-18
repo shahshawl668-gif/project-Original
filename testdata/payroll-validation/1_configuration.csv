@@ -64,8 +64,8 @@ statutory_engine,1,income_tax_config,null,
 statutory_engine,1,rule_thresholds_config,null,
 statutory_engine,1,exposure_config,null,
 formulas,1,rule_type,text,PF
-formulas,1,name,text,Lower-paid employees use Basic + Special Allowance
-formulas,1,expression,text,"IF(basic <= 25000, MIN((basic + special_allowance) * 12%, 3000), basic * 12%)"
+formulas,1,name,text,"12% of Basic + Special Allowance, at most 3,000"
+formulas,1,expression,text,"MIN((basic + special_allowance) * 12%, 3000)"
 formulas,1,conditions,json,[]
 formulas,1,version,number,1
 formulas,1,is_active,boolean,true

@@ -61,6 +61,7 @@ BUILTIN_RULES = [
     ("MST-003", "Paid After Exit"),
     ("MST-004", "PF Deducted Without UAN"),
     ("MST-005", "ESIC Deducted Without IP Number"),
+    ("MST-006", "Full Month Paid To A Mid-Month Joiner"),
     ("MW-001", "Pay Below Configured Minimum Wage"),
     ("MW-003", "Minimum Wage Rate or Classification Missing"),
     ("PF-004", "EPS Contribution Mismatch"),

@@ -1,0 +1,2 @@
+﻿employee_id,employee_name,severity,rule_id,rule_name,component,expected_value,actual_value,difference,financial_impact,reason,suggested_fix
+E037,Anita Verma,WARNING,ATT-010,Attendance Days Do Not Reconcile,present_days,31,25.0,-6.0,0.0,"Present 20.0 + paid leave 0 + weekly off 4 + holiday 1 + loss of pay 0.0 = 25.0, against a month of 31 days.",Some days are counted twice or not at all. Find them before this file is used to pay anyone.

@@ -23,7 +23,7 @@ from app.models import (
     Entity,
     StatutorySettings,
 )
-from app.services import labour_codes, validation_matrix
+from app.services import labour_codes, saved_formulas, validation_matrix
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
@@ -855,6 +855,13 @@ def _compare_uploaded(
 PROGRESS_EVERY = 100
 
 
+def _decimal_or_none(value: Any) -> Decimal | None:
+    try:
+        return None if value in (None, "") else Decimal(str(value))
+    except ArithmeticError:
+        return None
+
+
 def validate_employees(
     db: Session,
     entity: Entity,
@@ -927,6 +934,8 @@ def validate_employees(
     # The master as it stood at period end — used for the PF basis and for the
     # cost dimensions snapshotted onto each result row.
     master_rows = master_as_of(db, entity.id, as_of)
+
+    active_formulas = saved_formulas.load_active(db, entity.id)
 
     # CTC records for everyone, once: the two latest in force at the cutoff,
     # per employee — exactly what _latest_ctcs returns, without a query per
@@ -1065,6 +1074,11 @@ def validate_employees(
         effective_esic_wage = esic_wage_cfg if esic_wage_cfg > Decimal("0") else esic_wage
 
         esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type)
+        errors.extend(saved_formulas.apply(
+            active_formulas, pf_calc, esic_calc, regular, list(comp_by_key), effective_pf_wage,
+            effective_esic_wage, _decimal_or_none(stated(row, "paid_days")),
+            _decimal_or_none(stated(row, "lop_days")), row_days_in_month,
+        ))
 
         # Overwrite the locally computed pf_wage / esic_wage so the rest of the
         # function (PT, LWF, findings) uses the config-driven values.
@@ -1225,8 +1239,8 @@ def validate_employees(
         # TDS risk heuristic (thresholds configurable per tenant)
         taxable = taxable_exposure(components, regular)
         spike = taxable + (arrear_total * rule_thresholds.tds.arrear_annualisation_factor)
-        if spike > rule_thresholds.tds.annual_income_threshold / 12:
-            tds_risk.append("TDS slab not applied; high-income month possible due to arrears/bunching.")
+        tds_stated = _decimal_or_none(stated(row, "tds", "income_tax"))
+        high_income_month = spike > rule_thresholds.tds.annual_income_threshold / 12
 
         # Sec 192 projection: expected monthly TDS from the tenant's FY tax
         # config and the employee's declared regime (new regime is the default).
@@ -1247,6 +1261,12 @@ def validate_employees(
                     expected_monthly_tds = breakup.monthly_tds
             except Exception:
                 expected_monthly_tds = None
+
+        # "TDS slab not applied" cannot stand when TDS was deducted, or when the
+        # projection says no tax is due on this income.
+        if high_income_month and not (tds_stated and tds_stated > 0) \
+                and not (tds_stated is not None and expected_monthly_tds is not None and expected_monthly_tds <= 0):
+            tds_risk.append("TDS slab not applied; high-income month possible due to arrears/bunching.")
 
         # Structured rule engine findings (v2)
         prior_components_map: dict[str, float] | None = None

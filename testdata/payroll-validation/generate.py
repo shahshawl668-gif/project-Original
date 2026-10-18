@@ -72,8 +72,8 @@ def configuration_csv() -> str:
             "rule_thresholds_config": None, "exposure_config": None,
         }],
         "formulas": [
-            {"rule_type": "PF", "name": "Lower-paid employees use Basic + Special Allowance",
-             "expression": "IF(basic <= 25000, MIN((basic + special_allowance) * 12%, 3000), basic * 12%)",
+            {"rule_type": "PF", "name": "12% of Basic + Special Allowance, at most 3,000",
+             "expression": "MIN((basic + special_allowance) * 12%, 3000)",
              "conditions": [], "version": 1, "is_active": True},
             {"rule_type": "ESIC", "name": "0.75% of ESIC wage, rounded up",
              "expression": "IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)",
@@ -251,7 +251,7 @@ def build():
         elif pid == "E030":
             key.append((pid, "Paid in August after the exit date of 31 Jul 2026"))
         elif pid == "E031":
-            gaps.append((pid, "Joined 20 Aug 2026 but paid a full month of 31 days"))
+            key.append((pid, "Joined 20 Aug 2026 but paid a full month of 31 days"))
         elif pid == "E033":
             key.append((pid, "Salary lines appear twice in the register (duplicate row)"))
         elif pid == "E036":
@@ -341,7 +341,10 @@ the sections it contains.
 * PF: employee 12% of (Basic + Special Allowance), wage capped at 25,000 (so at most 3,000).
 * ESIC: 0.75% of ESIC wage (Basic, HRA, Special Allowance, Conveyance) rounded up, only while that wage is 21,000 or less.
 * PT: Karnataka 200 from 25,000 gross; Maharashtra 175 from 7,501 and 200 above 10,000 (test values).
-* The saved PF/ESIC *formulas* are stored for the Formula builder; validation currently uses the PF/ESIC settings above.
+* The saved PF/ESIC *formulas* are applied: an active formula is the expected employee PF/ESIC for every row, so the
+  payslips in this pack follow them. To try your own rule, save another PF formula in Formulas (for example
+  `IF(basic<=25000, MIN((basic+special_allowance)*12%, 3000), basic*12%)`) and re-run August: the employees above 25,000
+  will now be expected at 12% of Basic, and the tool will say so.
 
 ## Answer key -- what the tool should report
 
@@ -365,12 +368,17 @@ E037 -- present + weekly off + holiday days do not add up to the 31 calendar day
 * About 95% coverage. "Cannot validate" remains for the PF employer, EPS and ESIC employer columns on purpose:
   employer contributions belong in the PF reports, not the salary register.
 
-### Behaviour worth a look (found while building this pack)
+### Reports to compare with
 
-| Employee | What happens |
-| --- | --- |
-{gap_rows}
-| E015-E030 (everyone with a high income) | `STAT-011` "TDS slab not applied" is raised even though TDS **was** deducted correctly (the amounts equal the product's own Section 192 projection). The rule only looks at the size of the month's income. |
+`sample-reports/` holds what the product produced for this pack: the validation results workbook, the
+parallel-run pack, the findings and attendance-check lists as CSV, a one-page summary and every Report
+Centre workbook. Compare your own run with them. Regenerate with
+`cd backend && PYTHONPATH=. python ../testdata/payroll-validation/generate_reports.py`.
+
+### Notes
+
+* TDS in the registers equals the product's own Section 192 projection (new regime), so a correct payslip raises no TDS finding.
+* The PT/LWF slabs and minimum-wage decision are test values.
 """
 
 

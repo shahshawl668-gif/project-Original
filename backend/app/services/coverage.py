@@ -372,6 +372,8 @@ REGISTRY: list[RuleCoverage] = [
     RuleCoverage("MST-005", "ESIC Deducted Without IP Number", "Employee lifecycle",
                  applies=lambda c: c.num("esic_employee") > 0, na_reason="No ESIC deducted",
                  requires=(("employee master", lambda c: c.has_master),)),
+    RuleCoverage("MST-006", "Full Month Paid To A Mid-Month Joiner", "Employee lifecycle",
+                 requires=(("employee master", lambda c: c.has_master), ("master record", lambda c: c.master_record))),
     RuleCoverage("GRAT-004", "Gratuity Service Known", "Arrears and F&F",
                  applies=lambda c: c.num("gratuity") > 0, na_reason="No gratuity paid",
                  cannot_marker=lambda f: True),

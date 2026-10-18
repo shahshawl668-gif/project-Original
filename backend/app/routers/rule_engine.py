@@ -139,6 +139,8 @@ def create_formula(
         evaluate_formula(body.expression, _sample_vars(db, entity))
     except FormulaError as e:
         raise HTTPException(status_code=400, detail=f"Invalid formula: {_explain(e)}")
+    except ZeroDivisionError:
+        pass  # divides by something that is zero for the sample values only; judged per row at validation
 
     next_version = (
         db.query(func.coalesce(func.max(Formula.version), 0))

@@ -200,10 +200,11 @@ export default function FormulaPage() {
         }
       />
 
-      <AlertBanner variant="info" title="Where saved formulas are used">
-        Formulas are saved as versions you can test and roll back here. Payroll validation
-        currently works out PF and ESIC from the Statutory engine settings (wage components,
-        ceilings, rates, rounding), not from a saved formula.
+      <AlertBanner variant="info" title="How a saved formula is used">
+        The active PF formula and the active ESIC formula give the expected employee amount for every
+        row in each validation run, and the payslip is compared with it. Wage components, ceilings and
+        rounding still come from the Statutory engine. If a formula cannot be worked out for a row, the
+        row says so and the Statutory engine amount is used for that row.
       </AlertBanner>
 
       <div className="grid gap-6 lg:grid-cols-3">
