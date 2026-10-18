@@ -46,6 +46,14 @@ export type SlabsResponse = {
   slabs: (SlabRow & { id: string })[];
 };
 
+export type FormulaVariable = { key: string; label: string };
+export type FormulaVariables = { inputs: FormulaVariable[]; components: FormulaVariable[] };
+
+/** What a formula may refer to: built-in inputs plus this company's salary components. */
+export async function getFormulaVariables(): Promise<FormulaVariables> {
+  return apiJson<FormulaVariables>("/api/rule-engine/variables");
+}
+
 export async function getFormulas(rule_type?: FormulaRuleType): Promise<Formula[]> {
   const qs = rule_type ? `?rule_type=${rule_type}` : "";
   return apiJson<Formula[]>(`/api/rule-engine/formulas${qs}`);

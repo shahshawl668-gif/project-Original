@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -16,19 +17,28 @@ const DEFAULT_VARIABLES = [
   { key: "total_days", label: "Total Days" },
 ];
 
+// Spreadsheet spellings. Capitals do not matter when typing.
 const FUNCTIONS = [
-  { key: "min(a, b)", label: "min" },
-  { key: "max(a, b)", label: "max" },
-  { key: "round(x)", label: "round" },
-  { key: "if(cond, a, b)", label: "if" },
+  { key: "IF(condition, value_if_true, value_if_false)", label: "IF" },
+  { key: "AND(a, b)", label: "AND" },
+  { key: "OR(a, b)", label: "OR" },
+  { key: "MIN(a, b)", label: "MIN" },
+  { key: "MAX(a, b)", label: "MAX" },
+  { key: "ROUND_HALF_UP(x)", label: "ROUND" },
+  { key: "ROUNDUP(x, 0)", label: "ROUNDUP" },
+  { key: "ROUNDDOWN(x, 0)", label: "ROUNDDOWN" },
 ];
+
+type Variable = { key: string; label: string };
 
 type Props = {
   onInsert: (snippet: string) => void;
-  variables?: { key: string; label: string }[];
+  variables?: Variable[];
+  /** This company's own salary components. */
+  components?: Variable[];
 };
 
-export function VariablePicker({ onInsert, variables = DEFAULT_VARIABLES }: Props) {
+export function VariablePicker({ onInsert, variables = DEFAULT_VARIABLES, components = [] }: Props) {
   return (
     <Card>
       <CardHeader>
@@ -57,6 +67,36 @@ export function VariablePicker({ onInsert, variables = DEFAULT_VARIABLES }: Prop
               </Button>
             ))}
           </div>
+        </div>
+        <div>
+          <p className="mb-2 font-display text-[11px] font-semibold text-ink-500">
+            Your salary components
+          </p>
+          {components.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {components.map((v) => (
+                <Button
+                  key={v.key}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onInsert(v.key)}
+                  className="text-xs"
+                  title={`Insert ${v.key}`}
+                >
+                  {v.label}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-ink-500">
+              None yet. Components you add under{" "}
+              <Link href="/config/components" className="font-semibold text-brand-700 hover:text-brand-800">
+                Salary components
+              </Link>{" "}
+              appear here and can be used in formulas.
+            </p>
+          )}
         </div>
         <div>
           <p className="mb-2 font-display text-[11px] font-semibold text-ink-500">

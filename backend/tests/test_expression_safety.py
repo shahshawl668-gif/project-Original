@@ -193,10 +193,15 @@ def test_the_shipped_statutory_expressions_still_evaluate(expression, expected):
     assert safe_eval_expr(expression, CTX) == expected
 
 
-def test_the_conditional_the_docstring_advertises_actually_parses():
-    """`if(...)` was a syntax error before the map was ever consulted."""
-    with pytest.raises(FormulaError):
-        evaluate_formula("if(gross > 1, 1, 0)", VARS)
+def test_the_spreadsheet_conditional_parses():
+    """
+    `if(...)` used to be a syntax error before the evaluator's map was ever
+    consulted — `if` is a Python keyword — so the shipped ESIC preset and any
+    Excel-style formula failed. The Excel spelling is now rewritten to `iff`
+    first (see ``excel_syntax``); both spellings evaluate.
+    """
+    assert evaluate_formula("if(gross > 1, 1, 0)", VARS) == 1.0
+    assert evaluate_formula("IF(gross > 1, 1, 0)", VARS) == 1.0
     assert evaluate_formula("iff(gross > 1, 1, 0)", VARS) == 1.0
 
 

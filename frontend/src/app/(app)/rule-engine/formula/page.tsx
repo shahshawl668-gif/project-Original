@@ -35,14 +35,40 @@ import {
   type FormulaRuleType,
   createFormula,
   getFormulas,
+  getFormulaVariables,
   testFormula,
+  type FormulaVariables,
 } from "@/lib/rule-engine";
 
 const RULE_TYPES: FormulaRuleType[] = ["PF", "ESIC"];
 
 const PRESETS: Record<FormulaRuleType, string> = {
-  PF: "min(pf_wage, 15000) * 0.12",
-  ESIC: "if(gross <= 21000, gross * 0.0075, 0)",
+  PF: "MIN(pf_wage, 15000) * 12%",
+  ESIC: "IF(gross <= 21000, ROUNDUP(gross * 0.75%, 0), 0)",
+};
+
+/**
+ * How companies commonly define the wage and the cap. Clicking one puts it in
+ * the editor; the numbers are examples — change the ceiling, rate or limit to
+ * your own. A pattern that names a salary component (special_allowance) only
+ * validates once that component exists under Salary components.
+ */
+const PATTERNS: Record<FormulaRuleType, { title: string; note: string; expression: string }[]> = {
+  PF: [
+    { title: "PF wage up to a ceiling", note: "12% of the PF wage, counting at most the ceiling.", expression: "MIN(pf_wage, 15000) * 12%" },
+    { title: "Basic × rate", note: "12% of Basic for everyone, no cap.", expression: "basic * 12%" },
+    { title: "Basic × rate, with a maximum", note: "12% of Basic but never more than a fixed amount.", expression: "MIN(basic * 12%, 3000)" },
+    {
+      title: "Lower-paid employees use Basic + components",
+      note: "Basic at or below the limit: Basic + chosen components, capped. Above it: Basic × 12%. Swap special_allowance for any of your components.",
+      expression: "IF(basic <= 25000, MIN((basic + special_allowance) * 12%, 3000), basic * 12%)",
+    },
+  ],
+  ESIC: [
+    { title: "On ESIC wage, rounded up", note: "0.75% of the ESIC wage up to the limit, rounded up to the next rupee; 0 above it.", expression: "IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)" },
+    { title: "On gross, rounded to the nearest rupee", note: "Same, on gross, rounded to the nearest rupee.", expression: "IF(gross <= 21000, ROUND_HALF_UP(gross * 0.75%), 0)" },
+    { title: "On selected components", note: "ESIC wage is the sum of components you choose. Swap in your own.", expression: "IF((basic + hra + special_allowance) <= 21000, ROUNDUP((basic + hra + special_allowance) * 0.75%, 0), 0)" },
+  ],
 };
 
 const formulaSchema = z.object({
@@ -58,6 +84,7 @@ export default function FormulaPage() {
   const [expression, setExpression] = useState(PRESETS.PF);
   const [conditions, setConditions] = useState<Condition[]>([]);
   const [formulas, setFormulas] = useState<Formula[]>([]);
+  const [variables, setVariables] = useState<FormulaVariables | null>(null);
   const [syntaxError, setSyntaxError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -73,6 +100,10 @@ export default function FormulaPage() {
   useEffect(() => {
     void refreshFormulas();
   }, [refreshFormulas]);
+
+  useEffect(() => {
+    getFormulaVariables().then(setVariables).catch(() => setVariables(null));
+  }, []);
 
   // Live syntax check (debounced)
   useEffect(() => {
@@ -178,10 +209,13 @@ export default function FormulaPage() {
               </p>
               <CardTitle>Expression</CardTitle>
               <p className="text-xs text-ink-500">
-                Allowed: <span className="font-mono">+ - * / %</span>, parentheses,{" "}
-                <span className="font-mono">min</span>, <span className="font-mono">max</span>,{" "}
-                <span className="font-mono">round</span>,{" "}
-                <span className="font-mono">if(cond, a, b)</span>, and the listed variables.
+                Write it like an Excel formula — capital letters don&apos;t matter, and{" "}
+                <span className="font-mono">12%</span> means 12 percent. You can use{" "}
+                <span className="font-mono">+ - * / ^</span>, brackets, comparisons{" "}
+                <span className="font-mono">= &lt;&gt; &lt; &gt; &lt;= &gt;=</span>, and{" "}
+                <span className="font-mono">IF AND OR MIN MAX ROUNDUP ROUNDDOWN</span>, with the
+                variables on the right — including your own salary components. A name with spaces
+                can be written <span className="font-mono">[Special Allowance]</span>.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -189,7 +223,7 @@ export default function FormulaPage() {
                 <Label htmlFor="formula-name">Name (optional)</Label>
                 <Input
                   id="formula-name"
-                  placeholder="e.g. PF v1 — capped at 15000"
+                  placeholder="e.g. PF — Basic + special allowance up to 25,000"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -202,11 +236,37 @@ export default function FormulaPage() {
                 errorMessage={syntaxError}
               />
               {syntaxError && (
-                <AlertBanner variant="error" title="Syntax error">
+                <AlertBanner variant="error" title="This formula needs fixing">
                   {syntaxError}
                 </AlertBanner>
               )}
               <FormulaPreview expression={expression} ruleType={ruleType} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <p className="font-display text-[11px] font-semibold text-ink-500">
+                Starting points
+              </p>
+              <CardTitle>How companies usually define {ruleType}</CardTitle>
+              <p className="text-xs text-ink-500">
+                Click one to load it, then change the numbers and components to match your policy.
+              </p>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              {PATTERNS[ruleType].map((p) => (
+                <button
+                  key={p.title}
+                  type="button"
+                  onClick={() => setExpression(p.expression)}
+                  className="rounded-xl border border-ink-200 p-3 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/50"
+                >
+                  <span className="block text-sm font-semibold text-ink-900">{p.title}</span>
+                  <span className="mt-0.5 block text-xs text-ink-500">{p.note}</span>
+                  <code className="mt-2 block break-words text-[11px] text-ink-700">{p.expression}</code>
+                </button>
+              ))}
             </CardContent>
           </Card>
 
@@ -250,8 +310,16 @@ export default function FormulaPage() {
         </div>
 
         <div className="space-y-6">
-          <VariablePicker onInsert={(s) => editorRef.current?.insertAtCursor(s)} />
-          <FormulaTester expression={expression} conditions={conditions} />
+          <VariablePicker
+            onInsert={(s) => editorRef.current?.insertAtCursor(s)}
+            variables={variables?.inputs}
+            components={variables?.components}
+          />
+          <FormulaTester
+            expression={expression}
+            conditions={conditions}
+            componentKeys={variables?.components.map((c) => c.key)}
+          />
         </div>
       </div>
     </div>

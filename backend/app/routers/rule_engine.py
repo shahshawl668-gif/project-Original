@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import Entity, Formula, SlabRule, User
+from app.models import ComponentConfig, Entity, Formula, SlabRule, User
 from app.schemas.rule_engine import (
     FormulaCreate,
     FormulaOut,
@@ -20,6 +20,7 @@ from app.schemas.rule_engine import (
     TestFormulaResponse,
 )
 from app.services.formula_eval import FormulaError, evaluate_conditions, evaluate_formula
+from app.services.payroll_parse import normalize_col
 from app.services.lwf_defaults import LWF_DEFAULTS
 from app.services.lwf_defaults import get_defaults as get_lwf_default_slabs
 from app.services.lwf_defaults import list_default_states as list_lwf_states
@@ -73,6 +74,45 @@ def _build_slabs_response(state: str, rule_type: str, db: Session, entity: Entit
 
 router = APIRouter()
 
+# Names a formula can always use. A company's own salary components are added
+# to these per entity (see ``_component_inputs``), so a formula can say
+# ``special_allowance`` or ``[Special Allowance]`` once that component exists.
+BUILT_IN_INPUTS: list[tuple[str, str]] = [
+    ("basic", "Basic"), ("da", "DA"), ("hra", "HRA"), ("gross", "Gross"),
+    ("pf_wage", "PF Wage"), ("esic_wage", "ESIC Wage"), ("ctc_monthly", "CTC (Monthly)"),
+    ("paid_days", "Paid Days"), ("lop_days", "LOP Days"), ("total_days", "Total Days"),
+]
+
+
+def _component_inputs(db: Session, entity: Entity) -> list[dict[str, str]]:
+    """The entity's configured salary components, as formula variables."""
+    built_in = {key for key, _ in BUILT_IN_INPUTS}
+    rows = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
+    found = {normalize_col(r.component_name): r.component_name for r in rows}
+    return [{"key": key, "label": label} for key, label in sorted(found.items())
+            if key and key not in built_in]
+
+
+def _explain(error: FormulaError) -> str:
+    """Tell the user where a missing component is defined."""
+    text = str(error)
+    if "Unknown field" in text or "Unknown variable" in text:
+        text += " If it is one of your salary components, add it under Configuration → Salary components first."
+    return text
+
+
+@router.get("/variables")
+def formula_variables(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """What a formula may refer to: the built-in inputs and this company's salary components."""
+    return ok({
+        "inputs": [{"key": k, "label": label} for k, label in BUILT_IN_INPUTS],
+        "components": _component_inputs(db, entity),
+    })
+
 
 @router.get("/formulas")
 def list_formulas(
@@ -96,9 +136,9 @@ def create_formula(
     entity: Entity = Depends(require_entity_write),
 ):
     try:
-        evaluate_formula(body.expression, _sample_vars())
+        evaluate_formula(body.expression, _sample_vars(db, entity))
     except FormulaError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid formula: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid formula: {_explain(e)}")
 
     next_version = (
         db.query(func.coalesce(func.max(Formula.version), 0))
@@ -176,8 +216,13 @@ def delete_formula(
 
 
 @router.post("/test-formula")
-def test_formula(body: TestFormulaRequest, _user: User = Depends(get_current_user)):
-    vars_ = {**_sample_vars(), **body.variables}
+def test_formula(
+    body: TestFormulaRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    vars_ = {**_sample_vars(db, entity), **body.variables}
     try:
         cond_pass = evaluate_conditions(
             [c.model_dump() for c in body.conditions], vars_
@@ -187,22 +232,22 @@ def test_formula(body: TestFormulaRequest, _user: User = Depends(get_current_use
         result = evaluate_formula(body.expression, vars_)
         return ok(TestFormulaResponse(ok=True, result=result, conditions_passed=True).model_dump())
     except FormulaError as e:
-        return ok(TestFormulaResponse(ok=False, error=str(e)).model_dump())
+        return ok(TestFormulaResponse(ok=False, error=_explain(e)).model_dump())
+    except ZeroDivisionError:
+        return ok(TestFormulaResponse(
+            ok=False, error="Division by zero — a value you divide by is 0 in the test values").model_dump())
 
 
-def _sample_vars() -> dict[str, float]:
-    return {
-        "basic": 0.0,
-        "da": 0.0,
-        "hra": 0.0,
-        "gross": 0.0,
-        "pf_wage": 0.0,
-        "esic_wage": 0.0,
-        "ctc_monthly": 0.0,
-        "paid_days": 30.0,
-        "lop_days": 0.0,
-        "total_days": 30.0,
-    }
+def _sample_vars(db: Session | None = None, entity: Entity | None = None) -> dict[str, float]:
+    # Non-zero on purpose: these values are used to check that a formula is
+    # *valid*, and a formula that divides by a field (basic / 30 * paid_days)
+    # is valid even though that field is 0 in somebody's payroll.
+    sample = {key: 1.0 for key, _ in BUILT_IN_INPUTS}
+    sample["paid_days"] = sample["total_days"] = 30.0
+    if db is not None and entity is not None:
+        for component in _component_inputs(db, entity):
+            sample[component["key"]] = 1.0
+    return sample
 
 
 @router.get("/slabs")

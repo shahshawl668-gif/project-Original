@@ -14,9 +14,12 @@ const TEST_VARS = ["basic", "da", "hra", "gross", "pf_wage", "esic_wage"];
 type Props = {
   expression: string;
   conditions: Condition[];
+  /** The company's salary components — each gets a sample-value box too. */
+  componentKeys?: string[];
 };
 
-export function FormulaTester({ expression, conditions }: Props) {
+export function FormulaTester({ expression, conditions, componentKeys = [] }: Props) {
+  const testVars = [...TEST_VARS, ...componentKeys.filter((k) => !TEST_VARS.includes(k))];
   const [vars, setVars] = useState<Record<string, string>>({
     basic: "15000",
     da: "0",
@@ -36,7 +39,7 @@ export function FormulaTester({ expression, conditions }: Props) {
     setLoading(true);
     try {
       const numericVars: Record<string, number> = {};
-      for (const [k, v] of Object.entries(vars)) numericVars[k] = Number(v) || 0;
+      for (const k of testVars) numericVars[k] = Number(vars[k] ?? "0") || 0;
       const r = await testFormula({ expression, conditions, variables: numericVars });
       setResult(r);
       if (!r.ok) toast.error(r.error || "Formula error");
@@ -63,7 +66,7 @@ export function FormulaTester({ expression, conditions }: Props) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2.5">
-          {TEST_VARS.map((k) => (
+          {testVars.map((k) => (
             <div key={k} className="space-y-1">
               <Label htmlFor={`var-${k}`} className="text-xs">
                 {k}
@@ -71,7 +74,7 @@ export function FormulaTester({ expression, conditions }: Props) {
               <Input
                 id={`var-${k}`}
                 type="number"
-                value={vars[k] ?? ""}
+                value={vars[k] ?? (TEST_VARS.includes(k) ? "" : "0")}
                 onChange={(e) => setVars((p) => ({ ...p, [k]: e.target.value }))}
               />
             </div>

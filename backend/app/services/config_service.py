@@ -42,7 +42,8 @@ from app.schemas.statutory_config import (
     PFConfig,
     TenantStatutoryConfig,
 )
-from app.services.formula_eval import MAX_EXPRESSION_LENGTH, safe_power
+from app.services.formula_eval import ALLOWED_FUNCS, MAX_EXPRESSION_LENGTH, safe_power
+from app.services.excel_syntax import ExpressionSyntaxError, translate
 
 
 # ─── Safe expression evaluator ───────────────────────────────────────────────
@@ -73,6 +74,11 @@ _SAFE_FUNCS: dict[str, Any] = {
     "ceil": math.ceil, "floor": math.floor,
     "int": int, "float": float, "bool": bool, "str": str,
     "True": True, "False": False,
+    # The spreadsheet functions the formula builder offers (IF is spelled `iff`
+    # after ``excel_syntax`` rewrites it), so one expression means the same
+    # thing in both boxes.
+    **{name: ALLOWED_FUNCS[name] for name in
+       ("iff", "and_", "or_", "roundup", "rounddown", "round_half_up", "mod")},
 }
 
 
@@ -143,6 +149,12 @@ def _safe_eval(node: ast.AST, ctx: dict[str, Any]) -> Any:
     if isinstance(node, ast.Call):
         if node.keywords:
             raise ValueError("Keyword arguments are not allowed")
+        if isinstance(node.func, ast.Name) and node.func.id == "iff" and "iff" not in ctx:
+            # Lazy, like a spreadsheet IF: only the branch that is taken runs.
+            if len(node.args) != 3:
+                raise ValueError("IF needs three parts: IF(condition, value_if_true, value_if_false)")
+            test = _safe_eval(node.args[0], ctx)
+            return _safe_eval(node.args[1] if test else node.args[2], ctx)
         func = _safe_eval(node.func, ctx)
         # The allow-list, actually enforced. Without this the only thing
         # standing between a caller and an arbitrary call is that no dangerous
@@ -169,9 +181,16 @@ def safe_eval_expr(expression: str, context: dict[str, Any]) -> Any:
             f"the limit is {MAX_EXPRESSION_LENGTH})"
         )
     try:
-        tree = ast.parse(expression.strip(), mode="eval")
-    except SyntaxError as e:
+        source = translate(expression.strip(), context.keys())
+    except ExpressionSyntaxError as e:
         raise ValueError(f"Expression syntax error: {e}") from e
+    try:
+        tree = ast.parse(source, mode="eval")
+    except SyntaxError as e:
+        raise ValueError(
+            f"Expression syntax error: {e.msg}. Check the brackets, the commas between the "
+            "parts of a function, and that every operator has a value on both sides."
+        ) from e
     except (MemoryError, RecursionError) as e:
         raise ValueError("Expression is nested too deeply") from e
     try:

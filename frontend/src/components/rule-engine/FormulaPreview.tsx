@@ -3,6 +3,8 @@
 import type { FormulaRuleType } from "@/lib/rule-engine";
 
 const PREVIEW_HINTS: Record<string, string> = {
+  "MIN(pf_wage, 15000) * 12%": "PF = 12% of min(pf_wage, 15000)",
+  "IF(gross <= 21000, ROUNDUP(gross * 0.75%, 0), 0)": "ESIC EE = 0.75% of gross when gross ≤ 21,000, rounded up",
   "min(pf_wage, 15000) * 0.12": "PF = 12% of min(pf_wage, 15000)",
   "min(pf_wage, 15000) * 0.0833": "EPS = 8.33% of min(pf_wage, 15000)",
   "gross * 0.0075": "ESIC EE = 0.75% of gross",
@@ -12,6 +14,7 @@ const PREVIEW_HINTS: Record<string, string> = {
 function describe(expression: string, ruleType: FormulaRuleType): string {
   const trimmed = expression.trim();
   if (PREVIEW_HINTS[trimmed]) return PREVIEW_HINTS[trimmed];
+  if (/\d\s*%/.test(trimmed)) return `${ruleType} = ${trimmed}`;
   // Best-effort: turn `* 0.12` into a percent for human reading.
   const pct = trimmed.match(/\*\s*0?\.(\d+)/);
   if (pct) {

@@ -49,16 +49,36 @@ import {
   Workflow,
 } from "lucide-react";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon };
+/**
+ * Which modules the menu shows. Validation — the register, its checks, its
+ * findings and the configuration that drives them — is always on. The rest are
+ * kept in the code and reachable by URL, but not offered in the menu until they
+ * are switched on:
+ *
+ *   NEXT_PUBLIC_ENABLED_MODULES=all                           everything
+ *   NEXT_PUBLIC_ENABLED_MODULES=analytics,reports             pick modules
+ *   (unset)                                                   validation only
+ *
+ * Modules: ctc_budget, reconciliation, analytics, reports, studio.
+ * It is read at build time, so changing it means a rebuild.
+ */
+const ENABLED_MODULES = new Set(
+  (process.env.NEXT_PUBLIC_ENABLED_MODULES ?? "").split(",").map((m) => m.trim()).filter(Boolean),
+);
+export const moduleEnabled = (module?: string): boolean =>
+  !module || ENABLED_MODULES.has("all") || ENABLED_MODULES.has(module);
+
+export type NavItem = { href: string; label: string; icon: LucideIcon; module?: string };
 export type NavGroup = {
   id: string;
   label: string;
   items: NavItem[];
   /** Large groups collapse unless you are inside them. */
   collapsible?: boolean;
+  module?: string;
 };
 
-export const NAV_GROUPS: NavGroup[] = [
+const ALL_NAV_GROUPS: NavGroup[] = [
   {
     id: "overview",
     label: "Overview",
@@ -74,9 +94,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/payroll/upload", label: "Salary register", icon: UploadCloud },
       { href: "/payroll/history", label: "Register history", icon: History },
       { href: "/payroll/attendance", label: "Attendance", icon: CalendarDays },
-      { href: "/ctc/upload", label: "CTC upload", icon: FileSpreadsheet },
-      { href: "/ctc/history", label: "CTC history", icon: FolderArchive },
-      { href: "/budget/upload", label: "Budget", icon: Target },
+      { href: "/ctc/upload", label: "CTC upload", icon: FileSpreadsheet, module: "ctc_budget" },
+      { href: "/ctc/history", label: "CTC history", icon: FolderArchive, module: "ctc_budget" },
+      { href: "/budget/upload", label: "Budget", icon: Target, module: "ctc_budget" },
     ],
   },
   {
@@ -90,6 +110,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "close",
+    module: "reconciliation",
     label: "Reconciliation & approvals",
     items: [
       { href: "/reconciliation", label: "Month close & approval", icon: Scale },
@@ -100,6 +121,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "analytics",
+    module: "analytics",
     label: "Analytics & dashboards",
     items: [
       { href: "/dashboards", label: "Dashboards", icon: LayoutGrid },
@@ -108,6 +130,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "reports",
+    module: "reports",
     label: "Reports",
     items: [
       { href: "/reports", label: "Report Centre", icon: FileDown },
@@ -116,6 +139,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "studio",
+    module: "studio",
     label: "Studio",
     collapsible: true,
     items: [
@@ -144,8 +168,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/rule-engine/formula", label: "Formulas", icon: Code2 },
       { href: "/rule-engine/slabs", label: "PT / LWF slabs", icon: BarChart3 },
       { href: "/config/minimum-wage", label: "Minimum wage", icon: IndianRupee },
-      { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote },
-      { href: "/config/jv-templates", label: "JV templates", icon: BookOpen },
+      { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote, module: "reconciliation" },
+      { href: "/config/jv-templates", label: "JV templates", icon: BookOpen, module: "reconciliation" },
       { href: "/config/upload", label: "Configuration upload", icon: FileSpreadsheet },
       { href: "/config/team", label: "Team & invitations", icon: UserPlus },
       { href: "/config/data-protection", label: "Data protection", icon: ShieldCheck },
@@ -153,6 +177,11 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+export const NAV_GROUPS: NavGroup[] = ALL_NAV_GROUPS
+  .filter((g) => moduleEnabled(g.module))
+  .map((g) => ({ ...g, items: g.items.filter((i) => moduleEnabled(i.module)) }))
+  .filter((g) => g.items.length > 0);
 
 export const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/users", label: "Users & roles", icon: Shield },

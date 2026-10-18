@@ -1,13 +1,13 @@
 "use client";
 
 import { apiJson } from "@/lib/api";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 type ComponentRow = {
   id: string;
@@ -41,6 +41,7 @@ export default function ComponentsPage() {
   const [editing, setEditing] = useState<ComponentRow | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,6 +66,8 @@ export default function ComponentsPage() {
   };
 
   const openEdit = (r: ComponentRow) => {
+    // The form is below the list; bring it into view so Edit visibly does something.
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     setEditing(r);
     setForm({
       component_name: r.component_name,
@@ -127,12 +130,7 @@ export default function ComponentsPage() {
       <PageHeader
         eyebrow="Library"
         title="Salary components"
-        description="Map statutory flags once; uploads must include columns matching these names."
-        actions={
-          <Button type="button" onClick={openCreate}>
-            <Plus size={15} strokeWidth={2.25} /> Add component
-          </Button>
-        }
+        description="Map statutory flags once; uploads must include columns matching these names. Add components with the form below the list."
       />
 
       {error && (
@@ -168,15 +166,7 @@ export default function ComponentsPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-12 text-center text-ink-500">
-                    No components yet — start with{" "}
-                    <button
-                      type="button"
-                      onClick={openCreate}
-                      className="font-semibold text-brand-700 hover:text-brand-800"
-                    >
-                      add component
-                    </button>
-                    .
+                    No components yet — add the first one with the form below.
                   </td>
                 </tr>
               ) : (
@@ -222,10 +212,10 @@ export default function ComponentsPage() {
         </div>
       </Card>
 
-      <Card>
+      <Card ref={formRef as never}>
         <CardContent className="space-y-5 p-6">
           <h2 className="font-display text-lg font-bold tracking-tight text-ink-900">
-            {editing ? "Edit component" : "New component"}
+            {editing ? "Edit component" : "Add a component"}
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Component name">
@@ -281,13 +271,20 @@ export default function ComponentsPage() {
               onChange={(v) => setForm({ ...form, taxable: v })}
             />
           </div>
-          <Button
-            type="button"
-            disabled={saving || !form.component_name.trim()}
-            onClick={() => void save()}
-          >
-            {saving ? "Saving…" : "Save"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              disabled={saving || !form.component_name.trim()}
+              onClick={() => void save()}
+            >
+              {saving ? "Saving…" : editing ? "Save changes" : "Add component"}
+            </Button>
+            {editing && (
+              <Button type="button" variant="outline" onClick={openCreate}>
+                Cancel
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

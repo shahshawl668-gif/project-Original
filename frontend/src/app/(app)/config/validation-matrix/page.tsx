@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -71,6 +72,7 @@ export default function ValidationMatrixPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Validation decision matrix" description="Built-in checks, grouped into packs, and your company's own rules — drafted, tested on a real month, approved and versioned. Rules are data the server evaluates; nothing here runs your code." />
+      <MatrixGuide role={activeRole} canDraft={canDraft} />
       {error && <AlertBanner variant="error" title="Rule action failed">{error}</AlertBanner>}
       {catalog.isError || rules.isError ? <AlertBanner variant="error" title="Could not load rules">Retry this page or check the API connection.</AlertBanner> : null}
 
@@ -108,6 +110,61 @@ export default function ValidationMatrixPage() {
 
       {canDraft ? <ImportCard onChanged={refresh} /> : null}
     </div>
+  );
+}
+
+// ─── How this page works ──────────────────────────────────────────────────────
+
+/**
+ * What this page is for, in plain language, and what the signed-in role can do
+ * on it. The controls below are role-gated (owners and managers only); without
+ * this, anyone else saw a page of read-only lists and no explanation.
+ */
+function MatrixGuide({ role, canDraft }: { role: string | null; canDraft: boolean }) {
+  return (
+    <Card><CardContent className="space-y-4 py-5">
+      <div>
+        <h2 className="text-base font-semibold text-ink-900">How this page works</h2>
+        <p className="mt-1 text-sm text-ink-700">
+          Every salary register you upload is checked against the rules listed here. Each check ends as{" "}
+          <strong>Passed</strong>, <strong>Failed</strong>, <strong>Disabled</strong> or{" "}
+          <strong>Could not validate</strong> — a check that is switched off or has no data is never reported as passed.
+        </p>
+      </div>
+      <ol className="grid gap-3 text-sm sm:grid-cols-3">
+        <li className="rounded-xl border border-ink-200 p-3">
+          <p className="font-semibold text-ink-900">1. Rule packs</p>
+          <p className="mt-1 text-xs text-ink-600">
+            Built-in checks grouped by topic (Provident Fund, ESIC, Professional Tax…). Switch a whole pack on or off.
+            Switching off asks for a reason, which goes to the audit trail.
+          </p>
+        </li>
+        <li className="rounded-xl border border-ink-200 p-3">
+          <p className="font-semibold text-ink-900">2. Individual checks</p>
+          <p className="mt-1 text-xs text-ink-600">
+            Search the built-in checks by ID or topic and switch a single check on or off when a pack is more than you need.
+          </p>
+        </li>
+        <li className="rounded-xl border border-ink-200 p-3">
+          <p className="font-semibold text-ink-900">3. Your company&apos;s own rules</p>
+          <p className="mt-1 text-xs text-ink-600">
+            Draft a rule, test it on a month you have already uploaded, submit it for approval, then publish it.
+            Every change is a new version you can compare, roll back or retire.
+          </p>
+        </li>
+      </ol>
+      <p className={cn("rounded-lg px-3 py-2 text-sm", canDraft ? "bg-success-50 text-success-800" : "bg-warning-50 text-warning-800")}>
+        {canDraft
+          ? <>You are signed in as <strong>{role}</strong>: you can switch checks on or off and draft your own rules.</>
+          : <>You are signed in as <strong>{role ?? "a viewer"}</strong>: you can see every check and its result, but only an owner or manager can switch checks on or off or draft rules. Ask one of them, or ask for a role change under{" "}
+            <Link href="/config/team" className="font-semibold underline">Team &amp; invitations</Link>.</>}
+      </p>
+      <p className="text-xs text-ink-500">
+        How PF and ESIC are <em>calculated</em> is not set here — that is the{" "}
+        <Link href="/config/statutory" className="font-semibold text-brand-700">Statutory engine</Link> (wage components, ceilings, rounding)
+        and the <Link href="/rule-engine/formula" className="font-semibold text-brand-700">Formulas</Link> page (Excel-style formulas).
+      </p>
+    </CardContent></Card>
   );
 }
 

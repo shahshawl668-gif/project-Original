@@ -132,6 +132,10 @@ structure, each flagged for its statutory treatment:
 
 ![Salary components](images/14-components.png)
 
+Components are added with the one form below the list (it also edits: choose **Edit** on a row
+and the form scrolls into view). Every component you add becomes a name the **Formulas** page can
+use — `special_allowance` — so add them before writing a PF or ESIC formula that refers to them.
+
 > **The most common implementation error in the whole product** is marking
 > Special Allowance as not PF-applicable because the client's payroll system
 > does not deduct PF on it. The product is checking whether that is *correct*,
@@ -268,7 +272,9 @@ their own pages from the bank file and the voucher.
 
 Built-in checks cover statute and payroll integrity. A client's own policy — a
 loss-of-pay limit, a basic-to-gross floor, a department that must agree with
-the master — goes in **Configuration & admin → Validation matrix → Draft a company rule**.
+the master — goes in **Configuration & admin → Validation matrix → Draft a company rule**. The page opens with a
+short "How this page works" panel that also says what the signed-in role can do: only owners and
+managers can switch checks on or off or draft rules; other roles see everything read-only.
 
 - **Basic** compares a field, component or deduction with a value or another
   field, optionally only when some conditions hold.
