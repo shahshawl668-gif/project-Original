@@ -131,17 +131,6 @@ def test_a_windows_excel_csv_is_readable():
     assert [normalize_col(c) for c in parse_payroll_file(bom, "r.csv").columns] == ["employee_id", "basic"]
 
 
-def test_a_budget_amount_is_read_or_refused_never_zeroed():
-    from app.services.budgeting import parse_budget_rows
-
-    lines, problems = parse_budget_rows([
-        {"period": "2026-09", "scope": "entity", "amount": "5,00,000"},
-        {"period": "2026-10", "scope": "entity", "amount": "five lakh"},
-    ], "scope")
-    assert [str(line["amount"]) for line in lines] == ["500000"]
-    assert problems == ["Row 3: budget amount “five lakh” is not a number."]
-
-
 def test_unreadable_attendance_values_are_named_not_dropped(client, company):
     content = b"employee_id,paid_days,lop_days\nE1,30,0\nE2,twenty,0\nE3,,\n"
     r = client.post("/api/workforce/attendance/upload", headers=company,

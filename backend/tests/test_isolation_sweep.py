@@ -3,7 +3,7 @@ Cross-company object access, swept across every route.
 
 Company B is filled with one of nearly everything the product stores: a
 validated register with findings, comments and an attachment, a dashboard and
-a custom KPI, a saved report with a generated file and a schedule, a budget, a
+a saved report with a generated file and a schedule, a
 bank profile, a JV template, a minimum-wage rate, a formula, a dated statutory
 change, and in Studio a service account and key, a connection with a stream, a
 mapping, a sync run, a webhook, an inbound endpoint and a workflow.
@@ -115,9 +115,6 @@ def _populate(client, headers, hrms) -> list[str]:
         client.post(f"/api/reports/builder/saved/{rid}/jobs", headers=headers, json={"format": "xlsx"})
         client.put(f"/api/reports/builder/saved/{rid}/schedule", headers=headers,
                    json={"frequency": "monthly", "day": 5})
-    client.post("/api/budget/versions", headers=headers,
-                files={"file": ("budget.csv", io.BytesIO(b"period,scope,amount\n2026-06,entity,100000\n"), "text/csv")},
-                data={"name": "B budget", "scope_key": "entity", "measure": "ctc"})
     client.post("/api/minimum-wage/rates", headers=headers, json={
         "state": "Karnataka", "skill_category": "Unskilled", "monthly_rate": 12000,
         "effective_from": "2026-04-01"})

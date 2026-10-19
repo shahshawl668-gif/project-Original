@@ -327,37 +327,6 @@ def _statutory(db, entity_id, ctx, wb) -> None:
              h["finding_count"], h["oldest_period"]] for h in exposure["by_head"]])
 
 
-def _budget_variance(db, entity_id, ctx, wb) -> None:
-    from app.services.budgeting import budget_variance
-
-    result = budget_variance(
-        db, entity_id, date_from=ctx["date_from"], date_to=ctx["date_to"],
-        filters=ctx["filters"],
-    )
-    if result["version"] is None:
-        _sheet(wb, "Budget variance", ["Status"], [[result["note"]]])
-        return
-
-    version = result["version"]
-    _sheet(wb, "Budget", ["Field", "Value"], [
-        ["Budget version", version["name"]],
-        ["Financial year", version["financial_year"]],
-        ["Approved at level", version["scope_key"]],
-        ["Measure", version["measure"]],
-        ["Approved by", version["approved_by"]],
-        ["Approved at", version["approved_at"]],
-    ])
-    _sheet(wb, "By month",
-           ["Period", "Actual", "Budget", "Variance", "Variance %", "Utilisation %"],
-           [[p["label"], p["actual"], p["budget"], p["variance"], p["variance_pct"],
-             p["utilisation_pct"]] for p in result["periods"]])
-    if result["scopes"]:
-        _sheet(wb, "By scope",
-               ["Scope", "Actual", "Budget", "Variance", "Variance %", "Utilisation %"],
-               [[s["scope"], s["actual"], s["budget"], s["variance"], s["variance_pct"],
-                 s["utilisation_pct"]] for s in result["scopes"]])
-
-
 def _component_breakdown(db, entity_id, ctx, wb) -> None:
     from app.services.analytics import cost_analysis
     from app.services.cost_model import MEASURES
@@ -516,9 +485,6 @@ REPORTS: dict[str, tuple[str, str, Callable]] = {
     "statutory-cost": ("Statutory cost",
                        "Employer and employee statutory heads, readiness and exposure.",
                        _statutory),
-    "budget-variance": ("Budget variance",
-                        "Actual against the approved budget, by month and scope.",
-                        _budget_variance),
     "component-breakdown": ("Salary component breakdown",
                             "Every component by month and by dimension.",
                             _component_breakdown),
@@ -544,7 +510,7 @@ RESTRICTED_REPORTS = {"pay-equity"}
 PURPOSES = (
     "Close the month",
     "Compliance and pay fairness",
-    "Cost and budget",
+    "Cost",
     "People and pay",
 )
 
@@ -552,10 +518,9 @@ REPORT_GROUPS = {
     "reconciliation": ("Close the month", "Validation findings"),
     "statutory-cost": ("Compliance and pay fairness", "Salary register and statutory configuration"),
     "pay-equity": ("Compliance and pay fairness", "Salary register and authorised attribute"),
-    "management-summary": ("Cost and budget", "Salary register"),
-    "department-cost": ("Cost and budget", "Salary register"),
-    "budget-variance": ("Cost and budget", "Salary register and approved budget"),
-    "component-breakdown": ("Cost and budget", "Salary register with mapped components"),
+    "management-summary": ("Cost", "Salary register"),
+    "department-cost": ("Cost", "Salary register"),
+    "component-breakdown": ("Cost", "Salary register with mapped components"),
     "headcount": ("People and pay", "Salary register"),
     "compensation": ("People and pay", "Salary register"),
     "employee-cost": ("People and pay", "Salary register"),
@@ -572,7 +537,6 @@ REPORT_INPUTS = {
     "headcount": {"period": "range", "breakdown": False, "filters": True, "names": False},
     "compensation": {"period": "as_at", "breakdown": True, "filters": True, "names": False},
     "statutory-cost": {"period": "range", "breakdown": True, "filters": True, "names": False},
-    "budget-variance": {"period": "range", "breakdown": False, "filters": True, "names": False},
     "component-breakdown": {"period": "range", "breakdown": True, "filters": True, "names": False},
     "reconciliation": {"period": "range", "breakdown": False, "filters": False, "names": True},
     "employee-cost": {"period": "range", "breakdown": False, "filters": True, "names": True},

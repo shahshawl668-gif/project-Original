@@ -439,42 +439,6 @@ export type ForecastInput = {
   bonusAmount: number;
 };
 
-export function fetchBudgetVersions(): Promise<{ versions: BudgetVersionMeta[] }> {
-  return apiFetch("/api/budget/versions").then((r) =>
-    parseEnvelopeResponse<{ versions: BudgetVersionMeta[] }>(r),
-  );
-}
-
-export function fetchBudgetVariance(params: {
-  filters: Record<string, string[]>;
-}): Promise<BudgetVariance> {
-  return apiFetch(`/api/budget/variance?${query({}, params.filters)}`).then((r) =>
-    parseEnvelopeResponse<BudgetVariance>(r),
-  );
-}
-
-export function fetchForecast(input: ForecastInput): Promise<Forecast> {
-  const q = query(
-    {
-      months: String(input.months),
-      increment_pct: String(input.incrementPct),
-      increment_from: input.incrementFrom,
-      new_hires_per_month: String(input.newHiresPerMonth),
-      exits_per_month: String(input.exitsPerMonth),
-      bonus_month: input.bonusMonth,
-      bonus_amount: String(input.bonusAmount),
-    },
-    {},
-  );
-  return apiFetch(`/api/budget/forecast?${q}`).then((r) => parseEnvelopeResponse<Forecast>(r));
-}
-
-export function approveBudget(id: string): Promise<{ id: string; state: string }> {
-  return apiFetch(`/api/budget/versions/${id}/approve`, { method: "POST" }).then((r) =>
-    parseEnvelopeResponse<{ id: string; state: string }>(r),
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Reports and the audit trail
 // ---------------------------------------------------------------------------

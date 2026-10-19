@@ -18,9 +18,23 @@ from app.deps import get_current_entity, get_current_user, get_identity
 from app.envelope import ok
 from app.models import Entity, User
 from app.services import audit, reporting, tenancy
-from app.services.budgeting import parse_period
 
 router = APIRouter()
+
+
+def parse_period(value):
+    """The first of the month for an ISO date or ``YYYY-MM``; None when it is not one."""
+    from datetime import datetime
+
+    text = str(value or "").strip()
+    for fmt in ("%Y-%m-%d", "%Y-%m"):
+        try:
+            return datetime.strptime(text, fmt).date().replace(day=1)
+        except ValueError:
+            continue
+    return None
+
+
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 

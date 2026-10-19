@@ -38,7 +38,6 @@ import {
   Shield,
   ShieldCheck,
   Shuffle,
-  Target,
   UploadCloud,
   UserPlus,
   Users,
@@ -56,7 +55,7 @@ import {
  *   NEXT_PUBLIC_ENABLED_MODULES=reports,studio                pick modules
  *   (unset)                                                   validation only
  *
- * Modules: ctc_budget (Budget only; CTC upload feeds validation and stays), reports, studio.
+ * Modules: reports, studio.
  * It is read at build time, so changing it means a rebuild.
  */
 const ENABLED_MODULES = new Set(
@@ -94,7 +93,6 @@ const ALL_NAV_GROUPS: NavGroup[] = [
       { href: "/payroll/master", label: "Employee master", icon: Users },
       { href: "/ctc/upload", label: "CTC upload", icon: FileSpreadsheet },
       { href: "/ctc/history", label: "CTC history", icon: FolderArchive },
-      { href: "/budget/upload", label: "Budget", icon: Target, module: "ctc_budget" },
     ],
   },
   {

@@ -357,38 +357,12 @@ def test_an_attendance_file_that_does_not_add_up_is_refused_before_it_is_stored(
 # ---------------------------------------------------------------------------
 # Stage 3 — Module B: cost and BI
 # ---------------------------------------------------------------------------
-def test_a_budget_can_be_uploaded_approved_and_compared(client, company):
-    rows = "period,scope,amount,headcount\n"
-    for period in PERIODS:
-        rows += f"{period:%Y-%m},entity,5200000,10\n"
-    created = data(client.post(
-        "/api/budget/versions", headers=company,
-        files={"file": ("budget.csv", io.BytesIO(rows.encode()), "text/csv")},
-        data={"name": "FY27 plan", "scope_key": "entity", "measure": "ctc"},
-    ))
-    assert data(client.post(
-        f"/api/budget/versions/{created['id']}/approve", headers=company
-    ))["state"] == "approved"
-
-    variance = data(client.get(
-        "/api/budget/variance?date_from=2026-04-01&date_to=2026-06-01", headers=company
-    ))
-    assert variance["totals"]["budget"] > 0
-    assert variance["totals"]["actual"] > 0
-
-
-def test_a_forecast_never_comes_back_looking_like_an_actual(client, company):
-    forecast = data(client.get("/api/budget/forecast?months=3&increment_pct=8", headers=company))
-    assert "forecast" in forecast
-    assert forecast.get("disclaimer")
-
-
 # ---------------------------------------------------------------------------
 # Stage 6 — the outputs a client actually receives
 # ---------------------------------------------------------------------------
 def test_every_report_in_the_catalogue_downloads(client, company):
     catalogue = data(client.get("/api/reports", headers=company))["reports"]
-    assert len(catalogue) >= 9
+    assert len(catalogue) >= 8
     for report in catalogue:
         if report["key"] == "pay-equity":
             continue  # authorisation-gated; covered by its own suite
@@ -439,7 +413,7 @@ def test_the_audit_trail_carries_the_whole_chain(client, company):
     events = data(client.get("/api/audit?limit=200", headers=company))["events"]
     actions = {e["action"] for e in events}
     for expected in (
-        "register.uploaded", "budget.uploaded", "budget.approved",
+        "register.uploaded",
     ):
         assert expected in actions, f"{expected} left no audit trail"
 
