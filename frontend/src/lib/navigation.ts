@@ -170,6 +170,34 @@ export const NAV_GROUPS: NavGroup[] = ALL_NAV_GROUPS
   .map((g) => ({ ...g, items: g.items.filter((i) => moduleEnabled(i.module)) }))
   .filter((g) => g.items.length > 0);
 
+/**
+ * The top bar: each entry is a menu holding one or more of the groups above, in
+ * order. A menu with several groups shows them as a rail on the left of its
+ * panel, the way Darwinbox's Spend menu shows Payroll Setup and Compensation Setup.
+ */
+export type MenuDef = { id: string; label: string; groups: string[] };
+export const MENU_DEFS: MenuDef[] = [
+  { id: "home", label: "Home", groups: ["overview"] },
+  { id: "data", label: "Data & imports", groups: ["data"] },
+  { id: "validation", label: "Validation", groups: ["validation", "close"] },
+  { id: "setup", label: "Setup", groups: ["setup-salary", "setup-rules", "config"] },
+  { id: "reports", label: "Reports", groups: ["reports"] },
+  { id: "studio", label: "Studio", groups: ["studio"] },
+];
+
+export type TopMenu = { id: string; label: string; sections: NavGroup[] };
+
+/** The menus for the groups this person can see; one with nothing in it is left out. */
+export function topMenus(groups: NavGroup[]): TopMenu[] {
+  return MENU_DEFS
+    .map((m) => ({
+      id: m.id,
+      label: m.label,
+      sections: m.groups.map((id) => groups.find((g) => g.id === id)).filter((g): g is NavGroup => !!g),
+    }))
+    .filter((m) => m.sections.length > 0);
+}
+
 export const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/users", label: "Users & roles", icon: Shield },
 ];

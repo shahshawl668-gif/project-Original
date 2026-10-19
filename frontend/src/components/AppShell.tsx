@@ -15,6 +15,7 @@ import { EntitySwitcher } from "@/components/EntitySwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { noteNavigation } from "@/components/layout/BackLink";
 import { ContextBar } from "@/components/layout/ContextBar";
+import { TopNav } from "@/components/layout/TopNav";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { SupportBanner } from "@/components/SupportBanner";
 import { cn } from "@/lib/utils";
@@ -377,16 +378,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--bg-canvas)]">
+    <div className="flex h-screen flex-col overflow-hidden bg-[var(--bg-canvas)]">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow-elevated"
       >
         Skip to content
       </a>
-      <aside className="hidden w-60 flex-shrink-0 lg:flex lg:flex-col">
-        <Sidebar groups={groups} />
-      </aside>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
@@ -402,28 +400,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="z-40 flex-shrink-0 border-b border-ink-200 bg-white">
-          <div className="flex h-14 w-full items-center gap-2 px-3 sm:px-5 lg:gap-4">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="rounded-md p-1.5 text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900 lg:hidden"
-              aria-label="Open navigation"
-            >
-              <Menu size={20} />
-            </button>
-            <Breadcrumbs groups={groups} />
-            <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
-              <EntitySwitcher />
-              <ContextBar />
-              <span className="mx-0.5 hidden h-5 w-px bg-ink-200 sm:block" aria-hidden />
-              <NotificationBell />
-              <ProfileMenu />
-            </div>
+      <header className="z-40 flex-shrink-0 border-b border-ink-200 bg-white">
+        <div className="flex h-14 w-full items-center gap-2 px-3 sm:px-5 lg:gap-4">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="rounded-md p-1.5 text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-900 lg:hidden"
+            aria-label="Open navigation"
+          >
+            <Menu size={20} />
+          </button>
+          <BrandMark />
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
+            <EntitySwitcher />
+            <ContextBar />
+            <span className="mx-0.5 hidden h-5 w-px bg-ink-200 sm:block" aria-hidden />
+            <span className="hidden xl:block"><ApiHealthBadge /></span>
+            <NotificationBell />
+            <ProfileMenu />
           </div>
-        </header>
+        </div>
+      </header>
+      <TopNav groups={groups} />
 
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <SupportBanner />
 
         <main
@@ -434,6 +434,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onScroll={(e) => positions.current.set(window.location.pathname + window.location.search, e.currentTarget.scrollTop)}
         >
           <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+            <div className="mb-3"><Breadcrumbs groups={groups} /></div>
             {/* Keyed on the company generation: a switch remounts the page, so
                 no filter or selection from the last company survives. */}
             <PageTransition key={generation}>{children}</PageTransition>
