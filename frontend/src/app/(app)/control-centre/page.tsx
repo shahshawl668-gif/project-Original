@@ -610,28 +610,33 @@ function EvidenceButton({ period, signed }: { period: string; signed: boolean })
 
 // ─── The top of the dashboard ─────────────────────────────────────────────────
 
-/** Indian financial year of a month, as 2026-27. */
-function financialYear(period: string | null): string {
-  if (!period) return "—";
+/** The financial year (April–March) a month falls in, named by its starting year: 2026. */
+function fyStart(period: string | null): number | null {
+  if (!period) return null;
   const [y, m] = period.split("-").map(Number);
-  const start = m >= 4 ? y : y - 1;
-  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+  return m >= 4 ? y : y - 1;
 }
 
-function recentMonths(n: number): string[] {
-  const now = new Date();
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+const fyName = (start: number) => `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+
+/** The twelve months of a financial year, April first. */
+function fyMonths(start: number): string[] {
+  return Array.from({ length: 12 }, (_, i) => {
+    const m = ((3 + i) % 12) + 1;
+    const y = m >= 4 ? start : start + 1;
+    return `${y}-${String(m).padStart(2, "0")}`;
   });
 }
 
-const shortMonth = (p: string) =>
-  new Date(`${p}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short", year: "2-digit" }).replace(" ", "’");
+/** The financial years on offer. The year is not configurable: it always runs April to March. */
+const BASE_FYS = [2026, 2027];
+
+const monthAbbr = (p: string) =>
+  new Date(`${p}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short" });
 
 /**
- * Where the work is being done: company, financial year, month — chosen here,
- * the way the payroll dashboard opens — and the one button that starts the month.
+ * Where the month's work is chosen: company, financial year (April–March), and
+ * the month itself from that year's twelve — plus the button that starts a check.
  */
 function DashboardHeader({
   period, source, status, canAct,
@@ -657,94 +662,93 @@ function DashboardHeader({
     }
     return set;
   }, [runs.data]);
-  const months = useMemo(() => {
-    const all = new Set([...recentMonths(12), ...validated]);
-    if (period) all.add(period);
-    return [...all].sort().reverse();
-  }, [validated, period]);
+  const current = fyStart(period);
+  const years = useMemo(() => {
+    const all = new Set<number>(BASE_FYS);
+    for (const p of validated) { const y = fyStart(p); if (y !== null) all.add(y); }
+    if (current !== null) all.add(current);
+    return [...all].sort();
+  }, [validated, current]);
+  const fy = current ?? BASE_FYS[0];
+  const months = fyMonths(fy);
+
+  const chooseYear = (start: number) => {
+    const list = fyMonths(start);
+    setPeriod(list.find((m) => validated.has(m)) ?? list[0]);
+  };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-ink-900">Payroll Dashboard</h1>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-ink-900">Month at a glance</h1>
+          <p className="text-sm text-ink-500">Choose the company, year and month, then check the register.</p>
+        </div>
         {canAct ? (
           <div className="flex items-center gap-2">
-            <Button asChild variant="outline"><Link href="/payroll/results">Results</Link></Button>
-            <Button asChild><Link href="/payroll/upload">START VALIDATION</Link></Button>
+            <Button asChild variant="outline"><Link href="/payroll/results">Past results</Link></Button>
+            <Button asChild><Link href="/payroll/upload">Check a register</Link></Button>
           </div>
         ) : null}
       </div>
 
-      <section className="grid divide-y divide-ink-100 rounded-xl border border-ink-200 bg-white shadow-soft md:grid-cols-[minmax(0,1fr)_auto] md:divide-x md:divide-y-0">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 p-4 sm:grid-cols-4">
-          <div>
-            <dd className="text-[15px] font-medium text-ink-900">India</dd>
-            <dt className="text-xs text-ink-500">Country</dt>
-          </div>
+      <section className="rounded-2xl border border-ink-200 bg-gradient-to-br from-white to-brand-50/40 p-4 shadow-soft">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
           <div className="min-w-0">
-            <dd className="text-[15px] font-medium text-ink-900">
-              {isMultiEntity ? (
-                <select
-                  aria-label="Group company"
-                  value={entity?.id ?? ""}
-                  onChange={(e) => void switchEntity(e.target.value)}
-                  className="-ml-1 max-w-full rounded-md border border-transparent bg-transparent py-0.5 pl-1 pr-5 text-[15px] font-medium hover:border-ink-200 focus:border-brand-500 focus:outline-none"
-                >
-                  {entities.filter((e) => e.is_active).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-              ) : (
-                <span className="block truncate">{entity?.name ?? "—"}</span>
-              )}
-            </dd>
-            <dt className="text-xs text-ink-500">Group company</dt>
+            <label htmlFor="dash-company" className="block text-[11px] font-medium text-ink-500">Company</label>
+            {isMultiEntity ? (
+              <select
+                id="dash-company"
+                value={entity?.id ?? ""}
+                onChange={(e) => void switchEntity(e.target.value)}
+                className="mt-0.5 h-9 max-w-[16rem] rounded-lg border border-ink-200 bg-white px-2.5 text-[14px] font-medium text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              >
+                {entities.filter((e) => e.is_active).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            ) : (
+              <p className="mt-0.5 flex h-9 max-w-[16rem] items-center truncate text-[14px] font-medium text-ink-900">{entity?.name ?? "—"}</p>
+            )}
           </div>
           <div>
-            <dd className="text-[15px] font-medium text-ink-900">{financialYear(period)}</dd>
-            <dt className="text-xs text-ink-500">Financial year</dt>
-          </div>
-          <div>
-            <dd className="text-[15px] font-medium text-ink-900">Monthly</dd>
-            <dt className="text-xs text-ink-500">Frequency</dt>
-          </div>
-        </dl>
-        <div className="flex items-center gap-3 p-4">
-          <label htmlFor="dash-month" className="text-sm text-ink-700">Month</label>
-          <div>
+            <label htmlFor="dash-fy" className="block text-[11px] font-medium text-ink-500">Financial year · Apr–Mar</label>
             <select
-              id="dash-month"
-              value={period ?? ""}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="h-9 min-w-[10rem] rounded-lg border border-ink-200 bg-white px-2.5 text-[14px] font-medium text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              id="dash-fy"
+              value={fy}
+              onChange={(e) => chooseYear(Number(e.target.value))}
+              className="mt-0.5 h-9 min-w-[8rem] rounded-lg border border-ink-200 bg-white px-2.5 text-[14px] font-medium text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
             >
-              {months.map((m) => <option key={m} value={m}>{periodLabel(m)}</option>)}
+              {years.map((y) => <option key={y} value={y}>FY {fyName(y)}</option>)}
             </select>
-            {status ? <div className="mt-1"><StatusPill tone={status.tone}>{status.label}</StatusPill></div> : null}
+          </div>
+          <div className="ml-auto flex items-center gap-2 text-sm text-ink-600">
+            {period ? <span className="font-medium text-ink-900">{periodLabel(period)}</span> : null}
+            {status ? <StatusPill tone={status.tone}>{status.label}</StatusPill> : null}
           </div>
         </div>
-      </section>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ink-200 bg-white px-4 py-3 shadow-soft">
-        <span className="mr-1 text-sm text-ink-600">Pay period</span>
-        {months.slice(0, 8).reverse().map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setPeriod(m)}
-            aria-pressed={m === period}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors",
-              m === period ? "border-brand-300 bg-brand-50 text-brand-800" : "border-ink-200 text-ink-700 hover:bg-ink-50",
-            )}
-          >
-            <span aria-hidden className={cn("h-2 w-2 rounded-full", validated.has(m) ? "bg-success-500" : "bg-warning-500")} />
-            {shortMonth(m)}
-          </button>
-        ))}
-        <span className="ml-auto hidden items-center gap-3 text-xs text-ink-500 sm:flex">
-          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-success-500" /> validated</span>
-          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-warning-500" /> no run yet</span>
-        </span>
-      </div>
+        <div role="group" aria-label="Month" className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
+          {months.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setPeriod(m)}
+              aria-pressed={m === period}
+              title={periodLabel(m)}
+              className={cn(
+                "flex flex-col items-center rounded-xl border px-2 py-2 text-[13px] transition-colors",
+                m === period ? "border-brand-500 bg-brand-600 text-white shadow-soft" : "border-ink-200 bg-white text-ink-800 hover:border-brand-300 hover:bg-brand-50/60",
+              )}
+            >
+              <span className="font-medium">{monthAbbr(m)}</span>
+              <span aria-hidden className={cn("mt-1 h-1.5 w-6 rounded-full", validated.has(m) ? "bg-success-500" : m === period ? "bg-white/50" : "bg-ink-200")} />
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 flex items-center gap-3 text-xs text-ink-500">
+          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-4 rounded-full bg-success-500" /> checked</span>
+          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-4 rounded-full bg-ink-200" /> not checked yet</span>
+        </p>
+      </section>
       {source !== "chosen" && period ? (
         <p className="text-xs text-ink-500">Showing the latest month with a run — choose another above.</p>
       ) : null}

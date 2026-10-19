@@ -108,10 +108,10 @@ company and takes you into its work. A company with nothing uploaded says so.
 
 ### Payroll Control Centre — the month in one place
 
-**Home → Payroll Control Centre** is the Payroll Dashboard. Across the top you choose the
-**group company**, see the financial year, and choose the **month** (with its status), or click a
-month in the **Pay period** row — a green dot means the month has been validated. **Start
-validation** begins the month. Below, the page shows which files have arrived, how validation is
+**Home → Payroll Control Centre** is the *Month at a glance*. Across the top you choose the
+**company** and the **financial year** (always April to March; FY 2026-27 and FY 2027-28 are
+offered), then click one of that year's twelve **months** — a green bar means the month has been
+checked. **Check a register** begins the month. Below, the page shows which files have arrived, how validation is
 going, what is still open, what changed since the previous run, what blocks approval and the
 evidence pack; a right-hand rail holds the latest run, the month's closure status and the output
 links. It also says the **next step** —
@@ -244,10 +244,17 @@ says what happened before the next one starts.
 ![Salary register — mapping columns](images/02-payroll-upload.png)
 
 1. **Choose file** — CSV or Excel, straight out of your payroll system, with
-   the payroll month and the run type. The page lists what the file needs: an
+   the payroll month. There is one import and one validation for everything:
+   regular pay, a mid-month increment and arrears for earlier months are
+   calculated and checked together. The page lists what the file needs: an
    Employee ID column and, with the strict header check on, one column per
-   salary component. *Regular* replaces the month's register used by cost
-   reports and dashboards; *arrear* runs are validated but leave it alone.
+   salary component; arrears go in `<Component> Arrear` columns (or
+   *Increment Arrear*, with *Arrear From* / *Arrear To* if you have them).
+   Each person's expected pay comes from their CTC break-up: days-weighted
+   when an increment starts inside the month (INC-002 when it was not
+   prorated), and the arrear for each earlier month from the effective date
+   (INC-001 when the revision was not applied, MOM-006 when the arrear is
+   short).
 2. **Map columns** — each column in your file beside a sample of its values
    and the field it maps to. A suggestion says how it was found (*same name* or
    *known alias*); anything you change says *set by you*; a column nobody maps
@@ -571,9 +578,8 @@ counting them again is the most common way payroll cost gets overstated.
 The strip above the figures says what they rest on: how many months have a
 register, **which months are missing** (they are left out, not counted as ₹0),
 how many months were validated or have changed since, how many are signed off,
-how many people have no department recorded, and when data last arrived. An
-arrears or off-cycle file is validated but never replaces the month's register,
-so a month's cost is never overwritten by its arrears. In **Budget vs actual**, a
+how many people have no department recorded, and when data last arrived. Arrears
+are part of the month's register, so they are validated with it. In **Budget vs actual**, a
 budgeted month with no register reads **no register** — not a ₹0 actual and a
 false underspend — and is left out of the totals.
 
@@ -902,7 +908,8 @@ upload takes the same two formats; see `docs/CONFIGURATION_CSV.md`.
 
 **Salary & statutory → Statutory engine → Minimum wages.** A strip at the top records whether the minimum wage
 check applies to your company (Applies / Does not apply, from a date, with a reason for *No*); until it is
-decided the check does not run. Below it is one row per notified schedule: state, scheduled employment and zone,
+decided the check does not run. The check reads each person's **CTC break-up**, not the salary register; with no
+CTC on file it says so (MW-004) rather than guess. Below it is one row per notified schedule: state, scheduled employment and zone,
 the rate for each skill category, the dates it applies, and whether it is Active, Upcoming or Expired.
 **Create new minimum wage** opens a panel in two steps — General (state, scheduled employment, zone, working
 days, effective dates, the notification) and Configure (basic and VDA per month for each skill category). **View**

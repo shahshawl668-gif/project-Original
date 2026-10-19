@@ -169,11 +169,18 @@ def test_minimum_wage_runs_in_validation_when_applicable(client, company):
     assert client.post("/api/workforce/master/commit", headers=company,
                        files={"file": ("m.csv", io.BytesIO(master.encode()), "text/csv")},
                        data={"meta": json.dumps({"effective_from": "2026-04-01"})}).status_code == 200
-    rows = [_row("E001", 30000), _row("E002", 7000), _row("E003", 30000)]
+    # The floor is measured on the CTC break-up, so that is what is uploaded; the register
+    # pays everyone the same here, to show it is not what is compared.
+    ctc = [{"employee_id": e, "effective_from": "2026-04-01", "annual_components": parts, "annual_ctc": sum(parts.values())}
+           for e, parts in (("E001", {"basic": 360000, "special_allowance": 90000}),
+                            ("E002", {"basic": 84000, "special_allowance": 21000}),
+                            ("E003", {"basic": 360000, "special_allowance": 90000}))]
+    assert client.post("/api/ctc/commit", headers=company, json={"records": ctc}).status_code == 200
+    rows = [_row("E001", 30000), _row("E002", 30000), _row("E003", 30000)]
     run_id = _run(client, company, _register(rows))
-    # E001: 30,000 + 7,500 special (HRA excluded) = 37,500 ≥ 14,000.
+    # E001: CTC 30,000 + 7,500 special (HRA excluded) = 37,500 ≥ 14,000.
     assert _outcome(client, company, run_id, "E001", "MW-001")["outcome"] == "passed"
-    # E002: 7,000 + 1,750 = 8,750 < 14,000 — below the floor.
+    # E002: CTC 7,000 + 1,750 = 8,750 < 14,000 — below the floor, although the register paid 37,500.
     below = _outcome(client, company, run_id, "E002", "MW-001")
     assert below["outcome"] == "failed"
     # E003: no skill category on the master, so no rate can be chosen.
@@ -181,6 +188,13 @@ def test_minimum_wage_runs_in_validation_when_applicable(client, company):
     finding = _data(client.get(f"/api/validation/runs/{run_id}/findings?rule_id=MW-001", headers=company))
     assert finding["items"][0]["employee_id"] == "E002"
     assert Decimal(str(finding["items"][0]["financial_impact"])) == Decimal("5250.00")
+
+
+def test_minimum_wage_needs_the_ctc_breakup_and_says_so(client, company):
+    assert client.post("/api/minimum-wage/applicability", headers=company, json={
+        "effective_from": "2026-04-01", "applicable": True}).status_code == 200
+    run_id = _run(client, company, _register(BASE_ROWS))
+    assert _outcome(client, company, run_id, "E001", "MW-004")["outcome"] == "cannot_validate"
 
 
 # ---------------------------------------------------------------------------

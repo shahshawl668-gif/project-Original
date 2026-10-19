@@ -261,7 +261,6 @@ def test_rule_packs_explain_what_they_need_and_how_the_last_run_went(client, com
     assert pf["state"] == "on" and "STAT-001" in {c["rule_id"] for c in pf["checks"]}
     assert any(r["input"] == "PF employee column" for r in pf["required_inputs"])
     assert pf["last_run"]["totals"]["failed"] >= 1
-    assert packs["reconciliation"]["checks"] == [] and packs["reconciliation"]["elsewhere"]
     assert packs["minimum_wage"]["last_run"]["totals"]["cannot_validate"] > 0
 
 

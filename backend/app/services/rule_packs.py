@@ -9,7 +9,7 @@ company (the same per-rule suppression the matrix page sets, recorded as one
 audit entry naming the pack, its checks and the reason), and a suppressed check
 reports **Disabled** in every run, never Passed.
 
-Packs also say where coverage stops. Bank and journal reconciliation are
+Packs also say where coverage stops. Packs with no checks of their own are
 checked on their own pages from their own files, so the pack says so rather
 than implying validation covered them.
 """
@@ -69,7 +69,7 @@ PACKS: tuple[Pack, ...] = (
          "Sec 206AA rate without PAN, and monthly TDS against the projection.",
          _ids(exact=("STAT-011", "TDS-001", "TDS-002"))),
     Pack("minimum_wage", "Minimum wage",
-         "Pay at or above the dated state rate for the employee's skill category.",
+         "The CTC break-up is at or above the dated state rate for the employee's skill category.",
          _ids(prefixes=("MW-",))),
     Pack("bonus_gratuity", "Bonus and gratuity",
          "Statutory bonus band and eligibility; gratuity service, formula and cap.",
@@ -78,15 +78,11 @@ PACKS: tuple[Pack, ...] = (
          "Paid days and loss of pay agree with the attendance register and the calendar; overtime is paid as recorded.",
          _ids(families=("Attendance",))),
     Pack("arrears", "Arrears",
-         "Arrear periods stated and valid; increment arrears match the CTC revision.",
-         _ids(prefixes=("ARR-",), exact=("MOM-006",))),
+         "Arrear periods stated and valid; increment arrears match the CTC revision; a mid-month increment is paid by days; an increment is actually applied.",
+         _ids(prefixes=("ARR-", "INC-"), exact=("MOM-006",))),
     Pack("period_comparison", "Period comparison",
          "Joiners, spikes, drops, new and missing components against last month.",
          tuple(r for r in _ids(families=("Period comparison",)) if r != "MOM-006")),
-    Pack("reconciliation", "Bank and ledger reconciliation",
-         "Net pay reached the right accounts; the journal voucher balances and agrees with payroll cost.",
-         (),
-         elsewhere="Checked on Bank payments and Journal voucher from the bank file and the voucher, not during register validation."),
 )
 BY_KEY = {p.key: p for p in PACKS}
 

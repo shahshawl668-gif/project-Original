@@ -671,6 +671,34 @@ def build_findings(
             financial_impact=float(diff_v.copy_abs()),
         ))
 
+    # An increment seen in this month's pay: the same row can carry it as a part-month
+    # revision, as pay still at the old structure, or as an arrear for earlier months.
+    for issue in inc_info.get("issues", []):
+        comp_key = issue["component"]
+        actual_v, expected_v = _dec(issue["actual"]), _dec(issue["expected"])
+        if issue["rule"] == "INC-002":
+            paid = "the full new amount" if issue["paid_at"] == "new" else "the old amount"
+            fail("INC-002", "Mid-Month Increment Not Prorated", comp_key, expected_v, actual_v, "WARNING",
+                 f"The revision took effect on {issue['effective_from']}, so '{comp_key}' should be "
+                 f"{issue['days_old']} days at the old rate and {issue['days_new']} days at the new "
+                 f"({_fmt(expected_v)}). The register paid {paid} ({_fmt(actual_v)}).",
+                 f"Pay {comp_key} for {issue['days_old']} days at ₹{_fmt(_dec(issue['old']))} and "
+                 f"{issue['days_new']} days at ₹{_fmt(_dec(issue['new']))}, pro rata.",
+                 float((actual_v - expected_v).copy_abs()))
+        else:
+            fail("INC-001", "Increment Not Applied", comp_key, expected_v, actual_v, "WARNING",
+                 f"The CTC revision effective {issue['effective_from']} is in force, but '{comp_key}' "
+                 f"was paid at the old amount ({_fmt(actual_v)}), not {_fmt(expected_v)}.",
+                 f"Apply the revised {comp_key} from {issue['effective_from']}, and pay the arrear for the months missed.",
+                 float((actual_v - expected_v).copy_abs()))
+
+    if inc_info.get("unverifiable"):
+        info("INC-003", "Arrear Paid Without a CTC Revision to Check It", "arrear",
+             "A CTC revision effective before this month", "none on file",
+             "This row carries arrears but the CTC report has no earlier revision for the employee, so the "
+             "arrear amount cannot be checked against what it should be.",
+             "Upload the CTC report including the previous and the revised break-up, with the effective date.")
+
     # ═══════════════════════════════════════════════════════════════════
     # P6 – MONTH-ON-MONTH COMPARISON
     # ═══════════════════════════════════════════════════════════════════

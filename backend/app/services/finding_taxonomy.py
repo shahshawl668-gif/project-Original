@@ -67,7 +67,7 @@ _MISMATCH_RULES = {
 }
 
 # Everything else is a judgement call rather than a correction.
-_ISSUE_PREFIXES = ("STRUCT-", "LC-", "MOM-", "ADV-", "ID-", "BON-", "GRAT-", "MST-", "ATT-", "MW-", "ARR-")
+_ISSUE_PREFIXES = ("STRUCT-", "LC-", "MOM-", "ADV-", "ID-", "BON-", "GRAT-", "MST-", "ATT-", "MW-", "ARR-", "INC-")
 _ISSUE_RULES = {"DATA-002", "DATA-003", "DATA-004", "DATA-005",
                 "DATA-006", "DATA-007", "DATA-008", "DATA-009"}
 

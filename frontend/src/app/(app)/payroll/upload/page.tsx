@@ -49,12 +49,6 @@ const ORIGIN_LABEL: Record<Origin, string> = {
   manual: "Set by you",
 };
 
-const RUN_TYPES = [
-  { id: "regular", label: "Regular", desc: "The month's payroll. Becomes the month's stored register." },
-  { id: "arrear", label: "Arrear", desc: "A past-period correction. Validated, but does not replace the month's register." },
-  { id: "increment_arrear", label: "Increment + arrear", desc: "Arrears from a CTC change. Validated, not added to the register." },
-] as const;
-
 const human = (field: string) => field.replaceAll("_", " ");
 
 /**
@@ -71,10 +65,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
   const [strict, setStrict] = useState(true);
-  const [runType, setRunType] = useState<(typeof RUN_TYPES)[number]["id"]>("regular");
   const [periodMonth, setPeriodMonth] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [origin, setOrigin] = useState<Record<string, Origin>>({});
@@ -188,10 +179,8 @@ export default function UploadPage() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("meta", JSON.stringify({
-        run_type: runType,
+        run_type: "regular",
         period_month: periodMonth ? `${periodMonth}-01` : null,
-        effective_month_from: from || null,
-        effective_month_to: to || null,
         strict_header_check: strict,
         column_mapping: mapping,
         // The register is validated on the server from the stored upload, so
@@ -237,9 +226,7 @@ export default function UploadPage() {
       const { job, already_queued } = await validationApi.enqueue({
         period_month: upload.period_month,
         upload_id: upload.id,
-        run_type: runType,
-        effective_month_from: from || null,
-        effective_month_to: to || null,
+        run_type: "regular",
       });
       if (getActiveEntityId() !== requestEntityId) return;
       if (already_queued) toast.info("Joining the validation already running for this month");
@@ -257,7 +244,6 @@ export default function UploadPage() {
     if (error && ((i === 0 && error.stage === "parsing") || (i === 1 && error.stage === "checking") || (i === 3 && error.stage === "queueing"))) return "error";
     return i < at ? "done" : i === at ? "current" : "todo";
   };
-  const needsArrearDates = runType !== "regular";
 
   const rows = useMemo(() => {
     if (!preview) return [];
@@ -372,33 +358,9 @@ export default function UploadPage() {
               />
               <p id="period-help" className="mt-1 text-xs text-ink-500">
                 {working.source === "chosen" && periodMonth === working.period ? "Filled from your working period. " : ""}
-                Uploading again for the same month adds a new revision; earlier revisions and their runs are kept.
+                One register covers everything for the month: regular pay, increments and arrears are calculated and checked together. Uploading again for the same month adds a new revision; earlier revisions and their runs are kept.
               </p>
             </div>
-            <fieldset>
-              <legend className="text-[13px] font-medium text-ink-800">Run type</legend>
-              <div className="mt-1 space-y-1.5">
-                {RUN_TYPES.map((t) => (
-                  <label key={t.id} className={cn("flex cursor-pointer gap-2.5 rounded-lg border px-3 py-2", runType === t.id ? "border-brand-300 bg-brand-50/60" : "border-ink-200 hover:bg-ink-50")}>
-                    <input type="radio" name="run-type" className="mt-0.5 accent-brand-600" checked={runType === t.id} onChange={() => setRunType(t.id)} />
-                    <span>
-                      <span className="block text-[13px] font-medium text-ink-900">{t.label}</span>
-                      <span className="block text-xs text-ink-500">{t.desc}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            {needsArrearDates ? (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-[13px] font-medium text-ink-800">Effective from
-                  <input type="date" className="mt-1 block h-9 w-full rounded-lg border border-ink-200 px-2.5 text-[13px]" value={from} onChange={(e) => setFrom(e.target.value)} />
-                </label>
-                <label className="text-[13px] font-medium text-ink-800">Effective to
-                  <input type="date" className="mt-1 block h-9 w-full rounded-lg border border-ink-200 px-2.5 text-[13px]" value={to} onChange={(e) => setTo(e.target.value)} />
-                </label>
-              </div>
-            ) : null}
             <label className="flex cursor-pointer items-start gap-2.5">
               <input type="checkbox" className="mt-0.5 accent-brand-600" checked={strict} onChange={(e) => setStrict(e.target.checked)} />
               <span>

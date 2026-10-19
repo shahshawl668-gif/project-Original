@@ -289,6 +289,7 @@ def check_employee(
     zone: str | None = None,
     scheduled_employment: str | None = None,
     rate_cache: dict | None = None,
+    source_note: str | None = None,
 ) -> dict | None:
     """
     Compare one employee's pay against the applicable floor.
@@ -370,7 +371,9 @@ def check_employee(
             f"Wages of {actual} are below the {state} minimum of {floor} for a "
             f"{skill_category} worker"
             + (f" ({rate.source_reference})" if rate.source_reference else "")
-            + f", measured on the '{basis}' basis."
+            + f", measured on the '{basis}' basis"
+            + (f" from {source_note}" if source_note else "")
+            + "."
         ),
         "suggested_fix": f"Increase wages by {shortfall} to meet the statutory floor.",
     }

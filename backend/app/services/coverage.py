@@ -427,6 +427,18 @@ REGISTRY: list[RuleCoverage] = [
                  na_reason="No increment arrear on this row",
                  requires=(("CTC revision", lambda c: bool((c.res("increment_arrear") or {}).get("applicable"))),)),
 
+    # Increments ---------------------------------------------------------------
+    RuleCoverage("INC-001", "Increment Applied In The Month's Pay", "Arrears and F&F",
+                 requires=(("CTC revision", lambda c: bool((c.res("increment_arrear") or {}).get("revision_effective_from"))),),
+                 applies=lambda c: bool((c.res("increment_arrear") or {}).get("revision_effective_from")),
+                 na_reason="No CTC revision for this employee"),
+    RuleCoverage("INC-002", "Mid-Month Increment Prorated By Days", "Arrears and F&F",
+                 applies=lambda c: bool((c.res("increment_arrear") or {}).get("mid_month")),
+                 na_reason="No increment effective part-way through this month"),
+    RuleCoverage("INC-003", "Arrear Has A CTC Revision To Check It", "Arrears and F&F",
+                 applies=_any_arrear, na_reason="No arrears on this row",
+                 cannot_marker=lambda f: True),
+
     # Minimum wage -----------------------------------------------------------
     RuleCoverage("MW-001", "Pay At or Above Minimum Wage", "Statutory",
                  applies=lambda c: c.res("minimum_wage_status") != "not_applicable",
@@ -435,6 +447,10 @@ REGISTRY: list[RuleCoverage] = [
                             lambda c: c.res("minimum_wage_status") == "checked"),),
                  material=True),
     RuleCoverage("MW-003", "Minimum Wage Rate and Classification Available", "Statutory",
+                 applies=lambda c: c.res("minimum_wage_status") == "checked",
+                 na_reason="Minimum wage not checked for this company",
+                 cannot_marker=lambda f: True),
+    RuleCoverage("MW-004", "Minimum Wage Checked On The CTC Break-up", "Statutory",
                  applies=lambda c: c.res("minimum_wage_status") == "checked",
                  na_reason="Minimum wage not checked for this company",
                  cannot_marker=lambda f: True),

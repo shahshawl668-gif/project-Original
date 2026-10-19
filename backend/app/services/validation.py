@@ -23,7 +23,7 @@ from app.models import (
     Entity,
     StatutorySettings,
 )
-from app.services import labour_codes, saved_formulas, validation_matrix
+from app.services import increments, labour_codes, saved_formulas, validation_matrix
 from app.services.config_service import ConfigService
 from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
@@ -708,10 +708,11 @@ def _increment_arrears(
     arrear_by_base: dict[str, Decimal],
     inc_arrear_total: Decimal,
     comp_by_key: dict[str, ComponentConfig],
+    window_to: date | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
-    """If two CTCs exist and the latest one is effective within the arrear window,
-    expected per-component arrear = (new_monthly - old_monthly) * months_in_window.
-    Compare to per-component arrears + increment_arrear_total in the register."""
+    """When the newest CTC revision took effect before the month being paid, the months
+    from then up to the month before owe (new - old) per component, the first only for
+    the days from the effective date. Compared with the arrears the register carries."""
     info: dict[str, Any] = {
         "applicable": False,
         "expected_total": 0.0,
@@ -723,61 +724,33 @@ def _increment_arrears(
 
     if len(ctcs) < 2 or not period_month:
         return info, errors
-
-    new_ctc, old_ctc = ctcs[0], ctcs[1]
-    if new_ctc.effective_from <= old_ctc.effective_from:
+    latest, previous = ctcs[0], ctcs[1]
+    if latest.effective_from <= previous.effective_from or latest.effective_from >= period_month:
         return info, errors
 
-    window_from = effective_from or new_ctc.effective_from
-    if new_ctc.effective_from > period_month:
+    expected_components, months = increments.expected_arrears(
+        latest, previous, period_month, effective_from, window_to)
+    if not expected_components:
         return info, errors
-    if window_from > period_month:
-        return info, errors
-
-    arrear_start = max(window_from, new_ctc.effective_from)
-    if arrear_start > period_month:
-        return info, errors
-
-    months = _months_between_inclusive(arrear_start, period_month) - 1
-    if months <= 0:
-        return info, errors
-
-    expected_components: dict[str, float] = {}
-    expected_total = Decimal("0")
-    for k, new_annual in (new_ctc.annual_components or {}).items():
-        old_annual = (old_ctc.annual_components or {}).get(k, 0)
-        new_m = Decimal(str(new_annual)) / Decimal(12)
-        old_m = Decimal(str(old_annual)) / Decimal(12)
-        diff_per_month = _q(new_m - old_m)
-        if diff_per_month == 0:
-            continue
-        per_comp_total = _q(diff_per_month * Decimal(months))
-        expected_components[k] = float(per_comp_total)
-        expected_total += per_comp_total
+    expected_total = sum(expected_components.values(), start=Decimal("0"))
 
     info["applicable"] = True
-    info["months"] = months
-    info["expected_components"] = expected_components
+    info["months"] = float(round(months, 2)) if months != int(months) else int(months)
+    info["expected_components"] = {k: float(v) for k, v in expected_components.items()}
     info["expected_total"] = float(expected_total)
 
-    actual_inc = inc_arrear_total
     actual_per_comp_total = sum(arrear_by_base.values(), start=Decimal("0"))
-    actual_combined = actual_inc + actual_per_comp_total
-
+    actual_combined = inc_arrear_total + actual_per_comp_total
     if (actual_combined - expected_total).copy_abs() > ARREAR_TOLERANCE:
         errors.append(
-            f"Increment arrears mismatch: expected {_q(expected_total)} across {months} month(s), "
+            f"Increment arrears mismatch: expected {_q(expected_total)} across {info['months']} month(s), "
             f"got {_q(actual_combined)} (per-component {actual_per_comp_total} + "
-            f"increment_arrear_total {actual_inc})."
+            f"increment_arrear_total {inc_arrear_total})."
         )
-
-    for k, exp_amt in expected_components.items():
-        actual_k = arrear_by_base.get(k, Decimal("0"))
-        if (actual_k - Decimal(str(exp_amt))).copy_abs() > ARREAR_TOLERANCE and inc_arrear_total == 0:
-            errors.append(
-                f"{k} arrear missing or off: expected {exp_amt}, got {float(actual_k)}."
-            )
-
+    for key, expected in expected_components.items():
+        got = arrear_by_base.get(key, Decimal("0"))
+        if (got - expected).copy_abs() > ARREAR_TOLERANCE and inc_arrear_total == 0:
+            errors.append(f"{key} arrear missing or off: expected {expected}, got {float(got)}.")
     return info, errors
 
 
@@ -938,7 +911,8 @@ def validate_employees(
     # CTC records for everyone, once: the two latest in force at the cutoff,
     # per employee — exactly what _latest_ctcs returns, without a query per
     # employee (20,000 of them on a large register).
-    ctc_cutoff = period_month or as_of
+    # In force by the END of the month, so a revision effective part-way through it is seen.
+    ctc_cutoff = increments.month_end(period_month) if period_month else as_of
     ctcs_by_employee: dict[str, list[CtcRecord]] = {}
     for record in (
         db.query(CtcRecord)
@@ -1203,11 +1177,17 @@ def validate_employees(
                 if lwf_e_m != lwf_eamt:
                     errors.append(f"LWF employee amount may change for {label} due to wage band shift.")
 
-        # CTC-driven LOP & increment arrear checks
-        ctc_monthly: dict[str, Decimal] = {}
-        if ctcs:
-            for k, v in (ctcs[0].annual_components or {}).items():
-                ctc_monthly[k] = Decimal(str(v)) / Decimal(12)
+        # CTC-driven proration, increment and arrear checks. The structure the month
+        # should follow is the CTC in force, blended by days when a revision lands
+        # part-way through the month.
+        structure = (
+            increments.structure_for_month(ctcs[0], ctcs[1] if len(ctcs) > 1 else None, period_month)
+            if ctcs and period_month else None
+        )
+        if ctcs and structure is None:
+            plain = increments.monthly(ctcs[0])
+            structure = increments.MonthStructure(plain, plain, None, ctcs[0].effective_from, False, 0, row_days_in_month)
+        ctc_monthly: dict[str, Decimal] = dict(structure.expected) if structure else {}
 
         paid_days_raw = row.get("paid_days")
         lop_days_raw = stated(row, "lop_days", "lop")
@@ -1217,6 +1197,12 @@ def validate_employees(
         lop_diffs, lop_errors = _lop_proration_check(
             row, regular, paid_days, lop_days, row_days_in_month, ctc_monthly, comp_by_key
         )
+        increment_issues: list[dict[str, Any]] = []
+        if structure is not None and lop_diffs:
+            effective_paid = paid_days if paid_days is not None else (
+                Decimal(row_days_in_month) - lop_days if lop_days is not None else Decimal(row_days_in_month))
+            lop_diffs, increment_issues = increments.classify_pay_mismatches(
+                lop_diffs, structure, effective_paid / Decimal(row_days_in_month), LOP_TOLERANCE)
         errors.extend(lop_errors)
 
         inc_info, inc_errors = _increment_arrears(
@@ -1226,8 +1212,14 @@ def validate_employees(
             arrear_by_base,
             inc_arrear_total,
             comp_by_key,
+            composition.arrear_to if composition.window_source == "row" else None,
         )
         errors.extend(inc_errors)
+        inc_info["issues"] = increment_issues
+        inc_info["mid_month"] = bool(structure and structure.mid_month)
+        inc_info["revision_effective_from"] = structure.effective_from.isoformat() if structure and structure.effective_from else None
+        # An arrear with no earlier revision on file to check it against is said so, not passed.
+        inc_info["unverifiable"] = bool(composition.any_arrear and not inc_info.get("applicable"))
 
         prior_info, prior_errors = _prior_month_diff(
             eid, regular, inc_arrear_total, arrear_by_base, prior_rows
@@ -1347,20 +1339,34 @@ def validate_employees(
                 ))
 
         if mw_status == "checked":
-            mw_finding = mw.check_employee(
-                db,
-                entity.id,
-                employee_id=eid,
-                employee_name=ename if isinstance(ename, str) else None,
-                components={k: float(v) for k, v in regular.items()},
-                state=(master_record.work_state if master_record is not None else None)
-                or row_state or entity.primary_state,
-                skill_category=getattr(master_record, "skill_category", None),
-                paid_days=paid_days,
-                calendar_days=Decimal(row_days_in_month),
-                as_of=mw_as_of,
-                rate_cache=mw_rates,
-            )
+            # Measured on the CTC break-up in force at the end of the month, not on what
+            # the register paid: the floor is a statement about the pay structure, and a
+            # register that under-pays is already caught by the proration checks.
+            if structure is None:
+                mw_finding = {
+                    "employee_id": eid, "employee_name": ename if isinstance(ename, str) else None,
+                    "component": "minimum_wage", "status": "FAIL", "rule_id": "MW-004",
+                    "rule_name": "Minimum Wage — No CTC Break-up", "severity": "INFO",
+                    "expected_value": "", "actual_value": "", "difference": "", "financial_impact": 0.0,
+                    "reason": "The minimum wage check uses the CTC break-up, and there is none on file for this employee.",
+                    "suggested_fix": "Upload the CTC report with this employee's salary components and re-run.",
+                }
+            else:
+                mw_finding = mw.check_employee(
+                    db,
+                    entity.id,
+                    employee_id=eid,
+                    employee_name=ename if isinstance(ename, str) else None,
+                    components={k: float(v) for k, v in structure.new.items()},
+                    state=(master_record.work_state if master_record is not None else None)
+                    or row_state or entity.primary_state,
+                    skill_category=getattr(master_record, "skill_category", None),
+                    paid_days=None,
+                    calendar_days=Decimal(row_days_in_month),
+                    as_of=mw_as_of,
+                    rate_cache=mw_rates,
+                    source_note="the CTC break-up",
+                )
             if mw_finding:
                 mw_finding.setdefault("category", categorise(mw_finding["rule_id"], mw_finding.get("actual_value")))
                 matrix_findings.append(mw_finding)
