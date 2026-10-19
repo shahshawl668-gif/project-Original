@@ -60,7 +60,7 @@ E037 -- present + weekly off + holiday days do not add up to the 31 calendar day
 
 ### Expected background findings (not mistakes)
 
-* `STAT-005` ESIC ineligible (INFO) for everyone above the ESIC ceiling -- it confirms the rule was applied.
+* `STAT-005` ESIC ineligible is recorded as a passed check for everyone above the ESIC ceiling -- it confirms the rule was applied.
 * `MOM-001` new joiner for E031 (joined in August) and E040 (not in July) -- correct, they have no July payslip.
 * `TDS-002` for E029 -- a knock-on of the higher Basic, the TDS was worked out on the correct salary.
 * About 95% coverage. "Cannot validate" remains for the PF employer, EPS and ESIC employer columns on purpose:

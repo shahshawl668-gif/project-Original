@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   type SlabRow,
   type SlabRuleType,
+  getCompanySchemeStates,
   getReferenceStates,
   getSlabs,
   importAllDefaultSlabs,
@@ -36,6 +37,7 @@ export function SlabsPanel({ ruleType }: { ruleType: SlabRuleType }) {
   const [state, setState] = useState<string>("");
   const [stateOptions, setStateOptions] = useState<string[]>([]);
   const [customState, setCustomState] = useState("");
+  const [companyStates, setCompanyStates] = useState<string[]>([]);
   const [slabs, setSlabs] = useState<SlabRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -51,10 +53,17 @@ export function SlabsPanel({ ruleType }: { ruleType: SlabRuleType }) {
   useEffect(() => {
     (async () => {
       try {
-        const [r, d] = await Promise.all([getReferenceStates(), listDefaultStates()]);
-        setStateOptions(r.all_states);
+        const [r, d, mine] = await Promise.all([
+          getReferenceStates(),
+          listDefaultStates(),
+          getCompanySchemeStates().catch(() => ({ PT: [] as string[], LWF: [] as string[] })),
+        ]);
+        const own = mine[ruleType] ?? [];
+        setStateOptions(Array.from(new Set([...own, ...r.all_states])));
+        setCompanyStates(own);
         setDefaultsByType({ PT: d.PT, LWF: d.LWF });
-        if (!state && r.all_states[0]) setState(r.all_states[0]);
+        // Open on a state the company actually runs this scheme in, not the first in the alphabet.
+        if (!state && (own[0] || r.all_states[0])) setState(own[0] || r.all_states[0]);
       } catch (e) {
         toast.error((e as Error).message);
       }
@@ -126,6 +135,7 @@ export function SlabsPanel({ ruleType }: { ruleType: SlabRuleType }) {
     setSaving(true);
     try {
       await saveSlabs({ state, rule_type: ruleType, slabs });
+      void getCompanySchemeStates().then((m) => setCompanyStates(m[ruleType] ?? [])).catch(() => undefined);
       toast.success(`Saved ${slabs.length} ${ruleType} slabs for ${state}`);
       await loadSlabs();
     } catch (e) {
@@ -249,9 +259,31 @@ export function SlabsPanel({ ruleType }: { ruleType: SlabRuleType }) {
           <p className="font-display text-[11px] font-semibold text-ink-500">
             Selection
           </p>
-          <CardTitle>Filters</CardTitle>
+          <CardTitle>State</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
+            <span className="text-ink-600">Your company runs {ruleType} in:</span>
+            {companyStates.length ? (
+              companyStates.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setState(s)}
+                  aria-pressed={s === state}
+                  className={
+                    s === state
+                      ? "rounded-full border border-brand-300 bg-brand-50 px-2.5 py-0.5 font-medium text-brand-800"
+                      : "rounded-full border border-ink-200 px-2.5 py-0.5 text-ink-700 hover:bg-ink-50"
+                  }
+                >
+                  {s}
+                </button>
+              ))
+            ) : (
+              <span className="text-ink-500">no state yet — pick a state below and save its slabs (or load the defaults).</span>
+            )}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>State</Label>

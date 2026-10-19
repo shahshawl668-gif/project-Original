@@ -161,6 +161,30 @@ Configuration, open when you are in them.
 > reconciliation, analytics, reports and Studio appear when they are switched on for your
 > installation.
 
+### How the statutory checks read a month
+
+* **PF** is on the earned PF wage, restricted to the ceiling when the company is on the restricted
+  basis. **PF on arrears** is worked month by month: each month an arrear relates to is taken to the
+  ceiling on its own, so an arrear for someone already at the ceiling carries no further PF (ARR-004).
+* **ESIC coverage** follows the full-month rate of wages: loss of pay, joining or leaving part-way
+  through the month does not bring someone on ₹24,000 a month under ESIC. The contribution is on
+  what is paid, **arrears included**, for a covered employee. An employee outside ESIC is recorded
+  as a passed check (STAT-005), not as a problem.
+* **PT and LWF** are checked in every state the company runs them in — the states in the settings
+  *and* every state whose slabs are saved on the Professional tax / Labour welfare fund tabs; those
+  tabs open on your company's own states. A deduction where the slab says nil (a woman's slab, a
+  month the state does not collect LWF) is reported. PT on a month with arrears reconciles whether
+  it was worked on the month's salary or on everything paid in it. An employee in a state the
+  company does not run the scheme in is left alone unless something was deducted.
+* **Joiners and leavers**: paid days are checked against the days the person was employed in the
+  month (from the employee master), so a joiner on the 11th paid 20 days with no loss of pay is
+  correct, and the part month is not reported as a pay drop.
+* **Minimum wage** is measured on the CTC break-up, HRA, overtime, bonus, arrears and employer
+  contributions excluded; allowances such as *Other Allowance* count.
+
+A ready-made month to try all of this is in `testdata/payroll-qa-sep2026` (load order and answer key in
+its README).
+
 ### Writing formulas
 
 The **Statutory engine** page (Salary & statutory) takes PF and ESIC formulas the way you would write them in

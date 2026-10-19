@@ -10,6 +10,7 @@ import { monthLabel, validationApi, type ValidationJob } from "@/lib/validation"
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, Loader2, RotateCcw, ShieldCheck, UploadCloud, XCircle } from "lucide-react";
 import { IntegrationPanel } from "@/components/studio/IntegrationPanel";
@@ -38,6 +39,7 @@ function JobProgress({ jobId }: { jobId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const started = useRef(Date.now());
+  const queryClient = useQueryClient();
   const entityAtStart = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -75,6 +77,11 @@ function JobProgress({ jobId }: { jobId: string }) {
         timer = setTimeout(() => void tick(), wait);
       }
       if (next?.state === "succeeded" && next.run_id) {
+        // A new run is now the month's current one: everything that names "the current
+        // run" (the header chip, the month's status, the run lists) must re-read.
+        for (const key of ["period-status", "run-periods", "period-runs", "runs"]) {
+          void queryClient.invalidateQueries({ queryKey: [key] });
+        }
         timer = setTimeout(() => router.push(`/payroll/results?run=${encodeURIComponent(next.run_id!)}`), 1200);
       }
     };
@@ -83,7 +90,7 @@ function JobProgress({ jobId }: { jobId: string }) {
       stop = true;
       if (timer) clearTimeout(timer);
     };
-  }, [load, router]);
+  }, [load, router, queryClient]);
 
   const cancel = async () => {
     if (!job) return;

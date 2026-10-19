@@ -1,0 +1,26 @@
+﻿Employee ID,Employee Name,Date of Joining,Date of Exit,Gender,State,Department,Designation,Employment Type,Skill Category,UAN,ESIC IP Number
+C01,Anil Kumar,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000001,5200000001
+C02,Bhavana Rao,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Unskilled,100999000002,5200000002
+C03,Chetan Gowda,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Unskilled,100999000003,5200000003
+C04,Deepa Shetty,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Unskilled,100999000004,5200000004
+C05,Eshwar Naik,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000005,5200000005
+C06,Farah Khan,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000006,5200000006
+C07,Ganesh Bhat,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000007,5200000007
+C08,Harini Iyer,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000008,5200000008
+C09,Imran Sheikh,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000009,5200000009
+C10,Jyothi Pai,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000010,5200000010
+C11,Kiran Hegde,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000011,5200000011
+C12,Latha Murthy,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000012,5200000012
+C13,Mohan Das,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000013,5200000013
+C14,Nisha Patil,2022-04-01,,Female,Maharashtra,Stores,Associate,Permanent,Skilled,100999000014,5200000014
+C15,Omkar Jadhav,2022-04-01,,Male,Maharashtra,Stores,Associate,Permanent,Unskilled,100999000015,5200000015
+C16,Pallavi Joshi,2026-09-11,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000016,5200000016
+C17,Rajesh Kamath,2022-04-01,2026-09-20,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000017,5200000017
+C18,Sunita Pawar,2022-04-01,,Female,Maharashtra,Stores,Associate,Permanent,Skilled,100999000018,5200000018
+C19,Tarun Reddy,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000019,5200000019
+C20,Usha Nair,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000020,5200000020
+C21,Vinod Kumar,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000021,5200000021
+C22,Waheeda Begum,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000022,5200000022
+C23,Yash Shetty,2026-09-16,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000023,5200000023
+C24,Zoya Mirza,2022-04-01,,Female,Karnataka,Stores,Associate,Permanent,Skilled,100999000024,5200000024
+C25,Aarav Menon,2022-04-01,,Male,Karnataka,Stores,Associate,Permanent,Skilled,100999000025,5200000025

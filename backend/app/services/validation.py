@@ -828,6 +828,21 @@ def _compare_uploaded(
 PROGRESS_EVERY = 100
 
 
+def _employed_days(master_record: Any, row: dict[str, Any], period_month: date | None, days: int) -> int | None:
+    """Days of the pay month the employee was on the rolls, from the joining and exit dates."""
+    if period_month is None:
+        return None
+    from app.services import identity_checks as idc
+    from app.services.attendance_rules import employed_days
+
+    doj = (master_record.date_of_joining if master_record is not None else None) or idc.parse_cell_date(
+        row.get("doj") or row.get("date_of_joining"))
+    dox = (master_record.date_of_exit if master_record is not None else None) or idc.parse_cell_date(
+        row.get("dol") or row.get("date_of_leaving") or row.get("date_of_exit"))
+    found = employed_days(doj, dox, period_month)
+    return min(found, days) if found is not None else None
+
+
 def _decimal_or_none(value: Any) -> Decimal | None:
     try:
         return None if value in (None, "") else Decimal(str(value))
@@ -903,6 +918,19 @@ def validate_employees(
         key for key, versions in slab_versions.items()
         if not _dated_slab_cohort(versions, period_month or as_of)
     }
+    # A state whose slabs the company has saved is a state it runs the scheme in,
+    # whether or not it was also typed into the settings' state list: entering
+    # Karnataka's PT slabs and then finding PT never checked is a silent pass.
+    for scheme, cfg_list in (("PT", pt_states_cfg), ("LWF", lwf_states_cfg)):
+        known = {s.casefold() for s in cfg_list}
+        for rule_type, state_name in sorted(slab_versions):
+            if rule_type == scheme and state_name.casefold() not in known:
+                cfg_list.append(state_name)
+                known.add(state_name.casefold())
+    if default_pt_state is None and len(pt_states_cfg) == 1:
+        default_pt_state = pt_states_cfg[0]
+    if default_lwf_state is None and len(lwf_states_cfg) == 1:
+        default_lwf_state = lwf_states_cfg[0]
 
     # The master as it stood at period end — used for the PF basis and for the
     # cost dimensions snapshotted onto each result row.
@@ -1045,7 +1073,13 @@ def validate_employees(
         esic_wage_cfg = compute_esic_wage(regular, comp_by_key, esic_cfg)
         effective_esic_wage = esic_wage_cfg if esic_wage_cfg > Decimal("0") else esic_wage
 
-        esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type)
+        # Coverage is decided on the full month's rate of wages; a part month
+        # (loss of pay, joining or leaving) is scaled back up before the test.
+        row_paid_days = _decimal_or_none(stated(row, "paid_days"))
+        esic_rate_wage = effective_esic_wage
+        if row_paid_days is not None and 0 < row_paid_days < row_days_in_month:
+            esic_rate_wage = effective_esic_wage * Decimal(row_days_in_month) / row_paid_days
+        esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type, eligibility_wage=esic_rate_wage)
         errors.extend(saved_formulas.apply(
             pf_cfg.employee_formula, esic_cfg.employee_formula, pf_calc, esic_calc, regular, list(comp_by_key),
             effective_pf_wage, effective_esic_wage, _decimal_or_none(stated(row, "paid_days")),
@@ -1091,7 +1125,8 @@ def validate_employees(
             errors.append(msg)
 
         # PT / LWF (tenant-managed slab_rules take precedence over seeded reference)
-        emp_gender = row.get("gender") or row.get("sex")
+        # The register rarely carries gender; the master does, and PT slabs can depend on it.
+        emp_gender = row.get("gender") or row.get("sex") or (master_record.gender if master_record is not None else None)
         run_month = period_month.month if period_month else as_of.month
         pt_due, pt_slab = lookup_pt(
             db,
@@ -1106,6 +1141,16 @@ def validate_employees(
             db, state_lwf, lwf_base, as_of, entity_id=entity.id
         )
 
+        # Arrears paid this month: practice differs on whether PT is on the month's
+        # salary or on everything paid in it, so a deduction on either reconciles.
+        if pt_arrear > 0 and state_pt:
+            stated_pt = _decimal_or_none(stated(row, "pt", "pt_amount"))
+            pt_with_arrear, _ = lookup_pt(
+                db, state_pt, pt_base + pt_arrear, as_of, entity_id=entity.id,
+                gender=emp_gender, run_month=run_month,
+            )
+            if stated_pt is not None and stated_pt == pt_with_arrear:
+                pt_due = pt_with_arrear
         msg = _compare_uploaded(row, ["pt", "pt_amount"], pt_due, "PT")
         if msg:
             errors.append(msg)
@@ -1188,6 +1233,49 @@ def validate_employees(
             plain = increments.monthly(ctcs[0])
             structure = increments.MonthStructure(plain, plain, None, ctcs[0].effective_from, False, 0, row_days_in_month)
         ctc_monthly: dict[str, Decimal] = dict(structure.expected) if structure else {}
+
+        # PF on arrears. Arrears are wages of the months they relate to, so each of
+        # those months is taken to the ceiling on its own: the old wage of a month
+        # is the full-month PF wage less that month's share of the arrear. Where
+        # the old wage was already at the ceiling nothing more is due (ARR-004).
+        if pf_arrear > 0 and not (pf_cfg.employee_formula or "").strip():
+            arrear_months_f: Decimal | None = None
+            if structure is not None and len(ctcs) > 1 and period_month and ctcs[0].effective_from < period_month:
+                _, arrear_months_f = increments.expected_arrears(ctcs[0], ctcs[1], period_month)
+            if not arrear_months_f and composition.arrear_months:
+                arrear_months_f = Decimal(composition.arrear_months)
+            if arrear_months_f and arrear_months_f > 0:
+                full_pf = effective_pf_wage
+                if row_paid_days is not None and 0 < row_paid_days < row_days_in_month:
+                    full_pf = effective_pf_wage * Decimal(row_days_in_month) / row_paid_days
+                per_month = pf_arrear / arrear_months_f
+                ceiling_pf = Decimal(str(pf_calc.get("_ceiling") or 0))
+                if pf_calc.get("_restrict") and ceiling_pf > 0:
+                    due_wage = arrear_months_f * (min(full_pf, ceiling_pf) - min(max(full_pf - per_month, Decimal("0")), ceiling_pf))
+                else:
+                    due_wage = pf_arrear
+                if due_wage > 0 and Decimal(str(pf_calc.get("pf_employee") or 0)) > 0:
+                    rate = Decimal(str(pf_calc.get("_emp_rate") or "0.12"))
+                    extra = (due_wage * rate).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                    pf_calc["pf_employee"] = float(Decimal(str(pf_calc["pf_employee"])) + extra)
+                    # The employer matches it; the pension share is 8.33% of the same wage.
+                    eps_extra = (due_wage * Decimal("0.0833")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                    pf_calc["pf_employer_total"] = float(Decimal(str(pf_calc.get("pf_employer_total") or 0)) + extra)
+                    pf_calc["pf_eps"] = float(Decimal(str(pf_calc.get("pf_eps") or 0)) + eps_extra)
+                    pf_calc["pf_epf"] = float(Decimal(str(pf_calc.get("pf_epf") or 0)) + extra - eps_extra)
+                    pf_calc["pf_wage_capped"] = float(Decimal(str(pf_calc.get("pf_wage_capped") or 0)) + due_wage)
+                    pf_calc["_arrear_pf_wage"] = float(due_wage)
+
+        # ESIC on arrears. Arrears do not decide coverage, but a covered employee's
+        # arrears are wages paid this month and carry ESIC like the rest.
+        if esic_arrear > 0 and esic_calc.get("esic_eligible") and not (esic_cfg.employee_formula or "").strip():
+            from app.services.esic_engine import _round_esic
+
+            paid_esic_wage = effective_esic_wage + esic_arrear
+            mode = esic_cfg.rounding.mode
+            esic_calc["esic_employee"] = float(_round_esic(paid_esic_wage * Decimal(str(esic_cfg.rates.employee_rate)), mode))
+            esic_calc["esic_employer"] = float(_round_esic(paid_esic_wage * Decimal(str(esic_cfg.rates.employer_rate)), mode))
+            esic_calc["_arrear_esic_wage"] = float(esic_arrear)
 
         paid_days_raw = row.get("paid_days")
         lop_days_raw = stated(row, "lop_days", "lop")
@@ -1293,6 +1381,9 @@ def validate_employees(
             period_month=period_month or as_of,
             expected_monthly_tds=expected_monthly_tds,
             composition=composition,
+            pt_known=state_pt is not None and ("PT", state_pt) not in slab_version_gaps,
+            lwf_known=state_lwf is not None and ("LWF", state_lwf) not in slab_version_gaps,
+            employed_days=_employed_days(master_record, row, period_month, row_days_in_month),
         )
         matrix_row = {
             **row,
@@ -1318,7 +1409,23 @@ def validate_employees(
         for scheme, configured, selected in (
             ("PT", pt_states_cfg, state_pt), ("LWF", lwf_states_cfg, state_lwf),
         ):
-            if configured and selected is None:
+            deducted = _dec(stated(row, "pt", "pt_amount") if scheme == "PT" else stated(row, "lwf_employee"))
+            if configured and selected is None and row_state and deducted > 0:
+                # A state the company does not run this scheme in, yet it was deducted.
+                emp_findings.append(ValidationFinding(
+                    employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
+                    rule_id=f"DATA-{scheme}-STATE", rule_name=f"{scheme} State Not Mapped",
+                    component="state", expected_value=", ".join(configured),
+                    actual_value=row_state, difference="",
+                    severity="WARNING", status="FAIL",
+                    reason=f"{scheme} of ₹{deducted:,.2f} was deducted for an employee in {row_state}, "
+                           f"which is not one of the states {scheme} is set up for.",
+                    suggested_fix=f"Add {row_state} under Statutory engine → {scheme} if it applies, "
+                                  "or refund the deduction.",
+                ))
+            elif configured and selected is None and not row_state:
+                # No state at all: which scheme applies cannot be known. A state that
+                # is simply not in the list is one the company does not run it in.
                 emp_findings.append(ValidationFinding(
                     employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
                     rule_id=f"DATA-{scheme}-STATE", rule_name=f"{scheme} State Not Mapped",

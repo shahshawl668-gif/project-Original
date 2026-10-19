@@ -137,14 +137,33 @@ def _finding(
 # paid days and loss of pay always agree, because one was calculated from the
 # other — so checking them afterwards would pass every file, including the ones
 # that stated both and contradicted themselves.
+def employed_days(doj: date | None, dox: date | None, period_month: date) -> int | None:
+    """Days of the month someone was on the rolls, or None for the whole month."""
+    days = days_in_month(period_month.replace(day=1))
+    start, end = 1, days
+    if doj and (doj.year, doj.month) == (period_month.year, period_month.month):
+        start = doj.day
+    if dox and (dox.year, dox.month) == (period_month.year, period_month.month):
+        end = min(dox.day, days)
+    if (start, end) == (1, days):
+        return None
+    return max(end - start + 1, 0)
+
+
 def check_self_consistency(
     records: list[dict[str, Any]],
     period_month: date,
     *,
     day_tolerance: Decimal = Decimal("0.05"),
     require_days_reconcile: bool = True,
+    employed: dict[str, int] | None = None,
 ) -> list[dict]:
-    """Everything wrong with an attendance file, judged without any other input."""
+    """
+    Everything wrong with an attendance file, judged without any other input
+    except, when given, the days each person was employed this month: someone
+    who joined on the 11th is paid for 20 days of a 30-day month with no loss
+    of pay, and the days before joining are not missing days.
+    """
     period_month = period_month.replace(day=1)
     actual_days = days_in_month(period_month)
     findings: list[dict] = []
@@ -211,10 +230,14 @@ def check_self_consistency(
         # Only where the file stated both. A file that stated one and had the
         # other derived cannot disagree with itself, and flagging it would be
         # reporting our own arithmetic back at the client.
+        due_days = Decimal((employed or {}).get(employee_id) or calendar_days)
         paid, lop = stated["paid_days"], stated["lop_days"]
         if paid is not None and lop is not None:
-            expected_paid = calendar_days - lop
-            if abs(paid - expected_paid) > day_tolerance:
+            # Either reading is a consistent file: days before joining shown as loss of
+            # pay, or left out of the month altogether. Paying a joiner the full month
+            # is a pay error, reported against the register (MST-006), not here.
+            expected_paid = due_days - lop
+            if abs(paid - expected_paid) > day_tolerance and abs(paid - (calendar_days - lop)) > day_tolerance:
                 findings.append(_finding(
                     employee_id=employee_id, employee_name=name,
                     rule_id="ATT-011", rule_name="Paid Days Do Not Match Loss Of Pay",
@@ -232,7 +255,7 @@ def check_self_consistency(
                  "holiday_days", "lop_days")
         if require_days_reconcile and all(stated[p] is not None for p in parts):
             total = sum((stated[p] for p in parts), Decimal("0"))
-            if abs(total - calendar_days) > day_tolerance:
+            if abs(total - calendar_days) > day_tolerance and abs(total - due_days) > day_tolerance:
                 findings.append(_finding(
                     employee_id=employee_id, employee_name=name,
                     rule_id="ATT-010", rule_name="Attendance Days Do Not Reconcile",

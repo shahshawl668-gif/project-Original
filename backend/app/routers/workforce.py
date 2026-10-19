@@ -8,6 +8,7 @@ silently disable every exit-related check.
 """
 from __future__ import annotations
 
+import calendar
 import json
 import uuid
 from datetime import date
@@ -216,6 +217,19 @@ async def upload_attendance(
     return ok(_preview(records, header_map, unmapped, warnings))
 
 
+def _employed_this_month(db: Session, entity: Entity, period_month: date) -> dict[str, int]:
+    """Joiners' and leavers' days on the rolls this month, from the employee master."""
+    from app.services.workforce import master_as_of
+
+    month_end = period_month.replace(day=calendar.monthrange(period_month.year, period_month.month)[1])
+    out: dict[str, int] = {}
+    for eid, rec in master_as_of(db, entity.id, month_end).items():
+        days = attendance_rules.employed_days(rec.date_of_joining, rec.date_of_exit, period_month)
+        if days is not None:
+            out[eid] = days
+    return out
+
+
 @router.post("/attendance/validate")
 async def validate_attendance(
     file: UploadFile = File(...),
@@ -255,6 +269,7 @@ async def validate_attendance(
         records, period_month,
         day_tolerance=getattr(cfg, "day_tolerance", Decimal("0.05")),
         require_days_reconcile=bool(getattr(cfg, "require_days_reconcile", True)),
+        employed=_employed_this_month(db, entity, period_month),
     )
 
     by_severity: dict[str, int] = {}
@@ -316,6 +331,7 @@ async def commit_attendance(
         records, period_month,
         day_tolerance=getattr(cfg, "day_tolerance", Decimal("0.05")),
         require_days_reconcile=bool(getattr(cfg, "require_days_reconcile", True)),
+        employed=_employed_this_month(db, entity, period_month),
     )
 
     result = ingest.commit_attendance(

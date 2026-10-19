@@ -86,6 +86,11 @@ export async function getReferenceStates(): Promise<{
   return apiJson("/api/reference/states");
 }
 
+/** The states PT / LWF are checked in for this company: its settings plus every state with saved slabs. */
+export async function getCompanySchemeStates(): Promise<{ PT: string[]; LWF: string[] }> {
+  return apiJson("/api/rule-engine/slabs/configured-states");
+}
+
 export async function listPtDefaultStates(): Promise<{ states: string[] }> {
   return apiJson("/api/rule-engine/defaults/pt-states");
 }

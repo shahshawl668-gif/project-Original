@@ -243,8 +243,10 @@ def test_every_rule_the_engine_can_emit_has_a_coverage_entry():
 # ---------------------------------------------------------------------------
 def test_no_failures_with_unperformed_statutory_checks_is_incomplete_not_ready(client, company):
     # One ESIC-exempt employee, and the rules that report on a first month or
-    # an above-ceiling wage switched off, so nothing at all fails.
-    for rule in ("MOM-001", "STAT-005", "STAT-011"):
+    # an above-ceiling wage switched off, so nothing at all fails. The company
+    # has Karnataka PT slabs, so PT is checked, and this register carries no PT
+    # column (STAT-008, a notice) -- switched off too.
+    for rule in ("MOM-001", "STAT-005", "STAT-011", "STAT-008"):
         assert client.put("/api/rule-preferences", headers=company,
                           json={"rule_id": rule, "suppressed": True}).status_code == 200
     clean = [_row("E001", 30000)]

@@ -97,6 +97,40 @@ def _convert(model, field: str, value):
     raise ValueError(f"Unsupported configuration field {field}")
 
 
+_FREQUENCIES = {"monthly": "monthly", "month": "monthly", "yearly": "yearly", "annual": "yearly",
+                "annually": "yearly", "year": "yearly", "half-yearly": "half-yearly", "halfyearly": "half-yearly",
+                "half-year": "half-yearly", "six-monthly": "half-yearly", "quarterly": "quarterly", "quarter": "quarterly"}
+
+
+def _normalise_slab(row: dict) -> None:
+    """Spellings people type in a spreadsheet: "Half yearly", "half_yearly", "Annual", "Female", "all"."""
+    if isinstance(row.get("rule_type"), str):
+        row["rule_type"] = row["rule_type"].strip().upper()
+    freq = row.get("frequency")
+    if isinstance(freq, str):
+        key = freq.strip().lower().replace("_", "-").replace(" ", "-")
+        row["frequency"] = _FREQUENCIES.get(key, key)
+    gender = row.get("gender")
+    if isinstance(gender, str):
+        row["gender"] = {"M": "MALE", "F": "FEMALE", "ANY": "ALL", "BOTH": "ALL"}.get(
+            gender.strip().upper(), gender.strip().upper())
+    if row.get("gender") in (None, ""):
+        row["gender"] = "ALL"
+    if row.get("frequency") in (None, ""):
+        row["frequency"] = "monthly"
+
+
+def _plain(exc: ValidationError) -> str:
+    """A pydantic error as a sentence a person can act on, without the library's links."""
+    parts = []
+    for err in exc.errors()[:5]:
+        field = ".".join(str(x) for x in err.get("loc", ()) if not isinstance(x, int)).replace("_", " ")
+        value = err.get("input")
+        shown = f" (“{value}”)" if isinstance(value, (str, int, float)) and str(value) != "" else ""
+        parts.append(f"{field or 'value'}{shown}: {err.get('msg', 'is not valid')}")
+    return "; ".join(parts)
+
+
 def _validate(payload: dict) -> dict:
     if payload.get("format") != "peopleopslab-config" or payload.get("version") != 1:
         raise ValueError("Download a version 1 configuration file before uploading.")
@@ -129,6 +163,7 @@ def _validate(payload: dict) -> dict:
                     ComponentCreate.model_validate(row)
             elif key == "pt_lwf_slabs":
                 for row in validated:
+                    _normalise_slab(row)
                     if row["rule_type"] not in ("PT", "LWF") or row["min_salary"] > row["max_salary"]:
                         raise ValueError("PT/LWF row has an invalid type or salary band")
                     SlabRow.model_validate(row)
@@ -147,7 +182,7 @@ def _validate(payload: dict) -> dict:
                         if row[field] is not None:
                             schema.model_validate(row[field])
         except ValidationError as exc:
-            raise ValueError(f"{key}: {exc}") from exc
+            raise ValueError(f"{key}: {_plain(exc)}") from exc
         cleaned[key] = validated
     return cleaned
 

@@ -1,0 +1,76 @@
+{
+ "C02": {
+  "rules": [
+   "MW-001"
+  ],
+  "mistake": "CTC break-up 13,600 (Basic + Conveyance + Other Allowance, HRA excluded) is below the Karnataka unskilled minimum of 14,000"
+ },
+ "C04": {
+  "rules": [
+   "MW-001"
+  ],
+  "mistake": "CTC break-up 11,000 (HRA excluded) is below the Karnataka unskilled minimum of 14,000"
+ },
+ "C06": {
+  "rules": [
+   "ATT-001",
+   "ATT-002",
+   "ATT-020"
+  ],
+  "mistake": "3 days of LOP in attendance, but the full month was paid"
+ },
+ "C08": {
+  "rules": [
+   "INC-002"
+  ],
+  "mistake": "Increment effective 16 Sep paid at the full new rate for the whole month"
+ },
+ "C11": {
+  "rules": [
+   "MOM-006"
+  ],
+  "mistake": "Increment effective 1 Aug: September paid at the new rate but the August arrear (3,000 Basic + 1,200 HRA) was not paid"
+ },
+ "C12": {
+  "rules": [
+   "PF-009"
+  ],
+  "mistake": "PF 3,600 deducted on the full Basic, but PF is restricted to the 15,000 ceiling (1,800)"
+ },
+ "C13": {
+  "rules": [
+   "STAT-006"
+  ],
+  "mistake": "ESIC not deducted although the ESIC wage of 20,500 is within 21,000"
+ },
+ "C14": {
+  "rules": [
+   "STAT-008"
+  ],
+  "mistake": "Maharashtra PT of 200 charged to a woman earning 22,000 (nil up to 25,000 for women)"
+ },
+ "C18": {
+  "rules": [
+   "STAT-009"
+  ],
+  "mistake": "Maharashtra LWF deducted in September; it is due only in June and December"
+ },
+ "C19": {
+  "rules": [
+   "AGG-001"
+  ],
+  "mistake": "Gross is 2,000 more than the sum of the earnings"
+ },
+ "C21": {
+  "rules": [
+   "MW-001"
+  ],
+  "mistake": "New CTC 15,000 excluding HRA is below the Karnataka skilled minimum of 16,500 (the arrear itself is correct)"
+ },
+ "C23": {
+  "rules": [
+   "MW-001"
+  ],
+  "mistake": "CTC 13,200 excluding HRA is below the Karnataka skilled minimum of 16,500"
+ }
+}

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import Entity, SlabRule, User
+from app.models import Entity, SlabRule, StatutorySettings, User
 from app.schemas.rule_engine import (
     SlabRowOut,
     SlabsResponse,
@@ -217,6 +217,27 @@ def _slab_kwargs(rule_type: str, state: str, idx: int, user_id, entity_id, s: di
         "source_reference": s.get("source_reference"),
         "sort_order": idx,
     }
+
+
+@router.get("/slabs/configured-states")
+def get_configured_states(
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """The states PT and LWF are checked in for this company: the settings' state
+    lists together with every state whose slabs have been saved."""
+    settings = db.query(StatutorySettings).filter(StatutorySettings.entity_id == entity.id).first()
+    out: dict[str, list[str]] = {
+        "PT": list((settings.pt_states if settings else None) or []),
+        "LWF": list((settings.lwf_states if settings else None) or []),
+    }
+    for rule_type, state in db.query(SlabRule.rule_type, SlabRule.state).filter(
+            SlabRule.entity_id == entity.id).distinct():
+        bucket = out.setdefault(rule_type, [])
+        if state.casefold() not in {s.casefold() for s in bucket}:
+            bucket.append(state)
+    return ok({key: sorted(values) for key, values in out.items()})
 
 
 @router.get("/defaults/pt-states")

@@ -216,6 +216,9 @@ def build_findings(
     period_month: Any = None,
     expected_monthly_tds: float | None = None,
     composition: Any = None,
+    pt_known: bool = False,
+    lwf_known: bool = False,
+    employed_days: int | None = None,
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
 
@@ -237,8 +240,10 @@ def build_findings(
 
     def fail(rule_id, rule_name, component, expected, actual,
              severity, reason, fix="", impact=0.0):
+        # Only two numbers have a difference: "≥ 50% of remuneration (30800.00)" is a
+        # condition, and subtracting it as zero would report the whole actual as the gap.
         try:
-            diff = _fmt(_q(_dec(actual) - _dec(expected)))
+            diff = _fmt(_q(Decimal(str(actual).replace(",", "")) - Decimal(str(expected).replace(",", ""))))
         except Exception:
             diff = ""
         findings.append(ValidationFinding(
@@ -300,7 +305,7 @@ def build_findings(
                  "≥ 0", _fmt(val), "CRITICAL",
                  f"Earning component '{key}' is negative ({_fmt(val)}). "
                  "Negative earnings in a regular run are invalid.",
-                 f"Remove {key} from this run. Use a reversal/arrear run type for corrections.",
+                 f"Remove {key} from this run. Show a recovery as a deduction, not a negative earning.",
                  float(val.copy_abs()))
 
     if comp_by_key and not any(v > 0 for v in regular.values()):
@@ -409,12 +414,21 @@ def build_findings(
         reg_val = row.get(gk)
         if reg_val not in (None, ""):
             actual_gross = _dec(reg_val)
-            delta = (actual_gross - calc_gross).copy_abs()
+            # Arrears paid in the month are earnings of the month: one register carries
+            # regular pay and arrears together. A register may show the arrear per
+            # component, as one increment-arrear total, or both (the total repeating
+            # the components), so any of those readings reconciles.
+            expected_gross = calc_gross
+            if composition is not None and composition.any_arrear:
+                readings = [calc_gross + composition.arrear_total + composition.increment_arrear_total,
+                            calc_gross + composition.arrear_total, calc_gross + composition.increment_arrear_total]
+                expected_gross = min(readings, key=lambda v: (actual_gross - v).copy_abs())
+            delta = (actual_gross - expected_gross).copy_abs()
             if delta > tol_gross:
                 fail("AGG-001", "Gross Pay Mismatch", "gross",
-                     calc_gross, actual_gross, "CRITICAL",
-                     f"Gross in register ({_fmt(actual_gross)}) ≠ sum of earnings ({_fmt(calc_gross)}). "
-                     f"Difference: {_fmt(actual_gross - calc_gross)}.",
+                     expected_gross, actual_gross, "CRITICAL",
+                     f"Gross in register ({_fmt(actual_gross)}) ≠ sum of earnings ({_fmt(expected_gross)}). "
+                     f"Difference: {_fmt(actual_gross - expected_gross)}.",
                      "Audit each earning component flag. Ensure all earnings are tagged 'Included in Wages'.",
                      float(delta))
             else:
@@ -533,15 +547,18 @@ def build_findings(
         start=Decimal("0"),
     )
 
+    # The wage the contribution is worked on: this month's ESIC wage plus any arrears.
+    esic_paid_wage = esic_wage_total + _dec(esic_calc.get("_arrear_esic_wage", 0))
+
     if not esic_eligible and esic_wage_total > Decimal("0"):
-        info(
+        # A confirmation, not a problem: the exemption was applied. A deduction on an
+        # exempt employee is reported by STAT-006.
+        pass_(
             "STAT-005",
             f"ESIC Ineligible — Above ₹{_fmt(esic_ceiling_cfg)}",
-            "esic_wage",
-             f"≤ ₹{_fmt(esic_ceiling_cfg)}", _fmt(esic_wage_total),
-             f"ESIC wage ({_fmt(esic_wage_total)}) > ₹{_fmt(esic_ceiling_cfg)} statutory ceiling — "
-             "employee is exempt under current config.",
-             "Ensure no ESIC deduction appears for this employee.",
+            "esic_wage", _fmt(esic_wage_total),
+            f"The full-month ESIC wage is above the ₹{_fmt(esic_ceiling_cfg)} ceiling, so the employee is "
+            "outside ESIC and no ESIC is expected.",
         )
 
     esic_emp_raw = row.get("esic_employee")
@@ -551,7 +568,7 @@ def build_findings(
         if diff_esic > tol_stat:
             fail("STAT-006", "ESIC Employee Contribution Mismatch", "esic_employee",
                  esic_emp_exp, esic_emp_actual, "CRITICAL",
-                 f"ESIC employee ({_fmt(esic_emp_actual)}) ≠ {_fmt(esic_wage_total)} × "
+                 f"ESIC employee ({_fmt(esic_emp_actual)}) ≠ {_fmt(esic_paid_wage)} × "
                  f"{esic_emp_rate_pct:.4f}% = {_fmt(esic_emp_exp)}.",
                  f"Correct esic_employee to ₹{_fmt(esic_emp_exp)}.",
                  float(diff_esic))
@@ -570,7 +587,7 @@ def build_findings(
         if diff_er > tol_stat:
             fail("STAT-007", "ESIC Employer Contribution Mismatch", "esic_employer",
                  esic_er_exp, esic_er_actual, "CRITICAL",
-                 f"ESIC employer ({_fmt(esic_er_actual)}) ≠ {_fmt(esic_wage_total)} × "
+                 f"ESIC employer ({_fmt(esic_er_actual)}) ≠ {_fmt(esic_paid_wage)} × "
                  f"{esic_er_rate_pct:.4f}% = {_fmt(esic_er_exp)}.",
                  f"Correct esic_employer to ₹{_fmt(esic_er_exp)}.",
                  float(diff_er))
@@ -589,6 +606,14 @@ def build_findings(
                  float((pt_actual - pt_due).copy_abs()))
         elif pt_due > Decimal("0"):
             pass_("STAT-008", "Professional Tax", "pt", pt_actual)
+        elif pt_known and pt_actual > tol_stat:
+            # Nothing is due under the state's slab (a nil slab, a woman's slab, a
+            # month the state does not collect) yet tax was deducted.
+            fail("STAT-008", "Professional Tax Mismatch", "pt",
+                 Decimal("0"), pt_actual, "WARNING",
+                 f"PT of {_fmt(pt_actual)} deducted, but the slab for this state, wage and gender says nil this month.",
+                 "Refund the PT deducted, or check the employee's state, gender and the PT slabs.",
+                 float(pt_actual))
     elif pt_due > Decimal("0"):
         info("STAT-008", "PT Column Absent", "pt", _fmt(pt_due), "(missing)",
              f"Computed PT = {_fmt(pt_due)} but register has no 'pt' column.",
@@ -596,7 +621,17 @@ def build_findings(
 
     # ── LWF ──────────────────────────────────────────────────────────
     lwf_emp_raw = row.get("lwf_employee")
-    if lwf_emp_raw not in (None, "") and lwf_eamt > Decimal("0"):
+    if lwf_emp_raw not in (None, "") and lwf_eamt <= Decimal("0") and lwf_known \
+            and _dec(lwf_emp_raw) > tol_stat:
+        # LWF falls due only in the state's contribution months (June and
+        # December in Maharashtra, for example); a deduction in any other month
+        # is one the employee should get back.
+        fail("STAT-009", "LWF Employee Mismatch", "lwf_employee",
+             Decimal("0"), _dec(lwf_emp_raw), "WARNING",
+             f"LWF of {_fmt(_dec(lwf_emp_raw))} deducted, but none is due this month under the state's LWF schedule.",
+             "Refund the LWF deducted, or check the state's contribution months under Statutory engine → LWF.",
+             float(_dec(lwf_emp_raw)))
+    elif lwf_emp_raw not in (None, "") and lwf_eamt > Decimal("0"):
         lwf_emp_actual = _dec(lwf_emp_raw)
         diff_lwf = (lwf_emp_actual - lwf_eamt).copy_abs()
         if diff_lwf > tol_stat:
@@ -647,12 +682,16 @@ def build_findings(
 
     if paid_days is not None and lop_days is not None:
         actual_sum = paid_days + lop_days
-        if (actual_sum - Decimal(days_in_month)).copy_abs() > Decimal("0.01"):
+        # Someone who joined or left during the month owes only the days they were employed.
+        due_days = employed_days if employed_days is not None and 0 < employed_days < days_in_month else days_in_month
+        if (actual_sum - Decimal(due_days)).copy_abs() > Decimal("0.01") \
+                and (actual_sum - Decimal(days_in_month)).copy_abs() > Decimal("0.01"):
+            window = "" if due_days == days_in_month else f" (employed {due_days} of {days_in_month} days this month)"
             fail("LOP-001", "Paid Days + LOP Days ≠ Days in Month",
-                 "paid_days + lop_days", days_in_month, _fmt(actual_sum), "WARNING",
+                 "paid_days + lop_days", due_days, _fmt(actual_sum), "WARNING",
                  f"paid_days ({paid_days}) + lop_days ({lop_days}) = {actual_sum}, "
-                 f"expected {days_in_month}. Attendance data is inconsistent.",
-                 "Reconcile attendance with HRMS. Paid + LOP must equal calendar days.")
+                 f"expected {due_days}{window}. Attendance data is inconsistent.",
+                 "Reconcile attendance with HRMS. Paid + LOP must equal the days employed in the month.")
 
     for d in lop_diffs:
         comp_key = d.get("component", "")
@@ -718,6 +757,13 @@ def build_findings(
             if old_val == Decimal("0"):
                 continue
             pct = float((new_val - old_val) / old_val) * 100
+            # A part month (loss of pay, joining, leaving) is not a pay change: compare the
+            # full-month rate, which is what the proration checks already hold to account.
+            if paid_days is not None and Decimal("0") < paid_days < Decimal(days_in_month):
+                rate_val = new_val * Decimal(days_in_month) / paid_days
+                rate_pct = float((rate_val - old_val) / old_val) * 100
+                if abs(rate_pct) <= float(t.trends.component_change_pct):
+                    continue
 
             change_pct = float(t.trends.component_change_pct)
             if abs(pct) > change_pct and not arrear_present:
@@ -730,7 +776,7 @@ def build_findings(
                     expected_value=_fmt(old_val), actual_value=_fmt(new_val),
                     difference=f"{pct:+.1f}%", severity="WARNING", status="FAIL",
                     reason=f"'{k}' changed {pct:+.1f}% vs prior ({_fmt(old_val)} → {_fmt(new_val)}) without arrear.",
-                    suggested_fix="Verify via approved increment letter. If arrear, process as increment_arrear run.",
+                    suggested_fix="Verify via the approved increment letter and upload the CTC revision. Arrears go in the '<Component> Arrear' columns of the same register.",
                     financial_impact=float((new_val - old_val).copy_abs()),
                 ))
 
@@ -840,9 +886,15 @@ def build_findings(
                      _fmt(prior_gross), _fmt(total_regular), "WARNING",
                      f"Salary is {ratio:.1f}× the prior month ({_fmt(prior_gross)} → {_fmt(total_regular)}). "
                      "Likely bulk arrear, duplication, or data error.",
-                     "Validate if this includes arrear. If so, run as increment_arrear type.",
+                     "Check whether this includes arrears; if so, put them in the arrear columns so they are checked as arrears.",
                      float(total_regular - prior_gross))
-            elif ratio < float(t.trends.salary_drop_ratio):
+            elif ratio < float(t.trends.salary_drop_ratio) and not (
+                # A part month paid at the full rate is explained by its days, which the
+                # proration checks verify; only a drop in the rate itself is reported.
+                paid_days is not None and Decimal("0") < paid_days < Decimal(days_in_month)
+                and float(total_regular * Decimal(days_in_month) / paid_days / prior_gross)
+                >= float(t.trends.salary_drop_ratio)
+            ):
                 fail("ADV-003",
                      f"Salary Drop < {float(t.trends.salary_drop_ratio) * 100:.0f}% of Prior Month", "gross",
                      _fmt(prior_gross), _fmt(total_regular), "WARNING",

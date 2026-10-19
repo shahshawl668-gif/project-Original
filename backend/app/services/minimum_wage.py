@@ -249,7 +249,19 @@ COMPARISON_BASES = {
 EXCLUDED_FROM_WAGES = (
     "hra", "house_rent_allowance", "overtime", "ot", "bonus",
     "gratuity", "leave_encashment", "reimbursement", "arrear",
+    # what the employer pays on top is cost to company, not wages
+    "employer",
 )
+
+
+def _excluded(key: str) -> bool:
+    """Whole-word match, so "Other Allowance" is not mistaken for overtime ("ot")."""
+    parts = key.split("_")
+    for token in EXCLUDED_FROM_WAGES:
+        want = token.split("_")
+        if any(parts[i:i + len(want)] == want for i in range(len(parts) - len(want) + 1)):
+            return True
+    return False
 
 
 def comparable_wage(
@@ -266,7 +278,7 @@ def comparable_wage(
                 total += value
             continue
 
-        if basis == "wages_excl_hra" and any(token in key for token in EXCLUDED_FROM_WAGES):
+        if basis == "wages_excl_hra" and _excluded(key):
             continue
 
         total += value
@@ -365,7 +377,8 @@ def check_employee(
         "severity": "CRITICAL",
         "expected_value": str(floor),
         "actual_value": str(actual),
-        "difference": str(shortfall),
+        # actual − expected, like every other finding; the shortfall is the impact.
+        "difference": str(-shortfall),
         "financial_impact": float(shortfall),
         "reason": (
             f"Wages of {actual} are below the {state} minimum of {floor} for a "
