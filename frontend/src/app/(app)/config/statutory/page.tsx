@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { EmployeeFormula } from "@/components/config/EmployeeFormula";
 import { toast } from "sonner";
 import { Dialog } from "@/components/ui/drawer";
 import { SaveBar } from "@/components/ui/save-bar";
@@ -221,15 +222,22 @@ function PFConfigPanel({ cfg, onChange, advanced }: { cfg: PFConfig; onChange: (
   const setElig  = (k: keyof PFConfig["eligibility"], v: unknown) => set("eligibility", { ...cfg.eligibility, [k]: v });
   const setVol   = (k: keyof PFConfig["voluntary"], v: unknown) => set("voluntary", { ...cfg.voluntary, [k]: v });
 
+  const setFormula = (v: string) => {
+    const { employee_formula: _drop, ...rest } = cfg;
+    onChange(v ? { ...rest, employee_formula: v } : rest);
+  };
+
   return (
     <div className="space-y-5">
+      <EmployeeFormula kind="PF" value={cfg.employee_formula ?? ""} onChange={setFormula} />
+
       {/* Rates */}
       <div>
         <p className="mb-3 text-xs font-semibold text-ink-500">
-          Contribution rates
+          {advanced ? "Contribution rates" : "Employee contribution rate"}
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {(["employee_rate", "employer_rate", "eps_rate", "edli_rate", "admin_rate"] as const).map(
+          {(advanced ? ["employee_rate", "employer_rate", "eps_rate", "edli_rate", "admin_rate"] as const : ["employee_rate"] as const).map(
             (k) => (
               <Field key={k} label={({ employee_rate: "Employee", employer_rate: "Employer", eps_rate: "EPS", edli_rate: "EDLI", admin_rate: "Admin charges" } as const)[k]} help={pct(cfg.rates[k])}>
                 <NumberInput value={cfg.rates[k]} onChange={(v) => setRates(k, v)} />
@@ -345,20 +353,29 @@ function ESICConfigPanel({ cfg, onChange, advanced }: { cfg: ESICConfig; onChang
   const setRound   = (k: keyof ESICConfig["rounding"],v: unknown) => set("rounding",{ ...cfg.rounding,[k]: v });
   const setElig    = (k: keyof ESICConfig["eligibility"], v: unknown) => set("eligibility", { ...cfg.eligibility, [k]: v });
 
+  const setFormula = (v: string) => {
+    const { employee_formula: _drop, ...rest } = cfg;
+    onChange(v ? { ...rest, employee_formula: v } : rest);
+  };
+
   return (
     <div className="space-y-5">
+      <EmployeeFormula kind="ESIC" value={cfg.employee_formula ?? ""} onChange={setFormula} />
+
       {/* Rates */}
       <div>
         <p className="mb-3 text-xs font-semibold text-ink-500">
-          Contribution rates
+          {advanced ? "Contribution rates" : "Employee contribution rate"}
         </p>
         <div className="grid max-w-xs grid-cols-2 gap-3">
           <Field label="Employee" help={pct(cfg.rates.employee_rate)}>
             <NumberInput value={cfg.rates.employee_rate} onChange={(v) => setRates("employee_rate", v)} />
           </Field>
-          <Field label="Employer" help={pct(cfg.rates.employer_rate)}>
-            <NumberInput value={cfg.rates.employer_rate} onChange={(v) => setRates("employer_rate", v)} />
-          </Field>
+          {advanced ? (
+            <Field label="Employer" help={pct(cfg.rates.employer_rate)}>
+              <NumberInput value={cfg.rates.employer_rate} onChange={(v) => setRates("employer_rate", v)} />
+            </Field>
+          ) : null}
         </div>
       </div>
 

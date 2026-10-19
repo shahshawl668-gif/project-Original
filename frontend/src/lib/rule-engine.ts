@@ -11,17 +11,6 @@ export type Condition = {
   value: number;
 };
 
-export type Formula = {
-  id: string;
-  rule_type: FormulaRuleType;
-  name: string | null;
-  expression: string;
-  conditions: Condition[];
-  version: number;
-  is_active: boolean;
-  created_at: string;
-};
-
 export type Gender = "ALL" | "MALE" | "FEMALE";
 
 export type SlabRow = {
@@ -52,32 +41,6 @@ export type FormulaVariables = { inputs: FormulaVariable[]; components: FormulaV
 /** What a formula may refer to: built-in inputs plus this company's salary components. */
 export async function getFormulaVariables(): Promise<FormulaVariables> {
   return apiJson<FormulaVariables>("/api/rule-engine/variables");
-}
-
-export async function getFormulas(rule_type?: FormulaRuleType): Promise<Formula[]> {
-  const qs = rule_type ? `?rule_type=${rule_type}` : "";
-  return apiJson<Formula[]>(`/api/rule-engine/formulas${qs}`);
-}
-
-export async function createFormula(payload: {
-  rule_type: FormulaRuleType;
-  name?: string | null;
-  expression: string;
-  conditions: Condition[];
-  activate?: boolean;
-}): Promise<Formula> {
-  return apiJson<Formula>("/api/rule-engine/formula", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function activateFormula(id: string): Promise<Formula> {
-  return apiJson<Formula>(`/api/rule-engine/formula/${id}/activate`, { method: "POST" });
-}
-
-export async function deleteFormula(id: string): Promise<void> {
-  await apiJson<{ deleted: string }>(`/api/rule-engine/formula/${id}`, { method: "DELETE" });
 }
 
 export type TestFormulaResult = {

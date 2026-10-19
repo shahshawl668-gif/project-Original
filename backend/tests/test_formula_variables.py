@@ -47,15 +47,19 @@ def test_the_variables_endpoint_lists_built_ins_and_the_companys_components(clie
     assert keys == {"shift_allowance": "Shift Allowance", "special_allowance": "Special Allowance"}
 
 
+def _save_pf(client, headers, expression):
+    pf = client.get("/api/config/statutory/pf", headers=headers).json()["data"]
+    pf["employee_formula"] = expression
+    return client.put("/api/config/statutory/pf", headers=headers, json=pf)
+
+
 def test_a_component_formula_with_excel_syntax_tests_and_saves(client, workspace):
     _add_component(client, workspace, "Special Allowance")
     out = _test(client, workspace, PF_FORMULA, {"basic": 20000, "special_allowance": 10000})
     assert out["ok"] is True and out["result"] == 3000
     out = _test(client, workspace, PF_FORMULA, {"basic": 30000, "special_allowance": 10000})
     assert out["result"] == 3600  # above 25,000: basic * 12%, no cap
-    saved = client.post("/api/rule-engine/formula", headers=workspace,
-                        json={"rule_type": "PF", "expression": PF_FORMULA, "conditions": [], "activate": True})
-    assert saved.status_code == 201, saved.text
+    assert _save_pf(client, workspace, PF_FORMULA).status_code == 200
 
 
 def test_square_bracket_and_any_case_names_resolve_to_the_component(client, workspace):
@@ -68,8 +72,7 @@ def test_a_component_that_is_not_configured_says_where_to_add_it(client, workspa
     out = _test(client, workspace, "basic + travel_allowance", {"basic": 1})
     assert out["ok"] is False
     assert "travel_allowance" in out["error"] and "Salary components" in out["error"]
-    saved = client.post("/api/rule-engine/formula", headers=workspace,
-                        json={"rule_type": "PF", "expression": "basic + travel_allowance", "conditions": []})
+    saved = _save_pf(client, workspace, "basic + travel_allowance")
     assert saved.status_code == 400
     assert "Salary components" in str(saved.json()["error"])
 
@@ -90,8 +93,6 @@ def test_a_formula_that_divides_by_a_field_is_valid_to_save(client, workspace):
     """Checked with sample inputs, so a field being 0 somewhere is not a syntax error."""
     out = _test(client, workspace, "basic / 30 * paid_days")
     assert out["ok"] is True
-    saved = client.post("/api/rule-engine/formula", headers=workspace,
-                        json={"rule_type": "PF", "expression": "gross / basic", "conditions": []})
-    assert saved.status_code == 201, saved.text
+    assert _save_pf(client, workspace, "gross / basic").status_code == 200
     zero = _test(client, workspace, "100 / basic", {"basic": 0})
     assert zero["ok"] is False and "Division by zero" in zero["error"]

@@ -25,7 +25,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import (
-    ComponentConfig, Entity, Formula, ImportProfile, MinimumWageApplicability, MinimumWageRate, SlabRule,
+    ComponentConfig, Entity, ImportProfile, MinimumWageApplicability, MinimumWageRate, SlabRule,
     StatutoryConfig, StatutorySettings, TenantRulePreference, User,
 )
 from app.services import audit, tenancy
@@ -45,15 +45,19 @@ SECTIONS = {
     "components": (ComponentConfig, "component_name pf_applicable esic_applicable pt_applicable lwf_applicable bonus_applicable included_in_wages taxable tax_exemption_type"),
     "statutory_settings": (StatutorySettings, "pf_wage_ceiling pf_employee_rate pf_employer_rate pf_eps_rate pf_edli_rate pf_admin_rate pf_restrict_to_ceiling esic_wage_ceiling esic_employee_rate esic_employer_rate esic_round_mode pt_states lwf_states"),
     "statutory_engine": (StatutoryConfig, "pf_config esic_config component_mapping_config income_tax_config rule_thresholds_config exposure_config"),
-    "formulas": (Formula, "rule_type name expression conditions version is_active"),
     "pt_lwf_slabs": (SlabRule, "state rule_type min_salary max_salary deduction_amount employer_amount frequency gender applicable_months effective_from effective_to source_reference sort_order"),
     "minimum_wage_rates": (MinimumWageRate, "state zone scheduled_employment skill_category basic_per_month vda_per_month working_days_basis effective_from effective_to source_reference"),
     "minimum_wage_applicability": (MinimumWageApplicability, "effective_from applicable reason source_reference"),
     "rule_preferences": (TenantRulePreference, "rule_id suppressed"),
     "salary_import_profiles": (ImportProfile, "name column_mapping"),
 }
-# Sections of earlier exports whose features were removed from the product.
-RETIRED_SECTIONS = {"bank_file_profiles", "jv_templates", "jv_rules"}
+# Sections of earlier exports that no longer exist, and what to do about each.
+RETIRED_SECTIONS = {
+    "bank_file_profiles": "bank file profiles were removed from the product",
+    "jv_templates": "journal voucher templates were removed from the product",
+    "jv_rules": "journal voucher rules were removed from the product",
+    "formulas": "PF and ESIC formulas now live in statutory_engine (employee_formula inside pf_config and esic_config)",
+}
 SECTIONS = {key: (model, fields.split()) for key, (model, fields) in SECTIONS.items()}
 MAX_BYTES = 5_000_000
 MAX_ROWS = 10_000
@@ -197,9 +201,10 @@ def _validate(payload: dict) -> dict:
     sections = payload.get("sections")
     if not isinstance(sections, dict) or not sections:
         raise ValueError("sections must contain at least one configuration category")
-    retired = set(sections) & RETIRED_SECTIONS
+    retired = sorted(set(sections) & set(RETIRED_SECTIONS))
     if retired:
-        raise ValueError(f"{', '.join(sorted(retired))} no longer exist in the product; remove those sections from the file")
+        raise ValueError("; ".join(f"{name}: {RETIRED_SECTIONS[name]}" for name in retired)
+                         + ". Remove those sections from the file")
     if set(sections) - set(SECTIONS):
         raise ValueError("Unknown configuration category in file")
     if sum(len(rows) for rows in sections.values() if isinstance(rows, list)) > MAX_ROWS:

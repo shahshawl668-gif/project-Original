@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
-from app.models import ComponentConfig, Entity, Formula, SlabRule, User
+from app.models import Entity, SlabRule, User
 from app.schemas.rule_engine import (
-    FormulaCreate,
-    FormulaOut,
     SlabRowOut,
     SlabsResponse,
     SlabSaveRequest,
@@ -20,7 +16,7 @@ from app.schemas.rule_engine import (
     TestFormulaResponse,
 )
 from app.services.formula_eval import FormulaError, evaluate_conditions, evaluate_formula
-from app.services.payroll_parse import normalize_col
+from app.services.saved_formulas import BUILT_IN_INPUTS, component_inputs, explain, sample_variables
 from app.services.lwf_defaults import LWF_DEFAULTS
 from app.services.lwf_defaults import get_defaults as get_lwf_default_slabs
 from app.services.lwf_defaults import list_default_states as list_lwf_states
@@ -74,33 +70,6 @@ def _build_slabs_response(state: str, rule_type: str, db: Session, entity: Entit
 
 router = APIRouter()
 
-# Names a formula can always use. A company's own salary components are added
-# to these per entity (see ``_component_inputs``), so a formula can say
-# ``special_allowance`` or ``[Special Allowance]`` once that component exists.
-BUILT_IN_INPUTS: list[tuple[str, str]] = [
-    ("basic", "Basic"), ("da", "DA"), ("hra", "HRA"), ("gross", "Gross"),
-    ("pf_wage", "PF Wage"), ("esic_wage", "ESIC Wage"), ("ctc_monthly", "CTC (Monthly)"),
-    ("paid_days", "Paid Days"), ("lop_days", "LOP Days"), ("total_days", "Total Days"),
-]
-
-
-def _component_inputs(db: Session, entity: Entity) -> list[dict[str, str]]:
-    """The entity's configured salary components, as formula variables."""
-    built_in = {key for key, _ in BUILT_IN_INPUTS}
-    rows = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).all()
-    found = {normalize_col(r.component_name): r.component_name for r in rows}
-    return [{"key": key, "label": label} for key, label in sorted(found.items())
-            if key and key not in built_in]
-
-
-def _explain(error: FormulaError) -> str:
-    """Tell the user where a missing component is defined."""
-    text = str(error)
-    if "Unknown field" in text or "Unknown variable" in text:
-        text += " If it is one of your salary components, add it under Configuration → Salary components first."
-    return text
-
-
 @router.get("/variables")
 def formula_variables(
     db: Session = Depends(get_db),
@@ -110,111 +79,8 @@ def formula_variables(
     """What a formula may refer to: the built-in inputs and this company's salary components."""
     return ok({
         "inputs": [{"key": k, "label": label} for k, label in BUILT_IN_INPUTS],
-        "components": _component_inputs(db, entity),
+        "components": component_inputs(db, entity),
     })
-
-
-@router.get("/formulas")
-def list_formulas(
-    rule_type: str | None = Query(default=None),
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    entity: Entity = Depends(get_current_entity),
-):
-    q = db.query(Formula).filter(Formula.entity_id == entity.id)
-    if rule_type:
-        q = q.filter(Formula.rule_type == rule_type.upper())
-    rows = q.order_by(Formula.rule_type, Formula.version.desc()).all()
-    return ok([FormulaOut.model_validate(r).model_dump() for r in rows])
-
-
-@router.post("/formula", status_code=201)
-def create_formula(
-    body: FormulaCreate,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    entity: Entity = Depends(require_entity_write),
-):
-    try:
-        evaluate_formula(body.expression, _sample_vars(db, entity))
-    except FormulaError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid formula: {_explain(e)}")
-    except ZeroDivisionError:
-        pass  # divides by something that is zero for the sample values only; judged per row at validation
-
-    next_version = (
-        db.query(func.coalesce(func.max(Formula.version), 0))
-        .filter(Formula.entity_id == entity.id, Formula.rule_type == body.rule_type)
-        .scalar()
-        or 0
-    ) + 1
-
-    if body.activate:
-        db.query(Formula).filter(
-            Formula.entity_id == entity.id,
-            Formula.rule_type == body.rule_type,
-            Formula.is_active == True,  # noqa: E712
-        ).update({Formula.is_active: False})
-
-    row = Formula(
-        user_id=user.id,
-        entity_id=entity.id,
-        rule_type=body.rule_type,
-        name=body.name,
-        expression=body.expression,
-        conditions=[c.model_dump() for c in body.conditions],
-        version=next_version,
-        is_active=body.activate,
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return ok(FormulaOut.model_validate(row).model_dump())
-
-
-@router.post("/formula/{formula_id}/activate")
-def activate_formula(
-    formula_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    entity: Entity = Depends(require_entity_write),
-):
-    try:
-        fid = uuid.UUID(formula_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid id")
-    target = db.query(Formula).filter(Formula.id == fid, Formula.entity_id == entity.id).first()
-    if not target:
-        raise HTTPException(status_code=404, detail="Formula not found")
-    db.query(Formula).filter(
-        Formula.entity_id == entity.id,
-        Formula.rule_type == target.rule_type,
-        Formula.is_active == True,  # noqa: E712
-    ).update({Formula.is_active: False})
-    target.is_active = True
-    db.add(target)
-    db.commit()
-    db.refresh(target)
-    return ok(FormulaOut.model_validate(target).model_dump())
-
-
-@router.delete("/formula/{formula_id}")
-def delete_formula(
-    formula_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    entity: Entity = Depends(require_entity_write),
-):
-    try:
-        fid = uuid.UUID(formula_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid id")
-    row = db.query(Formula).filter(Formula.id == fid, Formula.entity_id == entity.id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Formula not found")
-    db.delete(row)
-    db.commit()
-    return ok({"deleted": formula_id})
 
 
 @router.post("/test-formula")
@@ -224,7 +90,7 @@ def test_formula(
     _user: User = Depends(get_current_user),
     entity: Entity = Depends(get_current_entity),
 ):
-    vars_ = {**_sample_vars(db, entity), **body.variables}
+    vars_ = {**sample_variables(db, entity), **body.variables}
     try:
         cond_pass = evaluate_conditions(
             [c.model_dump() for c in body.conditions], vars_
@@ -234,22 +100,10 @@ def test_formula(
         result = evaluate_formula(body.expression, vars_)
         return ok(TestFormulaResponse(ok=True, result=result, conditions_passed=True).model_dump())
     except FormulaError as e:
-        return ok(TestFormulaResponse(ok=False, error=_explain(e)).model_dump())
+        return ok(TestFormulaResponse(ok=False, error=explain(e)).model_dump())
     except ZeroDivisionError:
         return ok(TestFormulaResponse(
             ok=False, error="Division by zero — a value you divide by is 0 in the test values").model_dump())
-
-
-def _sample_vars(db: Session | None = None, entity: Entity | None = None) -> dict[str, float]:
-    # Non-zero on purpose: these values are used to check that a formula is
-    # *valid*, and a formula that divides by a field (basic / 30 * paid_days)
-    # is valid even though that field is 0 in somebody's payroll.
-    sample = {key: 1.0 for key, _ in BUILT_IN_INPUTS}
-    sample["paid_days"] = sample["total_days"] = 30.0
-    if db is not None and entity is not None:
-        for component in _component_inputs(db, entity):
-            sample[component["key"]] = 1.0
-    return sample
 
 
 @router.get("/slabs")

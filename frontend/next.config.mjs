@@ -51,6 +51,10 @@ const nextConfig = {
   // Nothing uses next/image. Switching the optimiser off removes the
   // /_next/image endpoint, and with it a class of advisories against it.
   images: { unoptimized: true },
+  async redirects() {
+    // The Formulas page was folded into the Statutory engine page.
+    return [{ source: "/rule-engine/formula", destination: "/config/statutory", permanent: true }];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

@@ -35,6 +35,8 @@ export interface PFConfig {
   eligibility: PFEligibilityConfig;
   voluntary: VoluntaryPFConfig;
   above_ceiling_mode: "none" | "employee_choice" | "employer_choice";
+  /** Excel-style formula for the employee's PF. Absent: the rates and ceiling decide. */
+  employee_formula?: string;
 }
 
 export interface ESICRateConfig {
@@ -66,6 +68,8 @@ export interface ESICConfig {
   wage: ESICWageConfig;
   rounding: ESICRoundingConfig;
   eligibility: ESICEligibilityConfig;
+  /** Excel-style formula for the employee's ESIC. Absent: the rates and rounding decide. */
+  employee_formula?: string;
 }
 
 export interface ComponentMappingEntry {

@@ -57,24 +57,12 @@ statutory_settings,1,esic_employer_rate,number,0.0325
 statutory_settings,1,esic_round_mode,text,up
 statutory_settings,1,pt_states,json,"[""Karnataka"",""Maharashtra""]"
 statutory_settings,1,lwf_states,json,[]
-statutory_engine,1,pf_config,json,"{""wage"":{""wage_ceiling"":""25000"",""restrict_to_ceiling"":true,""use_pf_applicable_flag"":true}}"
-statutory_engine,1,esic_config,json,"{""wage"":{""wage_ceiling"":""21000"",""use_esic_applicable_flag"":true},""rounding"":{""mode"":""up""}}"
+statutory_engine,1,pf_config,json,"{""wage"":{""wage_ceiling"":""25000"",""restrict_to_ceiling"":true,""use_pf_applicable_flag"":true},""employee_formula"":""MIN((basic + special_allowance) * 12%, 3000)""}"
+statutory_engine,1,esic_config,json,"{""wage"":{""wage_ceiling"":""21000"",""use_esic_applicable_flag"":true},""rounding"":{""mode"":""up""},""employee_formula"":""IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)""}"
 statutory_engine,1,component_mapping_config,null,
 statutory_engine,1,income_tax_config,null,
 statutory_engine,1,rule_thresholds_config,null,
 statutory_engine,1,exposure_config,null,
-formulas,1,rule_type,text,PF
-formulas,1,name,text,"12% of Basic + Special Allowance, at most 3,000"
-formulas,1,expression,text,"MIN((basic + special_allowance) * 12%, 3000)"
-formulas,1,conditions,json,[]
-formulas,1,version,number,1
-formulas,1,is_active,boolean,true
-formulas,2,rule_type,text,ESIC
-formulas,2,name,text,"0.75% of ESIC wage, rounded up"
-formulas,2,expression,text,"IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)"
-formulas,2,conditions,json,[]
-formulas,2,version,number,1
-formulas,2,is_active,boolean,true
 pt_lwf_slabs,1,state,text,Karnataka
 pt_lwf_slabs,1,rule_type,text,PT
 pt_lwf_slabs,1,min_salary,number,0

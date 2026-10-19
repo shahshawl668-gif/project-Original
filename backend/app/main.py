@@ -41,6 +41,19 @@ logging.basicConfig(
 )
 
 
+def _fold_saved_formulas(db) -> None:
+    """Formulas saved under the old Formula builder now live in the statutory configuration."""
+    from app.services import saved_formulas
+
+    try:
+        moved = saved_formulas.fold_saved_formulas(db)
+        if moved:
+            logger.info("moved %s saved PF/ESIC formula(s) into the statutory configuration", moved)
+    except Exception:  # noqa: BLE001 — never stop the API booting over this; the old rows are untouched
+        logger.exception("could not move saved formulas into the statutory configuration")
+        db.rollback()
+
+
 def _ensure_system_user(db) -> None:
     """Create the anonymous-dev fallback user, with an organization to work in."""
     existing = db.query(User).filter(User.email == SYSTEM_USER_EMAIL).first()
@@ -90,6 +103,7 @@ async def lifespan(app: FastAPI):
     try:
         seed_reference_data(db)
         _ensure_system_user(db)
+        _fold_saved_formulas(db)
     finally:
         db.close()
     # Off unless the environment says otherwise. Said out loud either way: a

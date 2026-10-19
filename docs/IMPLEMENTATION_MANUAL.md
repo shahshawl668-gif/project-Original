@@ -138,7 +138,7 @@ structure, each flagged for its statutory treatment:
 ![Salary components](images/14-components.png)
 
 Components are added with the one form below the list (it also edits: choose **Edit** on a row
-and the form scrolls into view). Every component you add becomes a name the **Formulas** page can
+and the form scrolls into view). Every component you add becomes a name the PF and ESIC formulas on the **Statutory engine** page can
 use — `special_allowance` — so add them before writing a PF or ESIC formula that refers to them.
 
 > **The most common implementation error in the whole product** is marking

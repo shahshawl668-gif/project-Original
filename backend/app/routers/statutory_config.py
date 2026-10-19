@@ -31,6 +31,18 @@ from app.schemas.statutory_config import (
 from app.services import approvals, audit, tenancy
 from app.services.config_service import ConfigService, safe_eval_expr
 
+
+def _check_formulas(db, entity, pf, esic) -> None:
+    """Refuse a formula that cannot be read, with a message the screen can show."""
+    from app.services import saved_formulas
+
+    try:
+        saved_formulas.check(db, entity, pf.employee_formula, "PF")
+        saved_formulas.check(db, entity, esic.employee_formula, "ESIC")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 router = APIRouter(prefix="/config/statutory", tags=["Statutory Config"])
 
 
@@ -120,6 +132,7 @@ def save_statutory_config(
     entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
+    _check_formulas(svc._db, entity, body.pf, body.esic)
     stored = svc.get_full_config(entity.id).model_dump(mode="json")
     body = TenantStatutoryConfig.model_validate(_keep_stored_form(stored, body.model_dump(mode="json")))
     if _changes(stored, body.model_dump(mode="json")):
@@ -151,6 +164,7 @@ def save_pf_config(
     entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
+    _check_formulas(svc._db, entity, body, svc.get_esic_config(entity.id))
     svc.save_pf_config(entity.id, body)
     return ok(body.model_dump())
 
@@ -169,6 +183,7 @@ def save_esic_config(
     entity: Entity = Depends(require_entity_write),
     svc: ConfigService = Depends(_svc),
 ):
+    _check_formulas(svc._db, entity, svc.get_pf_config(entity.id), body)
     svc.save_esic_config(entity.id, body)
     return ok(body.model_dump())
 
@@ -486,6 +501,7 @@ def create_version(
     entity: Entity = Depends(require_entity_write),
 ):
     """Draft a change that takes effect from the first of a month. Changes nothing until published."""
+    _check_formulas(db, entity, body.config.pf, body.config.esic)
     number = (db.query(StatutoryConfigVersion).filter(StatutoryConfigVersion.entity_id == entity.id).count()) + 1
     row = StatutoryConfigVersion(entity_id=entity.id, number=number, status="draft",
                                  effective_from=body.effective_from.replace(day=1),
@@ -508,6 +524,7 @@ def update_version(
     entity: Entity = Depends(require_entity_write),
 ):
     row = _version(db, entity, version_id)
+    _check_formulas(db, entity, body.config.pf, body.config.esic)
     if row.status != "draft":
         raise HTTPException(status_code=409, detail="Only a draft can be changed. A published change is withdrawn and drafted again.")
     row.effective_from = body.effective_from.replace(day=1)

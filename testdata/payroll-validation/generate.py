@@ -65,20 +65,14 @@ def configuration_csv() -> str:
         }],
         "statutory_engine": [{
             "pf_config": {"wage": {"wage_ceiling": "25000", "restrict_to_ceiling": True,
-                                   "use_pf_applicable_flag": True}},
+                                   "use_pf_applicable_flag": True},
+                          "employee_formula": "MIN((basic + special_allowance) * 12%, 3000)"},
             "esic_config": {"wage": {"wage_ceiling": "21000", "use_esic_applicable_flag": True},
-                            "rounding": {"mode": "up"}},
+                            "rounding": {"mode": "up"},
+                            "employee_formula": "IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)"},
             "component_mapping_config": None, "income_tax_config": None,
             "rule_thresholds_config": None, "exposure_config": None,
         }],
-        "formulas": [
-            {"rule_type": "PF", "name": "12% of Basic + Special Allowance, at most 3,000",
-             "expression": "MIN((basic + special_allowance) * 12%, 3000)",
-             "conditions": [], "version": 1, "is_active": True},
-            {"rule_type": "ESIC", "name": "0.75% of ESIC wage, rounded up",
-             "expression": "IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)",
-             "conditions": [], "version": 1, "is_active": True},
-        ],
         # Test values only -- check the governing notification before using real ones.
         "pt_lwf_slabs": [
             _slab("Karnataka", 0, 24999, 0, 1),
@@ -333,7 +327,7 @@ Regenerate with `cd backend && PYTHONPATH=. python ../testdata/payroll-validatio
 | 6 | Data & imports -> **Salary register**, period **August 2026**, then Run validation. Open Results | `5_salary_register.csv` |
 
 Step 1 is the *one-file* setup: salary components and their PF/ESIC/PT flags, PF ceiling 25,000,
-ESIC ceiling 21,000, PT states and slabs, and the PF/ESIC formulas in Excel style. It replaces only
+ESIC ceiling 21,000, PT states and slabs, and the PF/ESIC formulas in Excel style (inside the Statutory engine settings). It replaces only
 the sections it contains.
 
 ## Rules in the configuration
@@ -341,8 +335,8 @@ the sections it contains.
 * PF: employee 12% of (Basic + Special Allowance), wage capped at 25,000 (so at most 3,000).
 * ESIC: 0.75% of ESIC wage (Basic, HRA, Special Allowance, Conveyance) rounded up, only while that wage is 21,000 or less.
 * PT: Karnataka 200 from 25,000 gross; Maharashtra 175 from 7,501 and 200 above 10,000 (test values).
-* The saved PF/ESIC *formulas* are applied: an active formula is the expected employee PF/ESIC for every row, so the
-  payslips in this pack follow them. To try your own rule, save another PF formula in Formulas (for example
+* The PF/ESIC *formulas* are applied: when a formula is set it is the expected employee PF/ESIC for every row, so the
+  payslips in this pack follow them. To try your own rule, change the PF formula under Statutory engine (for example
   `IF(basic<=25000, MIN((basic+special_allowance)*12%, 3000), basic*12%)`) and re-run August: the employees above 25,000
   will now be expected at 12% of Basic, and the tool will say so.
 

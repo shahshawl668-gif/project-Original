@@ -84,6 +84,6 @@ def test_sections_of_removed_features_are_refused_with_a_clear_message(client):
         try:
             _validate({"format": "peopleopslab-config", "version": 1, "sections": {section: []}})
         except ValueError as exc:
-            assert "no longer exist" in str(exc) and section in str(exc)
+            assert section in str(exc) and "Remove those sections" in str(exc)
         else:
             raise AssertionError(f"{section} was accepted")

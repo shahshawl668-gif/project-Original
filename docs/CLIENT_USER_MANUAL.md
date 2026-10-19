@@ -158,23 +158,24 @@ Configuration, open when you are in them.
 
 ### Writing formulas
 
-The **Formulas** page (Configuration & admin) takes formulas the way you would write them in
+The **Statutory engine** page (Configuration & admin) takes PF and ESIC formulas the way you would write them in
 Excel: capital letters do not matter, `12%` means 12 percent, and you can use `IF`, `AND`, `OR`,
 `MIN`, `MAX`, `ROUNDUP`, `ROUNDDOWN` with `+ - * / ^` and the comparisons `= <> < > <= >=`.
 The salary components you set up are available by name — `special_allowance`, or
 `[Special Allowance]` if you prefer the name with a space.
 
-The **active** PF formula and the active ESIC formula are the expected employee PF and ESIC in
-every validation run: the payslip is compared with what the formula gives. Wage components,
-ceilings and rounding still come from the Statutory engine. A row the formula cannot be worked out
-for is reported on that row, and the Statutory engine amount is used for it.
+Under PF and under ESIC choose **Rate × wage** (the rate, ceiling and rounding on the same page decide)
+or **My own formula**. A formula is the expected employee PF or ESIC in every validation run: the
+payslip is compared with what the formula gives. It is saved, dated and audited with the rest of the
+statutory configuration, so a change to it marks the months it covers as needing revalidation. A row the
+formula cannot be worked out for is reported on that row, and the rates and ceiling are used for it.
 
 ```
 IF(basic <= 25000, MIN((basic + special_allowance) * 12%, 3000), basic * 12%)
 IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)
 ```
 
-The page offers one-click starting points for the way companies commonly define PF and ESIC.
+The page offers one-click examples for the way companies commonly define PF and ESIC.
 If a formula cannot be read, the message says what is wrong: an unclosed bracket and where it
 is, a name that is not a field or component (with a suggestion), or a function that does not exist.
 A formula that names a component you have not added yet tells you to add it under

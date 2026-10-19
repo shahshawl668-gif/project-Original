@@ -935,8 +935,6 @@ def validate_employees(
     # cost dimensions snapshotted onto each result row.
     master_rows = master_as_of(db, entity.id, as_of)
 
-    active_formulas = saved_formulas.load_active(db, entity.id)
-
     # CTC records for everyone, once: the two latest in force at the cutoff,
     # per employee — exactly what _latest_ctcs returns, without a query per
     # employee (20,000 of them on a large register).
@@ -1075,8 +1073,8 @@ def validate_employees(
 
         esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type)
         errors.extend(saved_formulas.apply(
-            active_formulas, pf_calc, esic_calc, regular, list(comp_by_key), effective_pf_wage,
-            effective_esic_wage, _decimal_or_none(stated(row, "paid_days")),
+            pf_cfg.employee_formula, esic_cfg.employee_formula, pf_calc, esic_calc, regular, list(comp_by_key),
+            effective_pf_wage, effective_esic_wage, _decimal_or_none(stated(row, "paid_days")),
             _decimal_or_none(stated(row, "lop_days")), row_days_in_month,
         ))
 

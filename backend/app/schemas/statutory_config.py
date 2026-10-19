@@ -18,7 +18,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer
 
 
 # ─── PF ──────────────────────────────────────────────────────────────────────
@@ -84,6 +84,15 @@ class VoluntaryPFConfig(BaseModel):
     components: list[str] = Field(default_factory=list)
 
 
+def _omit_empty_formula(self, handler):
+    """Leave the key out until a formula is set, so adding the field does not change any stored configuration's text."""
+    data = handler(self)
+    if not data.get("employee_formula"):
+        data.pop("employee_formula", None)
+    return data
+
+
+
 class PFConfig(BaseModel):
     """Full PF configuration for one tenant."""
     rates:       PFRateConfig       = Field(default_factory=PFRateConfig)
@@ -92,6 +101,10 @@ class PFConfig(BaseModel):
     voluntary:   VoluntaryPFConfig   = Field(default_factory=VoluntaryPFConfig)
     # "none" | "employee_choice" | "employer_choice"
     above_ceiling_mode: Literal["none", "employee_choice", "employer_choice"] = "none"
+    # Excel-style formula for the employee's PF. Blank: the rate, wage and ceiling above decide.
+    employee_formula: str = Field("", max_length=2000)
+
+    serialize_without_empty_formula = model_serializer(mode="wrap")(_omit_empty_formula)
 
     class Config:
         json_encoders = {Decimal: str}
@@ -150,6 +163,10 @@ class ESICConfig(BaseModel):
     wage:        ESICWageConfig        = Field(default_factory=ESICWageConfig)
     rounding:    ESICRoundingConfig    = Field(default_factory=ESICRoundingConfig)
     eligibility: ESICEligibilityConfig = Field(default_factory=ESICEligibilityConfig)
+    # Excel-style formula for the employee's ESIC. Blank: the rate, wage and rounding above decide.
+    employee_formula: str = Field("", max_length=2000)
+
+    serialize_without_empty_formula = model_serializer(mode="wrap")(_omit_empty_formula)
 
     class Config:
         json_encoders = {Decimal: str}

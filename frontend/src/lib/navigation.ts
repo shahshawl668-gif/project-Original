@@ -146,7 +146,6 @@ const ALL_NAV_GROUPS: NavGroup[] = [
       { href: "/config/components", label: "Salary components", icon: Layers },
       { href: "/config/validation-matrix", label: "Validation matrix", icon: ClipboardCheck },
       { href: "/config/rules", label: "Rule suppressions", icon: Ban },
-      { href: "/rule-engine/formula", label: "Formulas", icon: Code2 },
       { href: "/rule-engine/slabs", label: "PT / LWF slabs", icon: BarChart3 },
       { href: "/config/minimum-wage", label: "Minimum wage", icon: IndianRupee },
       { href: "/config/upload", label: "Configuration upload", icon: FileSpreadsheet },

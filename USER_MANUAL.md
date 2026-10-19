@@ -171,7 +171,7 @@ endpoints. Tax computation: `POST /api/income-tax/compute` and
 
 ### 3.6 Formulas (optional)
 
-**UI:** Rule Engine → **Formulas**
+**UI:** Configuration & admin → **Statutory engine** (choose “My own formula” under PF or ESIC)
 
 Create expressions (e.g. HRA = 50% of Basic) for documentation or future rule hooks; use **Test** to verify with sample variables.
 
