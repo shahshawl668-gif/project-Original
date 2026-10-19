@@ -31,8 +31,20 @@ from app.models import (
     ValidationRun,
 )
 from app.services import data_protection as dp
-from tests.test_disbursement_api import _member
+
 from tests.test_run_history import _company, _data, _drain
+
+PASSWORD = "Passw0rd!x"
+
+
+def _member(client, owner: dict, role: str) -> dict:
+    email = f"dp-{role}-{uuid.uuid4().hex[:6]}@dp-example.com"
+    inv = client.post("/api/org/invitations", headers=owner, json={"email": email, "role": role})
+    assert inv.status_code == 200, inv.text
+    joined = client.post("/api/org/invitations/register", json={"token": inv.json()["data"]["token"], "password": PASSWORD})
+    assert joined.status_code == 200, joined.text
+    return {"Authorization": f"Bearer {joined.json()['data']['access_token']}", "X-Entity-Id": owner["X-Entity-Id"]}
+
 
 # Identifiers that occur nowhere else in the test data.
 PERSON = "EMPX9001"

@@ -1,5 +1,10 @@
 # Go-live runbook — Peopleopslab
 
+> **Removed on 19 Oct 2026:** bank-file reconciliation, the payment-file check, journal vouchers (JV) and the
+> cost-analysis and dashboards screens are no longer part of the product. Any section below that describes them
+> is out of date. Month approval, validation, imports and the Report Centre are unchanged.
+
+
 How to get this product from a repository to a live service holding a real
 client's payroll data, and how to prove at each step that it is safe to
 continue.

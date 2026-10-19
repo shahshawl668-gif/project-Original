@@ -1,5 +1,10 @@
 # Peopleopslab — User Manual
 
+> **Removed on 19 Oct 2026:** bank-file reconciliation, the payment-file check, journal vouchers (JV) and the
+> cost-analysis and dashboards screens are no longer part of the product. Any section below that describes them
+> is out of date. Month approval, validation, imports and the Report Centre are unchanged.
+
+
 For the people who use Peopleopslab each month: payroll, HR and finance staff at
 a client company.
 

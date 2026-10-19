@@ -13,15 +13,12 @@ import {
   Activity,
   Ban,
   BarChart3,
-  BookOpen,
   Building2,
-  Banknote,
   CalendarDays,
   Cable,
   ClipboardCheck,
   Code2,
   FileBarChart,
-  FileCheck2,
   FileDown,
   FileSpreadsheet,
   FolderArchive,
@@ -32,7 +29,6 @@ import {
   KeyRound,
   Landmark,
   Layers,
-  LayoutGrid,
   ListTodo,
   Loader,
   PlugZap,
@@ -57,10 +53,10 @@ import {
  * are switched on:
  *
  *   NEXT_PUBLIC_ENABLED_MODULES=all                           everything
- *   NEXT_PUBLIC_ENABLED_MODULES=analytics,reports             pick modules
+ *   NEXT_PUBLIC_ENABLED_MODULES=reports,studio                pick modules
  *   (unset)                                                   validation only
  *
- * Modules: ctc_budget (Budget only; CTC upload feeds validation and stays), reconciliation, analytics, reports, studio.
+ * Modules: ctc_budget (Budget only; CTC upload feeds validation and stays), reports, studio.
  * It is read at build time, so changing it means a rebuild.
  */
 const ENABLED_MODULES = new Set(
@@ -112,23 +108,8 @@ const ALL_NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "close",
-    module: "reconciliation",
-    label: "Reconciliation & approvals",
-    items: [
-      { href: "/reconciliation", label: "Month close & approval", icon: Scale },
-      { href: "/reconciliation/disbursement", label: "Payment file check", icon: FileCheck2 },
-      { href: "/reconciliation/bank", label: "Bank payments", icon: Banknote },
-      { href: "/reconciliation/jv", label: "Journal voucher", icon: BookOpen },
-    ],
-  },
-  {
-    id: "analytics",
-    module: "analytics",
-    label: "Analytics & dashboards",
-    items: [
-      { href: "/dashboards", label: "Dashboards", icon: LayoutGrid },
-      { href: "/cost", label: "Cost analysis", icon: IndianRupee },
-    ],
+    label: "Approval",
+    items: [{ href: "/reconciliation", label: "Month approval", icon: Scale }],
   },
   {
     id: "reports",
@@ -170,8 +151,6 @@ const ALL_NAV_GROUPS: NavGroup[] = [
       { href: "/rule-engine/formula", label: "Formulas", icon: Code2 },
       { href: "/rule-engine/slabs", label: "PT / LWF slabs", icon: BarChart3 },
       { href: "/config/minimum-wage", label: "Minimum wage", icon: IndianRupee },
-      { href: "/config/bank-profiles", label: "Bank file profiles", icon: Banknote, module: "reconciliation" },
-      { href: "/config/jv-templates", label: "JV templates", icon: BookOpen, module: "reconciliation" },
       { href: "/config/upload", label: "Configuration upload", icon: FileSpreadsheet },
       { href: "/config/team", label: "Team & invitations", icon: UserPlus },
       { href: "/config/data-protection", label: "Data protection", icon: ShieldCheck },
@@ -195,7 +174,6 @@ export const DETAIL_ROUTES: [RegExp, string, string][] = [
   [/^\/payroll\/results\/why/, "/payroll/results", "Why this result?"],
   [/^\/payroll\/runs\/compare/, "/payroll/results", "Compare runs"],
   [/^\/payroll\/employee\//, "/payroll/results", "Employee"],
-  [/^\/dashboards\/[^/]+/, "/dashboards", "Dashboard"],
   [/^\/studio\/connections\/oauth/, "/studio/connections", "Authorise"],
   [/^\/studio\/connections\/[^/]+/, "/studio/connections", "Connection"],
   [/^\/studio\/mapping\/[^/]+/, "/studio/mapping", "Mapping"],

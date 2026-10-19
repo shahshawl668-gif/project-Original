@@ -50,7 +50,7 @@ const ORIGIN_LABEL: Record<Origin, string> = {
 };
 
 const RUN_TYPES = [
-  { id: "regular", label: "Regular", desc: "The month's payroll. Becomes the month's register for cost and dashboards." },
+  { id: "regular", label: "Regular", desc: "The month's payroll. Becomes the month's stored register." },
   { id: "arrear", label: "Arrear", desc: "A past-period correction. Validated, but does not replace the month's register." },
   { id: "increment_arrear", label: "Increment + arrear", desc: "Arrears from a CTC change. Validated, not added to the register." },
 ] as const;
@@ -567,7 +567,7 @@ export default function UploadPage() {
             <Fact
               label="Month's register"
               value={checked.upload.stored_as_register ? "Replaced" : "Unchanged"}
-              note={checked.upload.stored_as_register ? "cost and dashboards use this file" : "validated only"}
+              note={checked.upload.stored_as_register ? "stored as the month's register" : "validated only"}
             />
           </div>
           <div className="space-y-3 px-5 pb-4">

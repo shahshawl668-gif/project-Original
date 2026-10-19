@@ -33,8 +33,8 @@ def apply(
     """Overwrite the employee PF / ESIC amounts from the saved formulas. Returns problems to report."""
     if not formulas:
         return []
-    variables: dict[str, float] = {name: 0.0 for name in BUILT_INS}
-    variables.update({key: 0.0 for key in comp_keys})
+    variables: dict[str, float] = dict.fromkeys(BUILT_INS, 0.0)
+    variables.update(dict.fromkeys(comp_keys, 0.0))
     variables.update({key: float(amount) for key, amount in regular.items()})
     variables.update(
         gross=float(sum(regular.values(), start=Decimal("0"))), pf_wage=float(pf_wage), esic_wage=float(esic_wage),

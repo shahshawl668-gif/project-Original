@@ -17,7 +17,6 @@ The arithmetic is the easy half.
 """
 from __future__ import annotations
 
-import io
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -130,82 +129,6 @@ def _cohort(count: int, gender: str, pay: float, prefix: str, **kw) -> list[dict
 
 
 # ── the gate ────────────────────────────────────────────────────────────────
-
-def test_the_analysis_is_off_until_the_employer_turns_it_on(client, workspace):
-    """India mandates no gender pay reporting. Running it is the employer's call."""
-    _, _, headers = workspace
-    r = client.get("/api/bi/pay-equity", headers=headers)
-    assert r.status_code == 403
-    assert "not enabled" in r.json()["error"]["detail"]
-
-
-def test_enabling_it_records_who_did_so(client, workspace):
-    entity, user, headers = workspace
-
-    client.put("/api/bi/pay-equity/settings",
-               json={"enabled": True, "authorisation_note": "Board approved 12 Mar"},
-               headers=headers)
-    settings = client.get("/api/bi/pay-equity/settings", headers=headers).json()["data"]
-    assert settings["enabled"] is True
-    assert settings["enabled_by"] == user.email
-    assert settings["enabled_at"]
-
-    # And the authorisation itself is in the trail, with its note.
-    events = client.get("/api/audit?action=pay_equity.enabled",
-                        headers=headers).json()["data"]["events"]
-    assert events and events[0]["detail"]["note"] == "Board approved 12 Mar"
-
-
-def test_authorisation_can_be_withdrawn(client, workspace):
-    _, _, headers = workspace
-    client.put("/api/bi/pay-equity/settings", json={"enabled": True}, headers=headers)
-    client.put("/api/bi/pay-equity/settings", json={"enabled": False}, headers=headers)
-
-    assert client.get("/api/bi/pay-equity", headers=headers).status_code == 403
-    events = client.get("/api/audit?action=pay_equity.disabled",
-                        headers=headers).json()["data"]["events"]
-    assert events
-
-
-def test_one_clients_authorisation_does_not_enable_it_for_the_book(client, workspace):
-    """A bureau holds many entities. Consent belongs to one of them."""
-    _, _, headers = workspace
-    client.put("/api/bi/pay-equity/settings", json={"enabled": True}, headers=headers)
-    other = client.post("/api/org/entities", json={"name": "Other client"},
-                        headers=headers).json()["data"]["id"]
-
-    elsewhere = {**headers, "X-Entity-Id": other}
-    assert client.get("/api/bi/pay-equity", headers=elsewhere).status_code == 403
-
-
-def test_every_view_is_written_to_the_trail(client, workspace):
-    """Who looked at this is itself a governance question."""
-    entity, user, headers = workspace
-    _components(entity, user)
-    _people(entity, user, _cohort(6, "F", 50000, "W"))
-    client.put("/api/bi/pay-equity/settings", json={"enabled": True}, headers=headers)
-    client.get("/api/bi/pay-equity", headers=headers)
-
-    events = client.get("/api/audit?action=pay_equity.viewed",
-                        headers=headers).json()["data"]["events"]
-    assert events and events[0]["user_email"] == user.email
-
-
-def test_no_individual_is_returned_at_any_permission_level(client, workspace):
-    """Unlike every other analytic here, there is no employee-level row."""
-    entity, user, headers = workspace
-    _components(entity, user)
-    _people(entity, user, _cohort(6, "F", 50000, "W", name="Priya Sharma")
-                          + _cohort(6, "M", 60000, "M", name="Rahul Verma"))
-    client.put("/api/bi/pay-equity/settings", json={"enabled": True}, headers=headers)
-
-    body = client.get("/api/bi/pay-equity", headers=headers).text
-    assert "Priya Sharma" not in body
-    assert "Rahul Verma" not in body
-    assert "employees" not in client.get("/api/bi/pay-equity", headers=headers).json()["data"]
-
-
-# ── suppression ─────────────────────────────────────────────────────────────
 
 def test_a_group_below_the_minimum_is_withheld_and_says_so(workspace):
     """A median over two people discloses two salaries."""
@@ -484,19 +407,3 @@ def test_the_output_says_what_it_is_not(workspace):
 
 # ── the export ──────────────────────────────────────────────────────────────
 
-def test_the_export_carries_the_same_suppression(client, workspace):
-    entity, user, headers = workspace
-    _components(entity, user)
-    _people(entity, user, _cohort(2, "F", 50000, "W") + _cohort(8, "M", 60000, "M"))
-    client.put("/api/bi/pay-equity/settings", json={"enabled": True}, headers=headers)
-
-    import openpyxl
-
-    payload = client.get("/api/reports/pay-equity.xlsx", headers=headers).content
-    wb = openpyxl.load_workbook(io.BytesIO(payload))
-    assert "How to read this" in wb.sheetnames
-
-    headline = {row[0]: row[1] for row in wb["Headline gap"].iter_rows(values_only=True) if row[0]}
-    assert headline["Median gap %"] is None
-    assert headline["Women — count"] == 2
-    assert headline["Comparable"] == "no"

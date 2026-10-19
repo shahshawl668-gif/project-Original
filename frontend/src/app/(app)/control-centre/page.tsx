@@ -29,7 +29,6 @@ import { fetchAttendanceRegisters } from "@/lib/attendance";
 import { saveBlob } from "@/lib/download";
 import { count, dateTime, inr, pct, plural } from "@/lib/format";
 import { issuesApi } from "@/lib/issues";
-import { fetchOverview } from "@/lib/reconciliation";
 import { cn } from "@/lib/utils";
 import { OUTCOME_LABEL, signoffApi, validationApi, type Outcome, type PeriodStatus } from "@/lib/validation";
 import { periodLabel, useWorkingPeriod } from "@/lib/workspace";
@@ -78,12 +77,6 @@ export default function ControlCentrePage() {
     enabled,
     refetchInterval: (q) => (q.state.data?.active_job ? 4000 : false),
     placeholderData: (prev) => prev,
-  });
-  const recon = useQuery({
-    queryKey: ["recon-overview", entity?.id, period],
-    queryFn: () => fetchOverview(period!),
-    enabled,
-    retry: false,
   });
   const attendance = useQuery({
     queryKey: ["attendance-registers", entity?.id],
@@ -145,7 +138,7 @@ export default function ControlCentrePage() {
       ) : (
         <>
           <NextAction s={s} period={period!} canAct={activeRole !== "viewer"} />
-          <Steps s={s} reconciled={recon.data?.reconciled ?? null} />
+          <Steps s={s} />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Panel title="Files & readiness" icon={FileSpreadsheet} href="/payroll/upload" linkLabel="Upload">
@@ -171,22 +164,6 @@ export default function ControlCentrePage() {
                   <span className="text-ink-700">{plural(monthAttendance[0].employee_count, "employee")} · {dateTime(monthAttendance[0].created_at)}</span>
                 ) : (
                   <Link href="/payroll/attendance" className="text-ink-500 underline-offset-2 hover:underline">Not uploaded — attendance checks will not run</Link>
-                )}
-              </Row>
-              <Row label="Bank file" state={recon.isError ? "unknown" : recon.data?.bank?.files.length ? "ok" : "missing"}>
-                {recon.isError ? (
-                  <span className="text-ink-500">Could not be checked</span>
-                ) : recon.data?.bank?.files.length ? (
-                  <span className="text-ink-700">{plural(recon.data.bank.files.length, "file")} · {inr(recon.data.bank.paid_total)} paid</span>
-                ) : (
-                  <Link href="/reconciliation/bank" className="text-ink-500 underline-offset-2 hover:underline">Not uploaded — payments are unreconciled</Link>
-                )}
-              </Row>
-              <Row label="JV template" state={recon.isError ? "unknown" : recon.data?.jv?.template ? "ok" : "missing"}>
-                {recon.data?.jv?.template ? (
-                  <span className="text-ink-700">{recon.data.jv.template.name}</span>
-                ) : (
-                  <Link href="/config/jv-templates" className="text-ink-500 underline-offset-2 hover:underline">No approved template</Link>
                 )}
               </Row>
             </Panel>
@@ -321,28 +298,6 @@ export default function ControlCentrePage() {
               ) : null}
             </Panel>
 
-            <Panel title="Reconciliation" icon={Landmark} href="/reconciliation" linkLabel="Open">
-              {recon.isError ? (
-                <p className="text-[13px] text-ink-500">Reconciliation status could not be loaded.</p>
-              ) : !recon.data ? (
-                <Skeleton className="h-14 w-full" />
-              ) : recon.data.period === null ? (
-                <p className="text-[13px] text-ink-500">{recon.data.message ?? "No register to reconcile yet."}</p>
-              ) : (
-                <>
-                  <Row label="Bank" state={recon.data.bank?.ready ? "ok" : "warn"}>
-                    <span className="text-ink-700">{recon.data.bank?.message ?? (recon.data.bank?.ready ? "Ready to reconcile" : "Not ready")}</span>
-                  </Row>
-                  <Row label="Journal" state={recon.data.jv?.ready ? "ok" : "warn"}>
-                    <span className="text-ink-700">{recon.data.jv?.message ?? (recon.data.jv?.ready ? "Ready to post" : "Not ready")}</span>
-                  </Row>
-                  <p className="text-xs text-ink-500">
-                    {recon.data.reconciled ? "Reconciled for this month." : "Not reconciled for this month."}
-                  </p>
-                </>
-              )}
-            </Panel>
-
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -357,21 +312,6 @@ export default function ControlCentrePage() {
               </div>
             </Panel>
 
-            <Panel title="Dashboards" icon={BarChart3} href="/dashboards" linkLabel="Dashboards">
-              {s.upload ? (
-                s.upload.stored_as_register ? (
-                  <p className="text-[13px] text-ink-700">
-                    {periodLabel(period)} is in the register history, so cost analysis and dashboards include it.
-                  </p>
-                ) : (
-                  <p className="text-[13px] text-warning-800">
-                    This month&apos;s register was not stored in the register history, so dashboards do not include {periodLabel(period)}.
-                  </p>
-                )
-              ) : (
-                <p className="text-[13px] text-ink-500">Dashboards have no data for {periodLabel(period)} — no register was uploaded.</p>
-              )}
-            </Panel>
           </div>
         </>
       )}
@@ -479,7 +419,7 @@ function ActionLink({ href, children, variant = "default" }: { href: string; chi
 
 type StepState = "done" | "current" | "attention" | "todo";
 
-function Steps({ s, reconciled }: { s: PeriodStatus; reconciled: boolean | null }) {
+function Steps({ s }: { s: PeriodStatus }) {
   const fresh = s.current_run && !s.freshness?.revalidation_required;
   const steps: { label: string; state: StepState; note: string }[] = [
     {
@@ -498,18 +438,13 @@ function Steps({ s, reconciled }: { s: PeriodStatus; reconciled: boolean | null 
       note: !fresh ? "—" : s.open_findings ? `${count(s.open_findings)} open` : s.stage === "checks_incomplete" ? "Checks incomplete" : "Nothing open",
     },
     {
-      label: "Reconcile",
-      state: reconciled === null ? "todo" : reconciled ? "done" : fresh ? "current" : "todo",
-      note: reconciled === null ? "Unknown" : reconciled ? "Reconciled" : "Unreconciled",
-    },
-    {
       label: "Approve",
       state: s.signoff_state === "signed" ? "done" : s.signoff_state === "pending_approval" ? "current" : s.stage === "ready_for_approval" ? "current" : "todo",
       note: s.signoff_state === "signed" ? "Signed off" : s.signoff_state === "pending_approval" ? "Awaiting approver" : s.signoff_state === "reopened" ? "Reopened" : "Not submitted",
     },
   ];
   return (
-    <ol aria-label="Month progress" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <ol aria-label="Month progress" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {steps.map((step, i) => (
         <li
           key={step.label}

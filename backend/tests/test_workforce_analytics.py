@@ -159,18 +159,6 @@ def test_a_filter_narrows_the_population(workspace):
     assert result["periods"][0]["closing"] == 1
 
 
-def test_movement_is_served_by_the_endpoint(client, workspace):
-    entity, user, headers = workspace
-    _register(entity, user, date(2026, 4, 1), [{"employee_id": "E1"}])
-    _register(entity, user, date(2026, 5, 1), [{"employee_id": "E1"}, {"employee_id": "E2"}])
-
-    data = client.get("/api/bi/headcount-movement", headers=headers).json()["data"]
-    assert [p["label"] for p in data["periods"]] == ["Apr 2026", "May 2026"]
-    assert data["totals"]["joiners"] == 1
-
-
-# ── compensation distribution ───────────────────────────────────────────────
-
 def _payroll(entity, user, salaries: list[float], period=date(2026, 4, 1), **kw):
     _register(entity, user, period, [
         {"employee_id": f"E{i}", "components": {"basic": s}, **kw}
@@ -320,19 +308,3 @@ def test_an_unmasked_identity_passes_a_row_through_unchanged():
     assert identity.apply(row) == row
 
 
-def test_a_caller_can_mask_a_session_deliberately(client, workspace):
-    """What someone presenting to a room wants."""
-    entity, user, headers = workspace
-    _register(entity, user, date(2026, 4, 1), [{"employee_id": "E1", "name": "Priya Sharma"}])
-
-    plain = client.get("/api/bi/compensation", headers=headers).json()["data"]
-    assert plain["identity"]["masked"] is False
-    assert plain["employees"][0]["employee_name"] == "Priya Sharma"
-
-    masked = client.get(
-        "/api/bi/compensation", headers={**headers, "X-Mask-Identity": "on"},
-    ).json()["data"]
-    assert masked["identity"]["masked"] is True
-    assert masked["employees"][0]["employee_id"].startswith("EMP-")
-    assert masked["employees"][0]["employee_name"] == "P. S."
-    assert masked["employees"][0]["annual_ctc"] == plain["employees"][0]["annual_ctc"]

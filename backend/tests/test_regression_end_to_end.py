@@ -167,30 +167,6 @@ def master_csv() -> str:
     return header + "\n".join(lines) + "\n"
 
 
-def bank_csv(period: date) -> str:
-    """
-    The payment file, with three deliberate problems.
-
-    Built from the register's own net so the clean rows reconcile exactly; the
-    planted rows are the only differences, which is what lets the test assert
-    the totals rather than merely the exception count.
-    """
-    rows = []
-    for line in register_csv(period).splitlines()[1:]:
-        cells = line.split(",")
-        employee_id, name, net = cells[0], cells[1], cells[-1]
-        if employee_id == "E007" and period == date(2026, 6, 1):
-            continue  # planted: due but never paid
-        account = f"5001{employee_id[1:]}0099"
-        if employee_id == "E003" and period == date(2026, 6, 1):
-            account = "9999888877776666"  # planted: not the account on the master
-        rows.append(f"{employee_id},{name},{account},HDFC0001234,{net}")
-    if period == date(2026, 6, 1):
-        rows.append("E999,Unknown Payee,7777666655554444,HDFC0001234,84000")  # planted: ghost
-    body = "\n".join(rows)
-    return "code,name,account,ifsc,amount\n" + body + "\n"
-
-
 # ---------------------------------------------------------------------------
 # The company, set up once for the whole scenario
 # ---------------------------------------------------------------------------
@@ -282,16 +258,6 @@ def test_the_master_and_three_registers_are_stored(client, company):
     counts = {r["period_month"]: r["employee_count"] for r in registers}
     assert counts["2026-04-01"] == 9   # E010 has not joined
     assert counts["2026-06-01"] == 10
-
-
-def test_the_reporting_attributes_came_off_the_master(client, company):
-    # Dimensions are snapshotted onto the register at upload. If this breaks,
-    # every breakdown in the product silently collapses into "Unassigned".
-    analysis = data(client.get(
-        "/api/bi/cost-analysis?group_by=department&date_from=2026-04-01&date_to=2026-06-01",
-        headers=company,
-    ))
-    assert set(analysis["groups"]) == {"Engineering", "Sales", "Operations"}
 
 
 # ---------------------------------------------------------------------------
@@ -391,53 +357,6 @@ def test_an_attendance_file_that_does_not_add_up_is_refused_before_it_is_stored(
 # ---------------------------------------------------------------------------
 # Stage 3 — Module B: cost and BI
 # ---------------------------------------------------------------------------
-def test_the_cost_taxonomy_adds_up_to_its_own_definition(client, company):
-    analysis = data(client.get(
-        "/api/bi/cost-analysis?date_from=2026-06-01&date_to=2026-06-01", headers=company
-    ))
-    totals = analysis["totals"]
-    earnings = sum(totals[k] for k in
-                   ("basic_da", "hra", "allowances", "variable_pay", "arrears"))
-    employer = sum(totals[k] for k in
-                   ("er_pf", "er_pf_admin", "er_esi", "gratuity", "er_lwf"))
-    assert round(totals["gross"], 2) == round(earnings, 2)
-    assert round(totals["employer_cost"], 2) == round(employer, 2)
-    # The identity the whole product rests on. Deductions are inside gross and
-    # are deliberately not added on top.
-    assert round(totals["ctc"], 2) == round(earnings + employer, 2)
-    assert round(totals["net"], 2) == round(totals["gross"] - totals["deductions"], 2)
-
-
-def test_the_register_s_own_statutory_figures_are_used_not_recomputed(client, company):
-    analysis = data(client.get(
-        "/api/bi/cost-analysis?date_from=2026-06-01&date_to=2026-06-01", headers=company
-    ))
-    # The register states PF, ESI, PT and TDS. The dashboard reports those
-    # rather than its own arithmetic, and says how much it read.
-    assert analysis["sources"]["reported"] > 0
-    assert analysis["totals"]["tds"] > 0
-
-
-def test_headcount_movement_sees_the_joiner_and_the_leaver(client, company):
-    movement = data(client.get(
-        "/api/bi/headcount-movement?date_from=2026-04-01&date_to=2026-06-01", headers=company
-    ))
-    by_period = {p["period"]: p for p in movement["periods"]}
-    assert by_period["2026-05-01"]["joiners"] >= 1
-    assert by_period["2026-06-01"]["closing"] == 10
-
-
-def test_month_on_month_comparison_answers(client, company):
-    compare = data(client.get(
-        "/api/bi/cost-compare?period_a=2026-04-01&period_b=2026-06-01", headers=company
-    ))
-    assert compare["a"]["measures"]["ctc"] > 0
-    assert compare["b"]["measures"]["ctc"] > 0
-    # E010 joined in May, so June carries one more person and more cost.
-    assert compare["headcount"]["delta"] == 1
-    assert compare["b"]["measures"]["ctc"] > compare["a"]["measures"]["ctc"]
-
-
 def test_a_budget_can_be_uploaded_approved_and_compared(client, company):
     rows = "period,scope,amount,headcount\n"
     for period in PERIODS:
@@ -465,214 +384,11 @@ def test_a_forecast_never_comes_back_looking_like_an_actual(client, company):
 
 
 # ---------------------------------------------------------------------------
-# Stage 4 — Module C: reconciliation
-# ---------------------------------------------------------------------------
-@pytest.fixture(scope="module")
-def bank_files(client, company):
-    profile = data(client.post("/api/reconciliation/bank/profiles", headers=company, json={
-        "name": "Regression bank", "bank_label": "HDFC Bank",
-        "column_map": {
-            "employee_id": "code", "employee_name": "name",
-            "account_number": "account", "ifsc": "ifsc", "amount": "amount",
-        },
-        "is_default": True,
-    }))
-    uploaded = {}
-    for period in PERIODS:
-        result = data(client.post(
-            "/api/reconciliation/bank/files", headers=company,
-            files={"file": (
-                f"bank-{period:%Y-%m}.csv",
-                io.BytesIO(bank_csv(period).encode()), "text/csv",
-            )},
-            data={"period": f"{period:%Y-%m}", "profile_id": profile["id"]},
-        ))
-        uploaded[period] = result["id"]
-    return uploaded
-
-
-def test_a_clean_month_reconciles_to_the_rupee(client, company, bank_files):
-    result = data(client.get(
-        f"/api/reconciliation/bank/reconcile?file_id={bank_files[PERIODS[0]]}", headers=company
-    ))
-    assert result["summary"]["difference"] == 0
-    assert result["summary"]["matched"] == 9
-    codes = {e["code"] for e in result["exceptions"]}
-    assert "bank.amount_mismatch" not in codes
-    assert "bank.not_in_file" not in codes
-
-
-def test_the_three_planted_payment_problems_are_all_found(client, company, bank_files):
-    result = data(client.get(
-        f"/api/reconciliation/bank/reconcile?file_id={bank_files[PERIODS[2]]}", headers=company
-    ))
-    by_code = {}
-    for item in result["exceptions"]:
-        by_code.setdefault(item["code"], []).append(item)
-
-    unpaid = by_code["bank.not_in_file"]
-    assert [e["employee_id"] for e in unpaid] == ["E007"]
-
-    swapped = by_code["bank.account_differs_from_master"]
-    assert [e["employee_id"] for e in swapped] == ["E003"]
-    assert swapped[0]["context"]["paid_to"] == "9999888877776666"
-
-    ghost = by_code["bank.not_in_register"]
-    assert [e["employee_id"] for e in ghost] == ["E999"]
-    assert ghost[0]["actual"] == 84000.0
-
-    assert result["summary"]["reconciled"] is False
-
-
-def test_the_headline_difference_is_exactly_the_planted_lines(client, company, bank_files):
-    # A total nobody can trace to named employees is not actionable. The
-    # difference must be the ghost payment less the employee who went unpaid.
-    result = data(client.get(
-        f"/api/reconciliation/bank/reconcile?file_id={bank_files[PERIODS[2]]}", headers=company
-    ))
-    unpaid = next(
-        e for e in result["exceptions"] if e["code"] == "bank.not_in_file"
-    )["expected"]
-    assert round(result["summary"]["difference"], 2) == round(84000.0 - unpaid, 2)
-
-
-@pytest.fixture(scope="module")
-def jv_template(client, company):
-    template = data(client.post("/api/reconciliation/jv/templates", headers=company, json={
-        "name": "Regression JV", "from_preset": "standard_accrual",
-    }))
-    data(client.post(
-        f"/api/reconciliation/jv/templates/{template['id']}/approve", headers=company
-    ))
-    return template["id"]
-
-
-def test_the_voucher_balances_for_every_month(client, company, jv_template):
-    for period in PERIODS:
-        result = data(client.get(
-            f"/api/reconciliation/jv/reconcile?period={period:%Y-%m}", headers=company
-        ))
-        assert result["balanced"] is True, f"{period:%b %Y} does not balance"
-        assert result["summary"]["reconciled"] is True
-
-
-def test_the_voucher_exports_in_every_layout(client, company, jv_template):
-    for fmt in ("generic_csv", "tally_csv", "sap_csv", "zoho_csv"):
-        response = client.get(
-            f"/api/reconciliation/jv/export?period=2026-06&format={fmt}", headers=company
-        )
-        assert response.status_code == 200, fmt
-        lines = [line for line in response.text.splitlines() if line.strip()]
-        assert len(lines) > 5, fmt
-
-
-def test_a_cost_centre_split_produces_a_balancing_voucher_per_centre(client, company):
-    template = data(client.post("/api/reconciliation/jv/templates", headers=company, json={
-        "name": "Regression JV by cost centre", "from_preset": "standard_accrual",
-        "split_mode": "per_group", "group_by": "cost_center",
-    }))
-    result = data(client.get(
-        f"/api/reconciliation/jv/preview?period=2026-06&template_id={template['id']}",
-        headers=company,
-    ))
-    assert {v["scope"] for v in result["vouchers"]} == {"CC-ENG", "CC-SAL", "CC-OPS"}
-    assert all(v["balanced"] for v in result["vouchers"])
-
-
-# ---------------------------------------------------------------------------
-# Stage 5 — the cross-module assertions this file exists for
-# ---------------------------------------------------------------------------
-def test_the_ledger_posts_exactly_what_the_cost_dashboard_reports(client, company, jv_template):
-    # If these two ever part company, a client is shown one payroll cost on a
-    # dashboard and a different one in their books.
-    analysis = data(client.get(
-        "/api/bi/cost-analysis?date_from=2026-06-01&date_to=2026-06-01", headers=company
-    ))
-    voucher = data(client.get(
-        "/api/reconciliation/jv/reconcile?period=2026-06", headers=company
-    ))
-    assert round(voucher["summary"]["total_debit"], 2) == round(analysis["totals"]["ctc"], 2)
-    assert round(voucher["summary"]["payroll_cost"], 2) == round(analysis["totals"]["ctc"], 2)
-
-
-def test_the_voucher_credits_the_same_net_the_dashboard_computes(
-    client, company, jv_template
-):
-    analysis = data(client.get(
-        "/api/bi/cost-analysis?date_from=2026-04-01&date_to=2026-04-01", headers=company
-    ))
-    voucher = data(client.get(
-        "/api/reconciliation/jv/preview?period=2026-04", headers=company
-    ))
-    salary_payable = sum(
-        line["credit"] for v in voucher["vouchers"] for line in v["lines"]
-        if line["account_code"] == "2001"
-    )
-    assert round(salary_payable, 2) == round(analysis["totals"]["net"], 2)
-
-
-def test_the_bank_does_not_invent_an_annual_lwf_deduction_in_april(
-    client, company, bank_files
-):
-    """April bank reconciliation should not include December-only Karnataka LWF."""
-    analysis = data(client.get(
-        "/api/bi/cost-analysis?date_from=2026-04-01&date_to=2026-04-01", headers=company
-    ))
-    recon = data(client.get(
-        f"/api/reconciliation/bank/reconcile?file_id={bank_files[PERIODS[0]]}", headers=company
-    ))
-
-    # A clean month: the file pays exactly what the register said it would.
-    assert round(recon["summary"]["paid_total"], 2) == round(recon["summary"]["due_total"], 2)
-
-    # The contribution is annual and belongs to December wages.
-    assert analysis["totals"]["ee_lwf"] == 0
-    assert round(recon["summary"]["due_total"] - analysis["totals"]["net"], 2) == 0
-    assert not any(e["code"] == "net.stated_vs_computed" for e in recon["exceptions"])
-
-
-def test_headcount_is_one_number_across_the_register_the_dashboard_and_the_voucher(
-    client, company, jv_template
-):
-    registers = data(client.get("/api/payroll/registers", headers=company))
-    stored = next(r for r in registers if r["period_month"] == "2026-06-01")["employee_count"]
-    analysis = data(client.get(
-        "/api/bi/cost-analysis?date_from=2026-06-01&date_to=2026-06-01", headers=company
-    ))
-    voucher = data(client.get(
-        "/api/reconciliation/jv/reconcile?period=2026-06", headers=company
-    ))
-    assert stored == analysis["totals"]["headcount"] == voucher["employee_count"] == 10
-
-
-def test_a_dimensional_split_sums_back_to_the_whole(client, company):
-    # Every breakdown in the product has to total to the same figure, or a
-    # reader who slices by department gets a different company.
-    whole = data(client.get(
-        "/api/bi/cost-analysis?date_from=2026-06-01&date_to=2026-06-01", headers=company
-    ))["totals"]["ctc"]
-    for dimension in ("department", "cost_center", "work_state", "employment_type"):
-        split = data(client.get(
-            f"/api/bi/cost-analysis?group_by={dimension}&date_from=2026-06-01&date_to=2026-06-01",
-            headers=company,
-        ))
-        assert round(sum(g["total"] for g in split["matrix"]), 2) == round(whole, 2), dimension
-
-
-def test_the_two_states_are_kept_apart_where_the_law_differs(client, company):
-    split = data(client.get(
-        "/api/bi/cost-analysis?group_by=work_state&date_from=2026-06-01&date_to=2026-06-01",
-        headers=company,
-    ))
-    assert set(split["groups"]) == {"Karnataka", "Maharashtra"}
-
-
-# ---------------------------------------------------------------------------
 # Stage 6 — the outputs a client actually receives
 # ---------------------------------------------------------------------------
-def test_every_report_in_the_catalogue_downloads(client, company, bank_files, jv_template):
+def test_every_report_in_the_catalogue_downloads(client, company):
     catalogue = data(client.get("/api/reports", headers=company))["reports"]
-    assert len(catalogue) >= 10
+    assert len(catalogue) >= 9
     for report in catalogue:
         if report["key"] == "pay-equity":
             continue  # authorisation-gated; covered by its own suite
@@ -682,23 +398,6 @@ def test_every_report_in_the_catalogue_downloads(client, company, bank_files, jv
         )
         assert response.status_code == 200, report["key"]
         assert response.content[:2] == b"PK", report["key"]
-
-
-def test_the_reconciliation_pack_carries_the_planted_exceptions(client, company, bank_files):
-    import openpyxl
-
-    response = client.get(
-        "/api/reports/bank-jv-reconciliation.xlsx?date_to=2026-06-01", headers=company
-    )
-    assert response.status_code == 200
-    book = openpyxl.load_workbook(io.BytesIO(response.content))
-    text = " ".join(
-        str(cell.value)
-        for sheet in ("Bank exceptions", "Voucher check")
-        for row in book[sheet].iter_rows()
-        for cell in row
-    )
-    assert "E003" in text and "E007" in text and "E999" in text
 
 
 def test_the_month_can_be_signed_off_with_an_evidence_pack(client, company):
@@ -736,13 +435,11 @@ def test_a_month_that_was_never_validated_cannot_be_prepared_or_signed(client, c
     assert "not been validated" in refused.json()["error"]["detail"]
 
 
-def test_the_audit_trail_carries_the_whole_chain(client, company, bank_files, jv_template):
+def test_the_audit_trail_carries_the_whole_chain(client, company):
     events = data(client.get("/api/audit?limit=200", headers=company))["events"]
     actions = {e["action"] for e in events}
     for expected in (
         "register.uploaded", "budget.uploaded", "budget.approved",
-        "bank_profile.created", "bank_file.uploaded",
-        "jv_template.created", "jv_template.approved",
     ):
         assert expected in actions, f"{expected} left no audit trail"
 
@@ -750,34 +447,3 @@ def test_the_audit_trail_carries_the_whole_chain(client, company, bank_files, jv
 # ---------------------------------------------------------------------------
 # Stage 7 — the month as the product summarises it
 # ---------------------------------------------------------------------------
-def test_the_close_overview_reports_the_month_as_it_actually_is(
-    client, company, bank_files, jv_template
-):
-    overview = data(client.get("/api/reconciliation/overview?period=2026-06", headers=company))
-    assert overview["register"]["employees"] == 10
-    assert overview["bank"]["ready"] is True
-    assert overview["jv"]["ready"] is True
-    # Nothing has been kept and closed for June, so the month is not reconciled
-    # however green the individual panels look.
-    assert overview["reconciled"] is False
-
-
-def test_closing_the_month_puts_the_exceptions_on_the_record(
-    client, company, bank_files, jv_template
-):
-    run = data(client.post("/api/reconciliation/runs", headers=company, json={
-        "period_month": "2026-06-01", "kind": "bank",
-        "bank_file_id": bank_files[PERIODS[2]],
-    }))
-    assert run["exception_count"] >= 3
-
-    closed = data(client.post(f"/api/reconciliation/runs/{run['id']}/close", headers=company))
-    assert closed["state"] == "closed"
-    assert closed["closed_by"]
-
-    stored = data(client.get(f"/api/reconciliation/runs/{run['id']}", headers=company))
-    codes = {e["code"] for e in stored["exceptions"]}
-    assert {"bank.not_in_file", "bank.not_in_register",
-            "bank.account_differs_from_master"} <= codes
-    # Closing records that someone accepted the position; it never erases it.
-    assert stored["exception_count"] == run["exception_count"]

@@ -421,30 +421,6 @@ def test_a_filter_applies_to_both_sides_of_a_comparison(workspace):
 
 # ── through the API ─────────────────────────────────────────────────────────
 
-def test_the_comparison_endpoint_serves_two_periods(client, workspace):
-    entity, user, headers = workspace
-    _components(entity, user, {"Basic": {}})
-    _register(entity, user, date(2026, 4, 1), [
-        {"employee_id": "E1", "components": {"basic": 10000.0}}])
-    _register(entity, user, date(2026, 5, 1), [
-        {"employee_id": "E1", "components": {"basic": 15000.0}}])
-
-    r = client.get("/api/bi/cost-compare?period_a=2026-04-01&period_b=2026-05-01",
-                   headers=headers)
-    assert r.status_code == 200, r.text
-    data = r.json()["data"]
-    assert data["a"]["measures"]["gross"] == 10000.0
-    assert data["b"]["measures"]["gross"] == 15000.0
-
-
-def test_the_measure_catalogue_is_served(client, workspace):
-    _, _, headers = workspace
-    data = client.get("/api/bi/measures", headers=headers).json()["data"]
-    keys = {m["key"] for m in data["measures"]}
-    assert {"basic_da", "hra", "er_pf", "gratuity", "pt", "tds"} <= keys
-    assert {m["key"] for m in data["derived"]} >= {"gross", "employer_cost", "ctc", "net"}
-
-
 def test_periods_lists_only_months_that_hold_a_register(client, workspace):
     entity, user, headers = workspace
     _register(entity, user, date(2026, 4, 1), [
@@ -454,13 +430,3 @@ def test_periods_lists_only_months_that_hold_a_register(client, workspace):
     assert [p["label"] for p in data["periods"]] == ["Apr 2026"]
 
 
-def test_a_comparison_does_not_leak_between_entities(client, workspace):
-    entity, user, headers = workspace
-    _register(entity, user, date(2026, 4, 1), [
-        {"employee_id": "E1", "components": {"basic": 10000.0}}])
-    other = client.post("/api/org/entities", json={"name": "Other"},
-                        headers=headers).json()["data"]["id"]
-
-    data = client.get("/api/bi/cost-compare?period_a=2026-04-01&period_b=2026-05-01",
-                      headers={**headers, "X-Entity-Id": other}).json()["data"]
-    assert data["a"]["measures"]["gross"] == 0.0

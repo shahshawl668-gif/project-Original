@@ -109,13 +109,12 @@ export default function BudgetUploadPage() {
       <PageHeader
         eyebrow="Budget"
         title="Upload an approved budget"
-        description="Two steps on purpose: read the file, check what it says, then store it. A budget lands as a draft and is not used as the comparison on any dashboard until someone with authority approves it."
+        description="Two steps on purpose: read the file, check what it says, then store it. A budget lands as a draft and is not approved for use until someone with authority approves it."
       />
 
       {saved && (
         <AlertBanner variant="success" title={`Stored “${saved}” as a draft`}>
-          It is not the comparison yet. Approve it under Cost analysis → Budget &amp; forecast,
-          which is an owner or manager action.
+          It is not the comparison yet. Approving it is an owner or manager action.
         </AlertBanner>
       )}
       {error && <AlertBanner variant="error" title="Could not read that file">{error}</AlertBanner>}

@@ -1,5 +1,10 @@
 # Peopleopslab — Administrator Manual
 
+> **Removed on 19 Oct 2026:** bank-file reconciliation, the payment-file check, journal vouchers (JV) and the
+> cost-analysis and dashboards screens are no longer part of the product. Any section below that describes them
+> is out of date. Month approval, validation, imports and the Report Centre are unchanged.
+
+
 Running the product: who can sign in, what each of them can do, how a client
 account gets created, and how support access works.
 

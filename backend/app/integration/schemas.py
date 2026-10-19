@@ -150,14 +150,3 @@ RULE_PROPOSAL_EXAMPLE = {
 }
 
 
-class BiQuery(BaseModel):
-    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [
-        {"dataset": "payroll_cost", "metric": "ctc", "breakdown": "department", "period": {"preset": "last_6"}},
-    ]})
-
-    dataset: str
-    metric: str
-    breakdown: str = "period"
-    granularity: Literal["month", "quarter", "year"] = "month"
-    filters: dict[str, list[str]] = Field(default_factory=dict)
-    period: dict[str, Any] | None = Field(default=None, description='{"preset": "last_6"} or {"preset": "custom", "from": "2026-01-01", "to": "2026-06-01"}')

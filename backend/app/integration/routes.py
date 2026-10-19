@@ -3,8 +3,7 @@ Endpoints of the integration API, version 1.
 
 Each one calls the service the product's own screens call — imports go
 through ``services.ingest`` and ``services.register_ingest``, validation
-through the validation job queue, findings through ``services.issues``, BI
-through ``services.dashboards``. Nothing here calculates payroll.
+through the validation job queue, findings through ``services.issues``. Nothing here calculates payroll.
 """
 from __future__ import annotations
 
@@ -32,7 +31,6 @@ from app.integration.schemas import (
     IMPORT_EXAMPLES,
     RULE_PROPOSAL_EXAMPLE,
     AssignmentRequest,
-    BiQuery,
     CommentRequest,
     DecisionRequest,
     ImportRequest,
@@ -48,7 +46,6 @@ from app.services.studio.credentials import SCOPES, Principal
 router = APIRouter()
 
 # Scope checks, built once.
-NEEDS_BI_READ = require("bi:read")
 NEEDS_CONFIG_PROPOSE = require("config:propose")
 NEEDS_CONFIG_READ = require("config:read")
 NEEDS_FINDINGS_WRITE = require("findings:write")
@@ -629,33 +626,6 @@ async def propose_rule(
     status, payload, replayed = await idempotent(request, db, principal, company, work)
     return JSONResponse(status_code=status, content=payload,
                         headers={"Idempotent-Replayed": "true"} if replayed else None)
-
-
-# ---------------------------------------------------------------------------
-# BI
-# ---------------------------------------------------------------------------
-@router.get("/bi/datasets", tags=["bi"], summary="Datasets, metrics, breakdowns and filters")
-def bi_datasets(principal: Principal = Depends(NEEDS_BI_READ)):
-    from app.services import dashboards
-
-    return envelope(dashboards.catalogue())
-
-
-@router.post("/bi/query", tags=["bi"], summary="An aggregate metric with its data basis")
-def bi_query(
-    body: BiQuery,
-    principal: Principal = Depends(NEEDS_BI_READ),
-    company: Entity = Depends(get_company),
-    db: Session = Depends(get_db),
-):
-    from app.services import dashboards
-
-    try:
-        out = dashboards.query(db, company, dataset=body.dataset, metric=body.metric, breakdown=body.breakdown,
-                               granularity=body.granularity, filters=body.filters, period=body.period)
-    except dashboards.QueryError as exc:
-        raise ApiError("invalid_request", str(exc))
-    return envelope(out)
 
 
 # ---------------------------------------------------------------------------

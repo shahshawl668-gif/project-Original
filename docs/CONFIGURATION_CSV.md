@@ -42,13 +42,10 @@ This example defines one component. The actual download supplies every field for
 | `minimum_wage_applicability` | `effective_from`, `applicable`, `reason`, `source_reference` | Dated Yes/No decision; No requires a reason. |
 | `rule_preferences` | `rule_id`, `suppressed` | Per-entity validation rule preferences. |
 | `salary_import_profiles` | `name`, `column_mapping` | Named mapping from a client's register headings to canonical payroll fields. `column_mapping` is JSON. |
-| `bank_file_profiles` | `name`, `bank_label`, `note`, `kind`, `layout`, `delimiter`, `encoding`, `has_header`, `skip_rows`, `trailer_rows`, `column_map`, `amount_unit`, `amount_sign`, `date_format`, `employee_id_transform`, `row_filter`, `is_default` | Bank file parsing settings. |
-| `jv_templates` | `name`, `note`, `posting_basis`, `split_mode`, `group_by`, `detail_level`, `sign_convention`, `net_pay_source`, `voucher_date_rule`, `voucher_type`, `narration_template`, `export_format`, `balance_tolerance`, `rounding_mode`, `rounding_account` | Journal voucher template settings. |
-| `jv_rules` | `template_name`, `sequence`, `label`, `account_code`, `account_name`, `side`, `measures`, `filters`, `cost_center_from`, `active`, `note` | Rules linked by exact `template_name` to a template in the same file. |
 
 ## Replacement and safety
 
-Each included section **replaces all existing records** in that category for the selected entity. To leave a section unchanged, remove *all* its lines. An `empty` line intentionally clears the section. `jv_templates` and `jv_rules` must both be included or both omitted. An approved JV template blocks replacement; imported JV templates require review and approval. The preview validates names, values, JSON shapes, foreign references, and record numbering without saving; applying is transactional. The file cannot set entity IDs or another client's configuration.
+Each included section **replaces all existing records** in that category for the selected entity. To leave a section unchanged, remove *all* its lines. An `empty` line intentionally clears the section. Files exported before 19 Oct 2026 may contain `bank_file_profiles`, `jv_templates` and `jv_rules`; those features were removed, so delete those sections from such a file before uploading. The preview validates names, values, JSON shapes, foreign references, and record numbering without saving; applying is transactional. The file cannot set entity IDs or another client's configuration.
 
 Configuration upload is separate from salary register upload. A `salary_import_profiles` mapping lets the register importer recognize client column headings, while `components` defines how named salary columns are treated for PF, ESIC, PT, LWF and other checks. Download the register's own sample CSV from its upload screen; this configuration CSV is for setup, not payroll rows.
 

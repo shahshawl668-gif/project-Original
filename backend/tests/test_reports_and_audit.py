@@ -176,24 +176,6 @@ def test_an_unknown_report_is_a_404(client, workspace):
     assert client.get("/api/reports/vibes.xlsx", headers=headers).status_code == 404
 
 
-def test_a_restricted_report_is_not_listed_until_it_is_authorised(client, workspace):
-    """Offering a card that always 403s teaches people to ignore errors."""
-    entity, user, headers = workspace
-    _seed(entity, user)
-
-    keys = {r["key"] for r in client.get("/api/reports", headers=headers).json()["data"]["reports"]}
-    assert "pay-equity" not in keys
-    assert client.get("/api/reports/pay-equity.xlsx", headers=headers).status_code == 403
-
-    client.put("/api/bi/pay-equity/settings", json={"enabled": True}, headers=headers)
-
-    keys = {r["key"] for r in client.get("/api/reports", headers=headers).json()["data"]["reports"]}
-    assert "pay-equity" in keys
-    assert client.get("/api/reports/pay-equity.xlsx", headers=headers).status_code == 200
-
-
-# ── provenance ──────────────────────────────────────────────────────────────
-
 def test_every_workbook_opens_with_where_it_came_from(client, workspace):
     entity, user, headers = workspace
     _seed(entity, user)
@@ -230,26 +212,6 @@ def test_an_unfiltered_report_says_none_rather_than_leaving_it_blank(client, wor
 
 
 # ── the figures match the dashboard ─────────────────────────────────────────
-
-def test_a_report_agrees_with_the_dashboard_it_was_downloaded_from(client, workspace):
-    """A report that disagrees with the screen destroys confidence in both."""
-    entity, user, headers = workspace
-    _seed(entity, user)
-
-    screen = client.get("/api/bi/cost-analysis?group_by=department",
-                        headers=headers).json()["data"]["totals"]
-    payload = client.get("/api/reports/management-summary.xlsx", headers=headers).content
-    sheet = {row[0]: row[1] for row in _cells(payload, "Summary") if row and row[0]}
-
-    assert sheet["Total CTC"] == screen["ctc"]
-    assert sheet["Gross pay"] == screen["gross"]
-    assert sheet["Employer contributions"] == screen["employer_cost"]
-    assert sheet["Headcount (distinct employees paid)"] == screen["headcount"]
-    assert sheet["Average monthly cost per head (CTC ÷ person-months)"] == screen["cost_per_head"]
-    # Every report says which months it rests on and whether they were checked.
-    basis = _cells(payload, "Data basis")
-    assert basis[0][:2] == ("Month", "Validation") or list(basis[0][:2]) == ["Month", "Validation"]
-
 
 def test_the_employee_report_has_one_row_per_employee_per_month(client, workspace):
     entity, user, headers = workspace

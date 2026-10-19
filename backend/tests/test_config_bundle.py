@@ -73,3 +73,17 @@ def test_downloaded_configuration_round_trips_with_statutory_and_wage_settings(c
     assert result.status_code == 200, result.text
     after = client.get("/api/config/bundle/export", headers=headers).json()["data"]
     assert after["sections"] == bundle["sections"]
+
+
+def test_sections_of_removed_features_are_refused_with_a_clear_message(client):
+    """Older exports carried bank profiles and JV templates; those features no longer exist."""
+
+    from app.routers.config_bundle import RETIRED_SECTIONS, _validate
+
+    for section in sorted(RETIRED_SECTIONS):
+        try:
+            _validate({"format": "peopleopslab-config", "version": 1, "sections": {section: []}})
+        except ValueError as exc:
+            assert "no longer exist" in str(exc) and section in str(exc)
+        else:
+            raise AssertionError(f"{section} was accepted")

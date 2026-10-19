@@ -571,7 +571,7 @@ def test_openapi_contract_is_published(client):
     paths = spec["paths"]
     for path in ("/imports/{kind}", "/imports/{kind}/check", "/imports/{run_id}/rejections", "/validation-jobs",
                  "/validation-runs/{run_id}/findings", "/findings/{fingerprint}/decision", "/configuration/rules",
-                 "/bi/query", "/periods/{period}/status", "/periods/{period}/evidence"):
+                 "/periods/{period}/status", "/periods/{period}/evidence"):
         assert path in paths, path
     examples = paths["/imports/{kind}"]["post"]["requestBody"]["content"]["application/json"]["examples"]
     assert set(examples) == {"employee_master", "ctc", "attendance", "salary_register"}
@@ -591,18 +591,6 @@ def test_every_error_has_code_and_request_id(client, company):
         422, "validation_error")
     err(call(client, k["key"], "POST", "/validation-jobs", idem="v2", json_body={"period_month": PERIOD}),
         400, "invalid_request")
-
-
-def test_bi_through_the_api_matches_the_product(client, company):
-    k = _key(client, company)
-    cols = HEADER.split(",")
-    records = [dict(zip(cols, line.split(","), strict=True)) for line in _register(BASE_ROWS).decode().strip().split("\n")[1:]]
-    submit(client, k["key"], "salary_register", {"period_month": PERIOD, "records": records})
-    body = {"dataset": "payroll_cost", "metric": "ctc", "breakdown": "period", "period": {"preset": "all"}}
-    api = ok_data(call(client, k["key"], "POST", "/bi/query", json_body=body))
-    screen = _data(client.post("/api/dashboards/query", headers=company, json=body))
-    assert api["total"] == screen["total"] and api["total"] is not None
-    assert api["basis"]["periods_with_register"] == ["2026-06-01"]
 
 
 def test_upload_screens_record_lineage_too(client, company):

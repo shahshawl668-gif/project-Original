@@ -188,11 +188,12 @@ def test_a_support_session_cannot_approve_even_though_it_owns_its_own_org(client
 
     The engineer is an owner of their *own* organization, so ``role_at_least``
     says yes. Writing has to require a seat in the entity's own organization,
-    or a support session could approve a JV mapping in someone else's ledger.
+    or a support session could change another company's configuration.
     """
     data(open_session(client, world))
-    created = client.post("/api/reconciliation/jv/templates", headers=as_support(world), json={
-        "name": "Sneaky", "from_preset": "standard_accrual",
+    created = client.post("/api/components", headers=as_support(world), json={
+        "component_name": "Sneaky", "pf_applicable": False, "esic_applicable": False,
+        "pt_applicable": False, "included_in_wages": True, "taxable": True,
     })
     assert created.status_code == 403
     assert "read-only" in detail(created).lower()

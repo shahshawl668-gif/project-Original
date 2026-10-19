@@ -282,23 +282,6 @@ def test_an_entity_with_no_registers_returns_an_empty_shape(workspace):
 
 # ── through the API ─────────────────────────────────────────────────────────
 
-def test_the_endpoint_serves_a_filtered_breakdown(client, workspace):
-    entity, user, headers = workspace
-    _register(entity, user, date(2026, 4, 1), APRIL)
-
-    r = client.get("/api/bi/cost-analysis?group_by=grade&granularity=month"
-                   "&measure=gross&work_location=Bangalore", headers=headers)
-    assert r.status_code == 200, r.text
-    data = r.json()["data"]
-    assert data["group_by_label"] == "Grade"
-    assert data["totals"]["gross"] == 70000.0
-
-
-def test_an_invalid_dimension_is_a_400(client, workspace):
-    _, _, headers = workspace
-    assert client.get("/api/bi/cost-analysis?group_by=nope", headers=headers).status_code == 400
-
-
 def test_dimension_values_offer_only_what_exists(client, workspace):
     entity, user, headers = workspace
     _register(entity, user, date(2026, 4, 1), APRIL)
@@ -309,17 +292,6 @@ def test_dimension_values_offer_only_what_exists(client, workspace):
     assert by_key["work_location"]["label"] == "Location"
     # Unassigned sorts last — it is a gap in the data, not a unit.
     assert by_key["cost_center"]["values"] == [UNASSIGNED]
-
-
-def test_cost_analysis_does_not_leak_between_entities(client, workspace):
-    entity, user, headers = workspace
-    _register(entity, user, date(2026, 4, 1), APRIL)
-    other = client.post("/api/org/entities", json={"name": "Other"}, headers=headers).json()["data"]["id"]
-
-    data = client.get("/api/bi/cost-analysis?group_by=department",
-                      headers={**headers, "X-Entity-Id": other}).json()["data"]
-    assert data["data_status"] == "no_register" and data["totals"] is None
-    assert data["basis"]["periods_with_register"] == []
 
 
 def test_the_basis_names_missing_months_and_validation_state(workspace):

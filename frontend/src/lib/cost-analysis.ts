@@ -188,54 +188,10 @@ function query(params: Record<string, string | undefined>, filters: Record<strin
   return q.toString();
 }
 
-export function fetchCostAnalysis(params: {
-  groupBy: string;
-  granularity: Granularity;
-  measure: string;
-  dateFrom?: string;
-  dateTo?: string;
-  filters: Record<string, string[]>;
-}): Promise<CostAnalysis> {
-  const q = query(
-    {
-      group_by: params.groupBy,
-      granularity: params.granularity,
-      measure: params.measure,
-      date_from: params.dateFrom,
-      date_to: params.dateTo,
-    },
-    params.filters,
-  );
-  return apiFetch(`/api/bi/cost-analysis?${q}`).then((r) => parseEnvelopeResponse<CostAnalysis>(r));
-}
-
-export function fetchCostCompare(params: {
-  periodA: string;
-  periodB: string;
-  groupBy: string;
-  measure: string;
-  filters: Record<string, string[]>;
-}): Promise<CostCompare> {
-  const q = query(
-    {
-      period_a: params.periodA,
-      period_b: params.periodB,
-      group_by: params.groupBy,
-      measure: params.measure,
-    },
-    params.filters,
-  );
-  return apiFetch(`/api/bi/cost-compare?${q}`).then((r) => parseEnvelopeResponse<CostCompare>(r));
-}
-
 export function fetchDimensions(): Promise<{ dimensions: DimensionMeta[] }> {
   return apiFetch("/api/bi/dimensions").then((r) =>
     parseEnvelopeResponse<{ dimensions: DimensionMeta[] }>(r),
   );
-}
-
-export function fetchMeasures(): Promise<MeasureCatalogue> {
-  return apiFetch("/api/bi/measures").then((r) => parseEnvelopeResponse<MeasureCatalogue>(r));
 }
 
 export function fetchPeriods(): Promise<{ periods: PeriodOption[] }> {
@@ -351,14 +307,6 @@ export type HeadcountMovement = {
   identity: { masked: boolean; reason: string };
 };
 
-export function fetchHeadcountMovement(params: {
-  filters: Record<string, string[]>;
-}): Promise<HeadcountMovement> {
-  return apiFetch(`/api/bi/headcount-movement?${query({}, params.filters)}`).then((r) =>
-    parseEnvelopeResponse<HeadcountMovement>(r),
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Compensation
 // ---------------------------------------------------------------------------
@@ -396,17 +344,6 @@ export type Compensation = {
   }[];
   identity: { masked: boolean; reason: string };
 };
-
-export function fetchCompensation(params: {
-  groupBy: string;
-  period?: string;
-  filters: Record<string, string[]>;
-}): Promise<Compensation> {
-  const q = query({ group_by: params.groupBy, period: params.period }, params.filters);
-  return apiFetch(`/api/bi/compensation?${q}`).then((r) =>
-    parseEnvelopeResponse<Compensation>(r),
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Budget and forecast
@@ -642,38 +579,6 @@ export type PayEquitySettings = {
   can_change: boolean;
   minimum_group_size: number;
 };
-
-export function fetchPayEquitySettings(): Promise<PayEquitySettings> {
-  return apiFetch("/api/bi/pay-equity/settings").then((r) =>
-    parseEnvelopeResponse<PayEquitySettings>(r),
-  );
-}
-
-export function setPayEquityEnabled(
-  enabled: boolean,
-  authorisationNote?: string,
-): Promise<PayEquitySettings> {
-  return apiFetch("/api/bi/pay-equity/settings", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ enabled, authorisation_note: authorisationNote || null }),
-  }).then((r) => parseEnvelopeResponse<PayEquitySettings>(r));
-}
-
-export function fetchPayEquity(params: {
-  groupBy: string;
-  minGroupSize?: number;
-  filters: Record<string, string[]>;
-}): Promise<PayEquity> {
-  const q = query(
-    {
-      group_by: params.groupBy,
-      min_group_size: params.minGroupSize ? String(params.minGroupSize) : undefined,
-    },
-    params.filters,
-  );
-  return apiFetch(`/api/bi/pay-equity?${q}`).then((r) => parseEnvelopeResponse<PayEquity>(r));
-}
 
 /** A gap, with its direction spelled out rather than left to the sign. */
 export function describeGap(pct: number | null): { text: string; tone: "gap" | "reverse" | "level" | "none" } {

@@ -62,7 +62,7 @@ export default function ConfigurationUploadPage() {
       {error && <AlertBanner variant="error" title="Upload error">{error}</AlertBanner>}
       {message && <AlertBanner variant="success" title="Saved">{message}</AlertBanner>}
       <Card><CardContent className="space-y-5 py-6">
-        <p className="text-sm text-ink-600">The CSV covers salary components, statutory settings, formulas, PT/LWF slabs, minimum-wage rates and applicability, rule choices, salary import mappings, bank profiles and JV mappings. It contains your configuration; keep it private.</p>
+        <p className="text-sm text-ink-600">The CSV covers salary components, statutory settings, formulas, PT/LWF slabs, minimum-wage rates and applicability, rule choices, and salary import mappings. It contains your configuration; keep it private.</p>
         <div className="space-y-2 rounded-lg border p-4 text-sm text-ink-600">
           <p><strong>CSV format:</strong> section, record, field, type, value. Each line sets one field of one record. Lines with the same section and record number belong to one configuration item.</p>
           <p>Keep the column headings and field names. Edit the value column. Types are text, number, boolean (true/false), null, and json for nested mappings. An empty section uses record 0 and type empty.</p>
@@ -76,7 +76,7 @@ export default function ConfigurationUploadPage() {
         {preview && <div className="space-y-3 rounded-lg border p-4 text-sm">
           <p className="font-semibold">These sections will replace the selected entity’s existing configuration:</p>
           <ul className="list-inside list-disc">{Object.entries(preview).map(([name, count]) => <li key={name}>{name.replaceAll("_", " ")}: {count} row{count === 1 ? "" : "s"}</li>)}</ul>
-          <p>Download a backup first. JV imports become drafts and require approval in the JV editor.</p>
+          <p>Download a backup first. Sections replace what is there; leave a section out to keep it as it is.</p>
           <Button type="button" disabled={busy} onClick={() => void upload(false)}>Apply configuration</Button>
         </div>}
       </CardContent></Card>
@@ -87,7 +87,7 @@ export default function ConfigurationUploadPage() {
 
 const SECTION_NAMES = [
   "components", "statutory_settings", "statutory_engine", "formulas", "pt_lwf_slabs", "minimum_wage_rates",
-  "minimum_wage_applicability", "rule_preferences", "salary_import_profiles", "bank_file_profiles", "jv_templates",
+  "minimum_wage_applicability", "rule_preferences", "salary_import_profiles",
 ];
 type CopyPlan = { preview: boolean; source: { id: string; name: string }; sections: Record<string, { from_source: number; replacing_here: number }> };
 
@@ -128,7 +128,7 @@ function CopyFromCompany() {
   return (
     <Card><CardContent className="space-y-4 py-6">
       <h2 className="text-base font-semibold text-ink-900">Copy from another company</h2>
-      <p className="text-sm text-ink-600">Bring {entity?.name ?? "this company"} the configuration of a company you already set up. Each section you choose replaces that section here; nothing changes until you have seen the preview. JV templates arrive as drafts.</p>
+      <p className="text-sm text-ink-600">Bring {entity?.name ?? "this company"} the configuration of a company you already set up. Each section you choose replaces that section here; nothing changes until you have seen the preview.</p>
       {error && <AlertBanner variant="error" title="Not copied">{error}</AlertBanner>}
       {done && <AlertBanner variant="success" title="Copied">{done}</AlertBanner>}
       <label className="block max-w-sm text-sm font-medium">From

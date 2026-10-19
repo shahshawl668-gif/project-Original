@@ -25,8 +25,7 @@ from app.database import get_db
 from app.deps import get_current_entity, get_current_user, require_entity_write
 from app.envelope import ok
 from app.models import (
-    BankFileProfile, ComponentConfig, Entity, Formula, ImportProfile, JvRule,
-    JvTemplate, MinimumWageApplicability, MinimumWageRate, SlabRule,
+    ComponentConfig, Entity, Formula, ImportProfile, MinimumWageApplicability, MinimumWageRate, SlabRule,
     StatutoryConfig, StatutorySettings, TenantRulePreference, User,
 )
 from app.services import audit, tenancy
@@ -52,9 +51,9 @@ SECTIONS = {
     "minimum_wage_applicability": (MinimumWageApplicability, "effective_from applicable reason source_reference"),
     "rule_preferences": (TenantRulePreference, "rule_id suppressed"),
     "salary_import_profiles": (ImportProfile, "name column_mapping"),
-    "bank_file_profiles": (BankFileProfile, "name bank_label note kind layout delimiter encoding has_header skip_rows trailer_rows column_map amount_unit amount_sign date_format employee_id_transform row_filter is_default"),
-    "jv_templates": (JvTemplate, "name note posting_basis split_mode group_by detail_level sign_convention net_pay_source voucher_date_rule voucher_type narration_template export_format balance_tolerance rounding_mode rounding_account"),
 }
+# Sections of earlier exports whose features were removed from the product.
+RETIRED_SECTIONS = {"bank_file_profiles", "jv_templates", "jv_rules"}
 SECTIONS = {key: (model, fields.split()) for key, (model, fields) in SECTIONS.items()}
 MAX_BYTES = 5_000_000
 MAX_ROWS = 10_000
@@ -66,16 +65,6 @@ def _export(db: Session, entity_id):
     for key, (model, fields) in SECTIONS.items():
         rows = db.query(model).filter(model.entity_id == entity_id).all()
         data[key] = [jsonable_encoder({field: getattr(row, field) for field in fields}) for row in rows]
-    data["jv_rules"] = [
-        jsonable_encoder({
-            "template_name": rule.template.name,
-            **{field: getattr(rule, field) for field in (
-                "sequence", "label", "account_code", "account_name", "side", "measures",
-                "filters", "cost_center_from", "active", "note",
-            )},
-        })
-        for rule in db.query(JvRule).filter(JvRule.entity_id == entity_id).all()
-    ]
     return {"format": "peopleopslab-config", "version": 1, "sections": data}
 
 
@@ -124,7 +113,7 @@ def _from_csv(raw: bytes) -> dict:
             if None in line or any(value is None for value in line.values()):
                 raise ValueError(f"Line {line_number} does not have five columns")
             section, field, kind, value = (line[k] for k in ("section", "field", "type", "value"))
-            if section not in SECTIONS and section != "jv_rules":
+            if section not in SECTIONS:
                 raise ValueError(f"Line {line_number}: unknown section {section}")
             try:
                 record = int(line["record"])
@@ -208,33 +197,24 @@ def _validate(payload: dict) -> dict:
     sections = payload.get("sections")
     if not isinstance(sections, dict) or not sections:
         raise ValueError("sections must contain at least one configuration category")
-    if set(sections) - (set(SECTIONS) | {"jv_rules"}):
+    retired = set(sections) & RETIRED_SECTIONS
+    if retired:
+        raise ValueError(f"{', '.join(sorted(retired))} no longer exist in the product; remove those sections from the file")
+    if set(sections) - set(SECTIONS):
         raise ValueError("Unknown configuration category in file")
-    if "jv_rules" in sections and "jv_templates" not in sections:
-        raise ValueError("JV rules require jv_templates in the same file")
-    if "jv_templates" in sections and "jv_rules" not in sections:
-        raise ValueError("JV templates require jv_rules in the same file")
     if sum(len(rows) for rows in sections.values() if isinstance(rows, list)) > MAX_ROWS:
         raise ValueError("Configuration file has too many rows")
     cleaned = {}
     for key, rows in sections.items():
         if not isinstance(rows, list):
             raise ValueError(f"{key} must be an array")
-        model, fields = SECTIONS.get(key, (JvRule, [
-            "sequence", "label", "account_code", "account_name", "side", "measures",
-            "filters", "cost_center_from", "active", "note",
-        ]))
+        model, fields = SECTIONS[key]
         validated = []
         for index, row in enumerate(rows, 1):
-            expected = set(fields) | ({"template_name"} if key == "jv_rules" else set())
+            expected = set(fields)
             if not isinstance(row, dict) or set(row) != expected:
                 raise ValueError(f"{key} row {index} must contain exactly the fields in the downloaded template")
             converted = {field: _convert(model, field, value) for field, value in row.items() if field in fields}
-            if key == "jv_rules":
-                name = row.get("template_name")
-                if not isinstance(name, str) or not name.strip():
-                    raise ValueError(f"{key} row {index} needs a template_name")
-                converted["template_name"] = name
             if key == "minimum_wage_applicability" and converted.get("applicable") is False and not (converted.get("reason") or "").strip():
                 raise ValueError(f"{key} row {index} needs a reason for No")
             validated.append(converted)
@@ -317,39 +297,15 @@ async def import_bundle(
 
 def _replace(db: Session, entity: Entity, user: User, sections: dict) -> None:
     """Replace the named sections of ``entity``'s configuration with ``sections``."""
-    if "jv_templates" in sections and db.query(JvTemplate).filter(
-        JvTemplate.entity_id == entity.id, JvTemplate.state == "approved"
-    ).first():
-        raise HTTPException(409, "Approved JV templates cannot be replaced by a file; retain the approved version and create new draft mappings in the JV editor.")
-    if "jv_rules" in sections:
-        db.query(JvRule).filter(JvRule.entity_id == entity.id).delete()
     for key in sections:
-        if key == "jv_rules":
-            continue
         model, _ = SECTIONS[key]
         db.query(model).filter(model.entity_id == entity.id).delete()
     db.flush()
-    templates = {}
     for key, rows in sections.items():
-        if key == "jv_rules":
-            continue
         model, _ = SECTIONS[key]
         for row in rows:
             extra = {"user_id": user.id} if "user_id" in model.__table__.columns else {}
-            if key == "jv_templates":
-                # Imported JV mappings must be approved for this entity.
-                extra.update(state="draft", is_current=False, created_by_user_id=user.id)
-            item = model(entity_id=entity.id, **extra, **row)
-            db.add(item)
-            if key == "jv_templates":
-                templates[row["name"]] = item
-    db.flush()
-    for row in sections.get("jv_rules", []):
-        data = row.copy()
-        name = data.pop("template_name")
-        if name not in templates:
-            raise ValueError(f"JV rule refers to unknown template {name}")
-        db.add(JvRule(entity_id=entity.id, template_id=templates[name].id, **data))
+            db.add(model(entity_id=entity.id, **extra, **row))
     db.flush()
 
 
@@ -373,8 +329,7 @@ def copy_bundle(
     The same allowlisted sections a file carries, validated the same way, with
     a preview of what each section holds here and there before anything is
     replaced. A company the caller cannot open answers 404, as if it did not
-    exist. Both companies' audit trails record the copy; JV templates arrive
-    as drafts to be approved here.
+    exist. Both companies' audit trails record the copy.
     """
     source = db.get(Entity, body.source_entity_id)
     if source is None or source.id == entity.id or source.org_id != entity.org_id \
@@ -385,10 +340,6 @@ def copy_bundle(
     unknown = set(wanted) - set(bundle["sections"])
     if unknown:
         raise HTTPException(400, f"Unknown configuration category: {', '.join(sorted(unknown))}")
-    if "jv_templates" in wanted and "jv_rules" not in wanted:
-        wanted.append("jv_rules")
-    if "jv_rules" in wanted and "jv_templates" not in wanted:
-        wanted.append("jv_templates")
     try:
         sections = _validate({"format": "peopleopslab-config", "version": 1,
                               "sections": {k: bundle["sections"][k] for k in wanted}})

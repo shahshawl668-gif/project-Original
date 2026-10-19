@@ -84,13 +84,3 @@ def test_income_tax_compare_answers(client, headers):
     assert {"old", "new"} <= set(r.json()["data"])
 
 
-def test_compensation_answers_on_a_workspace_with_no_register(client, headers):
-    """
-    The empty shape omitted `employees`, which the router masks on the way out.
-    Every brand-new workspace got a 500 from the Compensation view.
-    """
-    r = client.get("/api/bi/compensation", headers=headers)
-    assert r.status_code == 200, r.text
-    data = r.json()["data"]
-    assert data["employees"] == []
-    assert data["overall"]["count"] == 0

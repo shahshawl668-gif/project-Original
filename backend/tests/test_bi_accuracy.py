@@ -42,5 +42,3 @@ def test_an_arrears_run_does_not_replace_the_months_register(client):
     assert status["upload"]["run_type"] == "regular"
     assert status["current_run"]["id"] == run_id
     assert status["freshness"]["revalidation_required"] is False
-    analysis = _data(client.get("/api/bi/cost-analysis?group_by=department", headers=headers))
-    assert analysis["totals"]["headcount"] == 3

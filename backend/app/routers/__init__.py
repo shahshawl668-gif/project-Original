@@ -5,9 +5,7 @@ from app.routers import (
     audit,
     auth,
     bi,
-    dashboards,
     data_protection,
-    disbursement,
     budget,
     components,
     config_bundle,
@@ -17,7 +15,6 @@ from app.routers import (
     minimum_wage,
     org,
     payroll,
-    reconciliation,
     reference,
     reports,
     report_builder,
@@ -46,13 +43,7 @@ api_router.include_router(ctc.router, prefix="/ctc", tags=["ctc"])
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 api_router.include_router(findings.router, prefix="/findings", tags=["findings"])
 api_router.include_router(bi.router, prefix="/bi", tags=["bi"])
-api_router.include_router(dashboards.router, prefix="/dashboards", tags=["dashboards"])
-api_router.include_router(dashboards.kpi_router, prefix="/kpis", tags=["dashboards"])
 api_router.include_router(budget.router, prefix="/budget", tags=["budget"])
-api_router.include_router(
-    reconciliation.router, prefix="/reconciliation", tags=["reconciliation"]
-)
-api_router.include_router(disbursement.router, prefix="/disbursement", tags=["disbursement"])
 api_router.include_router(data_protection.router, prefix="/data-protection", tags=["data-protection"])
 api_router.include_router(report_builder.router, prefix="/reports/builder", tags=["reports"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])

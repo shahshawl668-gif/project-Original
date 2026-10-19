@@ -356,13 +356,7 @@ export default function CompaniesPage() {
               href="/reconciliation"
               className="inline-flex items-center gap-2 rounded-lg border border-ink-200/70 bg-white px-3 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-brand-700"
             >
-              <Banknote size={14} aria-hidden /> Bank &amp; JV month close
-            </Link>
-            <Link
-              href="/cost"
-              className="inline-flex items-center gap-2 rounded-lg border border-ink-200/70 bg-white px-3 py-2 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-brand-700"
-            >
-              <IndianRupee size={14} aria-hidden /> Cost analysis
+              <Banknote size={14} aria-hidden /> Month approval
             </Link>
           </div>
         </>
