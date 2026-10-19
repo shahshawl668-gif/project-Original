@@ -5,10 +5,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileSpreadsheet, Loader2, ShieldCheck, UploadCloud } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TemplateDownload } from "@/components/data/TemplateDownload";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  MASTER_TEMPLATE,
   commitMaster,
   fetchMasterUploads,
   previewMaster,
@@ -99,13 +99,7 @@ export default function EmployeeMasterPage() {
                 className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
               />
             </div>
-            <a
-              href={`data:text/csv;charset=utf-8,${encodeURIComponent(MASTER_TEMPLATE)}`}
-              download="employee-master-template.csv"
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50"
-            >
-              <Download size={14} /> Template
-            </a>
+            <TemplateDownload kind="master" />
           </div>
 
           <label

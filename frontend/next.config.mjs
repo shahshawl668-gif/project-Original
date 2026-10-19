@@ -52,8 +52,14 @@ const nextConfig = {
   // /_next/image endpoint, and with it a class of advisories against it.
   images: { unoptimized: true },
   async redirects() {
-    // The Formulas page was folded into the Statutory engine page.
-    return [{ source: "/rule-engine/formula", destination: "/config/statutory", permanent: true }];
+    // Pages folded into the Statutory engine page, and screens that were removed.
+    return [
+      { source: "/rule-engine/formula", destination: "/config/statutory", permanent: true },
+      { source: "/rule-engine/slabs", destination: "/config/statutory?tab=pt", permanent: true },
+      { source: "/config/minimum-wage", destination: "/config/statutory?tab=minwage", permanent: true },
+      { source: "/config/data-protection", destination: "/config/team", permanent: false },
+      { source: "/admin/support", destination: "/config/team", permanent: false },
+    ];
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

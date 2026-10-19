@@ -28,10 +28,6 @@ export type MasterUpload = {
   duplicates_skipped?: string[];
 };
 
-export const MASTER_TEMPLATE =
-  "Employee ID,Employee Name,Date of Joining,Date of Exit,Gender,State,Department,Employment Type,UAN,ESIC IP Number\r\n" +
-  "E001,Asha Menon,2022-06-15,,Female,Karnataka,Finance,Permanent,101202600001,3100000001\r\n";
-
 function form(file: File, meta?: object) {
   const body = new FormData();
   body.append("file", file);

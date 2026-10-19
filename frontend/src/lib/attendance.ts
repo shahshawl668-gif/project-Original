@@ -96,8 +96,3 @@ export const SEVERITY_TONE: Record<string, string> = {
 };
 
 /** The template this product reads, for a client who has no export yet. */
-export const ATTENDANCE_TEMPLATE =
-  "employee_id,employee_name,calendar_days,present_days,paid_leave_days," +
-  "weekly_off_days,holiday_days,lop_days,paid_days,overtime_hours\n" +
-  "E001,Asha Menon,30,22,1,4,1,2,28,0\n" +
-  "E002,Rahul Verma,30,25,0,4,1,0,30,10\n";

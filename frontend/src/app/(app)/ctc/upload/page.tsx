@@ -6,6 +6,7 @@ import { AlertBanner } from "@/components/ui/alert-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { TemplateDownload } from "@/components/data/TemplateDownload";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { useCallback, useState } from "react";
@@ -118,11 +119,14 @@ export default function CtcUploadPage() {
           </>
         }
         actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <TemplateDownload kind="ctc" />
           <Button variant="outline" asChild>
             <Link href="/ctc/history" className="gap-2">
               CTC history <ArrowRight size={14} />
             </Link>
           </Button>
+          </div>
         }
       />
 

@@ -14,11 +14,11 @@ import {
 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TemplateDownload } from "@/components/data/TemplateDownload";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatINR } from "@/lib/cost-analysis";
 import {
-  ATTENDANCE_TEMPLATE,
   SEVERITY_TONE,
   commitAttendance,
   fetchAttendanceRegisters,
@@ -128,13 +128,7 @@ export default function AttendancePage() {
                 className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
               />
             </div>
-            <a
-              href={`data:text/csv;charset=utf-8,${encodeURIComponent(ATTENDANCE_TEMPLATE)}`}
-              download="attendance-template.csv"
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-200 px-3 text-sm font-medium text-ink-700 transition hover:bg-ink-50"
-            >
-              <Download size={14} /> Template
-            </a>
+            <TemplateDownload kind="attendance" />
           </div>
 
           <label

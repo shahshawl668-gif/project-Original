@@ -4,7 +4,7 @@
 
 Writes five files next to this script, for the period August 2026 (31 days):
 
-    1_configuration.csv      one file that sets up the whole entity (Configuration upload)
+    1_configuration.csv      one file that sets up the whole entity (Configuration upload); also as .xlsx
     2_employee_master.csv    who works here, joining/exit dates, state, gender
     3_ctc_report.csv         annual CTC per employee, by salary component
     4_attendance_report.csv  days present / leave / LOP for the month
@@ -22,7 +22,7 @@ import json
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from app.routers.config_bundle import _to_csv
+from app.services.config_files import tables_to_csv, tables_to_xlsx
 from app.services.identity_checks import _verhoeff_valid
 from app.services.income_tax_engine import compute_income_tax
 from app.services.tax_year_defaults import default_tax_years
@@ -48,30 +48,23 @@ COMPONENTS = [
 ]
 
 
-def configuration_csv() -> str:
-    sections = {
+def configuration_tables() -> dict[str, list[dict[str, str]]]:
+    """The one-file setup, as the plain tables the Configuration upload reads."""
+    yn = lambda v: "Yes" if v else "No"  # noqa: E731
+    return {
         "components": [
-            {"component_name": n, "pf_applicable": pf, "esic_applicable": es, "pt_applicable": pt,
-             "lwf_applicable": False, "bonus_applicable": n == "Basic", "included_in_wages": True,
-             "taxable": True, "tax_exemption_type": "none"}
+            {"component_name": n, "pf_applicable": yn(pf), "esic_applicable": yn(es), "pt_applicable": yn(pt),
+             "lwf_applicable": "No", "bonus_applicable": yn(n == "Basic"), "included_in_wages": "Yes",
+             "taxable": "Yes", "tax_exemption_type": "none"}
             for n, pf, es, pt in COMPONENTS
         ],
-        "statutory_settings": [{
-            "pf_wage_ceiling": 25000, "pf_employee_rate": 0.12, "pf_employer_rate": 0.12,
-            "pf_eps_rate": 0.0833, "pf_edli_rate": 0.005, "pf_admin_rate": 0.005,
-            "pf_restrict_to_ceiling": True, "esic_wage_ceiling": 21000,
-            "esic_employee_rate": 0.0075, "esic_employer_rate": 0.0325, "esic_round_mode": "up",
-            "pt_states": ["Karnataka", "Maharashtra"], "lwf_states": [],
-        }],
-        "statutory_engine": [{
-            "pf_config": {"wage": {"wage_ceiling": "25000", "restrict_to_ceiling": True,
-                                   "use_pf_applicable_flag": True},
-                          "employee_formula": "MIN((basic + special_allowance) * 12%, 3000)"},
-            "esic_config": {"wage": {"wage_ceiling": "21000", "use_esic_applicable_flag": True},
-                            "rounding": {"mode": "up"},
-                            "employee_formula": "IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)"},
-            "component_mapping_config": None, "income_tax_config": None,
-            "rule_thresholds_config": None, "exposure_config": None,
+        "statutory": [{
+            "pf_employee_rate": "0.12", "pf_wage_ceiling": "25000", "pf_restrict_to_ceiling": "Yes",
+            "pf_employee_formula": "MIN((basic + special_allowance) * 12%, 3000)",
+            "esic_employee_rate": "0.0075", "esic_wage_ceiling": "21000", "esic_rounding": "up",
+            "esic_employee_formula": "IF(esic_wage <= 21000, ROUNDUP(esic_wage * 0.75%, 0), 0)",
+            "esic_full_month_on_entry": "Yes", "esic_continue_month_on_exit": "Yes",
+            "pt_states": "Karnataka, Maharashtra", "lwf_states": "",
         }],
         # Test values only -- check the governing notification before using real ones.
         "pt_lwf_slabs": [
@@ -81,30 +74,18 @@ def configuration_csv() -> str:
             _slab("Maharashtra", 7501, 10000, 175, 4),
             _slab("Maharashtra", 10001, 99999999, 200, 5),
         ],
-        "minimum_wage_rates": [], "rule_preferences": [],
         "minimum_wage_applicability": [{
-            "effective_from": "2024-04-01", "applicable": False,
+            "effective_from": "2024-04-01", "applicable": "No",
             "reason": "Test data: treated as not a scheduled employment", "source_reference": "test pack"}],
-        "salary_import_profiles": [{
-            "name": "Test payroll export",
-            "column_mapping": {"Emp Code": "employee_id", "Emp Name": "employee_name"},
-        }],
-        "bank_file_profiles": [], "jv_templates": [], "jv_rules": [],
     }
-    # The sections the validation module does not use are written empty-by-omission:
-    # leaving a section out leaves the entity's existing setting untouched.
-    for unused in ("minimum_wage_rates", "rule_preferences",
-                   "bank_file_profiles", "jv_templates", "jv_rules", "salary_import_profiles"):
-        sections.pop(unused)
-    return _to_csv({"sections": sections})
 
 
 def _slab(state, lo, hi, amount, order):
-    return {"state": state, "rule_type": "PT", "min_salary": lo, "max_salary": hi,
-            "deduction_amount": amount, "employer_amount": None, "frequency": "monthly",
-            "gender": "ALL", "applicable_months": None, "effective_from": "2024-04-01",
-            "effective_to": None, "source_reference": "TEST DATA - verify before real use",
-            "sort_order": order}
+    return {"state": state, "rule_type": "PT", "min_salary": str(lo), "max_salary": str(hi),
+            "deduction_amount": str(amount), "employer_amount": "", "frequency": "monthly",
+            "gender": "ALL", "applicable_months": "", "effective_from": "2024-04-01",
+            "effective_to": "", "source_reference": "TEST DATA - verify before real use",
+            "sort_order": str(order)}
 
 
 # --------------------------------------------------------------------------- people
@@ -319,7 +300,7 @@ Regenerate with `cd backend && PYTHONPATH=. python ../testdata/payroll-validatio
 
 | Step | Where | File |
 | --- | --- | --- |
-| 1 | Configuration & admin -> **Configuration upload** (preview, then apply) | `1_configuration.csv` |
+| 1 | Configuration & admin -> **Configuration upload** (preview, then apply) | `1_configuration.csv` or `1_configuration.xlsx` |
 | 2 | Data & imports -> **Employee master** (effective 2026-04-01) | `2_employee_master.csv` |
 | 3 | Data & imports -> **CTC upload** (effective 2026-04-01) | `3_ctc_report.csv` |
 | 4 | Data & imports -> **Attendance** (period August 2026) | `4_attendance_report.csv` |
@@ -379,7 +360,8 @@ Centre workbook. Compare your own run with them. Regenerate with
 if __name__ == "__main__":
     rows, master, ctc, att, key, gaps, previous = build()
     write("6_previous_month_register_july.csv", previous, HEADERS)
-    (HERE / "1_configuration.csv").write_text(configuration_csv(), encoding="utf-8")
+    (HERE / "1_configuration.csv").write_bytes(tables_to_csv(configuration_tables()))
+    (HERE / "1_configuration.xlsx").write_bytes(tables_to_xlsx(configuration_tables()))
     write("2_employee_master.csv", master)
     write("3_ctc_report.csv", ctc)
     write("4_attendance_report.csv", att)

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -29,7 +28,7 @@ const today = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 };
 
-export default function MinimumWageSettings() {
+export function MinimumWagePanel() {
   const [current, setCurrent] = useState<Decision | null>(null);
   const [history, setHistory] = useState<Decision[]>([]);
   const [rates, setRates] = useState<Rate[]>([]);
@@ -102,8 +101,6 @@ export default function MinimumWageSettings() {
   };
 
   return <div className="mx-auto max-w-5xl space-y-6">
-    <PageHeader eyebrow="Statutory settings" title="Minimum wage"
-      description="Record whether the check applies to this company, then maintain the applicable notified rates." />
 
     <section className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold">Required applicability decision</h2>

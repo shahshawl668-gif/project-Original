@@ -1,11 +1,10 @@
 import io
-import csv
 import json
 import uuid
 from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -48,27 +47,6 @@ from app.services.validation import (
 )
 
 router = APIRouter()
-
-
-@router.get("/template.csv")
-def download_register_template(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-    entity: Entity = Depends(get_current_entity),
-):
-    """A header-only template that follows this entity's configured components."""
-    comps = db.query(ComponentConfig).filter(ComponentConfig.entity_id == entity.id).order_by(ComponentConfig.component_name).all()
-    output = io.StringIO()
-    csv.writer(output).writerow([
-        "Employee ID", "Employee Name", "State", "Location", "Total Days", "LOP Days",
-        *[c.component_name for c in comps if normalize_col(c.component_name) not in allowed_destinations(set())],
-        "Gross", "Total Deductions", "Net", "PF Employee", "ESIC Employee",
-        "PT", "LWF Employee", "TDS",
-    ])
-    return Response(
-        content="\ufeff" + output.getvalue(), media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="salary-register-template.csv"'},
-    )
 
 
 @router.get("/import-profiles")

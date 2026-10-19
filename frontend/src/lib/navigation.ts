@@ -12,7 +12,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   Ban,
-  BarChart3,
   Building2,
   CalendarDays,
   Cable,
@@ -36,7 +35,6 @@ import {
   ScrollText,
   Settings2,
   Shield,
-  ShieldCheck,
   Shuffle,
   UploadCloud,
   UserPlus,
@@ -136,21 +134,32 @@ const ALL_NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: "setup-salary",
+    label: "Salary & statutory",
+    collapsible: true,
+    items: [
+      { href: "/config/components", label: "Salary components", icon: Layers },
+      { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
+      { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
+    ],
+  },
+  {
+    id: "setup-rules",
+    label: "Validation rules",
+    collapsible: true,
+    items: [
+      { href: "/config/validation-matrix", label: "Validation matrix", icon: ClipboardCheck },
+      { href: "/config/rules", label: "Rule suppressions", icon: Ban },
+    ],
+  },
+  {
     id: "config",
-    label: "Configuration & admin",
+    label: "Company & access",
     collapsible: true,
     items: [
       { href: "/config/companies", label: "Group companies", icon: Building2 },
-      { href: "/config/statutory", label: "Statutory engine", icon: Settings2 },
-      { href: "/config/tax", label: "Income tax & thresholds", icon: Landmark },
-      { href: "/config/components", label: "Salary components", icon: Layers },
-      { href: "/config/validation-matrix", label: "Validation matrix", icon: ClipboardCheck },
-      { href: "/config/rules", label: "Rule suppressions", icon: Ban },
-      { href: "/rule-engine/slabs", label: "PT / LWF slabs", icon: BarChart3 },
-      { href: "/config/minimum-wage", label: "Minimum wage", icon: IndianRupee },
-      { href: "/config/upload", label: "Configuration upload", icon: FileSpreadsheet },
       { href: "/config/team", label: "Team & invitations", icon: UserPlus },
-      { href: "/config/data-protection", label: "Data protection", icon: ShieldCheck },
+      { href: "/config/upload", label: "Configuration upload", icon: FileSpreadsheet },
       { href: "/audit", label: "Audit trail", icon: ScrollText },
     ],
   },
@@ -163,7 +172,6 @@ export const NAV_GROUPS: NavGroup[] = ALL_NAV_GROUPS
 
 export const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/users", label: "Users & roles", icon: Shield },
-  { href: "/admin/support", label: "Support access", icon: KeyRound },
 ];
 
 /** Pages reached from another page: pattern → [parent menu href, crumb label]. */

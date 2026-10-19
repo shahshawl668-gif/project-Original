@@ -23,6 +23,7 @@ from app.routers import (
     statutory,
     statutory_config,
     studio,
+    templates,
     users,
     validation_matrix,
     validation_runs,
@@ -32,6 +33,7 @@ from app.routers import (
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router)
+api_router.include_router(templates.router, prefix="/templates", tags=["templates"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(org.router, prefix="/org", tags=["org"])
 api_router.include_router(components.router, prefix="/components", tags=["components"])

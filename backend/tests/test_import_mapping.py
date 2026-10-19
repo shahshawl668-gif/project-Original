@@ -78,7 +78,7 @@ def test_entity_template_preview_and_saved_profile(client):
     component = client.post("/api/components", json={"component_name": "Basic"}, headers=headers)
     assert component.status_code == 201, component.text
 
-    template = client.get("/api/payroll/template.csv", headers=headers)
+    template = client.get("/api/templates/register.csv", headers=headers)
     assert template.status_code == 200
     assert "Basic" in template.text.splitlines()[0]
     source = b"Employee Number,Base Pay,Total Deductions,Gross,Net\n0007,20000,1800,20000,18200\n"

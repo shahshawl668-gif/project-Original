@@ -149,7 +149,9 @@ Configuration, open when you are in them.
 | **Analytics & dashboards** | Dashboards, Cost analysis |
 | **Reports** | Report Centre, Report Builder |
 | **Studio** | Connections to your other systems: the API Centre, connections, data mapping, workflows, webhooks, developer tools, releases, and the run history of every batch they sent (analysts and above) |
-| **Configuration & admin** | Companies, statutory settings, rules, formulas, slabs, bank and JV formats, team, audit trail |
+| **Salary & statutory** | Salary components; the Statutory engine (tabs for PF, ESIC, professional tax, labour welfare fund and minimum wages); income tax and thresholds |
+| **Validation rules** | Validation matrix, rule suppressions |
+| **Company & access** | Group companies, team and invitations, configuration upload, audit trail |
 
 > Your workspace may show only part of this menu. **Validation** — the salary register, its
 > checks, findings and the configuration behind them — is always there; CTC and budget,
@@ -158,7 +160,7 @@ Configuration, open when you are in them.
 
 ### Writing formulas
 
-The **Statutory engine** page (Configuration & admin) takes PF and ESIC formulas the way you would write them in
+The **Statutory engine** page (Salary & statutory) takes PF and ESIC formulas the way you would write them in
 Excel: capital letters do not matter, `12%` means 12 percent, and you can use `IF`, `AND`, `OR`,
 `MIN`, `MAX`, `ROUNDUP`, `ROUNDDOWN` with `+ - * / ^` and the comparisons `= <> < > <= >=`.
 The salary components you set up are available by name — `special_allowance`, or
@@ -808,7 +810,7 @@ your administrator grants it.
 Only if you allow it, only for a stated reason, only for a time limit, only
 read-only, with identities masked — and you will see a banner the whole time and
 can revoke instantly. Your owner controls this under
-**Configuration & admin → Team & invitations → Support access**, including switching it off
+**Team & invitations**, including switching it off
 entirely.
 
 **I closed the browser during validation. Is it lost?**
@@ -852,7 +854,7 @@ employee master records the employment type as fixed-term; ask your administrato
 to set it.
 
 **An employee has asked us to delete their data.**
-Your owner can do it under **Configuration & admin → Data protection**. Enter the
+Your owner can do it under the Data protection settings. Enter the
 employee ID and **Find their data** shows everything that will change; erasing
 then removes their master, CTC and attendance records, and replaces them with an
 anonymous token in the months you keep, so your totals still add up. A month's
@@ -882,5 +884,13 @@ without anyone needing to look at your salary data.
 configuration file plus an employee master, CTC report, attendance report and
 salary register, with sixteen deliberate mistakes. Its `README.md` gives the load
 order and an answer key saying which employee has which mistake. Load the
-configuration through **Configuration & admin → Configuration upload** (preview,
+configuration through **Company & access → Configuration upload** (preview,
 then apply) and the other four files through the Data & imports screens.
+
+
+## Templates and imports are spreadsheets
+
+Every import template and every configuration download comes as CSV or Excel, never as code. The salary
+register and CTC templates are built from your own salary components: add a component and it is a column the
+next time you download. Excel templates carry a second sheet saying what each column means. The Configuration
+upload takes the same two formats; see `docs/CONFIGURATION_CSV.md`.

@@ -5,10 +5,6 @@ payroll data, approvals and audit history are never accepted from a file.
 """
 from __future__ import annotations
 
-import csv
-import io
-import json
-import re
 import uuid
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -28,7 +24,7 @@ from app.models import (
     ComponentConfig, Entity, ImportProfile, MinimumWageApplicability, MinimumWageRate, SlabRule,
     StatutoryConfig, StatutorySettings, TenantRulePreference, User,
 )
-from app.services import audit, tenancy
+from app.services import audit, config_files, tenancy
 from app.schemas.component import ComponentCreate
 from app.schemas.exposure_config import ExposureConfig
 from app.schemas.income_tax_config import IncomeTaxConfig
@@ -51,13 +47,6 @@ SECTIONS = {
     "rule_preferences": (TenantRulePreference, "rule_id suppressed"),
     "salary_import_profiles": (ImportProfile, "name column_mapping"),
 }
-# Sections of earlier exports that no longer exist, and what to do about each.
-RETIRED_SECTIONS = {
-    "bank_file_profiles": "bank file profiles were removed from the product",
-    "jv_templates": "journal voucher templates were removed from the product",
-    "jv_rules": "journal voucher rules were removed from the product",
-    "formulas": "PF and ESIC formulas now live in statutory_engine (employee_formula inside pf_config and esic_config)",
-}
 SECTIONS = {key: (model, fields.split()) for key, (model, fields) in SECTIONS.items()}
 MAX_BYTES = 5_000_000
 MAX_ROWS = 10_000
@@ -70,93 +59,6 @@ def _export(db: Session, entity_id):
         rows = db.query(model).filter(model.entity_id == entity_id).all()
         data[key] = [jsonable_encoder({field: getattr(row, field) for field in fields}) for row in rows]
     return {"format": "peopleopslab-config", "version": 1, "sections": data}
-
-
-def _csv_value(value) -> tuple[str, str]:
-    if value is None:
-        return "null", ""
-    if isinstance(value, bool):
-        return "boolean", "true" if value else "false"
-    if isinstance(value, (dict, list)):
-        return "json", json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-    if isinstance(value, (int, float, Decimal)):
-        return "number", str(value)
-    value = str(value)
-    # Keep arbitrary text from being evaluated as a formula in spreadsheets.
-    if value.startswith(("=", "+", "-", "@", "\t", "\r", "\n")):
-        return "escaped_text", "'" + value
-    return "text", value
-
-
-def _to_csv(bundle: dict) -> str:
-    out = io.StringIO(newline="")
-    writer = csv.writer(out, lineterminator="\r\n")
-    writer.writerow(CSV_COLUMNS)
-    for section, rows in bundle["sections"].items():
-        if not rows:
-            writer.writerow([section, 0, "", "empty", ""])
-        for record, row in enumerate(rows, 1):
-            for field, value in row.items():
-                kind, encoded = _csv_value(value)
-                writer.writerow([section, record, field, kind, encoded])
-    return "\ufeff" + out.getvalue()
-
-
-def _from_csv(raw: bytes) -> dict:
-    try:
-        stream = io.StringIO(raw.decode("utf-8-sig"), newline="")
-        reader = csv.DictReader(stream, strict=True)
-        if reader.fieldnames != CSV_COLUMNS:
-            raise ValueError(f"CSV header must be: {', '.join(CSV_COLUMNS)}")
-        sections: dict[str, dict[int, dict]] = {}
-        empty: set[str] = set()
-        seen: set[tuple[str, int, str]] = set()
-        for line_number, line in enumerate(reader, 2):
-            if line_number > MAX_ROWS * 30:
-                raise ValueError("CSV has too many field lines")
-            if None in line or any(value is None for value in line.values()):
-                raise ValueError(f"Line {line_number} does not have five columns")
-            section, field, kind, value = (line[k] for k in ("section", "field", "type", "value"))
-            if section not in SECTIONS:
-                raise ValueError(f"Line {line_number}: unknown section {section}")
-            try:
-                record = int(line["record"])
-            except ValueError as exc:
-                raise ValueError(f"Line {line_number}: record must be a positive integer") from exc
-            if record == 0 and field == "" and kind == "empty" and value == "":
-                if section in sections or section in empty:
-                    raise ValueError(f"Line {line_number}: duplicate empty section")
-                empty.add(section)
-                continue
-            if record < 1 or record > MAX_ROWS or not field or section in empty:
-                raise ValueError(f"Line {line_number}: invalid record or field")
-            identity = (section, record, field)
-            if identity in seen:
-                raise ValueError(f"Line {line_number}: duplicate field {field}")
-            seen.add(identity)
-            if kind == "null" and value == "":
-                parsed = None
-            elif kind == "boolean" and value in ("true", "false"):
-                parsed = value == "true"
-            elif kind == "number":
-                parsed = int(value) if re.fullmatch(r"-?\d+", value) else Decimal(value)
-            elif kind == "json":
-                parsed = json.loads(value)
-            elif kind == "text":
-                parsed = value
-            elif kind == "escaped_text" and value.startswith("'"):
-                parsed = value[1:]
-            else:
-                raise ValueError(f"Line {line_number}: invalid type/value")
-            sections.setdefault(section, {}).setdefault(record, {})[field] = parsed
-        data = {section: [] for section in empty}
-        for section, rows in sections.items():
-            if sorted(rows) != list(range(1, len(rows) + 1)):
-                raise ValueError(f"{section}: record numbers must start at 1 without gaps")
-            data[section] = [rows[i] for i in sorted(rows)]
-        return {"format": "peopleopslab-config", "version": 1, "sections": data}
-    except (UnicodeError, csv.Error, json.JSONDecodeError, InvalidOperation) as exc:
-        raise ValueError(f"CSV cannot be read: {exc}") from exc
 
 
 def _convert(model, field: str, value):
@@ -201,10 +103,6 @@ def _validate(payload: dict) -> dict:
     sections = payload.get("sections")
     if not isinstance(sections, dict) or not sections:
         raise ValueError("sections must contain at least one configuration category")
-    retired = sorted(set(sections) & set(RETIRED_SECTIONS))
-    if retired:
-        raise ValueError("; ".join(f"{name}: {RETIRED_SECTIONS[name]}" for name in retired)
-                         + ". Remove those sections from the file")
     if set(sections) - set(SECTIONS):
         raise ValueError("Unknown configuration category in file")
     if sum(len(rows) for rows in sections.values() if isinstance(rows, list)) > MAX_ROWS:
@@ -254,17 +152,29 @@ def _validate(payload: dict) -> dict:
     return cleaned
 
 
-@router.get("/export")
-def export_bundle(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
-    return ok(_export(db, entity.id))
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _download(db: Session, entity: Entity, fmt: str) -> Response:
+    tables = config_files.to_tables(db, entity, _export(db, entity.id))
+    if fmt == "csv":
+        body, media = config_files.tables_to_csv(tables), "text/csv; charset=utf-8"
+    else:
+        body, media = config_files.tables_to_xlsx(tables), XLSX
+    return Response(body, media_type=media,
+                    headers={"Content-Disposition": f'attachment; filename="configuration.{fmt}"'})
 
 
 @router.get("/export.csv")
 def export_bundle_csv(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
-    return Response(
-        _to_csv(_export(db, entity.id)), media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="peopleopslab-configuration.csv"'},
-    )
+    """The company's configuration as one CSV, also the template: empty tables show their columns."""
+    return _download(db, entity, "csv")
+
+
+@router.get("/export.xlsx")
+def export_bundle_xlsx(db: Session = Depends(get_db), user: User = Depends(get_current_user), entity: Entity = Depends(get_current_entity)):
+    """The same, as a workbook with one sheet per kind of setting."""
+    return _download(db, entity, "xlsx")
 
 
 @router.post("/import")
@@ -278,11 +188,20 @@ async def import_bundle(
     raw = await file.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise HTTPException(413, "Configuration file exceeds 5 MB")
+    name = (file.filename or "").lower()
     try:
-        payload = _from_csv(raw)
+        if name.endswith(".xlsx"):
+            tables = config_files.xlsx_to_tables(raw)
+        elif name.endswith(".csv"):
+            tables = config_files.csv_to_tables(raw)
+        else:
+            raise ValueError("Upload the configuration as a .csv or .xlsx file")
+        payload = config_files.to_bundle(db, entity, tables)
+        if not payload["sections"]:
+            raise ValueError("The file has no filled rows to apply")
         sections = _validate(payload)
     except ValueError as exc:
-        raise HTTPException(422, f"Invalid configuration CSV: {exc}") from exc
+        raise HTTPException(422, f"The configuration file cannot be used: {exc}") from exc
     counts = {key: len(rows) for key, rows in sections.items()}
     if dry_run:
         return ok({"preview": True, "replace_sections": counts})

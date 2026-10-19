@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Check, CircleDashed, Download, FileSpreadsheet, History, Loader2, Search, ShieldCheck, UploadCloud, X } from "lucide-react";
+import { Check, CircleDashed, FileSpreadsheet, History, Loader2, Search, ShieldCheck, UploadCloud, X } from "lucide-react";
 
+import { TemplateDownload } from "@/components/data/TemplateDownload";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Stepper, type StepState } from "@/components/ui/stepper";
 import { useEntity } from "@/context/EntityContext";
 import { apiFetch, getActiveEntityId, parseEnvelopeResponse } from "@/lib/api";
-import { saveBlob } from "@/lib/download";
 import { count, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { monthLabel, validationApi, type RegisterUpload, type ValidationJob } from "@/lib/validation";
@@ -251,14 +251,6 @@ export default function UploadPage() {
     }
   };
 
-  const downloadTemplate = async () => {
-    try {
-      const res = await apiFetch("/api/payroll/template.csv");
-      if (!res.ok) throw new Error("Could not download the template.");
-      saveBlob(await res.blob(), "salary-register-template.csv");
-    } catch (err) { toast.error(err instanceof Error ? err.message : "Download failed."); }
-  };
-
   const stepState = (i: number): StepState => {
     const order: Phase[][] = [["choose", "parsing"], ["map", "checking"], ["checked"], ["queueing"]];
     const at = order.findIndex((p) => p.includes(phase));
@@ -284,7 +276,7 @@ export default function UploadPage() {
         description="Bring in the month's register from your payroll system, map its columns once, and queue a full statutory validation. Validation runs on the server; you can close the page."
         actions={
           <>
-            <Button variant="outline" onClick={() => void downloadTemplate()}><Download size={14} /> Template</Button>
+            <TemplateDownload kind="register" />
             <Button variant="outline" asChild><Link href="/payroll/history"><History size={14} /> Register history</Link></Button>
           </>
         }

@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SlabTable, slabsSchema } from "@/components/rule-engine/SlabTable";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import {
   type SlabRow,
@@ -33,10 +32,7 @@ import {
   saveSlabs,
 } from "@/lib/rule-engine";
 
-const SLAB_TYPES: SlabRuleType[] = ["PT", "LWF"];
-
-export default function SlabsPage() {
-  const [ruleType, setRuleType] = useState<SlabRuleType>("PT");
+export function SlabsPanel({ ruleType }: { ruleType: SlabRuleType }) {
   const [state, setState] = useState<string>("");
   const [stateOptions, setStateOptions] = useState<string[]>([]);
   const [customState, setCustomState] = useState("");
@@ -248,12 +244,6 @@ export default function SlabsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="Rule engine"
-        title="State slab configuration"
-        description="Manage state-wise PT & LWF slabs. Review each official notification and effective period before importing defaults or using these values for compliance checks."
-      />
-
       <Card>
         <CardHeader>
           <p className="font-display text-[11px] font-semibold text-ink-500">
@@ -262,22 +252,7 @@ export default function SlabsPage() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label>Rule type</Label>
-              <Select value={ruleType} onValueChange={(v) => setRuleType(v as SlabRuleType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SLAB_TYPES.map((rt) => (
-                    <SelectItem key={rt} value={rt}>
-                      {rt}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>State</Label>
               <Select value={state} onValueChange={setState}>

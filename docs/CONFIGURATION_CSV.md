@@ -1,56 +1,60 @@
-# Configuration CSV upload
+# Configuration upload (CSV or Excel)
 
-Download **Configuration & admin → Configuration upload → Download configuration CSV template** for the selected entity. Edit a copy as UTF-8 CSV, preview the upload, check the section counts, and apply. The downloaded file is a complete backup and an upload template. Upload accepts CSV, up to 5 MB and 10,000 configuration records. It never imports users, permissions, payroll registers, approvals, or audit history.
+**Company & access → Configuration upload.** Download the current configuration as CSV or Excel, change what you
+want, preview, then apply. The download is also the template: kinds of setting with nothing saved yet show their
+columns. It never carries users, permissions, payroll registers, approvals or audit history, and nothing in it is
+code — only plain tables.
 
-## Columns
+## The two formats
 
-| Column | Meaning | Example |
-| --- | --- | --- |
-| `section` | Configuration category. Keep the exact identifier. | `components` |
-| `record` | Positive integer identifying one item within a section. Start at 1 without gaps. | `1` |
-| `field` | Setting name. Each item needs all fields in the downloaded template. | `pf_applicable` |
-| `type` | `text`, `escaped_text`, `number`, `boolean`, `json`, `null`, or `empty`. | `boolean` |
-| `value` | Setting value; leave blank only for `null` or `empty`. | `true` |
-
-Each CSV line sets one field. Lines with the same `section` and `record` make one item. Preserve the header exactly. CSV quoting is required for JSON values containing commas or quotation marks; spreadsheet exports usually do this automatically. The download includes a UTF-8 BOM so spreadsheet software reads it correctly. Dates are `YYYY-MM-DD` in `text` cells. `boolean` is lowercase `true` or `false`. `number` uses a dot decimal separator with no currency symbol. `json` holds an object or array in a single CSV cell (for example, a salary register column mapping). A leading apostrophe in `escaped_text` protects strings starting with a spreadsheet formula character; the apostrophe is removed on import. Do not change `type` without changing the value accordingly.
+* **Excel (.xlsx):** a *Read me* sheet, then one sheet per kind of setting, with one row per record and one column
+  per setting. Sheets you do not touch are ignored.
+* **CSV:** the same tables in one file, as lines of `section, record, field, value`. Lines with the same section and
+  record belong to one row.
 
 ```csv
-section,record,field,type,value
-components,1,component_name,text,Basic
-components,1,pf_applicable,boolean,true
-components,1,esic_applicable,boolean,true
-components,1,pt_applicable,boolean,true
-components,1,lwf_applicable,boolean,true
-components,1,bonus_applicable,boolean,false
-components,1,included_in_wages,boolean,true
-components,1,taxable,boolean,true
-components,1,tax_exemption_type,text,none
+section,record,field,value
+components,1,component_name,Basic
+components,1,pf_applicable,Yes
+components,1,esic_applicable,Yes
+statutory,1,pf_wage_ceiling,25000
+statutory,1,pt_states,"Karnataka, Maharashtra"
 ```
 
-This example defines one component. The actual download supplies every field for every existing record and lists all categories. To add a component, copy all fields from an existing component, change `record` to the next integer, and edit its values. For a category with no records, the download has `section,0,,empty,`. Replace this line with the new item's complete field lines. You can get field names from an existing item or the category table below; the application checks required fields on preview.
+Use **Yes / No** for switches, **YYYY-MM-DD** for dates, plain numbers (no currency symbol) and commas between list
+items such as states or months. A kind of setting is applied when it has **at least one filled row**, and replaces
+that kind of setting for the selected company; leave a sheet (or all of a section's lines) out to keep it as it is.
+The preview lists what would be replaced before anything is saved, and applying is all-or-nothing.
 
-## Categories and fields
+## What each section holds
 
-| `section` | Fields for each record | Purpose |
-| --- | --- | --- |
-| `components` | `component_name`, `pf_applicable`, `esic_applicable`, `pt_applicable`, `lwf_applicable`, `bonus_applicable`, `included_in_wages`, `taxable`, `tax_exemption_type` | Salary component names and statutory tags. |
-| `statutory_settings` | `pf_wage_ceiling`, `pf_employee_rate`, `pf_employer_rate`, `pf_eps_rate`, `pf_edli_rate`, `pf_admin_rate`, `pf_restrict_to_ceiling`, `esic_wage_ceiling`, `esic_employee_rate`, `esic_employer_rate`, `esic_round_mode`, `pt_states`, `lwf_states` | Entity PF/ESIC parameters and enabled states. |
-| `statutory_engine` | `pf_config`, `esic_config`, `component_mapping_config`, `income_tax_config`, `rule_thresholds_config`, `exposure_config` | Nested engine policies; keep the downloaded JSON structure. |
-| `formulas` | `rule_type`, `name`, `expression`, `conditions`, `version`, `is_active` | Validation formulas. |
-| `pt_lwf_slabs` | `state`, `rule_type`, `min_salary`, `max_salary`, `deduction_amount`, `employer_amount`, `frequency`, `gender`, `applicable_months`, `sort_order` | PT/LWF slabs. Verify the governing notification before editing. |
-| `minimum_wage_rates` | `state`, `zone`, `scheduled_employment`, `skill_category`, `basic_per_month`, `vda_per_month`, `working_days_basis`, `effective_from`, `effective_to`, `source_reference` | Dated minimum wage schedules. |
-| `minimum_wage_applicability` | `effective_from`, `applicable`, `reason`, `source_reference` | Dated Yes/No decision; No requires a reason. |
-| `rule_preferences` | `rule_id`, `suppressed` | Per-entity validation rule preferences. |
-| `salary_import_profiles` | `name`, `column_mapping` | Named mapping from a client's register headings to canonical payroll fields. `column_mapping` is JSON. |
+| Section | Columns |
+| --- | --- |
+| `components` | `component_name`, `pf_applicable`, `esic_applicable`, `pt_applicable`, `lwf_applicable`, `bonus_applicable`, `included_in_wages`, `taxable`, `tax_exemption_type` |
+| `statutory` (one row) | `pf_employee_rate`, `pf_wage_ceiling`, `pf_restrict_to_ceiling`, `pf_employee_formula`, `esic_employee_rate`, `esic_wage_ceiling`, `esic_rounding` (up / down / nearest), `esic_employee_formula`, `esic_full_month_on_entry`, `esic_continue_month_on_exit`, `pt_states`, `lwf_states` |
+| `pt_lwf_slabs` | `state`, `rule_type` (PT or LWF), `min_salary`, `max_salary`, `deduction_amount`, `employer_amount`, `frequency`, `gender`, `applicable_months`, `effective_from`, `effective_to`, `source_reference`, `sort_order` |
+| `minimum_wage_rates` | `state`, `zone`, `scheduled_employment`, `skill_category`, `basic_per_month`, `vda_per_month`, `working_days_basis`, `effective_from`, `effective_to`, `source_reference` |
+| `minimum_wage_applicability` | `effective_from`, `applicable`, `reason`, `source_reference` (a *No* needs a reason) |
+| `rule_preferences` | `rule_id`, `suppressed` |
+| `import_mappings` | `profile`, `file_column`, `product_field` — one row per column of your own file |
 
-## Replacement and safety
+A PF or ESIC *formula* is written the way you would in Excel, for example `MIN((basic + special_allowance) * 12%, 3000)`.
+What the file does not carry — employer, EPS, EDLI and admin rates, income-tax settings, thresholds and the rest of
+the engine — is left exactly as it is.
 
-Each included section **replaces all existing records** in that category for the selected entity. To leave a section unchanged, remove *all* its lines. An `empty` line intentionally clears the section. Files exported before 19 Oct 2026 may contain `bank_file_profiles`, `jv_templates` and `jv_rules`; those features were removed, so delete those sections from such a file before uploading. The preview validates names, values, JSON shapes, foreign references, and record numbering without saving; applying is transactional. The file cannot set entity IDs or another client's configuration.
+Files in the earlier layout (with a `type` column and JSON cells) are not accepted; download the current file and
+copy your values across.
 
-Configuration upload is separate from salary register upload. A `salary_import_profiles` mapping lets the register importer recognize client column headings, while `components` defines how named salary columns are treated for PF, ESIC, PT, LWF and other checks. Download the register's own sample CSV from its upload screen; this configuration CSV is for setup, not payroll rows.
+## Other imports
 
-PT/LWF and minimum wage notifications change by state, locality, employment and effective date. A CSV edit does not verify a legal rate; check the source notification and effective period before applying statutory values.
+The salary register, CTC, attendance and employee master are imported from CSV or Excel too. Their templates are
+downloaded from the same screens as CSV or Excel and follow your salary components.
 
 ## A ready-made file for trying the product
 
-`testdata/payroll-validation/1_configuration.csv` is a complete example for validation: five salary components with their PF/ESIC/PT flags, a PF ceiling of 25,000, an ESIC ceiling of 21,000, Karnataka and Maharashtra professional tax, a minimum-wage decision, and PF/ESIC formulas written the way you would in Excel. It sits beside an employee master, CTC report, attendance report and two salary registers. The folder's `README.md` gives the load order and a list of the deliberate mistakes the tool should find. The slab and wage values are test data; do not use them for a real company.
+`testdata/payroll-validation/1_configuration.csv` (and `.xlsx`) is a complete example for validation: five salary
+components, PF and ESIC settings with formulas, Karnataka and Maharashtra professional tax slabs and a minimum-wage
+decision. The slab and wage values are test data; do not use them for a real company.
+
+PT/LWF and minimum wage notifications change by state, locality, employment and effective date. A file edit does not
+verify a legal rate; check the source notification and effective period before applying statutory values.

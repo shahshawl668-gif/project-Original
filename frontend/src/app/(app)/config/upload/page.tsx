@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { apiFetch, parseEnvelopeResponse } from "@/lib/api";
+import { apiBlob, apiFetch, parseEnvelopeResponse } from "@/lib/api";
+import { saveBlob } from "@/lib/download";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,17 +18,10 @@ export default function ConfigurationUploadPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const download = async () => {
+  const download = async (ext: "csv" | "xlsx") => {
     setError("");
     try {
-      const response = await apiFetch("/api/config/bundle/export.csv");
-      if (!response.ok) throw new Error(`Download failed (${response.status})`);
-      const url = URL.createObjectURL(await response.blob());
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = "peopleopslab-configuration.csv";
-      anchor.click();
-      URL.revokeObjectURL(url);
+      saveBlob(await apiBlob(`/api/config/bundle/export.${ext}`), `configuration.${ext}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not download configuration");
     }
@@ -58,25 +52,27 @@ export default function ConfigurationUploadPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Settings" title="Configuration upload" description="Download your CSV template, edit the values and mappings, preview the changes, then upload it." />
+      <PageHeader eyebrow="Settings" title="Configuration upload" description="Set up or change many settings in one spreadsheet: download it, edit it, preview, then upload." />
       {error && <AlertBanner variant="error" title="Upload error">{error}</AlertBanner>}
       {message && <AlertBanner variant="success" title="Saved">{message}</AlertBanner>}
       <Card><CardContent className="space-y-5 py-6">
-        <p className="text-sm text-ink-600">The CSV covers salary components, statutory settings, formulas, PT/LWF slabs, minimum-wage rates and applicability, rule choices, and salary import mappings. It contains your configuration; keep it private.</p>
         <div className="space-y-2 rounded-lg border p-4 text-sm text-ink-600">
-          <p><strong>CSV format:</strong> section, record, field, type, value. Each line sets one field of one record. Lines with the same section and record number belong to one configuration item.</p>
-          <p>Keep the column headings and field names. Edit the value column. Types are text, number, boolean (true/false), null, and json for nested mappings. An empty section uses record 0 and type empty.</p>
-          <p>A section included in the CSV replaces that entire section for this entity, including an empty section. Remove all lines for a section to leave it unchanged. Download a fresh backup and preview before applying.</p>
+          <p><strong>What is in it:</strong> salary components, PF / ESIC / PT / LWF settings and formulas, PT and LWF slabs, minimum-wage decision and rates, switched-off checks, and import column mappings. It holds your configuration; keep it private.</p>
+          <p><strong>Excel:</strong> one sheet per kind of setting; empty sheets are left alone. <strong>CSV:</strong> the same tables in one file as section, record, field and value lines.</p>
+          <p>Use Yes or No for switches, YYYY-MM-DD for dates and commas between list items. A kind of setting is applied when it has at least one filled row, and replaces what is there. Preview before you apply.</p>
         </div>
-        <Button type="button" variant="outline" onClick={() => void download()}>Download configuration CSV template</Button>
-        <label className="block space-y-2 text-sm font-medium">Choose edited CSV file
-          <input type="file" accept=".csv,text/csv" className="block w-full rounded-lg border p-3" onChange={e => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-ink-500">Download current configuration (also the template)</span>
+          <Button type="button" variant="outline" onClick={() => void download("csv")}>CSV</Button>
+          <Button type="button" variant="outline" onClick={() => void download("xlsx")}>Excel</Button>
+        </div>
+        <label className="block space-y-2 text-sm font-medium">Choose the edited file (.csv or .xlsx)
+          <input type="file" accept=".csv,.xlsx" className="block w-full rounded-lg border p-3" onChange={e => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
         </label>
         <Button type="button" disabled={!file || busy} onClick={() => void upload(true)}>Preview upload</Button>
         {preview && <div className="space-y-3 rounded-lg border p-4 text-sm">
-          <p className="font-semibold">These sections will replace the selected entity’s existing configuration:</p>
-          <ul className="list-inside list-disc">{Object.entries(preview).map(([name, count]) => <li key={name}>{name.replaceAll("_", " ")}: {count} row{count === 1 ? "" : "s"}</li>)}</ul>
-          <p>Download a backup first. Sections replace what is there; leave a section out to keep it as it is.</p>
+          <p className="font-semibold">These will replace the existing settings of the selected company:</p>
+          <ul className="list-inside list-disc">{Object.entries(preview).map(([name, count]) => <li key={name}>{LABELS[name] ?? name.replaceAll("_", " ")}: {count} row{count === 1 ? "" : "s"}</li>)}</ul>
           <Button type="button" disabled={busy} onClick={() => void upload(false)}>Apply configuration</Button>
         </div>}
       </CardContent></Card>
@@ -85,8 +81,15 @@ export default function ConfigurationUploadPage() {
   );
 }
 
+const LABELS: Record<string, string> = {
+  components: "salary components", statutory_settings: "PT and LWF states and PF / ESIC amounts",
+  statutory_engine: "PF and ESIC calculation", pt_lwf_slabs: "PT / LWF slabs",
+  minimum_wage_rates: "minimum wage rates", minimum_wage_applicability: "minimum wage decision",
+  rule_preferences: "switched-off checks", salary_import_profiles: "import column mappings",
+};
+
 const SECTION_NAMES = [
-  "components", "statutory_settings", "statutory_engine", "formulas", "pt_lwf_slabs", "minimum_wage_rates",
+  "components", "statutory_settings", "statutory_engine", "pt_lwf_slabs", "minimum_wage_rates",
   "minimum_wage_applicability", "rule_preferences", "salary_import_profiles",
 ];
 type CopyPlan = { preview: boolean; source: { id: string; name: string }; sections: Record<string, { from_source: number; replacing_here: number }> };
