@@ -299,3 +299,31 @@ def test_minimum_wage_requires_an_explicit_effective_dated_yes_or_no(client, wor
     current = client.get("/api/minimum-wage/applicability?as_of=2026-06-30", headers=headers)
     assert current.json()["data"]["current"]["applicable"] is True
     assert len(current.json()["data"]["history"]) == 2
+
+
+def test_a_schedule_is_saved_and_replaced_in_one_step(client):
+    r = client.post("/api/auth/signup", json={"email": "mw-schedule@mw-example.com", "password": "Passw0rd!x",
+                                              "company_name": "MW Schedule"})
+    h = {"Authorization": f"Bearer {r.json()['data']['access_token']}"}
+    h["X-Entity-Id"] = client.post("/api/org/entities", json={"name": "MW"}, headers=h).json()["data"]["id"]
+
+    def rate(skill, basic):
+        return {"state": "Karnataka", "zone": "*", "scheduled_employment": "*", "skill_category": skill,
+                "basic_per_month": basic, "vda_per_month": "500", "effective_from": "2026-04-01"}
+
+    first = client.post("/api/minimum-wage/rates/schedule", headers=h, json={"rates": [rate("unskilled", "12000"), rate("skilled", "15000")]})
+    assert first.status_code == 200, first.text
+    ids = [row["id"] for row in first.json()["data"]]
+    assert len(client.get("/api/minimum-wage/rates", headers=h).json()["data"]) == 2
+
+    edited = client.post("/api/minimum-wage/rates/schedule", headers=h, json={"replaces": ids, "rates": [rate("unskilled", "13000")]})
+    assert edited.status_code == 200
+    rows = client.get("/api/minimum-wage/rates", headers=h).json()["data"]
+    assert [(x["skill_category"], x["basic_per_month"]) for x in rows] == [("unskilled", "13000.00")]
+
+    # Another company's rows are never touched by naming their ids.
+    other = {"Authorization": h["Authorization"], "X-Entity-Id": client.post("/api/org/entities", json={"name": "MW2"}, headers=h).json()["data"]["id"]}
+    client.post("/api/minimum-wage/rates/schedule", headers=other, json={"rates": [rate("skilled", "9000")]})
+    keep = client.get("/api/minimum-wage/rates", headers=other).json()["data"][0]["id"]
+    client.post("/api/minimum-wage/rates/schedule", headers=h, json={"replaces": [keep], "rates": [rate("skilled", "1")]})
+    assert len(client.get("/api/minimum-wage/rates", headers=other).json()["data"]) == 1

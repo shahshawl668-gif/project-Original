@@ -25,6 +25,7 @@ from app.schemas.minimum_wage import (
     MinimumWageDecisionIn,
     MinimumWageImport,
     MinimumWageRateIn,
+    MinimumWageScheduleIn,
     MinimumWageRateOut,
 )
 from app.services import minimum_wage as mw
@@ -126,6 +127,26 @@ def create_rate(
     db.commit()
     db.refresh(rate)
     return ok(MinimumWageRateOut.model_validate(rate).model_dump(mode="json"))
+
+
+@router.post("/rates/schedule")
+def save_schedule(
+    body: MinimumWageScheduleIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(require_entity_write),
+):
+    """Save one schedule in a single step: remove the rows it replaces, add its rows, all or nothing."""
+    if body.replaces:
+        db.query(MinimumWageRate).filter(
+            MinimumWageRate.entity_id == entity.id, MinimumWageRate.id.in_(body.replaces),
+        ).delete(synchronize_session=False)
+    created = [MinimumWageRate(entity_id=entity.id, user_id=user.id, **r.model_dump()) for r in body.rates]
+    db.add_all(created)
+    db.commit()
+    for row in created:
+        db.refresh(row)
+    return ok([MinimumWageRateOut.model_validate(r).model_dump(mode="json") for r in created])
 
 
 @router.post("/rates/import")

@@ -894,3 +894,13 @@ Every import template and every configuration download comes as CSV or Excel, ne
 register and CTC templates are built from your own salary components: add a component and it is a column the
 next time you download. Excel templates carry a second sheet saying what each column means. The Configuration
 upload takes the same two formats; see `docs/CONFIGURATION_CSV.md`.
+
+## Minimum wages
+
+**Salary & statutory → Statutory engine → Minimum wages.** A strip at the top records whether the minimum wage
+check applies to your company (Applies / Does not apply, from a date, with a reason for *No*); until it is
+decided the check does not run. Below it is one row per notified schedule: state, scheduled employment and zone,
+the rate for each skill category, the dates it applies, and whether it is Active, Upcoming or Expired.
+**Create new minimum wage** opens a panel in two steps — General (state, scheduled employment, zone, working
+days, effective dates, the notification) and Configure (basic and VDA per month for each skill category). **View**
+opens a schedule to edit, and **Copy** starts a new one from it, which is how you enter next year's revision.

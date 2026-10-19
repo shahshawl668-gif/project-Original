@@ -47,3 +47,10 @@ class MinimumWageImport(BaseModel):
     # Replace the whole table rather than merging — used when a practice
     # re-loads a corrected schedule wholesale.
     replace: bool = False
+
+
+class MinimumWageScheduleIn(BaseModel):
+    """One notified schedule: the rows it replaces (when edited) and the rows that stand in their place."""
+
+    replaces: list[uuid.UUID] = Field(default_factory=list, max_length=200)
+    rates: list[MinimumWageRateIn] = Field(min_length=1, max_length=200)
