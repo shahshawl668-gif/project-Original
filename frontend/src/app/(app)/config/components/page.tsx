@@ -1,13 +1,13 @@
 "use client";
 
-import { apiJson } from "@/lib/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Search, Trash2 } from "lucide-react";
+
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { AlertBanner } from "@/components/ui/alert-banner";
-import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { apiJson } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type ComponentRow = {
   id: string;
@@ -21,36 +21,68 @@ type ComponentRow = {
   taxable: boolean;
   tax_exemption_type: string;
 };
+type Form = Omit<ComponentRow, "id">;
 
-const emptyForm: Omit<ComponentRow, "id"> = {
+const EMPTY: Form = {
   component_name: "",
   pf_applicable: false,
   esic_applicable: false,
   pt_applicable: false,
   lwf_applicable: false,
   bonus_applicable: false,
-  included_in_wages: false,
-  taxable: false,
+  included_in_wages: true,
+  taxable: true,
   tax_exemption_type: "none",
 };
 
+const FLAGS: { key: keyof Form; label: string; hint: string; chip?: string }[] = [
+  { key: "pf_applicable", label: "Affects PF", hint: "Counts toward the PF wage", chip: "PF" },
+  { key: "esic_applicable", label: "Affects ESIC", hint: "Counts toward the ESIC wage", chip: "ESIC" },
+  { key: "pt_applicable", label: "Affects PT gross", hint: "Counts toward professional-tax gross", chip: "PT" },
+  { key: "lwf_applicable", label: "Affects LWF", hint: "Counts toward labour welfare fund wage", chip: "LWF" },
+  { key: "bonus_applicable", label: "Affects bonus", hint: "Counts toward the bonus wage", chip: "Bonus" },
+  { key: "included_in_wages", label: "Counts as wages", hint: "Part of wages under the labour codes" },
+  { key: "taxable", label: "Taxable", hint: "Part of taxable income" },
+];
+
+/** The name a formula and an import column use for this component. */
+const variableName = (name: string) =>
+  name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+
+const toForm = (r: ComponentRow): Form => {
+  const { id: _id, ...rest } = r;
+  return rest;
+};
+
+/**
+ * Salary components: a list on the left, one component on the right. Only what
+ * validation needs is asked — the name, and which statutory wages it feeds.
+ */
 export default function ComponentsPage() {
   const [rows, setRows] = useState<ComponentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<ComponentRow | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [selected, setSelected] = useState<string | "new">("new");
+  const [form, setForm] = useState<Form>(EMPTY);
   const [saving, setSaving] = useState(false);
-  const formRef = useRef<HTMLDivElement | null>(null);
+  const [query, setQuery] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (keep?: string) => {
     setLoading(true);
     try {
       const data = await apiJson<ComponentRow[]>("/api/components");
       setRows(data);
       setError(null);
+      const target = keep ? data.find((r) => r.id === keep) : undefined;
+      if (target) {
+        setSelected(target.id);
+        setForm(toForm(target));
+      } else if (!keep && data.length) {
+        setSelected(data[0].id);
+        setForm(toForm(data[0]));
+      }
     } catch {
-      setError("Failed to load components");
+      setError("The components could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -60,46 +92,38 @@ export default function ComponentsPage() {
     void load();
   }, [load]);
 
-  const openCreate = () => {
-    setEditing(null);
-    setForm(emptyForm);
+  const current = rows.find((r) => r.id === selected);
+  const dirty = useMemo(
+    () => (current ? JSON.stringify(toForm(current)) !== JSON.stringify(form) : JSON.stringify(EMPTY) !== JSON.stringify(form)),
+    [current, form],
+  );
+  const shown = rows.filter((r) => r.component_name.toLowerCase().includes(query.trim().toLowerCase()));
+
+  const choose = (r: ComponentRow) => {
+    if (dirty && !confirm("Discard your unsaved changes?")) return;
+    setSelected(r.id);
+    setForm(toForm(r));
+    setError(null);
   };
 
-  const openEdit = (r: ComponentRow) => {
-    // The form is below the list; bring it into view so Edit visibly does something.
-    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-    setEditing(r);
-    setForm({
-      component_name: r.component_name,
-      pf_applicable: r.pf_applicable,
-      esic_applicable: r.esic_applicable,
-      pt_applicable: r.pt_applicable,
-      lwf_applicable: r.lwf_applicable,
-      bonus_applicable: r.bonus_applicable,
-      included_in_wages: r.included_in_wages,
-      taxable: r.taxable,
-      tax_exemption_type: r.tax_exemption_type,
-    });
+  const startNew = () => {
+    if (dirty && !confirm("Discard your unsaved changes?")) return;
+    setSelected("new");
+    setForm(EMPTY);
+    setError(null);
   };
 
   const save = async () => {
     setSaving(true);
     setError(null);
     try {
-      if (editing) {
-        await apiJson(`/api/components/${editing.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(form),
-        });
+      if (current) {
+        await apiJson(`/api/components/${current.id}`, { method: "PATCH", body: JSON.stringify(form) });
+        await load(current.id);
       } else {
-        await apiJson("/api/components", {
-          method: "POST",
-          body: JSON.stringify(form),
-        });
+        const created = await apiJson<ComponentRow>("/api/components", { method: "POST", body: JSON.stringify(form) });
+        await load(created.id);
       }
-      setEditing(null);
-      setForm(emptyForm);
-      await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -107,219 +131,157 @@ export default function ComponentsPage() {
     }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Delete this component?")) return;
+  const remove = async () => {
+    if (!current || !confirm(`Delete “${current.component_name}”? Formulas and imports that use it will stop finding it.`)) return;
     try {
-      await apiJson(`/api/components/${id}`, { method: "DELETE" });
+      await apiJson(`/api/components/${current.id}`, { method: "DELETE" });
     } catch {
       setError("Delete failed");
       return;
     }
+    setSelected("new");
+    setForm(EMPTY);
     await load();
   };
 
-  const yesNo = (v: boolean) =>
-    v ? (
-      <Badge variant="success">Yes</Badge>
-    ) : (
-      <span className="text-xs text-ink-500">No</span>
-    );
+  const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <PageHeader
-        eyebrow="Library"
         title="Salary components"
-        description="Map statutory flags once; uploads must include columns matching these names. Add components with the form below the list."
+        description="The earnings and deductions on your payslip, and which statutory wages each one feeds. They become columns in the salary register and CTC templates and names you can use in formulas."
       />
 
-      {error && (
-        <AlertBanner variant="error" title="Save failed">
-          {error}
-        </AlertBanner>
-      )}
+      {error ? <AlertBanner variant="error" title="Not saved">{error}</AlertBanner> : null}
 
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-ink-50/80 text-left text-[11px] font-semibold text-ink-500">
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">PF</th>
-                <th className="px-4 py-3">ESIC</th>
-                <th className="px-4 py-3">PT</th>
-                <th className="px-4 py-3">LWF</th>
-                <th className="px-4 py-3">Bonus</th>
-                <th className="px-4 py-3">Wages</th>
-                <th className="px-4 py-3">Tax</th>
-                <th className="px-4 py-3">Exemption</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-ink-500">
-                    Loading…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-ink-500">
-                    No components yet — add the first one with the form below.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="transition-colors hover:bg-ink-50/60"
-                  >
-                    <td className="px-4 py-3 font-semibold text-ink-900">
-                      {r.component_name}
-                    </td>
-                    <td className="px-4 py-3">{yesNo(r.pf_applicable)}</td>
-                    <td className="px-4 py-3">{yesNo(r.esic_applicable)}</td>
-                    <td className="px-4 py-3">{yesNo(r.pt_applicable)}</td>
-                    <td className="px-4 py-3">{yesNo(r.lwf_applicable)}</td>
-                    <td className="px-4 py-3">{yesNo(r.bonus_applicable)}</td>
-                    <td className="px-4 py-3">{yesNo(r.included_in_wages)}</td>
-                    <td className="px-4 py-3">{yesNo(r.taxable)}</td>
-                    <td className="px-4 py-3 text-xs text-ink-500">
-                      {r.tax_exemption_type}
-                    </td>
-                    <td className="space-x-3 whitespace-nowrap px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 transition-colors hover:text-brand-800"
-                        onClick={() => openEdit(r)}
-                      >
-                        <Pencil size={12} /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-danger-600 transition-colors hover:text-danger-700"
-                        onClick={() => void remove(r.id)}
-                      >
-                        <Trash2 size={12} /> Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <Card ref={formRef as never}>
-        <CardContent className="space-y-5 p-6">
-          <h2 className="font-display text-lg font-bold tracking-tight text-ink-900">
-            {editing ? "Edit component" : "Add a component"}
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Component name">
+      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <section className="flex max-h-[calc(100vh-14rem)] min-h-[360px] flex-col rounded-xl border border-ink-200 bg-white shadow-soft">
+          <div className="border-b border-ink-100 p-3">
+            <label className="relative block">
+              <Search size={14} aria-hidden className="pointer-events-none absolute left-2.5 top-2.5 text-ink-400" />
               <input
-                className="mt-1.5 w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-                value={form.component_name}
-                onChange={(e) => setForm({ ...form, component_name: e.target.value })}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search components"
+                aria-label="Search components"
+                className="h-9 w-full rounded-lg border border-ink-200 pl-8 pr-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500/20"
               />
-            </Field>
-            <Field label="Tax exemption type">
-              <input
-                className="mt-1.5 w-full rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm transition-colors placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-                value={form.tax_exemption_type}
-                onChange={(e) => setForm({ ...form, tax_exemption_type: e.target.value })}
-                placeholder="none, HRA, LTA…"
-              />
-            </Field>
+            </label>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Toggle
-              label="PF applicable"
-              checked={form.pf_applicable}
-              onChange={(v) => setForm({ ...form, pf_applicable: v })}
-            />
-            <Toggle
-              label="ESIC applicable"
-              checked={form.esic_applicable}
-              onChange={(v) => setForm({ ...form, esic_applicable: v })}
-            />
-            <Toggle
-              label="PT applicable"
-              checked={form.pt_applicable}
-              onChange={(v) => setForm({ ...form, pt_applicable: v })}
-            />
-            <Toggle
-              label="LWF applicable"
-              checked={form.lwf_applicable}
-              onChange={(v) => setForm({ ...form, lwf_applicable: v })}
-            />
-            <Toggle
-              label="Bonus applicable"
-              checked={form.bonus_applicable}
-              onChange={(v) => setForm({ ...form, bonus_applicable: v })}
-            />
-            <Toggle
-              label="Included in wages"
-              checked={form.included_in_wages}
-              onChange={(v) => setForm({ ...form, included_in_wages: v })}
-            />
-            <Toggle
-              label="Taxable"
-              checked={form.taxable}
-              onChange={(v) => setForm({ ...form, taxable: v })}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              disabled={saving || !form.component_name.trim()}
-              onClick={() => void save()}
-            >
-              {saving ? "Saving…" : editing ? "Save changes" : "Add component"}
+          <ul className="scrollbar-thin flex-1 space-y-1.5 overflow-y-auto p-2.5">
+            {loading ? <li className="p-4 text-center text-sm text-ink-500">Loading…</li> : null}
+            {!loading && rows.length === 0 ? (
+              <li className="p-4 text-center text-sm text-ink-500">No components yet. Fill in the form and choose Add component.</li>
+            ) : null}
+            {shown.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => choose(r)}
+                  aria-current={selected === r.id}
+                  className={cn(
+                    "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                    selected === r.id ? "border-brand-300 bg-brand-50" : "border-ink-200 hover:bg-ink-50",
+                  )}
+                >
+                  <span className="block truncate text-[14px] font-medium text-ink-900">{r.component_name}</span>
+                  <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-500">
+                    <span className="truncate font-mono">{variableName(r.component_name)}</span>
+                    {FLAGS.filter((f) => f.chip && r[f.key as keyof ComponentRow]).map((f) => (
+                      <span key={f.chip} className="rounded bg-ink-100 px-1.5 py-px font-medium text-ink-600">{f.chip}</span>
+                    ))}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t border-ink-100 p-2.5">
+            <Button type="button" variant="outline" className="w-full" onClick={startNew}>
+              <Plus size={14} /> Add new component
             </Button>
-            {editing && (
-              <Button type="button" variant="outline" onClick={openCreate}>
-                Cancel
-              </Button>
-            )}
           </div>
-        </CardContent>
-      </Card>
+        </section>
+
+        <section className="rounded-xl border border-ink-200 bg-white shadow-soft">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-5 py-3">
+            <h2 className="text-[15px] font-semibold text-ink-900">
+              {current ? current.component_name : "New component"}
+              {dirty ? <span className="ml-2 text-xs font-normal text-warning-700">unsaved changes</span> : null}
+            </h2>
+            <div className="flex items-center gap-2">
+              {current ? (
+                <Button type="button" variant="outline" onClick={() => void remove()}>
+                  <Trash2 size={14} /> Delete
+                </Button>
+              ) : null}
+              <Button type="button" disabled={saving || !form.component_name.trim() || !dirty} onClick={() => void save()}>
+                {saving ? "Saving…" : current ? "Save changes" : "Add component"}
+              </Button>
+            </div>
+          </header>
+
+          <div className="space-y-5 p-5">
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">General</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block text-[13px] font-medium text-ink-800">
+                  Component name
+                  <input
+                    value={form.component_name}
+                    onChange={(e) => set("component_name", e.target.value)}
+                    maxLength={100}
+                    placeholder="e.g. Special Allowance"
+                    className="mt-1 h-9 w-full rounded-lg border border-ink-200 px-3 text-[13px] font-normal focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  />
+                </label>
+                <label className="block text-[13px] font-medium text-ink-800">
+                  Used in formulas as
+                  <input
+                    value={variableName(form.component_name)}
+                    readOnly
+                    aria-label="Variable name"
+                    className="mt-1 h-9 w-full rounded-lg border border-ink-200 bg-ink-50 px-3 font-mono text-[13px] font-normal text-ink-600"
+                  />
+                </label>
+                <label className="block text-[13px] font-medium text-ink-800">
+                  Tax exemption
+                  <input
+                    value={form.tax_exemption_type}
+                    onChange={(e) => set("tax_exemption_type", e.target.value)}
+                    list="exemption-types"
+                    maxLength={20}
+                    className="mt-1 h-9 w-full rounded-lg border border-ink-200 px-3 text-[13px] font-normal focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  />
+                  <datalist id="exemption-types">
+                    {["none", "HRA", "LTA", "Conveyance", "Medical", "Other"].map((o) => <option key={o} value={o} />)}
+                  </datalist>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-500">Statutory</p>
+              <div className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
+                {FLAGS.map((f) => (
+                  <label key={f.key} className="flex cursor-pointer items-start gap-2.5 text-[13px]">
+                    <input
+                      type="checkbox"
+                      checked={form[f.key] as boolean}
+                      onChange={(e) => set(f.key, e.target.checked as never)}
+                      className="mt-0.5 h-4 w-4 accent-brand-600"
+                    />
+                    <span>
+                      <span className="block font-medium text-ink-900">{f.label}</span>
+                      <span className="block text-xs text-ink-500">{f.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="font-display text-[11px] font-semibold text-ink-600">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-ink-200/70 bg-ink-50/40 px-3 py-2 text-sm font-medium text-ink-800 transition-colors hover:bg-ink-100/60">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="accent-brand-600"
-      />
-      {label}
-    </label>
   );
 }
