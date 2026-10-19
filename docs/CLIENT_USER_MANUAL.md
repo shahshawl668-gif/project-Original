@@ -108,10 +108,13 @@ company and takes you into its work. A company with nothing uploaded says so.
 
 ### Payroll Control Centre — the month in one place
 
-**Overview → Payroll Control Centre** shows one month for one company: which
-files have arrived, how validation is going, what is still open, what changed
-since the previous run, what blocks approval, whether the bank and ledger
-reconcile, and the evidence pack. At the top it says the **next step** —
+**Home → Payroll Control Centre** is the Payroll Dashboard. Across the top you choose the
+**group company**, see the financial year, and choose the **month** (with its status), or click a
+month in the **Pay period** row — a green dot means the month has been validated. **Start
+validation** begins the month. Below, the page shows which files have arrived, how validation is
+going, what is still open, what changed since the previous run, what blocks approval and the
+evidence pack; a right-hand rail holds the latest run, the month's closure status and the output
+links. It also says the **next step** —
 upload, validate, work the issues, submit — worked out from where the month
 actually stands.
 

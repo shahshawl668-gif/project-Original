@@ -13,7 +13,7 @@ import { normalisePeriod, periodLabel, useWorkingPeriod } from "@/lib/workspace"
 import { cn } from "@/lib/utils";
 
 /** Routes that are about one month, where the period and run are shown. */
-const MONTH_ROUTES = [/^\/control-centre/, /^\/payroll\/(upload|validation|results|issues|attendance)/, /^\/reconciliation/];
+const MONTH_ROUTES = [/^\/payroll\/(upload|validation|results|issues|attendance)/, /^\/reconciliation/];
 
 function lastMonths(n: number): string[] {
   const out: string[] = [];

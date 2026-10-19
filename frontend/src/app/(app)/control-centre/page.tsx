@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -19,7 +19,6 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
-import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,7 +30,7 @@ import { count, dateTime, inr, pct, plural } from "@/lib/format";
 import { issuesApi } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 import { OUTCOME_LABEL, signoffApi, validationApi, type Outcome, type PeriodStatus } from "@/lib/validation";
-import { periodLabel, useWorkingPeriod } from "@/lib/workspace";
+import { normalisePeriod, periodLabel, useWorkingPeriod } from "@/lib/workspace";
 
 /**
  * The month, in one place: what has arrived, what has been checked, what is
@@ -111,15 +110,11 @@ export default function ControlCentrePage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Payroll Control Centre"
-        description={
-          <>
-            {entity?.name ?? "This company"} · {period ? periodLabel(period) : "…"}
-            {source !== "chosen" && period ? <span className="text-ink-500"> (the latest month with a run — change it from the period menu above)</span> : null}
-          </>
-        }
-        actions={s ? <StatusPill tone={monthState(s).tone} size="lg">{monthState(s).label}</StatusPill> : null}
+      <DashboardHeader
+        period={period}
+        source={source}
+        status={s ? monthState(s) : null}
+        canAct={activeRole !== "viewer"}
       />
 
       {status.isError ? (
@@ -137,10 +132,12 @@ export default function ControlCentrePage() {
         </div>
       ) : (
         <>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-5">
           <NextAction s={s} period={period!} canAct={activeRole !== "viewer"} />
           <Steps s={s} />
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <Panel title="Files & readiness" icon={FileSpreadsheet} href="/payroll/upload" linkLabel="Upload">
               <Row label="Salary register" state={s.upload ? (s.upload.missing_required.length ? "warn" : "ok") : "missing"}>
                 {s.upload ? (
@@ -312,6 +309,9 @@ export default function ControlCentrePage() {
               </div>
             </Panel>
 
+          </div>
+          </div>
+          <ProcessRail s={s} period={period!} current={current} />
           </div>
         </>
       )}
@@ -605,5 +605,198 @@ function EvidenceButton({ period, signed }: { period: string; signed: boolean })
       </Button>
       {error ? <p className="mt-1.5 text-xs text-danger-700" role="alert">{error}</p> : null}
     </div>
+  );
+}
+
+// ─── The top of the dashboard ─────────────────────────────────────────────────
+
+/** Indian financial year of a month, as 2026-27. */
+function financialYear(period: string | null): string {
+  if (!period) return "—";
+  const [y, m] = period.split("-").map(Number);
+  const start = m >= 4 ? y : y - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
+function recentMonths(n: number): string[] {
+  const now = new Date();
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+}
+
+const shortMonth = (p: string) =>
+  new Date(`${p}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short", year: "2-digit" }).replace(" ", "’");
+
+/**
+ * Where the work is being done: company, financial year, month — chosen here,
+ * the way the payroll dashboard opens — and the one button that starts the month.
+ */
+function DashboardHeader({
+  period, source, status, canAct,
+}: {
+  period: string | null;
+  source: string;
+  status: { label: string; tone: StatusTone } | null;
+  canAct: boolean;
+}) {
+  const { entity, entities, isMultiEntity, switchEntity } = useEntity();
+  const { setPeriod } = useWorkingPeriod();
+  const runs = useQuery({
+    queryKey: ["run-periods", entity?.id],
+    queryFn: () => validationApi.runs({ limit: 200 }),
+    enabled: !!entity,
+    staleTime: 60_000,
+  });
+  const validated = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of runs.data ?? []) {
+      const p = normalisePeriod(r.period_month);
+      if (p) set.add(p);
+    }
+    return set;
+  }, [runs.data]);
+  const months = useMemo(() => {
+    const all = new Set([...recentMonths(12), ...validated]);
+    if (period) all.add(period);
+    return [...all].sort().reverse();
+  }, [validated, period]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-ink-900">Payroll Dashboard</h1>
+        {canAct ? (
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline"><Link href="/payroll/results">Results</Link></Button>
+            <Button asChild><Link href="/payroll/upload">START VALIDATION</Link></Button>
+          </div>
+        ) : null}
+      </div>
+
+      <section className="grid divide-y divide-ink-100 rounded-xl border border-ink-200 bg-white shadow-soft md:grid-cols-[minmax(0,1fr)_auto] md:divide-x md:divide-y-0">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 p-4 sm:grid-cols-4">
+          <div>
+            <dd className="text-[15px] font-medium text-ink-900">India</dd>
+            <dt className="text-xs text-ink-500">Country</dt>
+          </div>
+          <div className="min-w-0">
+            <dd className="text-[15px] font-medium text-ink-900">
+              {isMultiEntity ? (
+                <select
+                  aria-label="Group company"
+                  value={entity?.id ?? ""}
+                  onChange={(e) => void switchEntity(e.target.value)}
+                  className="-ml-1 max-w-full rounded-md border border-transparent bg-transparent py-0.5 pl-1 pr-5 text-[15px] font-medium hover:border-ink-200 focus:border-brand-500 focus:outline-none"
+                >
+                  {entities.filter((e) => e.is_active).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              ) : (
+                <span className="block truncate">{entity?.name ?? "—"}</span>
+              )}
+            </dd>
+            <dt className="text-xs text-ink-500">Group company</dt>
+          </div>
+          <div>
+            <dd className="text-[15px] font-medium text-ink-900">{financialYear(period)}</dd>
+            <dt className="text-xs text-ink-500">Financial year</dt>
+          </div>
+          <div>
+            <dd className="text-[15px] font-medium text-ink-900">Monthly</dd>
+            <dt className="text-xs text-ink-500">Frequency</dt>
+          </div>
+        </dl>
+        <div className="flex items-center gap-3 p-4">
+          <label htmlFor="dash-month" className="text-sm text-ink-700">Month</label>
+          <div>
+            <select
+              id="dash-month"
+              value={period ?? ""}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="h-9 min-w-[10rem] rounded-lg border border-ink-200 bg-white px-2.5 text-[14px] font-medium text-ink-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            >
+              {months.map((m) => <option key={m} value={m}>{periodLabel(m)}</option>)}
+            </select>
+            {status ? <div className="mt-1"><StatusPill tone={status.tone}>{status.label}</StatusPill></div> : null}
+          </div>
+        </div>
+      </section>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ink-200 bg-white px-4 py-3 shadow-soft">
+        <span className="mr-1 text-sm text-ink-600">Pay period</span>
+        {months.slice(0, 8).reverse().map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setPeriod(m)}
+            aria-pressed={m === period}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors",
+              m === period ? "border-brand-300 bg-brand-50 text-brand-800" : "border-ink-200 text-ink-700 hover:bg-ink-50",
+            )}
+          >
+            <span aria-hidden className={cn("h-2 w-2 rounded-full", validated.has(m) ? "bg-success-500" : "bg-warning-500")} />
+            {shortMonth(m)}
+          </button>
+        ))}
+        <span className="ml-auto hidden items-center gap-3 text-xs text-ink-500 sm:flex">
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-success-500" /> validated</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-warning-500" /> no run yet</span>
+        </span>
+      </div>
+      {source !== "chosen" && period ? (
+        <p className="text-xs text-ink-500">Showing the latest month with a run — choose another above.</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** The right-hand rail: the latest run, and what is still open for the month. */
+function ProcessRail({ s, period, current }: { s: PeriodStatus; period: string; current: { run_number: number; employee_count: number; finished_at: string | null; created_at: string | null } | null }) {
+  const router = useRouter();
+  return (
+    <aside className="space-y-4" aria-label="Validation processes">
+      <section className="rounded-xl border border-ink-200 bg-white p-4 shadow-soft">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-ink-900">Validation processes</h2>
+          <Link href="/payroll/validation" className="text-xs font-medium text-brand-700 hover:underline">View all runs</Link>
+        </div>
+        {current ? (
+          <div className="mt-3 space-y-1">
+            <p className="text-xs text-ink-500">Latest run</p>
+            <p className="text-sm font-medium text-ink-900">Run {current.run_number} · {periodLabel(period)}</p>
+            <p className="text-xs text-ink-500">{dateTime(current.finished_at ?? current.created_at)}</p>
+            <p className="pt-2 text-2xl font-semibold text-ink-900">{count(current.employee_count)}</p>
+            <p className="text-xs text-ink-500">Employees in the process</p>
+          </div>
+        ) : (
+          <p className="mt-3 text-[13px] text-ink-500">No validation has run for {periodLabel(period)}.</p>
+        )}
+      </section>
+
+      <section className={cn("rounded-xl border bg-white p-4 shadow-soft", s.open_findings ? "border-l-4 border-ink-200 border-l-warning-500" : "border-ink-200")}>
+        <h2 className="text-[15px] font-semibold text-ink-900">Month closure</h2>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-[13px] text-ink-700">
+            {s.signoff_state === "signed"
+              ? "Signed off."
+              : s.open_findings
+                ? `${plural(s.open_findings, "finding")} still open for this month.`
+                : s.current_run ? "Nothing open. Ready for approval when the checks are complete." : "Validate the month first."}
+          </p>
+          <Button type="button" variant="outline" onClick={() => router.push(s.open_findings ? "/payroll/issues" : "/reconciliation")}>View</Button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-ink-200 bg-white p-4 shadow-soft">
+        <h2 className="text-[15px] font-semibold text-ink-900">Processed output</h2>
+        <ul className="mt-2 divide-y divide-ink-100 text-[13px]">
+          <li className="flex items-center justify-between py-2"><span className="text-ink-700">Validation results</span><Link href={s.current_run ? `/payroll/results?run=${s.current_run.id}` : "/payroll/results"} className="font-medium text-brand-700 hover:underline">Open</Link></li>
+          <li className="flex items-center justify-between py-2"><span className="text-ink-700">Findings to work</span><Link href="/payroll/issues" className="font-medium text-brand-700 hover:underline">Open</Link></li>
+          <li className="flex items-center justify-between py-2"><span className="text-ink-700">Month approval</span><Link href="/reconciliation" className="font-medium text-brand-700 hover:underline">Open</Link></li>
+        </ul>
+      </section>
+    </aside>
   );
 }
