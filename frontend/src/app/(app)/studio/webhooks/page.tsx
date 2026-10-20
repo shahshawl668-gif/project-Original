@@ -36,6 +36,7 @@ def verify(header: str, secret: str, raw_body: bytes, tolerance=300) -> bool:
     return any(hmac.compare_digest(expected, s) for s in sigs)
 
 # Then de-duplicate on the X-PeopleOpsLab-Event-Id header: delivery is at least once.`;
+import { MonthSelect } from "@/components/ui/month-select";
 
 export default function WebhooksPage() {
   const { activeRole } = useEntity();
@@ -206,7 +207,7 @@ function InboundPanel({ canManage }: { canManage: boolean }) {
             {Object.entries(OBJECT_LABEL).filter(([k]) => k !== "validation").map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           <select aria-label="Mapping" className={FIELD} value={form.mapping_key} onChange={(e) => setForm({ ...form, mapping_key: e.target.value })}>
             <option value="">No mapping</option>{(mappings.data ?? []).filter((m) => m.object_type === form.object_type).map((m) => <option key={m.key} value={m.key}>{m.name}</option>)}</select>
-          {form.object_type !== "ctc" ? <input aria-label="Default month" type="month" className={FIELD} value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} /> : <span />}
+          {form.object_type !== "ctc" ? <MonthSelect aria-label="Default month" placeholder="Default month" value={form.period} onChange={(v) => setForm({ ...form, period: v })} /> : <span />}
           <Button disabled={form.name.length < 2} onClick={() => void create()}>Create</Button>
         </div>
       ) : null}

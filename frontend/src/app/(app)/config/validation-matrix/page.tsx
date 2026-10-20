@@ -22,6 +22,7 @@ import {
 } from "@/lib/matrix";
 import { cn } from "@/lib/utils";
 import { useUnsavedChanges } from "@/lib/unsaved";
+import { MonthSelect } from "@/components/ui/month-select";
 
 type Preference = { rule_id: string; suppressed: boolean };
 
@@ -403,7 +404,7 @@ function RuleVersions({ rules, canDraft, canPublishStatutory, disabledRules, oth
           <h2 className="text-base font-semibold text-ink-900">Company rules and their versions</h2>
           <p className="text-xs text-ink-500">A version is never edited. Change a rule by drafting its next version; bring an old one back by rolling back to it; stop one by retiring it from a date — months before that keep it.</p>
         </div>
-        <label className="text-xs font-semibold text-ink-700">Test against month<input type="month" className={`mt-1 ${INPUT}`} value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
+        <label className="text-xs font-semibold text-ink-700">Test against month<MonthSelect className="mt-1 block w-full" value={period} onChange={setPeriod} /></label>
       </div>
       {byKey.length === 0 ? <p className="text-sm text-ink-500">No company rules yet. Built-in validation still runs.</p> : null}
 

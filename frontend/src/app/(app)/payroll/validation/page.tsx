@@ -4,7 +4,6 @@ import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { monthLabel, validationApi, type ValidationJob } from "@/lib/validation";
 import Link from "next/link";
@@ -12,7 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, Loader2, RotateCcw, ShieldCheck, UploadCloud, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Loader2, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
 import { IntegrationPanel } from "@/components/studio/IntegrationPanel";
 
 const STAGES = ["queued", "loading", "validating", "recording", "succeeded"] as const;
@@ -122,7 +121,7 @@ function JobProgress({ jobId }: { jobId: string }) {
     return (
       <AlertBanner variant="error" title="This validation is not available">
         {error}{" "}
-        <Link href="/payroll/validation" className="font-semibold underline">See recent validations</Link>
+        <Link href="/payroll/history?tab=runs" className="font-semibold underline">See recent validations</Link>
       </AlertBanner>
     );
   }
@@ -248,82 +247,27 @@ function JobProgress({ jobId }: { jobId: string }) {
   );
 }
 
-function RecentJobs() {
-  const { entity } = useEntity();
-  const [jobs, setJobs] = useState<ValidationJob[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setJobs(null);
-    validationApi
-      .jobs({ limit: 20 })
-      .then((j) => { if (!cancelled) setJobs(j); })
-      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load validations."); });
-    return () => { cancelled = true; };
-  }, [entity?.id]);
-
-  if (error) return <AlertBanner variant="error" title="Could not load validations">{error}</AlertBanner>;
-  if (!jobs) return <Skeleton className="h-40 w-full rounded-2xl" />;
-  if (jobs.length === 0) {
-    return (
-      <EmptyState
-        icon={<ShieldCheck className="h-7 w-7 text-ink-500" strokeWidth={1.5} />}
-        title="No validations yet"
-        description="Upload a salary register to queue its validation."
-        action={<Button asChild><Link href="/payroll/upload" className="gap-2"><UploadCloud size={15} /> Upload register</Link></Button>}
-      />
-    );
-  }
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-ink-200/70 bg-white shadow-soft">
-      <table className="w-full text-sm">
-        <thead className="bg-ink-50/80 text-left text-[11px] text-ink-500">
-          <tr>
-            <th className="px-4 py-2.5">Month</th>
-            <th className="px-4 py-2.5">Status</th>
-            <th className="px-4 py-2.5">Employees</th>
-            <th className="px-4 py-2.5">Queued</th>
-            <th className="px-4 py-2.5" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ink-100">
-          {jobs.map((j) => (
-            <tr key={j.id}>
-              <td className="px-4 py-3 font-medium">{monthLabel(j.period_month)}</td>
-              <td className="px-4 py-3">{j.stage_label}{j.error_code && j.state === "failed" ? ` — ${j.error}` : ""}</td>
-              <td className="num px-4 py-3">{j.employee_total ? j.employee_total.toLocaleString("en-IN") : "—"}</td>
-              <td className="px-4 py-3 text-ink-500">{j.queued_at ? new Date(j.queued_at).toLocaleString("en-IN") : "—"}</td>
-              <td className="px-4 py-3 text-right">
-                {j.state === "succeeded" && j.run_id ? (
-                  <Link className="font-semibold text-brand-700" href={`/payroll/results?run=${encodeURIComponent(j.run_id)}`}>Results</Link>
-                ) : (
-                  <Link className="font-semibold text-brand-700" href={`/payroll/validation?job=${encodeURIComponent(j.id)}`}>Details</Link>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function ValidationContent() {
   const params = useSearchParams();
+  const router = useRouter();
   const jobId = params.get("job");
+  // The list of runs lives in History; this page only follows one validation.
+  useEffect(() => {
+    if (!jobId) router.replace("/payroll/history?tab=runs");
+  }, [jobId, router]);
+  if (!jobId) return <Skeleton className="h-40 w-full rounded-2xl" />;
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader
-        title={jobId ? "Validation progress" : "Validation runs"}
-        description="Validation runs on the server. Close this page whenever you like — the result is kept and linked from here."
+        title="Validation progress"
+        description="Validation runs on the server. Close this page whenever you like — the result is kept and listed under History."
         actions={
           <Button variant="outline" asChild>
-            <Link href="/payroll/upload" className="gap-2"><UploadCloud size={15} /> Upload register</Link>
+            <Link href="/payroll/history?tab=runs">History</Link>
           </Button>
         }
       />
-      {jobId ? <JobProgress jobId={jobId} /> : <RecentJobs />}
+      <JobProgress jobId={jobId} />
     </div>
   );
 }

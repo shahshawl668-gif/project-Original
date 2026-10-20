@@ -23,6 +23,7 @@ import {
   type PreviewResult,
 } from "@/lib/studio";
 import { cn } from "@/lib/utils";
+import { MonthSelect } from "@/components/ui/month-select";
 
 const FIELD =
   "w-full rounded-lg border border-ink-200 bg-white px-2 py-1.5 text-sm text-ink-900";
@@ -274,7 +275,7 @@ function ImportWithMapping({ mappingId, objectType }: { mappingId: string; objec
       <p className="text-xs text-ink-500">The same checks, counts, rejections and lineage as the integration API. Every record is accounted for on the run page.</p>
       <div className="grid gap-3 md:grid-cols-5">
         <label className="text-xs font-semibold text-ink-700 md:col-span-2">File<input type="file" accept=".csv,.xlsx" className="mt-1 block text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
-        {objectType !== "ctc" ? <label className="text-xs font-semibold text-ink-700">{objectType === "employee_master" ? "Effective from" : "Payroll month"}<input type="month" className={cn(FIELD, "mt-1")} value={month} onChange={(e) => setMonth(e.target.value)} /></label> : null}
+        {objectType !== "ctc" ? <label className="text-xs font-semibold text-ink-700">{objectType === "employee_master" ? "Effective from" : "Payroll month"}<MonthSelect className="mt-1 block w-full" value={month} onChange={setMonth} /></label> : null}
         {objectType === "employee_master" || objectType === "attendance" ? <label className="text-xs font-semibold text-ink-700">Mode<select aria-label="Mode" className={cn(FIELD, "mt-1")} value={mode} onChange={(e) => setMode(e.target.value)}><option value="upsert">Upsert</option><option value="replace">Replace</option></select></label> : null}
         <label className="text-xs font-semibold text-ink-700">Batch id<input className={cn(FIELD, "mt-1")} value={batch} onChange={(e) => setBatch(e.target.value)} placeholder="optional" /></label>
       </div>

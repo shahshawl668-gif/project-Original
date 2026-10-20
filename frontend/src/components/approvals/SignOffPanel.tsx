@@ -73,9 +73,9 @@ function stepsDone(stage: string): number {
 }
 
 const BLOCKER_ACTION: Record<string, { href: (runId: string | null) => string; label: string }> = {
-  not_validated: { href: () => "/payroll/upload", label: "Upload & validate" },
+  not_validated: { href: () => "/control-centre", label: "Check the register" },
   revalidation_required: {
-    href: (runId) => (runId ? `/payroll/results?run=${encodeURIComponent(runId)}` : "/payroll/validation"),
+    href: (runId) => (runId ? `/payroll/results?run=${encodeURIComponent(runId)}` : "/payroll/history?tab=runs"),
     label: "Revalidate",
   },
   incomplete_coverage: {

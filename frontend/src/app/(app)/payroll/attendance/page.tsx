@@ -28,6 +28,7 @@ import {
   type AttendanceFinding,
 } from "@/lib/attendance";
 import { cn } from "@/lib/utils";
+import { MonthSelect } from "@/components/ui/month-select";
 
 function currentPeriod(): string {
   const now = new Date();
@@ -118,14 +119,13 @@ export default function AttendancePage() {
               <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">
                 Period
               </span>
-              <input
-                type="month"
+              <MonthSelect
+                aria-label="Period"
                 value={period}
-                onChange={(event) => {
-                  setPeriod(event.target.value);
+                onChange={(v) => {
+                  setPeriod(v);
                   setCheck(null);
                 }}
-                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
               />
             </div>
             <TemplateDownload kind="attendance" />

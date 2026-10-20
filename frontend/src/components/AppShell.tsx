@@ -384,7 +384,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </a>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div className="fixed inset-0 z-[60] flex lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <button
             type="button"
             className="absolute inset-0 animate-fade-in bg-ink-950/30"
@@ -397,7 +397,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <header className="z-40 flex-shrink-0 border-b border-ink-200 bg-white">
+      {/* Above the navigation bar, so the company, month and profile menus open over it. */}
+      <header className="relative z-50 flex-shrink-0 border-b border-ink-200 bg-white">
         <div className="flex h-14 w-full items-center gap-2 px-3 sm:px-5 lg:gap-4">
           <button
             type="button"

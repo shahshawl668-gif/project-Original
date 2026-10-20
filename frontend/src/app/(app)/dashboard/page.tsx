@@ -30,7 +30,6 @@ import {
   Inbox,
   Loader2,
   ShieldCheck,
-  UploadCloud,
   Users,
 } from "lucide-react";
 
@@ -167,7 +166,7 @@ function CompanyCard({ row }: { row: CompanyRow }) {
     setOpening(true);
     try {
       if (!isActive) await switchEntity(row.id);
-      router.push(row.last_register_period ? "/payroll/history" : "/payroll/upload");
+      router.push("/control-centre");
     } catch (err) {
       toast.error("Could not open company", {
         description: err instanceof Error ? err.message : "Please try again.",
@@ -282,11 +281,10 @@ export default function CompaniesPage() {
         description="Every employer you can see, ordered by what needs attention first."
         actions={
           <Link
-            href="/payroll/upload"
+            href="/control-centre"
             className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700"
           >
-            <UploadCloud size={14} aria-hidden />
-            New validation run
+            Open the Control Centre
           </Link>
         }
       />

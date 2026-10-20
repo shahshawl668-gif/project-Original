@@ -15,8 +15,8 @@ months, joiners and leavers. It is uploaded once and validated once.
 | 2 | Data & imports -> **Employee master** (effective 2022-04-01) | `2_employee_master.csv` |
 | 3 | Data & imports -> **CTC upload** (default effective 2026-04-01; revisions carry their own date) | `3_ctc_report.csv` |
 | 4 | Data & imports -> **Attendance** (September 2026) | `4_attendance_report.csv` |
-| 5 | Data & imports -> **Salary register**, **August 2026**, validate | `5_previous_month_register_aug.csv` |
-| 6 | Data & imports -> **Salary register**, **September 2026**, validate, open Results | `6_salary_register_sep.csv` |
+| 5 | Control Centre -> **Check a register**, **August 2026**, validate | `5_previous_month_register_aug.csv` |
+| 6 | Control Centre -> **Check a register**, **September 2026**, validate, open Results | `6_salary_register_sep.csv` |
 
 ## Rules in the configuration (test values)
 

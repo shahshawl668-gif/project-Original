@@ -59,7 +59,7 @@ export default function MonthApprovalPage() {
       {!loading && period && !hasRegister ? (
         <AlertBanner variant="warning" title={`No register is stored for ${periodLabel(period)}`}>
           Nothing can be approved for this month until its register is uploaded and validated.{" "}
-          <Link href="/payroll/upload" className="font-medium underline">Upload the register</Link>
+          <Link href="/control-centre" className="font-medium underline">Check the register from the Control Centre</Link>
         </AlertBanner>
       ) : null}
 

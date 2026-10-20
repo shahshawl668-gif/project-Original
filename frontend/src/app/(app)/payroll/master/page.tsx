@@ -15,6 +15,7 @@ import {
   type MasterPreview,
 } from "@/lib/employee-master";
 import { cn } from "@/lib/utils";
+import { MonthSelect } from "@/components/ui/month-select";
 
 function currentMonth(): string {
   const now = new Date();
@@ -92,12 +93,7 @@ export default function EmployeeMasterPage() {
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <span className="mb-1.5 block text-[11px] font-semibold text-ink-500">Effective from</span>
-              <input
-                type="month"
-                value={effective}
-                onChange={(event) => setEffective(event.target.value)}
-                className="h-9 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900"
-              />
+              <MonthSelect aria-label="Effective from" value={effective} onChange={setEffective} />
             </div>
             <TemplateDownload kind="master" />
           </div>

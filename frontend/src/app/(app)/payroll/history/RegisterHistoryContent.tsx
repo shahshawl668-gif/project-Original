@@ -2,6 +2,7 @@
 
 import { apiJson } from "@/lib/api";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { RecentRuns } from "@/components/validation/RecentRuns";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,10 @@ type RegisterDetail = Register & { rows: RegisterRow[] };
 export default function RegisterHistoryContent() {
   const searchParams = useSearchParams();
   const initialId = searchParams.get("id");
+  // Runs first: what was checked and how it went is what people come back for.
+  const [tab, setTab] = useState<"runs" | "registers">(
+    searchParams.get("tab") === "registers" || initialId ? "registers" : "runs",
+  );
 
   const [registers, setRegisters] = useState<Register[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,26 +136,37 @@ export default function RegisterHistoryContent() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Salary registers"
-        title="Payroll history"
-        description={
-          <>
-            Salary registers keyed by calendar month; re-uploading the same{" "}
-            <code className="rounded-md bg-ink-100 px-1.5 py-0.5 text-xs font-semibold text-ink-700">
-              period_month
-            </code>{" "}
-            replaces the prior snapshot for that tenant.
-          </>
-        }
+        title="History"
+        description="Every validation run and every stored salary register, month by month. To check a month, start from the Payroll Control Centre."
         actions={
-          <Button asChild>
-            <Link href="/payroll/upload">
-              <FileText size={16} strokeWidth={2} /> New upload
-            </Link>
+          <Button asChild variant="outline">
+            <Link href="/control-centre">Go to the Control Centre</Link>
           </Button>
         }
       />
 
+      <div role="tablist" aria-label="History" className="flex gap-1 border-b border-ink-200">
+        {([["runs", "Validation runs"], ["registers", "Salary registers"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={
+              tab === key
+                ? "-mb-px border-b-2 border-brand-600 px-3 py-2 text-sm font-semibold text-ink-900"
+                : "-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-ink-600 hover:text-ink-900"
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "runs" ? <RecentRuns /> : null}
+      {tab === "registers" ? (
+        <>
       {error ? (
         <AlertBanner variant="error" title="We hit a snag">
           {error}
@@ -186,10 +202,10 @@ export default function RegisterHistoryContent() {
                 <EmptyState
                   icon={<CalendarDays className="h-6 w-6 text-ink-500" />}
                   title="No registers stored"
-                  description="Upload payroll with an explicit period so we can normalize rows for auditing."
+                  description="A register is stored when a month is checked from the Payroll Control Centre."
                   action={
                     <Button asChild variant="outline">
-                      <Link href="/payroll/upload">Go to upload</Link>
+                      <Link href="/control-centre">Go to the Control Centre</Link>
                     </Button>
                   }
                   className="border-0 bg-transparent py-8"
@@ -422,6 +438,8 @@ export default function RegisterHistoryContent() {
           ) : null}
         </Card>
       </div>
+        </>
+      ) : null}
     </div>
   );
 }

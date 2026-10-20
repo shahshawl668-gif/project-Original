@@ -168,7 +168,7 @@ export default function ControlCentrePage() {
             <Panel
               title="Validation"
               icon={ShieldCheck}
-              href={s.current_run ? `/payroll/results?run=${s.current_run.id}` : "/payroll/validation"}
+              href={s.current_run ? `/payroll/results?run=${s.current_run.id}` : "/payroll/history?tab=runs"}
               linkLabel={s.current_run ? "Results" : "Runs"}
             >
               {s.active_job ? (
@@ -686,7 +686,7 @@ function DashboardHeader({
         </div>
         {canAct ? (
           <div className="flex items-center gap-2">
-            <Button asChild variant="outline"><Link href="/payroll/results">Past results</Link></Button>
+            <Button asChild variant="outline"><Link href="/payroll/history?tab=runs">History</Link></Button>
             <Button asChild><Link href="/payroll/upload">Check a register</Link></Button>
           </div>
         ) : null}
@@ -764,7 +764,7 @@ function ProcessRail({ s, period, current }: { s: PeriodStatus; period: string; 
       <section className="rounded-xl border border-ink-200 bg-white p-4 shadow-soft">
         <div className="flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-ink-900">Validation processes</h2>
-          <Link href="/payroll/validation" className="text-xs font-medium text-brand-700 hover:underline">View all runs</Link>
+          <Link href="/payroll/history?tab=runs" className="text-xs font-medium text-brand-700 hover:underline">View all runs</Link>
         </div>
         {current ? (
           <div className="mt-3 space-y-1">

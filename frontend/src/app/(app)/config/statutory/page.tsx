@@ -26,6 +26,7 @@ import {
   defaultPFConfig, defaultESICConfig,
   getStatutoryConfig, saveStatutoryConfig, resetStatutoryConfig, statutoryVersionsApi,
 } from "@/lib/statutory-config";
+import { MonthSelect } from "@/components/ui/month-select";
 
 // ─── small helpers ────────────────────────────────────────────────────────────
 
@@ -375,7 +376,7 @@ export default function StatutoryConfigPage() {
       >
         <div className="space-y-3">
           <label className="block text-xs font-medium text-ink-700">Takes effect from
-            <input type="month" className="mt-1 block h-9 rounded-lg border border-ink-200 bg-white px-2.5 text-[13px] text-ink-900" value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} />
+            <MonthSelect className="mt-1 block" value={fromMonth} onChange={setFromMonth} />
           </label>
           <label className="block text-xs font-medium text-ink-700">Why (optional)
             <textarea className="mt-1 block min-h-[56px] w-full rounded-lg border border-ink-200 bg-white px-2.5 py-2 text-[13px] text-ink-900" maxLength={2000} value={note} placeholder="e.g. EPFO notification of 1 April raising the wage ceiling" onChange={(e) => setNote(e.target.value)} />

@@ -29,14 +29,12 @@ import {
   Landmark,
   Layers,
   ListTodo,
-  Loader,
   PlugZap,
   Scale,
   ScrollText,
   Settings2,
   Shield,
   Shuffle,
-  UploadCloud,
   UserPlus,
   Users,
   Webhook,
@@ -85,8 +83,6 @@ const ALL_NAV_GROUPS: NavGroup[] = [
     id: "data",
     label: "Data & imports",
     items: [
-      { href: "/payroll/upload", label: "Salary register", icon: UploadCloud },
-      { href: "/payroll/history", label: "Register history", icon: History },
       { href: "/payroll/attendance", label: "Attendance", icon: CalendarDays },
       { href: "/payroll/master", label: "Employee master", icon: Users },
       { href: "/ctc/upload", label: "CTC upload", icon: FileSpreadsheet },
@@ -97,9 +93,9 @@ const ALL_NAV_GROUPS: NavGroup[] = [
     id: "validation",
     label: "Validation & findings",
     items: [
-      { href: "/payroll/validation", label: "Validation runs", icon: Loader },
       { href: "/payroll/results", label: "Results", icon: ClipboardCheck },
       { href: "/payroll/issues", label: "Issues", icon: ListTodo },
+      { href: "/payroll/history", label: "History", icon: History },
     ],
   },
   {
@@ -204,6 +200,9 @@ export const ADMIN_ITEMS: NavItem[] = [
 
 /** Pages reached from another page: pattern → [parent menu href, crumb label]. */
 export const DETAIL_ROUTES: [RegExp, string, string][] = [
+  // The month's process starts in the Control Centre; its steps sit beneath it.
+  [/^\/payroll\/upload/, "/control-centre", "Check a register"],
+  [/^\/payroll\/validation/, "/control-centre", "Validation"],
   [/^\/payroll\/results\/why/, "/payroll/results", "Why this result?"],
   [/^\/payroll\/runs\/compare/, "/payroll/results", "Compare runs"],
   [/^\/payroll\/employee\//, "/payroll/results", "Employee"],

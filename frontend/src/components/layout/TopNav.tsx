@@ -102,7 +102,7 @@ export function TopNav({ groups }: { groups: NavGroup[] }) {
                       ))}
                     </ul>
                   ) : null}
-                  <ul className={cn("grid gap-x-1 p-2", menu.sections.length > 1 ? "min-w-[420px] grid-cols-2" : "min-w-[320px] grid-cols-1 sm:grid-cols-2")}>
+                  <ul className={cn("grid gap-x-1 p-2", menu.sections.length > 1 ? "min-w-[420px] grid-cols-2" : "min-w-[400px] grid-cols-1 sm:grid-cols-2")}>
                     {(menu.sections.find((g) => g.id === sectionId) ?? menu.sections[0]).items.map((item) => {
                       const Icon = item.icon;
                       const active = isActiveHref(pathname, item.href);

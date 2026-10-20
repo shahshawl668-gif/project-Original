@@ -18,6 +18,7 @@ import { count, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { monthLabel, validationApi, type RegisterUpload, type ValidationJob } from "@/lib/validation";
 import { normalisePeriod, useWorkingPeriod } from "@/lib/workspace";
+import { MonthSelect } from "@/components/ui/month-select";
 
 type PreviewRow = Record<string, unknown>;
 type ImportProfile = { id: string; name: string; column_mapping: Record<string, string> };
@@ -263,7 +264,7 @@ export default function UploadPage() {
         actions={
           <>
             <TemplateDownload kind="register" />
-            <Button variant="outline" asChild><Link href="/payroll/history"><History size={14} /> Register history</Link></Button>
+            <Button variant="outline" asChild><Link href="/payroll/history"><History size={14} /> History</Link></Button>
           </>
         }
       />
@@ -348,12 +349,12 @@ export default function UploadPage() {
           <div className="space-y-4">
             <div>
               <label htmlFor="period" className="text-[13px] font-medium text-ink-800">Payroll month</label>
-              <input
+              <MonthSelect
                 id="period"
-                type="month"
                 value={periodMonth}
-                onChange={(e) => { setPeriodMonth(normalisePeriod(e.target.value) ?? ""); setChecked(null); if (phase === "checked") setPhase("map"); }}
-                className="mt-1 block h-9 w-full max-w-[14rem] rounded-lg border border-ink-200 bg-white px-3 text-[13px] shadow-soft focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                placeholder="Choose the payroll month"
+                onChange={(v) => { setPeriodMonth(normalisePeriod(v) ?? ""); setChecked(null); if (phase === "checked") setPhase("map"); }}
+                className="mt-1 block w-full max-w-[14rem]"
                 aria-describedby="period-help"
               />
               <p id="period-help" className="mt-1 text-xs text-ink-500">

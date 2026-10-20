@@ -146,8 +146,8 @@ Configuration, open when you are in them.
 | Group | What is inside |
 |---|---|
 | **Overview** | Payroll Control Centre, Companies |
-| **Data & imports** | Salary register, Register history, Attendance, Employee master, CTC upload and history |
-| **Validation & findings** | Validation runs, Results, Issues |
+| **Data & imports** | Attendance, Employee master, CTC upload and history. The salary register is checked from the Payroll Control Centre (**Check a register**) — the one place the month is processed |
+| **Validation & findings** | Results, Issues, History (every validation run and every stored register) |
 | **Reconciliation & approvals** | Month close & approval, Bank payments, Journal voucher |
 | **Analytics & dashboards** | Dashboards, Cost analysis |
 | **Reports** | Report Centre, Report Builder |
@@ -262,7 +262,7 @@ Dates are read day first, as Indian files write them: `01/04/2026` is
 
 ### Step 2 — Upload the register
 
-**Data & imports → Salary register.** Four stages, shown across the top; each
+**Home → Payroll Control Centre → Check a register.** Four stages, shown across the top; each
 says what happened before the next one starts.
 
 ![Salary register — mapping columns](images/02-payroll-upload.png)
@@ -302,7 +302,7 @@ says what happened before the next one starts.
 **Run validation** you are taken to a progress page showing the stage (reading
 the register, checking employees, saving results) and how many employees have
 been checked. **You can close the page** — the validation keeps going, the
-upload page shows a link back to it, and **Validation & findings → Validation runs** lists every
+upload page shows a link back to it, and **Validation & findings → History** lists every
 validation with its outcome. A large register (thousands of employees) takes a
 few minutes.
 
@@ -763,9 +763,12 @@ choices, not a frozen result: it reads current data each time.
 
 ![Report Builder](images/36-report-builder.png)
 
-### Register history
+### History
 
-**Data & imports → Register history.** Every register uploaded, by period.
+**Validation & findings → History.** The one place for what has already happened: the
+**Validation runs** tab lists every validation with its outcome (finished runs open their results,
+running ones their progress), and the **Salary registers** tab holds every register stored, by
+month. Processing a month is never started from here — that is the Control Centre.
 
 ![Register history](images/13-register-history.png)
 
@@ -847,7 +850,7 @@ can revoke instantly. Your owner controls this under
 entirely.
 
 **I closed the browser during validation. Is it lost?**
-No. It kept running on the server. Open **Validation & findings → Validation runs**, or the upload
+No. It kept running on the server. Open **Validation & findings → History**, or the upload
 page, which links to any validation still in progress.
 
 **We re-uploaded the register. Where did the first results go?**

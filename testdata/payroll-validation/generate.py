@@ -304,8 +304,8 @@ Regenerate with `cd backend && PYTHONPATH=. python ../testdata/payroll-validatio
 | 2 | Data & imports -> **Employee master** (effective 2026-04-01) | `2_employee_master.csv` |
 | 3 | Data & imports -> **CTC upload** (effective 2026-04-01) | `3_ctc_report.csv` |
 | 4 | Data & imports -> **Attendance** (period August 2026) | `4_attendance_report.csv` |
-| 5 | Data & imports -> **Salary register**, period **July 2026**, then Run validation (this is last month, so August can be compared with it) | `6_previous_month_register_july.csv` |
-| 6 | Data & imports -> **Salary register**, period **August 2026**, then Run validation. Open Results | `5_salary_register.csv` |
+| 5 | Control Centre -> **Check a register**, period **July 2026**, then Run validation (this is last month, so August can be compared with it) | `6_previous_month_register_july.csv` |
+| 6 | Control Centre -> **Check a register**, period **August 2026**, then Run validation. Open Results | `5_salary_register.csv` |
 
 Step 1 is the *one-file* setup: salary components and their PF/ESIC/PT flags, PF ceiling 25,000,
 ESIC ceiling 21,000, PT states and slabs, and the PF/ESIC formulas in Excel style (inside the Statutory engine settings). It replaces only

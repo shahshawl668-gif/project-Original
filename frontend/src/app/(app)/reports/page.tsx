@@ -182,7 +182,7 @@ export default function ReportsPage() {
           ) : null}
           {!periods.isLoading && !periods.isError && available.length === 0 ? (
             <AlertBanner variant="warning" title="No salary register stored for this company">
-              Register-based reports will contain no months — an empty workbook, not a zero payroll. <Link href="/payroll/upload" className="font-medium underline">Upload a register</Link>.
+              Register-based reports will contain no months — an empty workbook, not a zero payroll. <Link href="/control-centre" className="font-medium underline">Check a register from the Control Centre</Link>.
             </AlertBanner>
           ) : null}
 

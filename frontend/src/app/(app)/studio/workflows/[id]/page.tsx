@@ -29,6 +29,7 @@ import {
   type WorkflowDefinition,
 } from "@/lib/studio";
 import { cn } from "@/lib/utils";
+import { MonthSelect } from "@/components/ui/month-select";
 
 const FIELD =
   "w-full rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900";
@@ -184,7 +185,7 @@ export default function WorkflowBuilderPage() {
           <label className="text-xs font-semibold text-ink-700">Sample event (what the trigger would carry)
             <textarea aria-label="Sample event" className={cn(FIELD, "mt-1 h-28 font-mono text-xs")} value={sample} onChange={(e) => setSample(e.target.value)} /></label>
           <div className="space-y-2">
-            <label className="block text-xs font-semibold text-ink-700">Month<input type="month" aria-label="Month" className={cn(FIELD, "mt-1")} value={month} onChange={(e) => setMonth(e.target.value)} /></label>
+            <label className="block text-xs font-semibold text-ink-700">Month<MonthSelect aria-label="Month" className="mt-1 block w-full" placeholder="Current month" value={month} onChange={setMonth} /></label>
             <TestButton className="w-full" onClick={() => void runDry()}>Dry run — changes nothing</TestButton>
             {canManage && w.status === "active" ? <button type="button" disabled={busy} onClick={() => void act(() => studioFlowApi.run(w.id, month ? `${month}-01` : undefined), "Run started")} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white"><PlayCircle size={14} /> Run now (v{w.active_version})</button> : null}
           </div>

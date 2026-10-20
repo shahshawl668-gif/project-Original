@@ -5,7 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRight, ClipboardCheck, Download, GitCompare, HelpCircle, ListTodo, RefreshCw, Search, UploadCloud } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Download, GitCompare, HelpCircle, ListTodo, RefreshCw, Search } from "lucide-react";
 
 import { DataTable, FilterSelect, Pagination, type Column, type Sort } from "@/components/data/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -764,8 +764,8 @@ function PayrollResultsContent() {
         <PageHeader title="Validation results" description="Each validation is kept as a run on the server. Nothing has been validated for this company yet." />
         <EmptyState
           title="No validation runs yet"
-          description="Upload a register and queue its validation. If one is already running, follow it from Validation runs."
-          action={<div className="flex gap-2"><Button asChild><Link href="/payroll/upload"><UploadCloud size={14} /> Upload a register</Link></Button><Button asChild variant="outline"><Link href="/payroll/validation">Validation runs</Link></Button></div>}
+          description="A month is checked from the Payroll Control Centre. Earlier runs, and one still running, are under History."
+          action={<div className="flex gap-2"><Button asChild><Link href="/control-centre">Go to the Control Centre</Link></Button><Button asChild variant="outline"><Link href="/payroll/history?tab=runs">History</Link></Button></div>}
         />
       </div>
     );
