@@ -51,6 +51,8 @@ MASTER_FIELDS = (
     "employee_name", "date_of_joining", "date_of_exit", "date_of_birth",
     "gender", "work_state", "work_location", "department", "designation",
     "grade", "business_unit", "cost_center", "employment_type", "skill_category", "pf_restricted",
+    "eps_member", "vpf_declared", "employment_status", "mw_zone", "scheduled_employment",
+    "bank_changed_on", "bank_change_proof",
     "pan", "aadhaar", "uan", "pf_number", "esic_ip_number", "bank_account", "ifsc",
 )
 

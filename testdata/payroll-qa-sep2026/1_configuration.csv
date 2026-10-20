@@ -57,6 +57,7 @@ statutory,1,pf_employee_rate,0.12
 statutory,1,pf_wage_ceiling,15000
 statutory,1,pf_restrict_to_ceiling,Yes
 statutory,1,pf_employee_formula,
+statutory,1,pf_on_code_wages,
 statutory,1,esic_employee_rate,0.0075
 statutory,1,esic_wage_ceiling,21000
 statutory,1,esic_rounding,up

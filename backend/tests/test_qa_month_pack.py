@@ -17,7 +17,9 @@ import pytest
 PACK = Path(__file__).resolve().parents[2] / "testdata" / "payroll-qa-sep2026"
 PASSWORD = "Passw0rd!x"
 KEY = json.loads((PACK / "answer_key.json").read_text())
-BACKGROUND = {"LC-001"}
+# LC-001 and MW-005 read the CTC: Basic + DA below half of pay, or below the minimum wage on its own,
+# are structure review points listed in the README, not payroll errors of the month.
+BACKGROUND = {"LC-001", "MW-005"}
 
 
 def _file(name: str):

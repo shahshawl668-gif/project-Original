@@ -58,12 +58,22 @@ def table(db: Session, entity: Entity, kind: str) -> dict[str, Any]:
             ("Increment Arrear", "Total increment arrear paid this month (blank if none).", "0"),
             ("Arrear From", "First month the arrear covers, YYYY-MM-DD (blank if none).", ""),
             ("Arrear To", "Last month the arrear covers, YYYY-MM-DD (blank if none).", ""),
+            ("LOP Reversal Days", "Days of an earlier month's LOP paid back this month (blank if none).", ""),
+            ("LOP Reversal Amount", "Amount paid back for those days (blank if none).", ""),
             ("Gross", "Total earnings.", "0"),
             ("PF Employee", "Employee PF deducted.", "0"),
+            ("PF Employee Arrear", "Employee PF recovered for an earlier month, e.g. the September 2026 ceiling "
+                                   "shortfall (blank if none).", ""),
+            ("VPF", "Voluntary PF above 12%, only where declared (blank if none).", ""),
             ("ESIC Employee", "Employee ESIC deducted.", "0"),
             ("PT", "Professional tax deducted.", "0"),
             ("LWF Employee", "Labour welfare fund deducted.", "0"),
             ("TDS", "Income tax deducted.", "0"),
+            ("Loan EMI", "Loan instalment recovered (blank if none).", ""),
+            ("Notice Recovery", "Notice-pay recovery (blank if none).", ""),
+            ("Approval Ref", "Approval reference for the month's one-time inputs: incentive, reimbursement, "
+                             "loan EMI, notice recovery.", ""),
+            ("Input Month", "Month the one-time inputs belong to, YYYY-MM (blank: this month).", ""),
             ("Total Deductions", "All deductions.", "0"),
             ("Net", "Net pay.", "0"),
         ]
@@ -104,12 +114,20 @@ def table(db: Session, entity: Entity, kind: str) -> dict[str, Any]:
             ("Grade", "Grade or band.", ""),
             ("Cost Centre", "Cost centre code.", ""),
             ("Employment Type", "Permanent / Contract / Trainee.", "Permanent"),
+            ("Employment Status", "Active / On hold / Absconding — a held salary is not paid.", "Active"),
+            ("Skill Category", "Minimum-wage skill: Unskilled / Semi-skilled / Skilled / Highly skilled.", "Skilled"),
+            ("MW Zone", "Minimum-wage zone as notified for the work location (blank: all zones).", ""),
+            ("Scheduled Employment", "Minimum-wage scheduled employment (blank: all).", ""),
+            ("EPS Member", "Yes / No — No only for someone kept out of the pension scheme.", "Yes"),
+            ("VPF Declared", "Yes when the employee has declared voluntary PF.", ""),
             ("UAN", "12-digit PF universal account number.", ""),
             ("ESIC IP Number", "ESIC insurance number.", ""),
             ("PAN", "Permanent account number.", ""),
             ("Aadhaar", "12-digit Aadhaar number.", ""),
             ("Bank Account", "Salary account number.", ""),
             ("IFSC", "Bank IFSC code.", ""),
+            ("Bank Changed On", "YYYY-MM-DD the salary account last changed.", ""),
+            ("Bank Change Proof", "Reference of the proof on file (cancelled cheque, bank letter).", ""),
         ]
     else:
         raise KeyError(kind)

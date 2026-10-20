@@ -219,6 +219,8 @@ def build_findings(
     pt_known: bool = False,
     lwf_known: bool = False,
     employed_days: int | None = None,
+    ctc_components: dict[str, Decimal] | None = None,
+    revision_explains: bool = False,
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
 
@@ -370,7 +372,10 @@ def build_findings(
 
     lc = t.labour_codes
     lc_period = period_month if isinstance(period_month, date) else None
-    lc_wage = labour_codes.wage_test(regular, comp_by_key, lc) if labour_codes.in_force(lc, lc_period) else None
+    # The 50% test is about the pay structure, so it reads the CTC break-up, not what
+    # a month's register happened to pay. Without a CTC on file it is not run here.
+    lc_wage = (labour_codes.wage_test(ctc_components, comp_by_key, lc)
+               if ctc_components and labour_codes.in_force(lc, lc_period) else None)
     # The structure test is about a month's salary: an arrears-only row is not one.
     lc_regular = composition is None or getattr(composition, "has_regular", True)
     if lc_wage is not None and lc_regular and lc_wage.basis_known and lc_wage.remuneration > 0:
@@ -381,7 +386,8 @@ def build_findings(
             fail("LC-001", "Wages Below Half of Remuneration (Labour Codes)", "wages",
                  f"≥ {floor_pct}% of remuneration ({_fmt(_q(lc_wage.remuneration * floor_pct / Decimal('100')))})",
                  _fmt(lc_wage.wages), "WARNING",
-                 f"Wages ({lc_wage.basis}) are {_fmt(lc_wage.wages)}, {float(lc_wage.wage_pct):.1f}% of "
+                 f"On the CTC break-up, wages ({lc_wage.basis}) are {_fmt(lc_wage.wages)}, "
+                 f"{float(lc_wage.wage_pct):.1f}% of "
                  f"remuneration {_fmt(lc_wage.remuneration)}. Under the Code on Wages s.2(y), exclusions above "
                  f"{cap}% ({_fmt(lc_wage.allowed)}) are deemed wages: {_fmt(lc_wage.deemed_addition)} is added, "
                  f"so wages for PF, gratuity and bonus are {_fmt(lc_wage.code_wages)}. {pf_text}".rstrip(),
@@ -419,6 +425,11 @@ def build_findings(
             # component, as one increment-arrear total, or both (the total repeating
             # the components), so any of those readings reconciles.
             expected_gross = calc_gross
+            # Pay given back for earlier months' LOP is an earning of this month.
+            reversal_paid = _dec(stated(row, "lop_reversal_amount"))
+            if reversal_paid > 0 and (actual_gross - calc_gross - reversal_paid).copy_abs() <= tol_gross:
+                calc_gross = calc_gross + reversal_paid
+                expected_gross = calc_gross
             if composition is not None and composition.any_arrear:
                 readings = [calc_gross + composition.arrear_total + composition.increment_arrear_total,
                             calc_gross + composition.arrear_total, calc_gross + composition.increment_arrear_total]
@@ -469,9 +480,66 @@ def build_findings(
     pf_capped  = _dec(pf_calc.get("pf_wage_capped", 0))
 
     pf_emp_raw = stated(row, "pf_employee", "pf_emp")
+    transition = pf_calc.get("_transition")
+    recovery_due = _dec(pf_calc.get("_recovery_due", 0))
+    recovery_line = _dec(stated(row, "pf_employee_arrear", "pf_arrear", "pf_recovery"))
     if pf_emp_raw not in (None, ""):
         pf_emp_actual = _dec(pf_emp_raw)
         diff_pf = (pf_emp_actual - pf_emp_exp).copy_abs()
+        # The month the ceiling changed: worked on the old ceiling it is short by the
+        # difference (recoverable next month); worked on the new one for the whole
+        # month it is accepted. Anything in between is the day-weighted figure.
+        if diff_pf > tol_stat and transition:
+            old_amt, new_amt = _dec(transition["old_amount"]), _dec(transition["new_amount"])
+            if (pf_emp_actual - old_amt).copy_abs() <= tol_stat and pf_emp_exp - pf_emp_actual > tol_stat:
+                info("PF-012", "PF Ceiling Change — Shortfall To Recover", "pf_employee",
+                     _fmt(pf_emp_exp), _fmt(pf_emp_actual),
+                     f"The PF ceiling rose from ₹{_dec(transition['old']):,.0f} to ₹{_dec(transition['new']):,.0f} on "
+                     f"{transition['effective_from']}. This month was worked on the old ceiling; on the day-weighted "
+                     f"ceiling the employee share is {_fmt(pf_emp_exp)}, so {_fmt(pf_emp_exp - pf_emp_actual)} is short.",
+                     "Recover the shortfall in next month's payroll as a separate PF arrear line — no separate EPFO "
+                     "approval is needed — and only once.")
+                diff_pf = Decimal("0")
+            elif min(old_amt, new_amt) - tol_stat <= pf_emp_actual <= max(old_amt, new_amt) + tol_stat:
+                diff_pf = Decimal("0")
+        # The month after a change month: the shortfall may be recovered inside the PF line.
+        recovered_in_line = (recovery_due > 0 and diff_pf > tol_stat
+                             and (pf_emp_actual - (pf_emp_exp + recovery_due)).copy_abs() <= tol_stat)
+        if recovered_in_line:
+            diff_pf = Decimal("0")
+        if recovery_due > 0:
+            month = pf_calc.get("_recovery_month", "last month")
+            if recovered_in_line and recovery_line > tol_stat:
+                fail("PF-012", "PF Ceiling Shortfall Recovered Twice", "pf_employee_arrear",
+                     _fmt(recovery_due), _fmt(recovery_due + recovery_line), "CRITICAL",
+                     f"The {month} shortfall of {_fmt(recovery_due)} is inside the PF line and again as a separate "
+                     f"arrear line of {_fmt(recovery_line)}.",
+                     "Recover it once: keep the arrear line and take the PF line back to the month's own PF.",
+                     float(recovery_line))
+            elif recovered_in_line:
+                pass_("PF-012", "PF Ceiling Shortfall Recovered", "pf_employee", _fmt(pf_emp_actual),
+                      f"The {month} shortfall of {_fmt(recovery_due)} is recovered within this month's PF.")
+            elif recovery_line <= tol_stat:
+                fail("PF-012", "PF Ceiling Shortfall Not Recovered", "pf_employee_arrear",
+                     _fmt(recovery_due), "0.00", "WARNING",
+                     f"{month} was worked on the old PF ceiling and is short by {_fmt(recovery_due)} employee PF. "
+                     "This month's register has no PF arrear line for it.",
+                     "Add a 'PF Employee Arrear' line for the shortfall, or record why it is not being recovered.",
+                     float(recovery_due))
+            elif (recovery_line - recovery_due).copy_abs() > tol_stat:
+                fail("PF-012", "PF Ceiling Shortfall Recovered Wrong", "pf_employee_arrear",
+                     _fmt(recovery_due), _fmt(recovery_line), "WARNING",
+                     f"The {month} shortfall is {_fmt(recovery_due)}; the arrear line recovers {_fmt(recovery_line)}.",
+                     f"Correct the PF arrear line to ₹{_fmt(recovery_due)}.",
+                     float((recovery_line - recovery_due).copy_abs()))
+            else:
+                pass_("PF-012", "PF Ceiling Shortfall Recovered", "pf_employee_arrear", _fmt(recovery_line),
+                      f"The {month} shortfall of {_fmt(recovery_due)} is recovered as a separate line.")
+        elif recovery_line > tol_stat and pf_calc.get("_recovery_repeated"):
+            fail("PF-013", "PF Recovery Repeated", "pf_employee_arrear", "0.00", _fmt(recovery_line), "CRITICAL",
+                 f"A PF arrear of {_fmt(recovery_line)} is deducted again; last month already recovered one.",
+                 "Stop the repeated recovery and refund it unless a second, separate shortfall is documented.",
+                 float(recovery_line))
         if diff_pf > tol_stat:
             # Before calling it a miscalculation, check whether the figure is
             # simply the *other* restriction basis computed correctly. That
@@ -565,15 +633,22 @@ def build_findings(
     if esic_emp_raw not in (None, ""):
         esic_emp_actual = _dec(esic_emp_raw)
         diff_esic = (esic_emp_actual - esic_emp_exp).copy_abs()
+        period_note = ""
+        if esic_calc.get("_continued_from"):
+            period_note = (f" Covered since {esic_calc['_continued_from']}, so ESIC continues to the end of this "
+                           "contribution period even though the wage is now above the ceiling.")
+        elif esic_calc.get("_period_ended"):
+            period_note = (f" A new contribution period began in {esic_calc['_period_ended']}: with the wage above "
+                           "the ceiling, coverage ended with the last period and no ESIC is due.")
         if diff_esic > tol_stat:
             fail("STAT-006", "ESIC Employee Contribution Mismatch", "esic_employee",
                  esic_emp_exp, esic_emp_actual, "CRITICAL",
                  f"ESIC employee ({_fmt(esic_emp_actual)}) ≠ {_fmt(esic_paid_wage)} × "
-                 f"{esic_emp_rate_pct:.4f}% = {_fmt(esic_emp_exp)}.",
+                 f"{esic_emp_rate_pct:.4f}% = {_fmt(esic_emp_exp)}.{period_note}",
                  f"Correct esic_employee to ₹{_fmt(esic_emp_exp)}.",
                  float(diff_esic))
         else:
-            pass_("STAT-006", "ESIC Employee Contribution", "esic_employee", esic_emp_actual)
+            pass_("STAT-006", "ESIC Employee Contribution", "esic_employee", esic_emp_actual, period_note.strip())
     elif esic_eligible and esic_emp_exp > Decimal("0"):
         info("STAT-006", "ESIC Employee Column Absent", "esic_employee",
              _fmt(esic_emp_exp), "(missing)",
@@ -748,7 +823,8 @@ def build_findings(
              "No prior-month record found. Confirm joining date and validate partial-month salary.",
              "Check joining date. If mid-month joiner, verify proration using LOP-002 rules.")
 
-    if prior_components is not None and not prior_is_joiner:
+    if prior_components is not None and not prior_is_joiner and not revision_explains:
+        # A CTC revision effective last month or this one explains the movement.
         arrear_present = inc_arrear_total > Decimal("0") or any(v > 0 for v in arrear_by_base.values())
 
         for k, old_val_f in prior_components.items():
@@ -996,7 +1072,9 @@ def build_findings(
     eps_raw = stated(row, "eps", "pf_eps", "eps_employer")
     if eps_raw not in (None, ""):
         eps_actual = _dec(eps_raw)
-        eps_cap = t.pf_deep.eps_wage_cap
+        # The EPS wage cap is the PF ceiling in force for the month (₹25,000 from
+        # 17 Sep 2026, so up to ₹2,083), never a second, separately kept figure.
+        eps_cap = _dec(pf_calc.get("_ceiling") or t.pf_deep.eps_wage_cap)
         eps_expected = _q(min(pf_wage_total, eps_cap) * t.pf_deep.eps_rate)
         eps_zero_reason = ""
         cutoff = idc.parse_cell_date(t.pf_deep.eps_join_cutoff)

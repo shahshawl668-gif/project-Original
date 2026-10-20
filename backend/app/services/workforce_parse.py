@@ -46,6 +46,13 @@ EMPLOYEE_MASTER_ALIASES: dict[str, tuple[str, ...]] = {
     "skill_category": ("skill_category", "skill", "skill_level", "skill_type", "minimum_wage_category"),
     "pf_restricted": ("pf_restricted", "pf_restriction", "pf_capped", "pf_cap", "restrict_pf",
                       "pf_ceiling_applied", "pf_limit_applied", "pf_basis"),
+    "eps_member": ("eps_member", "eps", "eps_applicable", "eps_eligible", "pension_member", "eps_covered"),
+    "vpf_declared": ("vpf_declared", "vpf", "vpf_opted", "voluntary_pf", "vpf_declaration"),
+    "employment_status": ("employment_status", "status", "employee_status", "emp_status", "salary_status"),
+    "mw_zone": ("mw_zone", "zone", "minimum_wage_zone", "wage_zone", "area_zone"),
+    "scheduled_employment": ("scheduled_employment", "schedule_of_employment", "industry_schedule"),
+    "bank_changed_on": ("bank_changed_on", "bank_change_date", "bank_updated_on", "account_changed_on"),
+    "bank_change_proof": ("bank_change_proof", "bank_proof", "bank_change_reference", "cancelled_cheque_ref"),
     "pan": ("pan", "pan_no", "pan_number", "income_tax_pan"),
     "aadhaar": ("aadhaar", "aadhar", "aadhaar_no", "aadhar_no", "aadhaar_number", "uidai"),
     "uan": ("uan", "uan_no", "uan_number", "universal_account_number"),
@@ -68,8 +75,8 @@ ATTENDANCE_ALIASES: dict[str, tuple[str, ...]] = {
     "overtime_hours": ("overtime_hours", "ot_hours", "overtime", "ot", "ot_hrs"),
 }
 
-DATE_FIELDS = {"date_of_joining", "date_of_exit", "date_of_birth"}
-BOOLEAN_FIELDS = {"pf_restricted"}
+DATE_FIELDS = {"date_of_joining", "date_of_exit", "date_of_birth", "bank_changed_on"}
+BOOLEAN_FIELDS = {"pf_restricted", "eps_member", "vpf_declared"}
 DECIMAL_FIELDS = {
     "calendar_days", "present_days", "paid_days", "lop_days",
     "paid_leave_days", "weekly_off_days", "holiday_days", "overtime_hours",

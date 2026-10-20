@@ -50,6 +50,13 @@ class EmployeeRecordOut(BaseModel):
     pan: str | None
     uan: str | None
     esic_ip_number: str | None
+    eps_member: bool | None = None
+    vpf_declared: bool | None = None
+    employment_status: str | None = None
+    mw_zone: str | None = None
+    scheduled_employment: str | None = None
+    bank_changed_on: date | None = None
+    bank_change_proof: str | None = None
 
 
 class AttendanceRegisterOut(BaseModel):

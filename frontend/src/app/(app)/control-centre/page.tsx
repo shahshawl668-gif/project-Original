@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
 import { useEntity } from "@/context/EntityContext";
+import { apiJson } from "@/lib/api";
 import { fetchAttendanceRegisters } from "@/lib/attendance";
 import { saveBlob } from "@/lib/download";
 import { count, dateTime, inr, pct, plural } from "@/lib/format";
@@ -87,6 +88,12 @@ export default function ControlCentrePage() {
     queryKey: ["period-runs", entity?.id, period],
     queryFn: () => validationApi.runs({ period_month: periodDate!, include_superseded: true, limit: 20 }),
     enabled,
+  });
+  const headcount = useQuery({
+    queryKey: ["headcount", entity?.id, period],
+    queryFn: () => apiJson<Headcount>(`/api/validation/periods/${periodDate}/headcount`),
+    enabled,
+    retry: false,
   });
   const worklist = useQuery({
     queryKey: ["worklist-summary", entity?.id],
@@ -154,6 +161,7 @@ export default function ControlCentrePage() {
                   <span className="text-ink-500">Not uploaded for {periodLabel(period)}</span>
                 )}
               </Row>
+              <HeadcountRow data={headcount.data} runId={s.current_run?.id} />
               <Row label="Attendance" state={attendance.isError ? "unknown" : monthAttendance.length ? "ok" : "missing"}>
                 {attendance.isError ? (
                   <span className="text-ink-500">Could not be checked</span>
@@ -475,6 +483,58 @@ function Steps({ s }: { s: PeriodStatus }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+type Headcount = {
+  available: boolean;
+  reason?: string;
+  last_month?: number;
+  joiners?: number;
+  exits?: number;
+  expected?: number;
+  this_month?: number;
+  gap?: number;
+  missing_without_exit?: string[];
+  left_this_month_unpaid?: string[];
+  unexplained_additions?: string[];
+};
+
+/** Last month's paid headcount + joiners − exits against this month's register, with each gap named. */
+function HeadcountRow({ data, runId }: { data?: Headcount; runId?: string }) {
+  if (!data) return null;
+  if (!data.available) {
+    return (
+      <Row label="Headcount roll-forward" state="unknown">
+        <span className="text-ink-500">{data.reason}</span>
+      </Row>
+    );
+  }
+  const named = [
+    ...(data.missing_without_exit ?? []).map((e) => `${e} missing, no exit`),
+    ...(data.left_this_month_unpaid ?? []).map((e) => `${e} left this month, no final pay`),
+    ...(data.unexplained_additions ?? []).map((e) => `${e} added, not a joiner`),
+  ];
+  return (
+    <Row label="Headcount roll-forward" state={named.length ? "warn" : "ok"}>
+      <span className="num block text-ink-800">
+        {data.last_month} last month + {data.joiners} joined − {data.exits} left = {data.expected} · this month {data.this_month}
+      </span>
+      {named.length ? (
+        <span className="block text-warning-800">
+          {named.slice(0, 4).join(" · ")}
+          {named.length > 4 ? ` · and ${named.length - 4} more` : ""}
+          {runId ? (
+            <>
+              {" "}
+              <Link href={`/payroll/results?run=${runId}&tab=findings`} className="underline">See findings</Link>
+            </>
+          ) : null}
+        </span>
+      ) : (
+        <span className="text-ink-500">Every change is a joiner or an exit.</span>
+      )}
+    </Row>
   );
 }
 

@@ -164,12 +164,28 @@ Configuration, open when you are in them.
 ### How the statutory checks read a month
 
 * **PF** is on the earned PF wage, restricted to the ceiling when the company is on the restricted
-  basis. **PF on arrears** is worked month by month: each month an arrear relates to is taken to the
+  basis. The **statutory ceiling is applied by date**: ₹15,000 up to 16 September 2026 and ₹25,000 from
+  17 September 2026 (S.O. 5109(E)), for EPF, EPS and EDLI alike — so the capped employee share is
+  ₹3,000 and EPS up to ₹2,083. September 2026 is day-weighted (16 days at ₹15,000, 14 at ₹25,000); a
+  September worked on the old ceiling is reported as a shortfall to recover (PF-012, info), and in
+  October the tool checks the recovery is there, for the right amount, and only once — as a separate
+  *PF Employee Arrear* line or inside the PF line, not both (PF-012), and never again later (PF-013).
+  A company ceiling set higher than the statute stands. Under **Statutory engine → PF** you can also
+  choose *PF on the Labour Code wage*: PF is then expected on Basic + DA plus the allowances above
+  half of pay, prorated for paid days.
+* **EPS and UAN**: an employee the master marks *EPS Member: No* whose PF wage is within the ₹25,000
+  ceiling is flagged from 17 September 2026 (PF-010); anyone PF is due for without a UAN (MST-007),
+  and anyone ESIC covers without an IP number (MST-008), is named even when nothing was deducted.
+  Voluntary PF is accepted only where the master records *VPF Declared* (PF-014). **PF on arrears** is worked month by month: each month an arrear relates to is taken to the
   ceiling on its own, so an arrear for someone already at the ceiling carries no further PF (ARR-004).
 * **ESIC coverage** follows the full-month rate of wages: loss of pay, joining or leaving part-way
   through the month does not bring someone on ₹24,000 a month under ESIC. The contribution is on
   what is paid, **arrears included**, for a covered employee. An employee outside ESIC is recorded
-  as a passed check (STAT-005), not as a problem.
+  as a passed check (STAT-005), not as a problem. Coverage follows the **contribution period**
+  (April–September, October–March): someone covered earlier in the period stays covered to its end
+  even after crossing ₹21,000, and October and April decide coverage afresh — a deduction that carries
+  on into a new period for someone now above the ceiling is reported. Overtime paid to a covered
+  employee must be in the ESIC wage (ESI-009).
 * **PT and LWF** are checked in every state the company runs them in — the states in the settings
   *and* every state whose slabs are saved on the Professional tax / Labour welfare fund tabs; those
   tabs open on your company's own states. A deduction where the slab says nil (a woman's slab, a
@@ -180,7 +196,28 @@ Configuration, open when you are in them.
   month (from the employee master), so a joiner on the 11th paid 20 days with no loss of pay is
   correct, and the part month is not reported as a pay drop.
 * **Minimum wage** is measured on the CTC break-up, HRA, overtime, bonus, arrears and employer
-  contributions excluded; allowances such as *Other Allowance* count.
+  contributions excluded; allowances such as *Other Allowance* count. The rate is chosen by state,
+  skill category, **zone** and scheduled employment from the employee master as at the month end, so a
+  transfer changes it. The **50% wage rule** (Code on Wages) is also checked on the CTC break-up
+  (LC-001), and the wages under the Code — Basic + DA plus the allowances above half of pay — must meet
+  the minimum wage on their own (MW-005).
+* **Before the run**: the Control Centre shows the **headcount roll-forward** — last month + joiners −
+  exits against this month — and names each gap: someone paid last month who is missing with no exit
+  (HC-001), or someone back on the register without joining this month (HC-002). A salary paid to an
+  employee the master marks *On hold* or *Absconding* is critical (MST-009). The bank account must match
+  the master (DATA-014), and a change this month needs a proof reference (DATA-013). One-time inputs —
+  incentive, reimbursement, loan EMI, notice recovery — need an *Approval Ref* and, where an *Input
+  Month* is given, the right month (OTI-001, OTI-002). An arrear already paid in an earlier month is
+  flagged (ARR-005), and a *LOP Reversal* must match LOP actually taken and be worth the right amount
+  (LOP-004, LOP-005).
+* **Earnings and outliers**: every component must be prorated on the same days (LOP-006). Month on
+  month, a component moving more than **10%** is reported (the threshold is a rule setting), unless a
+  CTC revision effective last month or this one explains it, and net pay moving more than gross does —
+  a deduction nobody explained — is reported too (ADV-004).
+* **New employee-master columns** (all optional): Employment Status, Skill Category, MW Zone, Scheduled
+  Employment, EPS Member, VPF Declared, Bank Changed On, Bank Change Proof. **New register columns**:
+  PF Employee Arrear, VPF, LOP Reversal Days, LOP Reversal Amount, Loan EMI, Notice Recovery, Approval
+  Ref, Input Month. The templates carry them.
 
 A ready-made month to try all of this is in `testdata/payroll-qa-sep2026` (load order and answer key in
 its README).

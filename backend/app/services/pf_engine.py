@@ -13,6 +13,9 @@ The function compute_pf() is the single entry point.
 """
 from __future__ import annotations
 
+import calendar
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
@@ -33,6 +36,58 @@ def _dec(v: Any) -> Decimal:
         return Decimal(str(v))
     except Exception:
         return Decimal("0")
+
+
+# ── The statutory PF wage ceiling, by the day it took effect ──────────────────
+# EPF, EPS and EDLI share one ceiling. S.O. 5109(E) raised it from ₹15,000 to
+# ₹25,000 from 17 September 2026. A company's own setting can raise it further
+# (a higher company ceiling) but never take it below the statute.
+STATUTORY_PF_CEILINGS: tuple[tuple[date, Decimal], ...] = (
+    (date(2014, 9, 1), Decimal("15000")),
+    (date(2026, 9, 17), Decimal("25000")),
+)
+
+
+def statutory_ceiling_on(day: date) -> Decimal:
+    found = STATUTORY_PF_CEILINGS[0][1]
+    for start, value in STATUTORY_PF_CEILINGS:
+        if start <= day:
+            found = value
+    return found
+
+
+@dataclass(frozen=True)
+class MonthCeiling:
+    """The PF ceiling a pay month is held to."""
+
+    ceiling: Decimal              # what the month's wage is capped at (day-weighted in a change month)
+    old: Decimal                  # in force on the 1st
+    new: Decimal                  # in force on the last day
+    effective_from: date | None   # the day the change took effect, when it fell inside the month
+
+    @property
+    def transition(self) -> bool:
+        return self.effective_from is not None
+
+
+def ceiling_for_month(month: date, configured: Decimal) -> MonthCeiling:
+    """
+    The ceiling for a pay month. Where the statute changed part-way through it,
+    the month is held to a day-weighted ceiling: 16 days at ₹15,000 and 14 at
+    ₹25,000 in September 2026. A payslip worked on the old ceiling is then short
+    by the difference, which may be recovered in the next month's payroll.
+    """
+    first = month.replace(day=1)
+    days = calendar.monthrange(first.year, first.month)[1]
+    last = first.replace(day=days)
+    old = max(configured, statutory_ceiling_on(first))
+    new = max(configured, statutory_ceiling_on(last))
+    if old == new:
+        return MonthCeiling(new, old, new, None)
+    change = next(start for start, _ in STATUTORY_PF_CEILINGS if first < start <= last)
+    old_days = (change - first).days
+    blended = (old * old_days + new * (days - old_days)) / Decimal(days)
+    return MonthCeiling(_q(blended), old, new, change)
 
 
 def compute_pf_wage(

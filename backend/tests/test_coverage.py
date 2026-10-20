@@ -222,7 +222,8 @@ def test_an_uncalculated_impact_is_not_zero():
 # ---------------------------------------------------------------------------
 # The registry keeps up with the engine
 # ---------------------------------------------------------------------------
-ENGINE_FILES = ("rule_engine_v2.py", "workforce_rules.py", "attendance_rules.py", "minimum_wage.py", "validation.py")
+ENGINE_FILES = ("rule_engine_v2.py", "workforce_rules.py", "attendance_rules.py", "minimum_wage.py", "validation.py",
+                "month_checks.py")
 
 
 def test_every_rule_the_engine_can_emit_has_a_coverage_entry():

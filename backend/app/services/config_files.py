@@ -34,7 +34,7 @@ MAX_ROWS = 10_000
 
 # file section -> (columns, what the section is)
 STATUTORY_FIELDS = [
-    "pf_employee_rate", "pf_wage_ceiling", "pf_restrict_to_ceiling", "pf_employee_formula",
+    "pf_employee_rate", "pf_wage_ceiling", "pf_restrict_to_ceiling", "pf_employee_formula", "pf_on_code_wages",
     "esic_employee_rate", "esic_wage_ceiling", "esic_rounding", "esic_employee_formula",
     "esic_full_month_on_entry", "esic_continue_month_on_exit", "pt_states", "lwf_states",
 ]
@@ -134,6 +134,7 @@ def to_tables(db: Session, entity: Entity, bundle: dict) -> dict[str, list[dict[
     row = {
         "pf_employee_rate": cfg.pf.rates.employee_rate, "pf_wage_ceiling": cfg.pf.wage.wage_ceiling,
         "pf_restrict_to_ceiling": cfg.pf.wage.restrict_to_ceiling, "pf_employee_formula": cfg.pf.employee_formula,
+        "pf_on_code_wages": cfg.pf.pf_on_code_wages,
         "esic_employee_rate": cfg.esic.rates.employee_rate, "esic_wage_ceiling": cfg.esic.wage.wage_ceiling,
         "esic_rounding": cfg.esic.rounding.mode, "esic_employee_formula": cfg.esic.employee_formula,
         "esic_full_month_on_entry": cfg.esic.eligibility.full_month_on_entry,
@@ -213,6 +214,7 @@ def _statutory_sections(current: dict, row: dict[str, str], title: str) -> dict[
     pf.wage.wage_ceiling = number("pf_wage_ceiling", pf.wage.wage_ceiling)
     pf.wage.restrict_to_ceiling = yes_no("pf_restrict_to_ceiling", pf.wage.restrict_to_ceiling)
     pf.employee_formula = text("pf_employee_formula") or ""
+    pf.pf_on_code_wages = yes_no("pf_on_code_wages", pf.pf_on_code_wages)
     esic.rates.employee_rate = number("esic_employee_rate", esic.rates.employee_rate)
     esic.wage.wage_ceiling = number("esic_wage_ceiling", esic.wage.wage_ceiling)
     rounding = text("esic_rounding").lower() or esic.rounding.mode

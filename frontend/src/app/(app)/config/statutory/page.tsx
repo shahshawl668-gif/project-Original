@@ -103,15 +103,25 @@ function PFPanel({ cfg, onChange }: { cfg: PFConfig; onChange: (c: PFConfig) => 
         <Field label="Employee contribution rate" help={pct(cfg.rates.employee_rate)}>
           <NumberInput value={cfg.rates.employee_rate} onChange={(v) => onChange({ ...cfg, rates: { ...cfg.rates, employee_rate: v } })} />
         </Field>
-        <Field label="PF wage ceiling (₹)" help="The most wage PF is worked out on.">
+        <Field label="PF wage ceiling (₹)" help="The statutory ceiling is applied by date: ₹15,000 to 16 Sep 2026, ₹25,000 from 17 Sep 2026 (September day-weighted). Enter a higher figure only if your company uses one.">
           <NumberInput value={cfg.wage.wage_ceiling} onChange={(v) => onChange({ ...cfg, wage: { ...cfg.wage, wage_ceiling: v } })} step="500" min="0" max="999999" />
         </Field>
       </div>
+      <div className="flex flex-col items-start gap-3">
       <Toggle
         checked={cfg.wage.restrict_to_ceiling}
         onChange={(v) => onChange({ ...cfg, wage: { ...cfg.wage, restrict_to_ceiling: v } })}
         label="Limit PF wage to the ceiling"
       />
+      <Toggle
+        checked={!!cfg.pf_on_code_wages}
+        onChange={(v) => {
+          const { pf_on_code_wages: _drop, ...rest } = cfg;
+          onChange(v ? { ...rest, pf_on_code_wages: true } : rest);
+        }}
+        label="PF on the Labour Code wage (Basic + DA + allowances above half of pay), prorated for paid days"
+      />
+      </div>
       <ComponentsNote what="PF" />
     </div>
   );

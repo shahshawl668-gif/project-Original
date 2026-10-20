@@ -51,7 +51,7 @@ class ToleranceThresholds(BaseModel):
 class TrendThresholds(BaseModel):
     """MOM-002/003 and ADV-002/003 — month-on-month movement."""
     component_change_pct: Decimal = Field(
-        Decimal("30"), description="Component spike/drop %% vs prior month before MOM-002/003 fires")
+        Decimal("10"), description="Component or net-pay change %% vs prior month before MOM-002/003 or ADV-004 fires")
     salary_spike_ratio: Decimal = Field(
         Decimal("3"), description="ADV-002: gross > this multiple of prior month")
     salary_drop_ratio: Decimal = Field(

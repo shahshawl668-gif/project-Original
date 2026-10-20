@@ -5,7 +5,7 @@ from collections.abc import Callable
 import calendar
 import math
 import re
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -29,7 +29,8 @@ from app.services.esic_engine import compute_esic, compute_esic_wage
 from app.services.payroll_parse import normalize_col
 from app.services.pf_basis import resolve as resolve_pf_basis
 from app.services.row_composition import describe as describe_row
-from app.services.pf_engine import compute_pf, compute_pf_wage
+from app.services.month_checks import employee_month_checks
+from app.services.pf_engine import ceiling_for_month, compute_pf, compute_pf_wage, statutory_ceiling_on
 from app.services.risk_scoring import compute_risk, risk_distribution
 from app.services.workforce import master_as_of
 from app.services.workforce_rules import check_against_inputs
@@ -843,6 +844,75 @@ def _employed_days(master_record: Any, row: dict[str, Any], period_month: date |
     return min(found, days) if found is not None else None
 
 
+def _change_month_shortfall(prior: SalaryRegisterRow, comp_by_key: dict, pf_cfg: Any, month: Any,
+                            restricted: bool | None) -> Decimal | None:
+    """
+    The employee PF the change month was short by: due on the day-weighted ceiling,
+    less what that month's register deducted. None when nothing is owed or the
+    register did not state its PF.
+    """
+    paid = (prior.deductions or {}).get("ee_pf")
+    if paid is None:
+        return None
+    wage = sum((Decimal(str(v or 0)) for k, v in (prior.components or {}).items()
+                if comp_by_key.get(normalize_col(k)) is not None and comp_by_key[normalize_col(k)].pf_applicable),
+               Decimal("0"))
+    restrict = pf_cfg.wage.restrict_to_ceiling if restricted is None else restricted
+    base = min(wage, month.ceiling) if restrict else wage
+    due = (base * Decimal(str(pf_cfg.rates.employee_rate))).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    short = due - Decimal(str(paid))
+    return short if short > Decimal("1") else None
+
+
+def _parse_any_date(value: Any) -> date | None:
+    from app.services import identity_checks as idc
+
+    return idc.parse_cell_date(value) if value not in (None, "") else None
+
+
+def _arrears_paid_before(db: Session, entity_id, period_month: date) -> dict[str, list[tuple[date, Decimal]]]:
+    """Arrears each employee was paid in the twelve months before this one: id -> [(month, amount)]."""
+    start = date(period_month.year - 1, period_month.month, 1)
+    out: dict[str, list[tuple[date, Decimal]]] = {}
+    rows = (
+        db.query(SalaryRegisterRow.employee_id, SalaryRegisterRow.period_month, SalaryRegisterRow.arrears,
+                 SalaryRegisterRow.increment_arrear_total)
+        .join(SalaryRegister, SalaryRegister.id == SalaryRegisterRow.register_id)
+        .filter(SalaryRegister.entity_id == entity_id, SalaryRegister.period_month >= start,
+                SalaryRegister.period_month < period_month)
+    )
+    for employee_id, month, arrears, increment in rows:
+        total = sum((Decimal(str(v or 0)) for v in (arrears or {}).values()), Decimal("0")) + Decimal(str(increment or 0))
+        if total > 0:
+            out.setdefault(employee_id, []).append((month, total))
+    return out
+
+
+def esic_contribution_period_start(month: date) -> date:
+    """April or October: the start of the ESIC contribution period a month falls in."""
+    if month.month >= 10:
+        return date(month.year, 10, 1)
+    if month.month >= 4:
+        return date(month.year, 4, 1)
+    return date(month.year - 1, 10, 1)
+
+
+def _esic_covered_in_period(db: Session, entity_id, start: date, before: date) -> dict[str, str]:
+    """Employees an earlier month of this contribution period deducted ESIC for: id -> that month."""
+    out: dict[str, str] = {}
+    rows = (
+        db.query(SalaryRegisterRow.employee_id, SalaryRegisterRow.period_month, SalaryRegisterRow.deductions)
+        .join(SalaryRegister, SalaryRegister.id == SalaryRegisterRow.register_id)
+        .filter(SalaryRegister.entity_id == entity_id, SalaryRegister.period_month >= start,
+                SalaryRegister.period_month < before)
+        .order_by(SalaryRegisterRow.period_month)
+    )
+    for employee_id, month, deductions in rows:
+        if employee_id not in out and Decimal(str((deductions or {}).get("ee_esi") or 0)) > 0:
+            out[employee_id] = month.strftime("%B %Y")
+    return out
+
+
 def _decimal_or_none(value: Any) -> Decimal | None:
     try:
         return None if value in (None, "") else Decimal(str(value))
@@ -899,7 +969,25 @@ def validate_employees(
     months = num_months(effective_from, effective_to)
     month_labels = month_iter(effective_from, effective_to)
 
+    # The statutory ceiling for this month (₹25,000 from 17 Sep 2026, day-weighted in
+    # September), or the company's own if higher. EPF, EPS and EDLI all follow it.
+    configured_ceiling = pf_cfg.wage.wage_ceiling
+    month_ceiling = ceiling_for_month(period_month or as_of, configured_ceiling)
+    if month_ceiling.ceiling != pf_cfg.wage.wage_ceiling:
+        pf_cfg = pf_cfg.model_copy(deep=True)
+        pf_cfg.wage.wage_ceiling = month_ceiling.ceiling
+    # The month after a change month: a shortfall from the change month may be recovered now.
+    prev_ceiling = ceiling_for_month(_prev_month(period_month), Decimal("0")) if period_month else None
     pf_ceiling   = pf_cfg.wage.wage_ceiling
+    # ESIC contribution periods run April-September and October-March. Who was
+    # covered earlier in this period stays covered to its end, whatever their wage
+    # does; a new period decides coverage afresh.
+    arrears_before = _arrears_paid_before(db, entity.id, period_month) if period_month else {}
+    esic_period_start = esic_contribution_period_start(period_month) if period_month else None
+    esic_covered_earlier = (
+        _esic_covered_in_period(db, entity.id, esic_period_start, period_month)
+        if esic_period_start and esic_period_start < period_month else {}
+    )
     esic_ceiling = esic_cfg.wage.wage_ceiling
 
     if period_month:
@@ -1049,6 +1137,13 @@ def validate_employees(
         # Fall back to flag-based pf_wage only if config-based is zero and flag-based is non-zero
         # (e.g. no components have pf_applicable=True but config says use flag).
         effective_pf_wage = pf_wage_cfg if pf_wage_cfg > Decimal("0") else pf_wage
+        # Labour Codes: on request, PF follows the deemed wage — exclusions above half of
+        # remuneration are added to the wage. ``regular`` is already prorated by paid days.
+        if getattr(pf_cfg, "pf_on_code_wages", False) and effective_pf_wage > 0 \
+                and labour_codes.in_force(rule_thresholds.labour_codes, period_month):
+            code = labour_codes.wage_test(regular, comp_by_key, rule_thresholds.labour_codes)
+            if code.basis_known and code.deemed_addition > 0:
+                effective_pf_wage += code.deemed_addition
 
         # PF restriction is settled per employee: register row, then master,
         # then the entity default. Two people on one payroll can sit on
@@ -1068,6 +1163,25 @@ def validate_employees(
         # it was — "entity default" and "stated on the register" call for
         # different corrections.
         pf_calc["_basis_source"] = pf_basis.source
+        if month_ceiling.transition:
+            pf_calc["_transition"] = {
+                "old": float(month_ceiling.old), "new": float(month_ceiling.new),
+                "effective_from": month_ceiling.effective_from.isoformat(),
+                "old_amount": float(compute_pf(effective_pf_wage, pf_cfg.model_copy(update={
+                    "wage": pf_cfg.wage.model_copy(update={"wage_ceiling": month_ceiling.old})}),
+                    restrict_override=pf_basis.restricted, employment_type=employment_type)["pf_employee"]),
+                "new_amount": float(compute_pf(effective_pf_wage, pf_cfg.model_copy(update={
+                    "wage": pf_cfg.wage.model_copy(update={"wage_ceiling": month_ceiling.new})}),
+                    restrict_override=pf_basis.restricted, employment_type=employment_type)["pf_employee"]),
+            }
+        if prev_ceiling is not None and prev_ceiling.transition and eid in prior_rows:
+            due = _change_month_shortfall(prior_rows[eid], comp_by_key, pf_cfg, prev_ceiling, pf_basis.restricted)
+            if due is not None:
+                pf_calc["_recovery_due"] = float(due)
+                pf_calc["_recovery_month"] = _prev_month(period_month).strftime("%B %Y")
+        if eid in prior_rows and Decimal(str((prior_rows[eid].deductions or {}).get("ee_pf_arrear") or 0)) > 0 \
+                and "_recovery_due" not in pf_calc:
+            pf_calc["_recovery_repeated"] = True
 
         # Step 2: Recompute ESIC wage using config.
         esic_wage_cfg = compute_esic_wage(regular, comp_by_key, esic_cfg)
@@ -1080,6 +1194,13 @@ def validate_employees(
         if row_paid_days is not None and 0 < row_paid_days < row_days_in_month:
             esic_rate_wage = effective_esic_wage * Decimal(row_days_in_month) / row_paid_days
         esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type, eligibility_wage=esic_rate_wage)
+        if not esic_calc.get("esic_eligible") and eid in esic_covered_earlier and effective_esic_wage > 0:
+            esic_calc = compute_esic(effective_esic_wage, esic_cfg, employment_type,
+                                     eligibility_wage=min(esic_rate_wage, esic_cfg.wage.wage_ceiling))
+            esic_calc["_continued_from"] = esic_covered_earlier[eid]
+        elif not esic_calc.get("esic_eligible") and esic_period_start == period_month and eid in prior_rows \
+                and Decimal(str((prior_rows[eid].deductions or {}).get("ee_esi") or 0)) > 0:
+            esic_calc["_period_ended"] = esic_period_start.strftime("%B %Y")
         errors.extend(saved_formulas.apply(
             pf_cfg.employee_formula, esic_cfg.employee_formula, pf_calc, esic_calc, regular, list(comp_by_key),
             effective_pf_wage, effective_esic_wage, _decimal_or_none(stated(row, "paid_days")),
@@ -1249,7 +1370,8 @@ def validate_employees(
                 if row_paid_days is not None and 0 < row_paid_days < row_days_in_month:
                     full_pf = effective_pf_wage * Decimal(row_days_in_month) / row_paid_days
                 per_month = pf_arrear / arrear_months_f
-                ceiling_pf = Decimal(str(pf_calc.get("_ceiling") or 0))
+                # Arrears belong to earlier months, held to the ceiling in force before this one.
+                ceiling_pf = max(configured_ceiling, statutory_ceiling_on(period_month - timedelta(days=1)))
                 if pf_calc.get("_restrict") and ceiling_pf > 0:
                     due_wage = arrear_months_f * (min(full_pf, ceiling_pf) - min(max(full_pf - per_month, Decimal("0")), ceiling_pf))
                 else:
@@ -1384,7 +1506,30 @@ def validate_employees(
             pt_known=state_pt is not None and ("PT", state_pt) not in slab_version_gaps,
             lwf_known=state_lwf is not None and ("LWF", state_lwf) not in slab_version_gaps,
             employed_days=_employed_days(master_record, row, period_month, row_days_in_month),
+            ctc_components=dict(structure.new) if structure is not None else None,
+            revision_explains=bool(
+                structure is not None and len(ctcs) > 1 and period_month
+                and ctcs[0].effective_from >= _prev_month(period_month)
+            ),
         )
+        dob_value = (master_record.date_of_birth if master_record is not None else None) or \
+            _parse_any_date(row.get("dob") or row.get("date_of_birth"))
+        emp_findings.extend(employee_month_checks(
+            eid=eid, ename=ename if isinstance(ename, str) else None, row=row, master=master_record,
+            prior=prior_rows.get(eid), period_month=period_month, days_in_month=row_days_in_month,
+            paid_days=paid_days, regular=regular,
+            arrear_total=arrear_total + inc_arrear_total, comp_by_key=comp_by_key,
+            pf_calc=pf_calc, esic_calc=esic_calc, ctc_monthly=ctc_monthly,
+            mid_month_revision=bool(structure and structure.mid_month),
+            revision_from=ctcs[0].effective_from if len(ctcs) > 1 else None,
+            arrears_paid_before=arrears_before.get(eid, []),
+            age=((as_of - dob_value).days / 365.25) if dob_value else None,
+            change_pct=rule_thresholds.trends.component_change_pct,
+            explained=bool(
+                structure is not None and len(ctcs) > 1 and period_month
+                and ctcs[0].effective_from >= _prev_month(period_month)
+            ),
+        ))
         matrix_row = {
             **row,
             "employee_id": eid,
@@ -1471,9 +1616,39 @@ def validate_employees(
                     paid_days=None,
                     calendar_days=Decimal(row_days_in_month),
                     as_of=mw_as_of,
+                    zone=getattr(master_record, "mw_zone", None) or None,
+                    scheduled_employment=getattr(master_record, "scheduled_employment", None) or None,
                     rate_cache=mw_rates,
                     source_note="the CTC break-up",
                 )
+                # Restructuring to the 50% wage rule must not take Basic + DA below the floor.
+                lc_cfg = rule_thresholds.labour_codes
+                if mw_finding is None and labour_codes.in_force(lc_cfg, period_month):
+                    code = labour_codes.wage_test(dict(structure.new), comp_by_key, lc_cfg)
+                    if code.basis_known and code.remuneration > 0:
+                        floor_check = mw.check_employee(
+                            db, entity.id, employee_id=eid, employee_name=ename if isinstance(ename, str) else None,
+                            components={"basic": float(code.code_wages)},
+                            state=(master_record.work_state if master_record is not None else None)
+                            or row_state or entity.primary_state,
+                            skill_category=getattr(master_record, "skill_category", None), paid_days=None,
+                            calendar_days=Decimal(row_days_in_month), as_of=mw_as_of, basis="basic_da",
+                            zone=getattr(master_record, "mw_zone", None) or None,
+                            scheduled_employment=getattr(master_record, "scheduled_employment", None) or None,
+                            rate_cache=mw_rates,
+                        )
+                        if floor_check and floor_check.get("rule_id") == "MW-001":
+                            mw_finding = {
+                                **floor_check, "rule_id": "MW-005", "severity": "WARNING",
+                                "rule_name": "Code Wages Below Minimum Wage",
+                                "reason": (
+                                    f"On the CTC break-up the wages under the Code on Wages ({code.basis}, with "
+                                    f"exclusions above half of remuneration added back) are {code.code_wages}, "
+                                    f"below the minimum wage of {floor_check['expected_value']}. Gross meets the "
+                                    "floor, but the wage that PF, gratuity and bonus follow does not."
+                                ),
+                                "suggested_fix": "Raise Basic/DA in the CTC so the wages alone meet the minimum wage.",
+                            }
             if mw_finding:
                 mw_finding.setdefault("category", categorise(mw_finding["rule_id"], mw_finding.get("actual_value")))
                 matrix_findings.append(mw_finding)
@@ -1545,6 +1720,9 @@ def validate_employees(
                 "increment_arrear_total": float(inc_arrear_total),
                 "tds_risk_flags": tds_risk,
                 "minimum_wage_status": mw_status,
+                "pf_change_month": bool(month_ceiling.transition),
+                "pf_recovery_due": float(pf_calc.get("_recovery_due") or 0),
+                "ctc_available": structure is not None,
                 "errors": errors,
                 "findings": [f.to_dict() for f in emp_findings] + matrix_findings,
                 # risk placeholders — filled after batch_findings merge below
@@ -1616,6 +1794,38 @@ def validate_employees(
             if employee_id not in known
             for finding in found
         ]
+
+    # Headcount roll-forward: everyone last month's register paid is either on this one,
+    # or left before this month began. The rest are named.
+    if period_month and prior_rows:
+        from app.services.headcount import roll_forward
+
+        rf = roll_forward(period_month, set(prior_rows), {rec["employee_id"] for rec in results}, master_rows)
+        for eid in rf.missing_without_exit + rf.left_this_month_unpaid:
+            left = getattr(master_rows.get(eid), "date_of_exit", None)
+            unmatched_findings.append({
+                "employee_id": eid, "employee_name": prior_rows[eid].employee_name, "component": "headcount",
+                "rule_id": "HC-001", "rule_name": "Missing From This Month's Register", "severity": "WARNING",
+                "status": "FAIL", "expected_value": "on the register, or an exit before this month",
+                "actual_value": f"left {left.isoformat()}" if left else "no exit recorded",
+                "difference": "", "financial_impact": 0.0,
+                "reason": (f"Paid last month and left on {left.isoformat()}, during this month, but there is no final "
+                           "pay for them on this register." if left else
+                           "Paid last month, not on this month's register, and the master records no exit."),
+                "suggested_fix": "Add their pay (or final settlement), or record the exit or hold in the master.",
+                "category": "issue",
+            })
+        for rec in results:
+            if rec["employee_id"] in rf.unexplained_additions:
+                rec["findings"].insert(0, ValidationFinding(
+                    employee_id=rec["employee_id"], employee_name=rec.get("employee_name"), rule_id="HC-002",
+                    rule_name="Back On The Register Without Joining This Month", component="headcount",
+                    expected_value="joined this month, or on last month's register", actual_value="neither",
+                    difference="", severity="WARNING", status="FAIL",
+                    reason="Not on last month's register and the master shows no joining date in this month — a "
+                           "rejoiner, a released hold, or someone missed last month.",
+                    suggested_fix="Record why: rejoining date, release of a held salary, or last month's omission.",
+                ).to_dict())
 
     summary = recompute_risk_and_summary(results, unmatched_findings)
     return results, summary

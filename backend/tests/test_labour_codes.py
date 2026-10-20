@@ -56,6 +56,8 @@ def run(amounts, *, row=None, period=date(2026, 4, 1), thresholds=None, restrict
         pt_due=Decimal("0"), lwf_eamt=Decimal("0"), lwf_oamt=Decimal("0"),
         prior_components=None, prior_is_joiner=True, lop_diffs=[], inc_info={}, tds_risk=[],
         thresholds=thresholds or RuleThresholdsConfig(), period_month=period,
+        # The 50% test reads the CTC break-up; here the structure is the month's pay.
+        ctc_components=regular,
     )
 
 
@@ -259,6 +261,11 @@ def lc_company(client):
 def test_coverage_shows_failed_passed_and_not_applicable(client, lc_company):
     rows = ["E1,Person E1,Karnataka,30,0,10000,8000,7000,1800,1800,ABCPE1234F",
             "E2,Person E2,Karnataka,30,0,30000,12000,8000,1800,1800,ABCPE1234G"]
+    # The 50% test reads the CTC break-up.
+    records = [{"employee_id": e, "effective_from": "2025-04-01",
+                "annual_components": {"basic": b * 12, "hra": h * 12, "special_allowance": s * 12},
+                "annual_ctc": (b + h + s) * 12} for e, b, h, s in (("E1", 10000, 8000, 7000), ("E2", 30000, 12000, 8000))]
+    assert client.post("/api/ctc/commit", headers=lc_company, json={"records": records}).status_code == 200
     run_id = _validate(client, lc_company, "2026-06-01", rows)
     assert _outcome(client, lc_company, run_id, "E1", "LC-001")["outcome"] == "failed"
     assert _outcome(client, lc_company, run_id, "E2", "LC-001")["outcome"] == "passed"

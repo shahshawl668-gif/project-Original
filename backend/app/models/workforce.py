@@ -103,6 +103,20 @@ class EmployeeRecord(Base):
     # purpose: "not stated" must fall through to the entity default rather than
     # silently meaning unrestricted. See services/pf_basis.py.
     pf_restricted: Mapped[bool | None] = mapped_column(Boolean)
+    # EPS membership. False for someone kept out of the pension scheme (joined after
+    # September 2014 above the ceiling); None when the master does not say.
+    eps_member: Mapped[bool | None] = mapped_column(Boolean)
+    # The employee has declared voluntary PF above the statutory 12%.
+    vpf_declared: Mapped[bool | None] = mapped_column(Boolean)
+    # active | on hold | absconding | suspended | notice — a held salary is not paid.
+    employment_status: Mapped[str | None] = mapped_column(String(32))
+    # Minimum-wage classification beyond the skill: the notified zone and scheduled
+    # employment. Read as at the month end, so a transfer changes them.
+    mw_zone: Mapped[str | None] = mapped_column(String(64))
+    scheduled_employment: Mapped[str | None] = mapped_column(String(255))
+    # When the salary account last changed, and the proof on file for it.
+    bank_changed_on: Mapped[date | None] = mapped_column(Date)
+    bank_change_proof: Mapped[str | None] = mapped_column(String(255))
 
     # Statutory identifiers, validated against their own check rules.
     pan: Mapped[str | None] = mapped_column(String(16))

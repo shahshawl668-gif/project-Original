@@ -219,6 +219,9 @@ REPORTED_COLUMNS: dict[str, tuple[str, ...]] = {
     "pt": ("pt", "pt_amount", "professional_tax", "ptax"),
     "ee_lwf": ("lwf_employee", "employee_lwf", "lwf"),
     "tds": ("tds", "income_tax", "tds_amount", "it_deduction"),
+    # A PF recovery line (the September 2026 ceiling shortfall, say) and voluntary PF.
+    "ee_pf_arrear": ("pf_employee_arrear", "pf_arrear", "pf_recovery", "pf_shortfall_recovery"),
+    "ee_vpf": ("vpf", "voluntary_pf", "vpf_employee"),
 }
 
 

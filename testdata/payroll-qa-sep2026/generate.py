@@ -218,7 +218,7 @@ HEAD = ["Employee ID", "Employee Name", "State", "UAN", "ESI Number", "PAN", "Da
         "Total Deductions", "Net"]
 
 
-def payslip(p, *, days=DAYS, paid=None, lop=0, structure=None, arr=None) -> dict:
+def payslip(p, *, days=DAYS, paid=None, lop=0, structure=None, arr=None, covered_earlier=False) -> dict:
     """What payroll should pay, by the rules in the configuration."""
     paid = paid if paid is not None else days - lop
     st = structure or p["s"]
@@ -232,10 +232,11 @@ def payslip(p, *, days=DAYS, paid=None, lop=0, structure=None, arr=None) -> dict
         ob = p["s"]["Basic"]
         months = D(str(arr["Basic"])) / D(nb - ob)
         pf += rnd(months * (min(nb, PF_CEILING) - min(ob, PF_CEILING)) * D("0.12"))
-    # ESIC coverage follows the full-month rate; the contribution is on what is paid, arrears included
+    # ESIC coverage follows the full-month rate; the contribution is on what is paid, arrears included.
+    # Someone covered earlier in the contribution period (April-September) stays covered to its end.
     esic_wage = sum(earn[k] for k in ("Basic", "HRA", "Special Allowance", "Conveyance", "Other Allowance"))
     esic_wage += sum(arr.values())
-    covered = sum(st.values()) <= 21000
+    covered = sum(st.values()) <= 21000 or covered_earlier
     esic = int((D(str(esic_wage)) * D("0.0075")).to_integral_value(rounding=ROUND_CEILING)) if covered else 0
     pt = pt_for(p, gross)
     ded = pf + esic + pt
@@ -258,7 +259,10 @@ def build():
     september = []
     for eid, p in P.items():
         blend, _, new = month_structure(p)
-        r = payslip(p, lop=LOP.get(eid, 0), paid=PAID_DAYS.get(eid), structure=blend, arr=arrears(p))
+        # August was paid at the old rate: covered then, covered through September
+        august_covered = eid not in ("C16", "C23") and sum(p["s"].values()) <= 21000
+        r = payslip(p, lop=LOP.get(eid, 0), paid=PAID_DAYS.get(eid), structure=blend, arr=arrears(p),
+                    covered_earlier=august_covered)
         if eid == "C08":
             r = payslip(p, structure=new)
         elif eid == "C11":
@@ -344,11 +348,14 @@ months, joiners and leavers. It is uploaded once and validated once.
 
 ## Rules in the configuration (test values)
 
-* PF 12% of Basic, restricted to the 15,000 ceiling. PF on an arrear: each month the arrear relates
-  to is taken to the ceiling on its own.
+* PF 12% of Basic, restricted to the ceiling. September 2026 is the month the statutory ceiling rose
+  from 15,000 to 25,000 (17 September): the register here is worked on 15,000, which the tool reports
+  as a shortfall to recover in October (PF-012, info), not as an error. PF on an arrear: each month the
+  arrear relates to is taken to the ceiling on its own.
 * ESIC 0.75% rounded up. Coverage follows the full-month rate of wages (21,000 or less), so loss of
   pay or a part month does not bring someone under ESIC; the contribution is on what is paid,
-  arrears included.
+  arrears included. Someone covered earlier in the April-September contribution period stays covered
+  to its end (C10 was covered in August at the old rate, so ESIC continues through September).
 * PT: Karnataka 200 from 25,000. Maharashtra men 175 from 7,501 and 200 above 10,000; women nil up to
   25,000.
 * LWF: Maharashtra only, 25 (employer 75) in June and December.
@@ -373,6 +380,10 @@ tool does not over-report:
 * `LC-001` (warning) for C01 and C22: the Code on Wages test takes wages as the PF-applicable
   components unless the company names its wage components; Special Allowance is not PF-applicable
   here. It is a structure review point, not a payroll error.
+* `MW-005` (warning) where Basic alone is below the minimum wage: under the Code on Wages the
+  minimum wage is measured on wages (Basic + DA, plus allowances above half of pay), and in this
+  pack several people's Basic is below the floor even though their pay excluding HRA meets it.
+* `PF-012` (info) for everyone above 15,000: September worked on the old PF ceiling.
 * `ARR-004` (info) for C09: the arrear carries no further PF because the wage was already at the
   ceiling.
 * `MOM-001` (info) for the September joiners; `MW-003` (info) for Maharashtra staff, where no minimum

@@ -21,6 +21,7 @@ REGISTER_AMOUNT_FIELDS = frozenset({
     "pf_employer", "esic_employee", "esic_employer", "pt", "lwf_employee", "lwf_employer", "tds",
     "arrear_days", "arrear_months", "increment_arrear", "increment_arrear_total",
     "previous_months_lop_days", "notice_period_recovery", "loan_recovery", "pf_eps", "bonus", "gratuity",
+    "pf_employee_arrear", "vpf", "lop_reversal_amount",
 })
 
 # Fields understood by the validator. Component destinations are added per entity.
@@ -40,6 +41,9 @@ IMPORT_FIELDS = (
     "aadhaar", "esi_number", "dob", "doj", "dol", "payment_mode", "tax_regime",
     "employment_type", "disability", "international_worker", "adolescent_permit",
     "death_or_disablement", "pf_eps", "bonus", "gratuity",
+    # A PF recovery line, voluntary PF, the amount paid back for earlier LOP, and the
+    # approval and month of the month's one-time inputs.
+    "pf_employee_arrear", "vpf", "lop_reversal_amount", "one_time_approval", "one_time_month",
 )
 ALIASES = {
     "emp_id": "employee_id", "employee_code": "employee_id",
@@ -59,6 +63,16 @@ ALIASES = {
     "date_of_joining": "doj", "joining_date": "doj",
     "date_of_leaving": "dol", "date_of_exit": "dol", "exit_date": "dol", "leaving_date": "dol",
     "regime": "tax_regime", "eps": "pf_eps", "eps_employer": "pf_eps",
+    "pf_arrear": "pf_employee_arrear", "pf_recovery": "pf_employee_arrear",
+    "pf_shortfall_recovery": "pf_employee_arrear", "pf_employee_recovery": "pf_employee_arrear",
+    "voluntary_pf": "vpf", "vpf_employee": "vpf",
+    "lop_reversal": "previous_months_lop_days", "lop_reversal_days": "previous_months_lop_days",
+    "lop_refund_days": "previous_months_lop_days", "lop_reversal_amt": "lop_reversal_amount",
+    "lop_refund": "lop_reversal_amount", "lop_refund_amount": "lop_reversal_amount",
+    "loan_emi": "loan_recovery", "loan_deduction": "loan_recovery", "notice_recovery": "notice_period_recovery",
+    "notice_pay_recovery": "notice_period_recovery", "approval_ref": "one_time_approval",
+    "approval_reference": "one_time_approval", "approval": "one_time_approval",
+    "input_month": "one_time_month", "for_month": "one_time_month",
 }
 
 

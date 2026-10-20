@@ -89,6 +89,8 @@ def _omit_empty_formula(self, handler):
     data = handler(self)
     if not data.get("employee_formula"):
         data.pop("employee_formula", None)
+    if not data.get("pf_on_code_wages"):
+        data.pop("pf_on_code_wages", None)
     return data
 
 
@@ -103,6 +105,10 @@ class PFConfig(BaseModel):
     above_ceiling_mode: Literal["none", "employee_choice", "employer_choice"] = "none"
     # Excel-style formula for the employee's PF. Blank: the rate, wage and ceiling above decide.
     employee_formula: str = Field("", max_length=2000)
+    # Under the Labour Codes, expect PF on the deemed wage (Basic + DA + the part of the
+    # allowances above half of remuneration), prorated for paid days, not on the
+    # PF-applicable components alone. Off until the company decides it.
+    pf_on_code_wages: bool = False
 
     serialize_without_empty_formula = model_serializer(mode="wrap")(_omit_empty_formula)
 

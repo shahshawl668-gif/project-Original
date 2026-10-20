@@ -37,6 +37,8 @@ export interface PFConfig {
   above_ceiling_mode: "none" | "employee_choice" | "employer_choice";
   /** Excel-style formula for the employee's PF. Absent: the rates and ceiling decide. */
   employee_formula?: string;
+  /** Labour Codes: expect PF on the deemed wage rather than the PF-applicable components alone. */
+  pf_on_code_wages?: boolean;
 }
 
 export interface ESICRateConfig {

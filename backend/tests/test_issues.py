@@ -269,7 +269,7 @@ def test_a_pack_switched_off_reports_disabled_and_is_audited(client, company):
     assert r.status_code == 422  # a reason worth reading
     out = _data(client.put("/api/validation-matrix/packs/pf", headers=company,
                            json={"enabled": False, "reason": "PF handled by the group's PF trust"}))
-    assert out["changed"] == 7
+    assert out["changed"] == 12  # PF pack: the seven PF checks, EPS membership, ceiling change, recovery, VPF, UAN
     run_id = _run(client, company, _register(BASE_ROWS))
     detail = _data(client.get(f"/api/validation/runs/{run_id}/employees/E002", headers=company))
     assert detail["result"]["coverage"]["STAT-001"]["outcome"] == "disabled"

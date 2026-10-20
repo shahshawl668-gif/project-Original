@@ -14,7 +14,7 @@ from __future__ import annotations
 import io
 import re
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -868,6 +868,40 @@ PERIOD_STAGES = {
     "pending_approval": "Submitted for approval",
     "signed_off": "Signed off",
 }
+
+
+@router.get("/periods/{period}/headcount")
+def period_headcount(
+    period: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Headcount roll-forward for the month: last month + joiners − exits against this month's register."""
+    import calendar as _calendar
+
+    from app.models import SalaryRegister, SalaryRegisterRow
+    from app.services.headcount import roll_forward
+    from app.services.workforce import master_as_of
+
+    month = _month(period)
+    prev = (month.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+    def ids(m: date) -> set[str] | None:
+        reg = db.query(SalaryRegister).filter(SalaryRegister.entity_id == entity.id,
+                                              SalaryRegister.period_month == m).first()
+        if reg is None:
+            return None
+        return {r for (r,) in db.query(SalaryRegisterRow.employee_id).filter(SalaryRegisterRow.register_id == reg.id)}
+
+    this_ids, last_ids = ids(month), ids(prev)
+    if this_ids is None or last_ids is None:
+        return ok({"period_month": month.isoformat(), "available": False,
+                   "reason": "No register for this month yet." if this_ids is None
+                   else "No register for last month to roll forward from."})
+    month_end = month.replace(day=_calendar.monthrange(month.year, month.month)[1])
+    rf = roll_forward(month, last_ids, this_ids, master_as_of(db, entity.id, month_end))
+    return ok({"period_month": month.isoformat(), "available": True, **rf.as_dict()})
 
 
 @router.get("/periods/{period}/status")

@@ -110,6 +110,13 @@ def _cell(value: Any) -> str:
     return str(_plain(value))
 
 
+#: Optional columns added to an input table after runs were already recorded.
+_ADDED_LATER = frozenset({
+    "eps_member", "vpf_declared", "employment_status", "mw_zone", "scheduled_employment",
+    "bank_changed_on", "bank_change_proof",
+})
+
+
 def _table_digest(db: Session, model: Any, *criteria: Any) -> tuple[str, int]:
     """Digest of the rows a filter selects, straight from column tuples.
 
@@ -119,10 +126,15 @@ def _table_digest(db: Session, model: Any, *criteria: Any) -> tuple[str, int]:
     hashing sorted text lines costs a fraction of that, with the same
     property: identical data, identical digest, whatever the row order or ids.
     """
-    columns = [c for c in model.__table__.columns if c.key not in _IGNORED]
+    columns = [c for c in model.__table__.columns if c.key not in _IGNORED and c.key not in _ADDED_LATER]
+    later = [c for c in model.__table__.columns if c.key in _ADDED_LATER]
+    width = len(columns)
+    # Columns added after runs were recorded count only once filled in, so adding
+    # one does not make every earlier run's inputs look changed.
     lines = sorted(
-        "\x1f".join(_cell(value) for value in row)
-        for row in db.query(*columns).filter(*criteria)
+        "\x1f".join(_cell(value) for value in row[:width])
+        + "".join(f"\x1f{c.key}={_cell(v)}" for c, v in zip(later, row[width:], strict=True) if v is not None)
+        for row in db.query(*columns, *later).filter(*criteria)
     )
     h = hashlib.sha256()
     for line in lines:
