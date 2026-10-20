@@ -9,9 +9,6 @@
 /** The product name, as it appears to anyone using it. */
 export const PRODUCT_NAME = "Peopleopslab";
 
-/** The line under the mark. Short enough to sit beside it at phone width. */
-export const PRODUCT_TAGLINE = "India · Audit grade";
-
 /** Browser tab and search results. */
 export const PRODUCT_TITLE = `${PRODUCT_NAME} — India statutory payroll validation`;
 

@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { getAccessToken, parseJwtPayload } from "@/lib/api";
 import { useEntity } from "@/context/EntityContext";
-import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
+import { PRODUCT_NAME } from "@/lib/brand";
 import { ADMIN_ITEMS, NAV_GROUPS, breadcrumbsFor, isActiveHref, type NavGroup } from "@/lib/navigation";
 import { ApiHealthBadge } from "@/components/ApiHealthBadge";
 import { EntitySwitcher } from "@/components/EntitySwitcher";
@@ -105,10 +105,7 @@ function BrandMark({ onClick }: { onClick?: () => void }) {
       <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-600">
         <ShieldCheck size={15} className="text-white" strokeWidth={2.25} aria-hidden />
       </span>
-      <span className="min-w-0">
-        <span className="block text-[14px] font-semibold leading-tight tracking-tight text-ink-900">{PRODUCT_NAME}</span>
-        <span className="block truncate text-[10.5px] leading-tight text-ink-500">{PRODUCT_TAGLINE}</span>
-      </span>
+      <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-ink-900">{PRODUCT_NAME}</span>
     </Link>
   );
 }
