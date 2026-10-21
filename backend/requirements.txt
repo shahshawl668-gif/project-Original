@@ -5,7 +5,7 @@ pydantic>=2.14.1
 pydantic-settings>=2.6.1
 # Tokens are HS256. PyJWT replaced python-jose, whose ecdsa dependency carries
 # CVE-2024-23342 with no upstream fix (docs/SECURITY.md R14).
-PyJWT>=2.10
+PyJWT>=2.15.1
 passlib[bcrypt]>=1.7.4
 bcrypt<4.1
 python-multipart>=0.0.32
