@@ -7,7 +7,7 @@ pydantic-settings>=2.6.1
 # CVE-2024-23342 with no upstream fix (docs/SECURITY.md R14).
 PyJWT>=2.10
 passlib[bcrypt]>=1.7.4
-bcrypt<4.1
+bcrypt<5.1
 python-multipart>=0.0.32
 pandas>=3.0.6
 openpyxl>=3.1.5
