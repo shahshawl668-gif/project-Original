@@ -237,7 +237,8 @@ def test_headcount_roll_forward_endpoint(client, company, months):
     data = _ok(client.get("/api/validation/periods/2026-10-01/headcount", headers=company))
     assert data["available"] and data["last_month"] == 9 and data["this_month"] == 15
     assert "E14" in data["missing_without_exit"]
-    assert set(data["unexplained_additions"]) >= {"E05", "E06", "E08"}
+    assert set(data["unexplained_additions"]) >= {"E05", "E06"}
+    assert "E08" in data["back_from_hold"]          # the master has had E08 on hold all along
 
 
 def test_pf_on_code_wages_follows_the_deemed_wage(client):

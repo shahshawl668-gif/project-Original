@@ -44,6 +44,16 @@ def days_in(d: date) -> int:
     return calendar.monthrange(d.year, d.month)[1]
 
 
+#: A month that owes less than this, per component, owes nothing: rounding.
+ARREAR_EPSILON = Decimal("1")
+
+
+def _norm(key: str) -> str:
+    from app.services.payroll_parse import normalize_col
+
+    return normalize_col(key)
+
+
 def monthly(record: Any) -> dict[str, Decimal]:
     """A CTC record's components as monthly amounts."""
     return {k: Decimal(str(v)) / TWELVE for k, v in (getattr(record, "annual_components", None) or {}).items()}
@@ -90,11 +100,18 @@ def expected_arrears(
     period_month: date,
     window_from: date | None = None,
     window_to: date | None = None,
+    history: dict[date, Any] | None = None,
 ) -> tuple[dict[str, Decimal], Decimal]:
     """
     Arrear owed for the months before ``period_month``, per component, and the
     months it spans (a part-month counts as a fraction). Empty when there is no
     earlier revision to settle.
+
+    ``history`` is the employee's stored register rows by month. Where a month is
+    on file, what it owes is what its structure was due (prorated for its paid
+    days) less what it actually paid — so a month already paid at the new rate owes
+    nothing, and arrears already settled in an earlier month are not owed again.
+    Months not on file are taken as paid at the old rate.
     """
     if previous is None:
         return {}, Decimal(0)
@@ -107,17 +124,46 @@ def expected_arrears(
 
     totals: dict[str, Decimal] = {}
     months = Decimal(0)
+    settled = Decimal(0)
     cursor = month_start(start)
     while cursor <= end:
         first = max(start, cursor)
         last = min(end, month_end(cursor))
         fraction = Decimal((last - first).days + 1) / Decimal(days_in(cursor))
-        months += fraction
-        for key in set(new) | set(old):
-            delta = new.get(key, Decimal(0)) - old.get(key, Decimal(0))
-            if delta:
-                totals[key] = totals.get(key, Decimal(0)) + delta * fraction
+        row = (history or {}).get(cursor)
+        if row is None:
+            months += fraction
+            for key in set(new) | set(old):
+                delta = new.get(key, Decimal(0)) - old.get(key, Decimal(0))
+                if delta:
+                    totals[key] = totals.get(key, Decimal(0)) + delta * fraction
+        else:
+            due = structure_for_month(latest, previous, cursor)
+            paid_days = Decimal(str(row.paid_days)) if row.paid_days is not None else Decimal(days_in(cursor))
+            ratio = min(paid_days / Decimal(days_in(cursor)), Decimal(1))
+            paid = {_norm(k): Decimal(str(v or 0)) for k, v in (row.components or {}).items()}
+            owed_any = False
+            for key in set(new) | set(old):
+                owed = (due.expected.get(key, Decimal(0)) if due else new.get(key, Decimal(0))) * ratio \
+                    - paid.get(key, Decimal(0))
+                if owed > ARREAR_EPSILON:
+                    totals[key] = totals.get(key, Decimal(0)) + owed
+                    owed_any = True
+            if owed_any:
+                months += fraction
         cursor = month_start(month_end(cursor) + timedelta(days=1))
+    # Arrears already paid since the revision took effect are not owed again.
+    for month, row in (history or {}).items():
+        if month_start(start) <= month < month_start(period_month):
+            for base, amount in (row.arrears or {}).items():
+                key = _norm(base)
+                totals[key] = totals.get(key, Decimal(0)) - Decimal(str(amount or 0))
+            settled += Decimal(str(row.increment_arrear_total or 0))
+    if settled > 0 and totals:
+        positive = sum((v for v in totals.values() if v > 0), Decimal(0))
+        if positive > 0:
+            totals = {k: v - settled * v / positive if v > 0 else v for k, v in totals.items()}
+    totals = {k: max(v, Decimal(0)) for k, v in totals.items()}
     return {k: _q(v) for k, v in totals.items() if _q(v) != 0}, months
 
 

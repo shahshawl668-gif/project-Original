@@ -710,6 +710,7 @@ def _increment_arrears(
     inc_arrear_total: Decimal,
     comp_by_key: dict[str, ComponentConfig],
     window_to: date | None = None,
+    history: dict[date, Any] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     """When the newest CTC revision took effect before the month being paid, the months
     from then up to the month before owe (new - old) per component, the first only for
@@ -730,8 +731,12 @@ def _increment_arrears(
         return info, errors
 
     expected_components, months = increments.expected_arrears(
-        latest, previous, period_month, effective_from, window_to)
+        latest, previous, period_month, effective_from, window_to, history=history)
     if not expected_components:
+        # Nothing is owed any more (the months were paid at the new rate, or the
+        # arrear was settled earlier); arrears paid again now are not owed.
+        if history and info["actual_total"] > float(ARREAR_TOLERANCE):
+            info.update({"applicable": True, "months": 0, "expected_total": 0.0})
         return info, errors
     expected_total = sum(expected_components.values(), start=Decimal("0"))
 
@@ -870,21 +875,38 @@ def _parse_any_date(value: Any) -> date | None:
     return idc.parse_cell_date(value) if value not in (None, "") else None
 
 
-def _arrears_paid_before(db: Session, entity_id, period_month: date) -> dict[str, list[tuple[date, Decimal]]]:
-    """Arrears each employee was paid in the twelve months before this one: id -> [(month, amount)]."""
-    start = date(period_month.year - 1, period_month.month, 1)
-    out: dict[str, list[tuple[date, Decimal]]] = {}
+def _paid_ratio(row: SalaryRegisterRow | None) -> Decimal | None:
+    """Paid days over the days of that row's month, or None when not known."""
+    if row is None or row.paid_days is None:
+        return None
+    days = Decimal(calendar.monthrange(row.period_month.year, row.period_month.month)[1])
+    return min(Decimal(str(row.paid_days)) / days, Decimal("1"))
+
+
+def _register_history(db: Session, entity_id, period_month: date) -> dict[str, dict[date, SalaryRegisterRow]]:
+    """Each employee's stored register rows for the fifteen months before this one: id -> {month: row}."""
+    index = period_month.year * 12 + period_month.month - 1 - 15
+    start = date(index // 12, index % 12 + 1, 1)
+    out: dict[str, dict[date, SalaryRegisterRow]] = {}
     rows = (
-        db.query(SalaryRegisterRow.employee_id, SalaryRegisterRow.period_month, SalaryRegisterRow.arrears,
-                 SalaryRegisterRow.increment_arrear_total)
+        db.query(SalaryRegisterRow)
         .join(SalaryRegister, SalaryRegister.id == SalaryRegisterRow.register_id)
         .filter(SalaryRegister.entity_id == entity_id, SalaryRegister.period_month >= start,
                 SalaryRegister.period_month < period_month)
     )
-    for employee_id, month, arrears, increment in rows:
-        total = sum((Decimal(str(v or 0)) for v in (arrears or {}).values()), Decimal("0")) + Decimal(str(increment or 0))
+    for row in rows:
+        out.setdefault(row.employee_id, {})[row.period_month.replace(day=1)] = row
+    return out
+
+
+def _arrears_paid(history: dict[date, SalaryRegisterRow]) -> list[tuple[date, Decimal]]:
+    """The months in an employee's history that paid arrears, and how much."""
+    out = []
+    for month, row in sorted(history.items()):
+        total = sum((Decimal(str(v or 0)) for v in (row.arrears or {}).values()), Decimal("0")) \
+            + Decimal(str(row.increment_arrear_total or 0))
         if total > 0:
-            out.setdefault(employee_id, []).append((month, total))
+            out.append((month, total))
     return out
 
 
@@ -897,19 +919,27 @@ def esic_contribution_period_start(month: date) -> date:
     return date(month.year - 1, 10, 1)
 
 
-def _esic_covered_in_period(db: Session, entity_id, start: date, before: date) -> dict[str, str]:
-    """Employees an earlier month of this contribution period deducted ESIC for: id -> that month."""
+def _esic_covered_in_period(history: dict[str, dict[date, SalaryRegisterRow]], start: date, before: date,
+                            comp_by_key: dict, ceiling: Decimal) -> dict[str, str]:
+    """
+    Employees whose full-month ESIC wage was within the ceiling in an earlier month
+    of this contribution period: id -> that month. Read from the wages paid, not from
+    whether ESIC was deducted — a deduction made in error does not make anyone covered.
+    """
     out: dict[str, str] = {}
-    rows = (
-        db.query(SalaryRegisterRow.employee_id, SalaryRegisterRow.period_month, SalaryRegisterRow.deductions)
-        .join(SalaryRegister, SalaryRegister.id == SalaryRegisterRow.register_id)
-        .filter(SalaryRegister.entity_id == entity_id, SalaryRegister.period_month >= start,
-                SalaryRegister.period_month < before)
-        .order_by(SalaryRegisterRow.period_month)
-    )
-    for employee_id, month, deductions in rows:
-        if employee_id not in out and Decimal(str((deductions or {}).get("ee_esi") or 0)) > 0:
-            out[employee_id] = month.strftime("%B %Y")
+    for employee_id, months in history.items():
+        for month in sorted(m for m in months if start <= m < before):
+            row = months[month]
+            wage = sum((Decimal(str(v or 0)) for k, v in (row.components or {}).items()
+                        if comp_by_key.get(normalize_col(k)) is not None and comp_by_key[normalize_col(k)].esic_applicable),
+                       Decimal("0"))
+            days = Decimal(calendar.monthrange(month.year, month.month)[1])
+            paid = Decimal(str(row.paid_days)) if row.paid_days else days
+            if wage > 0 and 0 < paid < days:
+                wage = wage * days / paid
+            if 0 < wage <= ceiling:
+                out[employee_id] = month.strftime("%B %Y")
+                break
     return out
 
 
@@ -982,10 +1012,10 @@ def validate_employees(
     # ESIC contribution periods run April-September and October-March. Who was
     # covered earlier in this period stays covered to its end, whatever their wage
     # does; a new period decides coverage afresh.
-    arrears_before = _arrears_paid_before(db, entity.id, period_month) if period_month else {}
+    history = _register_history(db, entity.id, period_month) if period_month else {}
     esic_period_start = esic_contribution_period_start(period_month) if period_month else None
     esic_covered_earlier = (
-        _esic_covered_in_period(db, entity.id, esic_period_start, period_month)
+        _esic_covered_in_period(history, esic_period_start, period_month, comp_by_key, esic_cfg.wage.wage_ceiling)
         if esic_period_start and esic_period_start < period_month else {}
     )
     esic_ceiling = esic_cfg.wage.wage_ceiling
@@ -1362,7 +1392,8 @@ def validate_employees(
         if pf_arrear > 0 and not (pf_cfg.employee_formula or "").strip():
             arrear_months_f: Decimal | None = None
             if structure is not None and len(ctcs) > 1 and period_month and ctcs[0].effective_from < period_month:
-                _, arrear_months_f = increments.expected_arrears(ctcs[0], ctcs[1], period_month)
+                _, arrear_months_f = increments.expected_arrears(ctcs[0], ctcs[1], period_month,
+                                                                 history=history.get(eid))
             if not arrear_months_f and composition.arrear_months:
                 arrear_months_f = Decimal(composition.arrear_months)
             if arrear_months_f and arrear_months_f > 0:
@@ -1423,6 +1454,7 @@ def validate_employees(
             inc_arrear_total,
             comp_by_key,
             composition.arrear_to if composition.window_source == "row" else None,
+            history=history.get(eid),
         )
         errors.extend(inc_errors)
         inc_info["issues"] = increment_issues
@@ -1435,6 +1467,10 @@ def validate_employees(
             eid, regular, inc_arrear_total, arrear_by_base, prior_rows
         )
         errors.extend(prior_errors)
+        # Paid in an earlier month but not the last one: back from a hold or a break,
+        # not a new joiner. There is no last month to compare with either.
+        if prior_info.get("is_joiner") and prior_rows and history.get(eid):
+            prior_info["is_joiner"] = False
 
         # TDS risk heuristic (thresholds configurable per tenant)
         taxable = taxable_exposure(components, regular)
@@ -1495,6 +1531,7 @@ def validate_employees(
             lwf_eamt=lwf_eamt,
             lwf_oamt=lwf_oamt,
             prior_components=prior_components_map,
+            prior_paid_ratio=_paid_ratio(prior_rows.get(eid)),
             prior_is_joiner=prior_info.get("is_joiner", False),
             lop_diffs=lop_diffs,
             inc_info=inc_info,
@@ -1522,9 +1559,10 @@ def validate_employees(
             pf_calc=pf_calc, esic_calc=esic_calc, ctc_monthly=ctc_monthly,
             mid_month_revision=bool(structure and structure.mid_month),
             revision_from=ctcs[0].effective_from if len(ctcs) > 1 else None,
-            arrears_paid_before=arrears_before.get(eid, []),
+            arrears_paid_before=_arrears_paid(history.get(eid, {})),
             age=((as_of - dob_value).days / 365.25) if dob_value else None,
             change_pct=rule_thresholds.trends.component_change_pct,
+            arrear_still_owed=Decimal(str(inc_info["expected_total"])) if inc_info.get("applicable") else None,
             explained=bool(
                 structure is not None and len(ctcs) > 1 and period_month
                 and ctcs[0].effective_from >= _prev_month(period_month)
@@ -1800,7 +1838,10 @@ def validate_employees(
     if period_month and prior_rows:
         from app.services.headcount import roll_forward
 
-        rf = roll_forward(period_month, set(prior_rows), {rec["employee_id"] for rec in results}, master_rows)
+        # A salary on hold is not a gap: the master says why the person is not paid,
+        # and their return after a hold is not an unexplained addition.
+        rf = roll_forward(period_month, set(prior_rows), {rec["employee_id"] for rec in results}, master_rows,
+                          master_as_of(db, entity.id, period_month - timedelta(days=1)))
         for eid in rf.missing_without_exit + rf.left_this_month_unpaid:
             left = getattr(master_rows.get(eid), "date_of_exit", None)
             unmatched_findings.append({

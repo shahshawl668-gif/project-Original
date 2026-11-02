@@ -23,6 +23,8 @@ class RollForward:
     missing_without_exit: list[str] = field(default_factory=list)   # on last month's, not this, no exit
     left_this_month_unpaid: list[str] = field(default_factory=list)  # exit date in this month, no final pay
     unexplained_additions: list[str] = field(default_factory=list)  # on this month's, not last, not a joiner
+    on_hold: list[str] = field(default_factory=list)                # held this month (master status)
+    back_from_hold: list[str] = field(default_factory=list)         # held last month, paid again now
 
     @property
     def expected(self) -> int:
@@ -39,11 +41,21 @@ class RollForward:
             "missing_without_exit": self.missing_without_exit,
             "left_this_month_unpaid": self.left_this_month_unpaid,
             "unexplained_additions": self.unexplained_additions,
+            "on_hold": self.on_hold, "back_from_hold": self.back_from_hold,
             "joiner_ids": self.joiners, "exit_ids": self.exits,
         }
 
 
-def roll_forward(period_month: date, last_ids: set[str], this_ids: set[str], master: dict[str, Any]) -> RollForward:
+HELD = {"on hold", "hold", "salary hold", "absconding", "absconded", "suspended", "held"}
+
+
+def _held(record: Any) -> bool:
+    return str(getattr(record, "employment_status", None) or "").strip().casefold() in HELD
+
+
+def roll_forward(period_month: date, last_ids: set[str], this_ids: set[str], master: dict[str, Any],
+                 previous_master: dict[str, Any] | None = None) -> RollForward:
+    """``master`` is as at this month's end; ``previous_master`` as at last month's, to see who was on hold."""
     start = period_month.replace(day=1)
     next_start = (start + timedelta(days=32)).replace(day=1)
 
@@ -60,6 +72,8 @@ def roll_forward(period_month: date, last_ids: set[str], this_ids: set[str], mas
         joined = doj(eid)
         if joined and start <= joined < next_start:
             out.joiners.append(eid)
+        elif previous_master is not None and _held(previous_master.get(eid)):
+            out.back_from_hold.append(eid)
         elif last_ids:
             out.unexplained_additions.append(eid)
     for eid in sorted(last_ids - this_ids):
@@ -68,6 +82,8 @@ def roll_forward(period_month: date, last_ids: set[str], this_ids: set[str], mas
             out.exits.append(eid)
         elif left and left < next_start:
             out.left_this_month_unpaid.append(eid)
+        elif _held(master.get(eid)):
+            out.on_hold.append(eid)
         else:
             out.missing_without_exit.append(eid)
     return out

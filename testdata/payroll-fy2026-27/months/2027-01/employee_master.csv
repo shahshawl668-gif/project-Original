@@ -1,0 +1,25 @@
+﻿Employee ID,Employee Name,Date of Joining,Date of Exit,Gender,State,Department,Designation,Employment Type,Employment Status,Skill Category,PAN,EPS Member,UAN,ESIC IP Number,Bank Account,IFSC
+E01,Arvind Rao,2021-06-01,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0001K,Yes,101202650001,5200000101,910020000001,HDFC0001234
+E02,Bindu Nair,2021-06-01,,Female,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0002K,Yes,101202650002,5200000102,910020000002,HDFC0001234
+E03,Chetan Patil,2021-06-01,,Male,Maharashtra,Stores,Associate,Permanent,Active,Skilled,ABCPF0003K,Yes,101202650003,5200000103,910020000003,HDFC0001234
+E04,Deepa Kulkarni,2021-06-01,,Female,Maharashtra,Stores,Associate,Permanent,Active,Skilled,ABCPF0004K,Yes,101202650004,5200000104,910020000004,HDFC0001234
+E05,Eshwar Gowda,2021-06-01,,Male,Karnataka,Stores,Associate,Permanent,Active,Unskilled,ABCPF0005K,Yes,101202650005,5200000105,910020000005,HDFC0001234
+E06,Fathima Begum,2021-06-01,,Female,Karnataka,Stores,Associate,Permanent,Active,Unskilled,ABCPF0006K,Yes,101202650006,5200000106,910020000006,HDFC0001234
+E07,Ganesh Jadhav,2021-06-01,,Male,Maharashtra,Stores,Associate,Permanent,Active,Unskilled,ABCPF0007K,Yes,101202650007,5200000107,910020000007,HDFC0001234
+E08,Harish Shetty,2026-05-15,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0008K,Yes,101202650008,5200000108,910020000008,HDFC0001234
+E09,Indira Menon,2021-06-01,2026-08-20,Female,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0009K,Yes,101202650009,5200000109,910020000009,HDFC0001234
+E10,Jagdish Pawar,2021-06-01,,Male,Maharashtra,Stores,Associate,Permanent,Active,Skilled,ABCPF0010K,Yes,101202650010,5200000110,910020000010,HDFC0001234
+E11,Kiran Bhat,2021-06-01,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0011K,Yes,101202650011,5200000111,910020000011,HDFC0001234
+E12,Lakshmi Iyer,2021-06-01,,Female,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0012K,Yes,101202650012,5200000112,910020000012,HDFC0001234
+E13,Mohan Das,2021-06-01,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0013K,Yes,101202650013,5200000113,910020000013,HDFC0001234
+E14,Nisha Deshmukh,2021-06-01,,Female,Maharashtra,Stores,Associate,Permanent,Active,Skilled,ABCPF0014K,Yes,101202650014,5200000114,910020000014,HDFC0001234
+E15,Om Prakash,2018-01-10,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0015K,No,101202650015,5200000115,910020000015,HDFC0001234
+E16,Pooja Hegde,2019-03-01,,Female,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0016K,Yes,101202650016,5200000116,910020000016,HDFC0001234
+E17,Rakesh Kumar,2021-06-01,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0017K,Yes,101202650017,5200000117,910020000017,HDFC0001234
+E18,Sunita Rao,2021-06-01,,Female,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0018K,Yes,101202650018,5200000118,910020000018,HDFC0001234
+E19,Tarun Joshi,2021-06-01,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0019K,Yes,101202650019,5200000119,910020000019,HDFC0001234
+E20,Uma Shankar,2021-06-01,,Female,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0020K,Yes,101202650020,5200000120,910020000020,HDFC0001234
+E21,Vivek Sawant,2021-06-01,,Male,Maharashtra,Stores,Associate,Permanent,Active,Skilled,ABCPF0021K,Yes,101202650021,5200000121,910020000021,HDFC0001234
+E22,Waheeda Khan,2021-06-01,,Female,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0022K,Yes,101202650022,5200000122,910020000022,HDFC0001234
+E23,Yash Kamath,2021-06-01,,Male,Karnataka,Stores,Associate,Permanent,Active,Skilled,ABCPF0023K,Yes,101202650023,5200000123,910020000023,HDFC0001234
+E24,Zara Fernandes,2021-06-01,,Female,Maharashtra,Stores,Associate,Permanent,Active,Skilled,ABCPF0024K,Yes,101202650024,5200000124,910020000024,HDFC0001234

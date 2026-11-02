@@ -95,6 +95,9 @@ Set **`NEXT_PUBLIC_API_URL`** to the API's address on the frontend build **and**
 
 ## Local development
 
+**To test the whole product on your machine — Docker, one command, and a full financial
+year of test data (April 2026 to March 2027) — see [`docs/LOCAL_TESTING.md`](docs/LOCAL_TESTING.md).**
+
 ### Backend (`backend/`)
 
 ```bash

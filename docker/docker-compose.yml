@@ -1,16 +1,25 @@
+# The whole product on one machine: PostgreSQL, the API (with its validation and
+# report workers) and the web app.
+#
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# then open http://localhost:3000 and create an account. Nothing here is fit to
+# expose to the internet: the passwords are local defaults. See docs/LOCAL_TESTING.md.
+#
+# The API builds its own schema on start (tables, additive column patches and the
+# idempotent migrations in app/migrations.py) and seeds its own reference data,
+# the same way production does.
 services:
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-payroll}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payroll}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payroll-local-only}
       POSTGRES_DB: ${POSTGRES_DB:-payroll_db}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ../database/seed_reference_data.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -22,16 +31,28 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.backend
     env_file:
-      - ../.env
+      - path: ../.env
+        required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://payroll:payroll@db:5432/payroll_db}
-      JWT_SECRET: ${JWT_SECRET:-change-me}
+      ENV: ${ENV:-dev}
+      # Always the database container: a DATABASE_URL in .env pointing at localhost
+      # would be the backend container itself.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-payroll}:${POSTGRES_PASSWORD:-payroll-local-only}@db:5432/${POSTGRES_DB:-payroll_db}
+      JWT_SECRET: ${JWT_SECRET:-local-only-jwt-secret-change-for-any-shared-machine}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # Sign-in is required, as in production; anyone may create an account locally.
+      ALLOW_ANONYMOUS_API: "false"
+      ALLOW_PUBLIC_SIGNUP: "true"
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   frontend:
     build:
@@ -39,14 +60,13 @@ services:
       dockerfile: docker/Dockerfile.frontend
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    env_file:
-      - ../.env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:

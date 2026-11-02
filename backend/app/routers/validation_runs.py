@@ -900,7 +900,8 @@ def period_headcount(
                    "reason": "No register for this month yet." if this_ids is None
                    else "No register for last month to roll forward from."})
     month_end = month.replace(day=_calendar.monthrange(month.year, month.month)[1])
-    rf = roll_forward(month, last_ids, this_ids, master_as_of(db, entity.id, month_end))
+    rf = roll_forward(month, last_ids, this_ids, master_as_of(db, entity.id, month_end),
+                      master_as_of(db, entity.id, month - timedelta(days=1)))
     return ok({"period_month": month.isoformat(), "available": True, **rf.as_dict()})
 
 

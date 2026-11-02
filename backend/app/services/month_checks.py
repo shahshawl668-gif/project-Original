@@ -19,7 +19,7 @@ from typing import Any
 
 from app.services.rule_engine_v2 import ValidationFinding, stated
 
-HELD = {"on hold", "hold", "salary hold", "absconding", "absconded", "suspended", "held"}
+from app.services.headcount import HELD  # noqa: E402  (one list of held statuses)
 ONE_TIME_TOKENS = ("incentive", "reimbursement", "reimb", "commission", "award", "referral",
                    "joining_bonus", "retention", "recovery", "emi")
 ONE_TIME_FIELDS = {"loan_recovery": "loan EMI", "notice_period_recovery": "notice recovery"}
@@ -71,6 +71,7 @@ def employee_month_checks(
     tolerance: Decimal = Decimal("1"),
     change_pct: Decimal = Decimal("10"),
     explained: bool = False,
+    arrear_still_owed: Decimal | None = None,
 ) -> list[ValidationFinding]:
     out: list[ValidationFinding] = []
 
@@ -89,7 +90,8 @@ def employee_month_checks(
     net = _d(stated(row, "net", "net_pay"))
 
     # ── EPS: an exclusion the new ceiling no longer allows ──────────────────
-    ceiling = _d(pf_calc.get("_ceiling"))
+    # From 17 Sep 2026 the test is the new ceiling, even in September's day-weighted month.
+    ceiling = _d((pf_calc.get("_transition") or {}).get("new") or pf_calc.get("_ceiling"))
     full_wage = _d(pf_calc.get("_pf_wage_full"))
     if paid_days and Decimal("0") < paid_days < Decimal(days_in_month):
         full_wage = full_wage * Decimal(days_in_month) / paid_days
@@ -207,7 +209,10 @@ def employee_month_checks(
                 math.ceil(float(ot * rate)))
 
     # ── An arrear paid once only ────────────────────────────────────────────
-    if arrear_total > 0 and revision_from:
+    # Where the CTC history says what is still owed, only an arrear beyond it is a repeat:
+    # paying the balance of an arrear settled short last month is the correction, not a duplicate.
+    beyond_owed = arrear_still_owed is None or arrear_total > arrear_still_owed + tolerance
+    if arrear_total > 0 and revision_from and beyond_owed:
         for month, paid in arrears_paid_before:
             if month >= revision_from.replace(day=1) and paid > 0:
                 add("ARR-005", "Arrear Already Paid", "arrear", "paid once", f"also paid in {month:%B %Y}",
@@ -240,7 +245,12 @@ def employee_month_checks(
         prior_net += _d((getattr(prior, "deductions", None) or {}).get("tds"))
     if net > 0:
         net += _d(stated(row, "tds", "income_tax"))
-    if prior_net > 0 and net > 0 and not explained:
+    # Last month's one-offs (arrears, a PF recovery) explain any fall back this month.
+    prior_one_off = prior is not None and (
+        any(_d(v) > 0 for v in (getattr(prior, "arrears", None) or {}).values())
+        or _d(getattr(prior, "increment_arrear_total", None)) > 0
+        or _d((getattr(prior, "deductions", None) or {}).get("ee_pf_arrear")) > 0)
+    if prior_net > 0 and net > 0 and not explained and not prior_one_off:
         prior_lop = getattr(prior, "lop_days", None)
         this_lop = _d(stated(row, "lop_days", "lop"))
         days_moved = prior_lop is not None and _d(prior_lop) != this_lop

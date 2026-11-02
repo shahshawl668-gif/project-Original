@@ -1,0 +1,119 @@
+{
+ "2026-04": {
+  "E19": {
+   "rules": [
+    "PF-009"
+   ],
+   "mistake": "PF Rs 3,600 on the full basic; PF is restricted to Rs 15,000 (Rs 1,800)"
+  }
+ },
+ "2026-05": {
+  "E08": {
+   "rules": [
+    "MST-006",
+    "ATT-001"
+   ],
+   "mistake": "Joined 15 May but paid the full month (31 days against 17 in attendance)"
+  }
+ },
+ "2026-06": {
+  "E07": {
+   "rules": [
+    "STAT-009",
+    "STAT-010"
+   ],
+   "mistake": "Maharashtra June LWF not deducted (employee Rs 25, employer Rs 75)"
+  }
+ },
+ "2026-07": {
+  "E14": {
+   "rules": [
+    "MOM-006"
+   ],
+   "mistake": "April increment arrears paid for two months; April to June is three"
+  }
+ },
+ "2026-08": {
+  "E11": {
+   "rules": [
+    "INC-002"
+   ],
+   "mistake": "Promotion effective 16 Aug paid at the full new rate for August"
+  }
+ },
+ "2026-09": {
+  "E20": {
+   "rules": [
+    "STAT-008"
+   ],
+   "mistake": "Karnataka PT Rs 200 not deducted"
+  },
+  "E16": {
+   "rules": [
+    "PF-010"
+   ],
+   "mistake": "Master still excludes her from EPS; with the Rs 25,000 ceiling she must be brought in from 17 Sep (corrected in the October master)"
+  }
+ },
+ "2026-10": {
+  "E02": {
+   "rules": [
+    "PF-012"
+   ],
+   "mistake": "September PF shortfall recovered twice: in the PF line and as an arrear"
+  },
+  "E05": {
+   "rules": [
+    "STAT-006"
+   ],
+   "mistake": "ESIC still deducted in the new contribution period; his wage is above Rs 21,000"
+  }
+ },
+ "2026-11": {
+  "E13": {
+   "rules": [
+    "ATT-023"
+   ],
+   "mistake": "10 hours of overtime paid at the single rate, not twice"
+  }
+ },
+ "2026-12": {
+  "E10": {
+   "rules": [
+    "STAT-009",
+    "STAT-010"
+   ],
+   "mistake": "Maharashtra December LWF at the old Rs 12 / Rs 36; it is Rs 25 / Rs 75"
+  }
+ },
+ "2027-01": {
+  "E22": {
+   "rules": [
+    "AGG-001"
+   ],
+   "mistake": "Gross is Rs 1,500 more than the earnings"
+  }
+ },
+ "2027-02": {
+  "E07": {
+   "rules": [
+    "STAT-008"
+   ],
+   "mistake": "Maharashtra February PT is Rs 300; Rs 200 deducted"
+  }
+ },
+ "2027-03": {
+  "E18": {
+   "rules": [
+    "LOP-004"
+   ],
+   "mistake": "One day of LOP reversed again; February had no LOP to reverse"
+  },
+  "E23": {
+   "rules": [
+    "HC-001"
+   ],
+   "mistake": "Paid in February, missing in March, and no exit in the master"
+  }
+ }
+}

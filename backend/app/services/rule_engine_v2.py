@@ -140,6 +140,23 @@ class ValidationFinding:
         }
 
 
+def _importer_fields() -> frozenset[str]:
+    """Every field the register importer recognises, and the spellings it maps to them.
+
+    Read from the importer itself, so a column it learns (a PF arrear line, a LOP
+    reversal) is never reported here as one the product ignores.
+    """
+    global _IMPORTER_FIELDS
+    if _IMPORTER_FIELDS is None:
+        from app.services.payroll_parse import ALIASES, IMPORT_FIELDS, REGISTER_AMOUNT_FIELDS
+
+        _IMPORTER_FIELDS = frozenset(IMPORT_FIELDS) | frozenset(ALIASES) | REGISTER_AMOUNT_FIELDS
+    return _IMPORTER_FIELDS
+
+
+_IMPORTER_FIELDS: frozenset[str] | None = None
+
+
 def is_unmapped_column(name: object, comp_by_key: dict) -> bool:
     """Would COMP-001 report this column as one the product ignores?
 
@@ -152,7 +169,7 @@ def is_unmapped_column(name: object, comp_by_key: dict) -> bool:
     if name is None:
         return False
     col = str(name).strip().lower().replace(" ", "_")
-    if col in _RESERVED_COLS or col.startswith("_"):
+    if col in _RESERVED_COLS or col in _importer_fields() or col.startswith("_"):
         return False
     if col.endswith("_arrear") or ("increment" in col and "arrear" in col):
         return False
@@ -191,6 +208,15 @@ def _alternate_basis_match(
     return None
 
 
+_VARIABLE_PAY = ("overtime", "incentive", "commission", "bonus", "reimbursement", "encashment",
+                 "arrear", "award", "referral")
+
+
+def _variable_pay(key: str) -> bool:
+    words = key.lower().split("_")
+    return key.lower() in ("ot",) or any(token in words or token in key.lower() for token in _VARIABLE_PAY)
+
+
 def build_findings(
     employee_id: str,
     employee_name: str | None,
@@ -221,6 +247,7 @@ def build_findings(
     employed_days: int | None = None,
     ctc_components: dict[str, Decimal] | None = None,
     revision_explains: bool = False,
+    prior_paid_ratio: Decimal | None = None,
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
 
@@ -830,8 +857,12 @@ def build_findings(
         for k, old_val_f in prior_components.items():
             old_val = Decimal(str(old_val_f))
             new_val = regular.get(k, Decimal("0"))
-            if old_val == Decimal("0"):
+            if old_val == Decimal("0") or _variable_pay(k):
+                # Overtime, incentives and the like vary by design; a month without them is not a drop.
                 continue
+            # Last month's part month (LOP, joining) is taken back to its full-month rate.
+            if prior_paid_ratio is not None and Decimal("0") < prior_paid_ratio < Decimal("1"):
+                old_val = old_val / prior_paid_ratio
             pct = float((new_val - old_val) / old_val) * 100
             # A part month (loss of pay, joining, leaving) is not a pay change: compare the
             # full-month rate, which is what the proration checks already hold to account.
