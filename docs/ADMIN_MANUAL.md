@@ -279,6 +279,9 @@ every support session and use.
 
 ![Audit trail](images/12-audit.png)
 
+Above the list, *Activity, last 30 days* counts entries per day (India time) and *What was done*
+counts them by kind, both over the same scope as the list. The filter changes the list only.
+
 Audit rows are written in the same transaction as the thing they describe. A
 trail that can survive a rolled-back change records events that never happened.
 

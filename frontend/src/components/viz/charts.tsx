@@ -207,8 +207,10 @@ export type Column = { key: string; label: string; parts: { label: string; value
  * draw says why (`empty`) instead of showing a zero-height bar that reads as
  * "nothing found".
  */
-export function Columns({ columns, caption, height = 96, zero = "#dfe2e8", zeroWord = "none" }: {
+export function Columns({ columns, caption, height = 96, zero = "#dfe2e8", zeroWord = "none", quietZero = false }: {
   columns: Column[]; caption: string; height?: number;
+  /** Leave the "0" off empty slots when there are many of them; the hover and the label still say none. */
+  quietZero?: boolean;
   /** Colour and wording of a slot whose total is zero. */
   zero?: string; zeroWord?: string;
 }) {
@@ -231,7 +233,7 @@ export function Columns({ columns, caption, height = 96, zero = "#dfe2e8", zeroW
                   ) : null)}
                 </div>
               )}
-              {col.empty === undefined ? <span className="num absolute -top-0.5 text-2xs font-medium text-ink-700">{count(total)}</span> : null}
+              {col.empty === undefined && !(quietZero && total === 0) ? <span className="num absolute -top-0.5 text-2xs font-medium text-ink-700">{count(total)}</span> : null}
               {hover === col.key && col.empty === undefined ? (
                 <Tip>{col.label}: {total === 0 ? zeroWord : col.parts.filter((p) => p.value > 0).map((p) => `${p.label} ${count(p.value)}`).join(" · ")}</Tip>
               ) : null}
@@ -311,6 +313,63 @@ export function HeatGrid({ columns, rows, caption }: { columns: { key: string; l
               })}
             </tr>
           ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Tick grid ───────────────────────────────────────────────────────────────
+
+/**
+ * Yes or no, for every row against every column — which component feeds
+ * which wage. A filled cell is a yes and says so to a screen reader; the last
+ * row counts the yeses in each column.
+ */
+export function TickGrid({ columns, rows, caption, rowHeader, onRow, selected }: {
+  columns: { key: string; label: string }[];
+  rows: { key: string; label: string; on: Record<string, boolean> }[];
+  caption: string; rowHeader: string; onRow?: (key: string) => void; selected?: string | null;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-separate border-spacing-[3px] text-xs">
+        <caption className="sr-only">{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col" className="text-left font-medium text-ink-500">{rowHeader}</th>
+            {columns.map((c) => <th key={c.key} scope="col" className="min-w-[4rem] px-1 pb-1 text-center text-2xs font-medium text-ink-500">{c.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <th scope="row" className="max-w-[14rem] pr-3 text-left font-normal">
+                {onRow ? (
+                  <button type="button" onClick={() => onRow(row.key)}
+                          className={cn("block w-full truncate text-left hover:text-brand-700 hover:underline", selected === row.key ? "font-semibold text-brand-700" : "text-ink-800")}>
+                    {row.label}
+                  </button>
+                ) : <span className="block truncate text-ink-800">{row.label}</span>}
+              </th>
+              {columns.map((c) => (
+                <td key={c.key} className="p-0">
+                  <div aria-label={`${row.label}, ${c.label}: ${row.on[c.key] ? "yes" : "no"}`}
+                       className={cn("flex h-7 items-center justify-center rounded-md text-xs font-semibold", row.on[c.key] ? "bg-brand-600 text-white" : "bg-ink-50 text-ink-300")}>
+                    {row.on[c.key] ? "✓" : "·"}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          ))}
+          <tr>
+            <th scope="row" className="pt-1 text-left text-2xs font-medium text-ink-500">Components feeding it</th>
+            {columns.map((c) => (
+              <td key={c.key} className="num pt-1 text-center text-xs font-semibold text-ink-900">
+                {rows.filter((r) => r.on[c.key]).length}<span className="font-normal text-ink-500"> of {rows.length}</span>
+              </td>
+            ))}
+          </tr>
         </tbody>
       </table>
     </div>

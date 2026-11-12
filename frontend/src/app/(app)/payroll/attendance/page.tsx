@@ -13,6 +13,8 @@ import {
   UploadCloud,
 } from "lucide-react";
 
+import { AttendancePicture } from "@/components/viz/pictures";
+import { normalisePeriod, periodLabel } from "@/lib/workspace";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TemplateDownload } from "@/components/data/TemplateDownload";
 import { AlertBanner } from "@/components/ui/alert-banner";
@@ -267,6 +269,10 @@ export default function AttendancePage() {
           )}
         </>
       )}
+
+      {registers?.length ? (
+        <AttendancePicture registerId={registers[0].id} label={periodLabel(normalisePeriod(registers[0].period_month))} />
+      ) : null}
 
       <Card>
         <CardContent className="py-5">

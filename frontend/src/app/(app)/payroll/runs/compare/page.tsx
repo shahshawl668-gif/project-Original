@@ -1,5 +1,6 @@
 "use client";
 
+import { Legend, Panel, StackedBars } from "@/components/viz/charts";
 import { useEntity } from "@/context/EntityContext";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
@@ -18,6 +19,8 @@ const GROUPS: { id: Group; label: string; meaning: string; tone: string }[] = [
   { id: "changed", label: "Changed", meaning: "In both, with different values", tone: "border-warning-200 bg-warning-50 text-warning-800" },
   { id: "unchanged", label: "Unchanged", meaning: "In both, identical", tone: "border-ink-200 bg-ink-50 text-ink-700" },
 ];
+
+const FATE = { unchanged: "#8a93a4", changed: "#fab219", resolved: "#0ca30c", new: "#d03b3b" } as const;
 
 function Row({ f }: { f: ComparedFinding }) {
   return (
@@ -92,6 +95,27 @@ function CompareContent() {
               </button>
             ))}
           </div>
+          <Panel title="From one run to the next" sub="Each run's findings, split by what became of them · resolved findings are only in the earlier run, new ones only in the later">
+            <StackedBars
+              caption="Findings in the earlier and the later run"
+              rows={[
+                { key: "base", label: `Earlier · run ${data.base.run_number}`, parts: [
+                  { label: "Unchanged", value: data.counts.unchanged, color: FATE.unchanged },
+                  { label: "Changed", value: data.counts.changed, color: FATE.changed },
+                  { label: "Resolved", value: data.counts.resolved, color: FATE.resolved },
+                ] },
+                { key: "target", label: `Later · run ${data.target.run_number}`, parts: [
+                  { label: "Unchanged", value: data.counts.unchanged, color: FATE.unchanged },
+                  { label: "Changed", value: data.counts.changed, color: FATE.changed },
+                  { label: "New", value: data.counts.new, color: FATE.new },
+                ] },
+              ]}
+            />
+            <Legend className="mt-3" items={[
+              { label: "Unchanged", color: FATE.unchanged }, { label: "Changed", color: FATE.changed },
+              { label: "Resolved", color: FATE.resolved }, { label: "New", color: FATE.new },
+            ]} />
+          </Panel>
           <div className="overflow-x-auto rounded-2xl border border-ink-200/70 bg-white shadow-soft">
             <table className="w-full text-sm">
               <thead className="bg-ink-50/80 text-left text-[11px] text-ink-500">

@@ -168,6 +168,18 @@ def list_master_uploads(
     return ok([EmployeeMasterUploadOut.model_validate(r).model_dump(mode="json") for r in rows])
 
 
+@router.get("/master/picture")
+def master_picture(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """Today's master counted for the charts: who is where, and which fields are filled."""
+    from app.services import workforce_picture
+
+    return ok(workforce_picture.master_picture(db, entity.id))
+
+
 @router.get("/master")
 def list_master_records(
     as_of: str | None = None,
@@ -363,6 +375,22 @@ def list_attendance_registers(
         .all()
     )
     return ok([AttendanceRegisterOut.model_validate(r).model_dump(mode="json") for r in rows])
+
+
+@router.get("/attendance/{register_id}/picture")
+def attendance_picture(
+    register_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """One stored month of attendance counted for the charts."""
+    from app.services import workforce_picture
+
+    register = db.get(AttendanceRegister, register_id)
+    if register is None or register.entity_id != entity.id:
+        raise HTTPException(status_code=404, detail="Attendance register not found")
+    return ok(workforce_picture.attendance_picture(db, register))
 
 
 @router.get("/attendance/{register_id}")

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Menu, MenuItem } from "@/components/cost/Menu";
+import { AuditPicture } from "@/components/viz/pictures";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +52,8 @@ function when(value: string | null): string {
  * uploaded which file, when, and who approved it. Read-only by construction —
  * the API has no endpoint that edits or removes an event.
  */
+const ACTION_LABELS: Record<string, string> = Object.fromEntries(ACTIONS.filter((a) => a.key).map((a) => [a.key as string, a.label]));
+
 export default function AuditPage() {
   const [action, setAction] = useState<string | null>(null);
 
@@ -91,6 +94,8 @@ export default function AuditPage() {
           </p>
         </CardContent>
       </Card>
+
+      <AuditPicture labels={ACTION_LABELS} />
 
       {trail.isError && (
         <AlertBanner variant="error" title="Could not load the trail">

@@ -137,6 +137,10 @@ structure, each flagged for its statutory treatment:
 
 ![Salary components](images/14-components.png)
 
+Under the editor, **Which component feeds what** lays every component against every flag in one
+grid, with the number of components feeding each wage along the bottom — the quickest way to spot
+an allowance left out of the ESIC wage, or Basic missing from PF. Click a name to edit it.
+
 The page is a list on the left and one component on the right. Choose a component to edit it, or
 **Add new component**; the right side asks for the name and which statutory wages it feeds (PF, ESIC,
 PT, LWF, bonus, wages, taxable). Every component you add becomes a column in the salary register and CTC templates and a name the PF and ESIC formulas on the **Statutory engine** page can

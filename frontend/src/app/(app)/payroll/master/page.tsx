@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileSpreadsheet, Loader2, ShieldCheck, UploadCloud } from "lucide-react";
 
+import { MasterPicture } from "@/components/viz/pictures";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { TemplateDownload } from "@/components/data/TemplateDownload";
 import { AlertBanner } from "@/components/ui/alert-banner";
@@ -202,6 +203,8 @@ export default function EmployeeMasterPage() {
           </CardContent>
         </Card>
       )}
+
+      {uploads && uploads.length > 0 ? <MasterPicture /> : null}
 
       {uploads && uploads.length > 0 && (
         <Card>

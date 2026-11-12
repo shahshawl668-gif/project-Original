@@ -291,12 +291,22 @@ then **Store**. The master is what lets validation catch someone paid after
 leaving, someone on the register who is not an employee, and the wrong state
 for professional tax. Sending the same month again replaces that version.
 
+Once a master is stored, the page draws it as it stands today: how many people are working and
+how many have left, the split by gender, work state and department, joiners by year, and — the one
+to read first — **What is filled in**: how many employees have each field recorded. An empty field
+switches off the checks that read it, so a short bar there explains missing checks elsewhere.
+People with a value not recorded are counted as such, never dropped.
+
 ### Step 1 — Attendance
 
 **Data & imports → Attendance.** Upload the month's attendance, then
 **validate** before committing.
 
 ![Attendance](images/04-attendance.png)
+
+For the latest stored month the page adds up the days by kind (present, paid leave, weekly off,
+holidays, loss of pay), counts employees by how many days of pay they lost, and shows who worked
+overtime. A column the file did not carry is shown as *not in the file* — never as a total of zero.
 
 The file is checked against itself first: calendar days, present days, paid
 leave, weekly offs, holidays, loss of pay and paid days all have to add up. **If
@@ -378,7 +388,8 @@ marked *superseded*, and still shows exactly what it reported. The chips at the
 top of the results page switch between a month's runs, and **Compare** shows
 what changed between two of them — which findings are **new**, which were
 **resolved**, which **changed** and which are **unchanged**, with the rupee
-totals of each.
+totals of each. A pair of bars under those figures shows each run's findings
+split the same way, so a run that grew or shrank is seen at once.
 
 If anything the result depended on changes after the run — the register is
 re-uploaded, the employee master or attendance changes, or a component flag,
