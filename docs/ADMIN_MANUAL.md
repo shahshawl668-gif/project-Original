@@ -567,6 +567,18 @@ restore, re-run the erasures listed on the page.
   denial-of-service issues in the App Router that 14.x never received fixes for.
 - **Rollback:** redeploy the previous web release.
 
+### Upgrading to Next.js 16 (web app)
+
+- **The web app only.** Next.js 16.4.2, replacing 15.5.27. No database change,
+  no setting, no API change.
+- **Nothing for users to do.** Sessions carry on and pages look the same.
+- **What moved in the code:** the file that routes a company's own web address
+  to its sign-in page is now `frontend/src/proxy.ts` (Next.js 16 renamed
+  `middleware.ts`); it does the same thing. Production builds use Turbopack.
+- **Node.js 20.9 or later** is needed to build; the Docker image and CI
+  already use Node 20.
+- **Rollback:** redeploy the previous web release.
+
 ---
 
 ## 8b. PeopleOps Studio — keys for other systems

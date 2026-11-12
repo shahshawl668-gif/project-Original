@@ -119,7 +119,7 @@ async function proxy(req: NextRequest, segments: string[]): Promise<Response> {
   });
 }
 
-// Next.js 15: route parameters arrive as a Promise.
+// Since Next.js 15, route parameters arrive as a Promise.
 type Ctx = { params: Promise<{ path: string[] }> };
 
 export async function GET(req: NextRequest, ctx: Ctx) {
