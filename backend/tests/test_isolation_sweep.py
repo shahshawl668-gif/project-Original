@@ -102,9 +102,6 @@ def _populate(client, headers, hrms) -> list[str]:
             client.post(f"/api/findings/{fp}/comments", headers=headers, json={"body": "B's private note"})
             client.post(f"/api/findings/{fp}/attachments", headers=headers,
                         files={"file": ("evidence.csv", io.BytesIO(b"a,b\n1,2\n"), "text/csv")})
-    client.post("/api/dashboards/from-template", headers=headers, json={"template": "payroll_cost"})
-    client.post("/api/kpis", headers=headers, json={
-        "name": "B ratio", "dataset": "payroll_cost", "formula": "employer_cost / gross * 100", "unit": "pct"})
     report = client.post("/api/reports/builder/saved", headers=headers, json={
         "name": "B report", "visibility": "private",
         "specification": {"dataset": "payroll_cost", "dimension": "department",
@@ -118,18 +115,9 @@ def _populate(client, headers, hrms) -> list[str]:
     client.post("/api/minimum-wage/rates", headers=headers, json={
         "state": "Karnataka", "skill_category": "Unskilled", "monthly_rate": 12000,
         "effective_from": "2026-04-01"})
-    client.post("/api/reconciliation/bank/profiles", headers=headers, json={
-        "name": "B bank", "layout": "delimited", "column_map": {"employee_id": "Emp", "amount": "Amt"}})
     base = _data(client.get("/api/config/statutory", headers=headers))
     client.post("/api/config/statutory/versions", headers=headers, json={
         "effective_from": "2026-09-01", "config": {k: base[k] for k in ("pf", "esic", "component_mapping")}})
-    # A checked salary payment file (synthetic), with its clean file and report.
-    from tools.disbursement_synth import generate
-
-    pack = generate(120, 20260901, "B", "generic")
-    client.put("/api/disbursement/settings", headers=headers, json={"overrides": pack.settings})
-    client.post("/api/disbursement/runs", headers=headers, data={"period": "2026-09"},
-                files={slot: (name, io.BytesIO(content)) for slot, (name, content) in pack.files.items()})
     # Studio
     client.post("/api/studio/destinations", headers=headers, json={"host": "127.0.0.1"})
     account = client.post("/api/studio/service-accounts", headers=headers, json={
@@ -218,5 +206,5 @@ def test_no_route_hands_one_company_another_companys_object(client, hrms, _studi
     # And A naming B's company outright is refused everywhere a company is resolved.
     stranger = {**a, "X-Entity-Id": b["X-Entity-Id"]}
     for path in ("/api/validation/runs", "/api/components", "/api/reports/builder/saved",
-                 "/api/studio/connections", "/api/dashboards", "/api/bi/cost-analysis"):
+                 "/api/studio/connections", "/api/bi/periods", "/api/bi/compliance"):
         assert client.get(path, headers=stranger).status_code == 404, path

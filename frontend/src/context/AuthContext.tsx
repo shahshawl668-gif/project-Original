@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
@@ -23,6 +24,7 @@ import {
 } from "@/lib/api";
 
 import { completeSecondStep, signIn, type AuthUser } from "@/lib/auth";
+import { AUTH_DISABLED, isSignInPage } from "@/lib/auth-mode";
 import { clearPayrollResults } from "@/lib/payroll-session";
 export type { AuthUser } from "@/lib/auth";
 
@@ -60,7 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await refreshSession();
       access = getAccessToken();
     }
-    if (!access) {
+    // Sign-in switched off: no token, and the API answers as its local user.
+    if (!access && !AUTH_DISABLED) {
       if (revision === sessionRevision.current) setUser(null);
       return;
     }
@@ -79,6 +82,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void refreshUser().finally(() => setLoading(false));
   }, [refreshUser]);
+
+  // With sign-in switched off there is nothing to sign in to: go to the app.
+  const pathname = usePathname();
+  const router = useRouter();
+  const leavingSignIn = AUTH_DISABLED && isSignInPage(pathname);
+  useEffect(() => {
+    if (leavingSignIn) router.replace("/dashboard");
+  }, [leavingSignIn, router]);
 
   /** Rotate access tokens before expiry (access JWT `exp`). */
   useEffect(() => {
@@ -177,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user, loading, login, verifySecondStep, signup, logout, refreshUser]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{leavingSignIn ? null : children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

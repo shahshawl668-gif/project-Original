@@ -18,6 +18,7 @@ import { ContextBar } from "@/components/layout/ContextBar";
 import { TopNav } from "@/components/layout/TopNav";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { SupportBanner } from "@/components/SupportBanner";
+import { AUTH_DISABLED } from "@/lib/auth-mode";
 import { cn } from "@/lib/utils";
 
 /**
@@ -208,27 +209,31 @@ function ProfileMenu() {
           >
             Audit trail
           </Link>
-          <Link
-            role="menuitem"
-            href="/account/security"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-ink-700 transition-colors hover:bg-ink-50"
-          >
-            Sign-in & security
-          </Link>
-          <div className="my-1 h-px bg-ink-100" />
-          <button
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              void logout().finally(() => router.replace("/login"));
-            }}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-danger-700 transition-colors hover:bg-danger-50"
-          >
-            <LogOut size={14} aria-hidden />
-            Sign out
-          </button>
+          {!AUTH_DISABLED && (
+            <>
+              <Link
+                role="menuitem"
+                href="/account/security"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-ink-700 transition-colors hover:bg-ink-50"
+              >
+                Sign-in & security
+              </Link>
+              <div className="my-1 h-px bg-ink-100" />
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  void logout().finally(() => router.replace("/login"));
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-danger-700 transition-colors hover:bg-danger-50"
+              >
+                <LogOut size={14} aria-hidden />
+                Sign out
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -349,6 +354,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Loader2 size={15} className="animate-spin" aria-hidden />
           Checking your session…
         </p>
+      </BrandFrame>
+    );
+  }
+
+  if (!isAuthenticated && AUTH_DISABLED) {
+    // Sign-in is off, so this is the API refusing its local user — say so,
+    // rather than offer a sign-in page that no longer exists.
+    return (
+      <BrandFrame>
+        <div className="w-full max-w-md rounded-xl border border-ink-200 bg-white p-8 text-center shadow-soft">
+          <h1 className="text-lg font-semibold tracking-tight text-ink-900">The API did not let us in</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-600">
+            Sign-in is switched off in this build, so the API must answer as its local user. It did not. Check
+            the API is running, is not in production, and has ALLOW_ANONYMOUS_API on.
+          </p>
+        </div>
       </BrandFrame>
     );
   }

@@ -298,6 +298,20 @@ def test_a_platform_owner_reads_the_security_log_and_a_client_cannot(client):
     assert client.get("/api/admin/security/events", headers=_bearer(customer)).status_code == 403
 
 
+def test_a_build_with_sign_in_off_is_told_who_it_is(client, monkeypatch):
+    """No token, anonymous mode on: /me names the local user instead of failing on its reserved address."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "allow_anonymous_api", True)
+    r = client.get("/api/auth/me")
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["email"] == "system@payrollcheck.local"
+    assert r.json()["data"]["role"] == "system"
+
+    monkeypatch.setattr(settings, "allow_anonymous_api", False)
+    assert client.get("/api/auth/me").status_code == 401
+
+
 # ── HTTP ────────────────────────────────────────────────────────────────────
 
 def test_every_answer_carries_the_security_headers(client):
