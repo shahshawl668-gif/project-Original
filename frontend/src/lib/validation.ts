@@ -201,6 +201,33 @@ export type PeriodStatus = {
 
 // ─── Coverage: five outcomes per check ────────────────────────────────────────
 
+type SeverityCounts = { CRITICAL: number; WARNING: number; INFO: number };
+type PictureGroup = {
+  items: { name: string; employees: number; with_findings: number; critical: number }[];
+  /** Named groups beyond the ones listed; the chart says so rather than pass for the whole. */
+  not_shown: number;
+  unassigned: { employees: number; with_findings: number };
+};
+/** A run counted for drawing — whole-run counts made by the server, never from one page of rows. */
+export type RunPicture = {
+  run_id: string;
+  employees: number;
+  employees_with_findings: number;
+  findings: number;
+  severity: SeverityCounts;
+  areas: ({ area: string; label: string; findings: number; employees: number } & SeverityCounts)[];
+  departments: PictureGroup;
+  locations: PictureGroup;
+  risk: { bucket: number; buckets: { from: number; to: number; employees: number }[] };
+  matrix: {
+    areas: { area: string; label: string }[];
+    rows: { employee_id: string; employee_name: string | null; risk_level: string; risk_score: number;
+            cells: Record<string, Partial<SeverityCounts>> }[];
+    shown: number;
+    employees_with_findings: number;
+  };
+};
+
 export type Outcome = "passed" | "failed" | "cannot_validate" | "not_applicable" | "disabled";
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -409,6 +436,7 @@ export const validationApi = {
       component?: string; state?: string; owner?: string; location?: string;
     } = {},
   ) => get<FindingPage>(`/api/validation/runs/${encodeURIComponent(runId)}/findings${qs(params)}`),
+  picture: (runId: string) => get<RunPicture>(`/api/validation/runs/${encodeURIComponent(runId)}/picture`),
   compare: (base: string, target: string, show = "all") =>
     get<RunComparison>(`/api/validation/runs/compare${qs({ base, target, show })}`),
   explain: (runId: string, findingId: string) =>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Donut, Panel, Ring } from "@/components/viz/charts";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -16,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
 import { useEntity } from "@/context/EntityContext";
 import { saveBlob } from "@/lib/download";
-import { count, date, dateTime, inr, plural } from "@/lib/format";
+import { count, date, dateTime, inr, pct, plural } from "@/lib/format";
 import {
   ISSUE_STATE_LABEL, issuesApi,
   type Assignee, type Issue, type IssueDetail, type IssuePage, type IssueState, type WorklistParams,
@@ -177,6 +178,8 @@ function IssuesContent() {
         title="Issues"
         description="Every finding still to be worked, across months — with an owner, a due date, comments, evidence and the decisions taken on it."
       />
+
+      {data ? <WorklistPicture data={data} /> : null}
 
       {data ? (
         <nav aria-label="Issue states" className="flex flex-wrap items-center gap-1.5">
@@ -549,6 +552,49 @@ function IssuePanel({ fingerprint, canWrite, assignees, onClose, onChanged }: {
         </div>
       )}
     </Drawer>
+  );
+}
+
+const STATE_HEX: Record<IssueState, string> = { open: "#d03b3b", acknowledged: "#2a78d6", waived: "#8a93a4", resolved: "#0ca30c" };
+
+/** Every finding ever tracked for this company, by the state it is in now. Unaffected by the filters below. */
+function WorklistPicture({ data }: { data: IssuePage }) {
+  const order: IssueState[] = ["open", "acknowledged", "waived", "resolved"];
+  const total = order.reduce((a, s) => a + (data.counts[s] ?? 0), 0);
+  if (total === 0) return null;
+  const active = (data.counts.open ?? 0) + (data.counts.acknowledged ?? 0);
+  const closed = total - active;
+  return (
+    <div className="grid items-start gap-4 lg:grid-cols-[3fr_2fr]">
+      <Panel title="Where the findings stand" sub="Every finding tracked for this company, across months, by its state now">
+        <Donut
+          caption="Findings by review state"
+          total={total}
+          slices={order.map((s) => ({ label: ISSUE_STATE_LABEL[s], value: data.counts[s] ?? 0, color: STATE_HEX[s] }))}
+          centre={<><span className="num text-2xl font-semibold tracking-tight text-ink-900">{count(total)}</span><span className="text-2xs text-ink-500">tracked</span></>}
+        />
+      </Panel>
+      <Panel title="Progress" sub="Closed means resolved or waived with a reason">
+        <div className="flex items-center gap-4">
+          <Ring value={(closed / total) * 100} label={`${count(closed)} of ${count(total)} findings closed`}>
+            <span className="num text-xl font-semibold tracking-tight text-ink-900">{pct((closed / total) * 100)}</span>
+            <span className="text-2xs text-ink-500">closed</span>
+          </Ring>
+          <dl className="flex-1 space-y-1.5 text-xs">
+            {[
+              ["Still to work", active],
+              ["Overdue", data.overdue],
+              ["No owner", data.unassigned],
+            ].map(([label, n]) => (
+              <div key={label as string} className="flex items-center justify-between gap-3">
+                <dt className="text-ink-600">{label}</dt>
+                <dd className="num font-semibold text-ink-900">{count(n as number)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </Panel>
+    </div>
   );
 }
 

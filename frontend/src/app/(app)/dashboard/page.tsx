@@ -16,6 +16,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Legend, Panel, SEVERITY_COLOR, StackedBars } from "@/components/viz/charts";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -336,6 +337,24 @@ export default function CompaniesPage() {
               </span>
             </AlertBanner>
           )}
+
+          {rows.length > 1 && rows.some((r) => r.open_findings > 0) ? (
+            <Panel title="Open findings by company" sub="From each company's latest register · critical in red, everything else open in amber">
+              <StackedBars
+                caption="Open findings by company"
+                rows={[...rows].filter((r) => r.last_register_period).sort((a, b) => b.open_findings - a.open_findings).slice(0, 12).map((r) => ({
+                  key: r.id, label: r.name,
+                  parts: [
+                    { label: "Critical", value: r.critical_findings, color: SEVERITY_COLOR.CRITICAL },
+                    { label: "Other open", value: Math.max(0, r.open_findings - r.critical_findings), color: SEVERITY_COLOR.WARNING },
+                  ],
+                  note: <>{r.open_findings} <span className="font-normal text-ink-500">· {r.employee_count} people</span></>,
+                }))}
+              />
+              <Legend className="mt-3" items={[{ label: "Critical", color: SEVERITY_COLOR.CRITICAL }, { label: "Other open", color: SEVERITY_COLOR.WARNING }]} />
+              {rows.filter((r) => r.last_register_period).length > 12 ? <p className="mt-2 text-2xs text-ink-500">The twelve companies with the most open findings are drawn; all are listed below.</p> : null}
+            </Panel>
+          ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {rows.map((row) => (

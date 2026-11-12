@@ -110,8 +110,11 @@ company and takes you into its work. A company with nothing uploaded says so.
 
 **Home → Payroll Control Centre** is the *Month at a glance*. Across the top you choose the
 **company** and the **financial year** (always April to March; FY 2026-27 and FY 2027-28 are
-offered), then click one of that year's twelve **months** — a green bar means the month has been
-checked. **Check a register** begins the month. Below, the page shows which files have arrived, how validation is
+offered). The year is drawn as twelve columns: each checked month shows its **open critical
+findings** (red) and **open warnings** (amber) from its current run, a green tick-mark where none are
+open, and a dash where the month has not been checked. Click a month to open it. The validation panel
+shows the run's checks as a ring — passed, failed, could not validate, not applicable — around the
+share that reached a verdict. **Check a register** begins the month. Below, the page shows which files have arrived, how validation is
 going, what is still open, what changed since the previous run, what blocks approval and the
 evidence pack; a right-hand rail holds the latest run, the month's closure status and the output
 links. It also says the **next step** —
@@ -389,6 +392,16 @@ employees; the ones with an arrow open the matching list. Under them, the
 **outcome strip** says how much was checked (see Coverage below) — kept apart
 from the issue counts on purpose.
 
+The **Overview** tab draws the run. *Findings by severity* is a ring of every finding the run
+recorded, before waivers. *Where in payroll* splits them by area — provident fund, ESIC, PT and LWF,
+income tax, wages and structure, attendance, arrears and changes, totals, data — with the employees
+affected beside each bar. *Who failed what* is a grid of employees against those areas: a cell is
+coloured by its worst finding and carries the number of findings in it, a dot means no finding, and
+clicking a name opens that employee. It draws the forty highest-risk employees and says so when
+there are more. *Risk spread* counts employees by risk score, and *By work state* and *By department*
+show how many people in each have at least one finding. Every chart is counted over the whole run
+by the server, so it agrees with the tables under it; hover a mark for its exact figures.
+
 Large results are paged on the server, fifty at a time, with the total always
 stated. On **Findings**, filter by severity, check, component, location,
 review state or owner, sort by employee, check, severity or impact, and choose
@@ -426,7 +439,9 @@ the checks that applied, how many reached a verdict. A month with no failures
 and 60% coverage has not been shown to be clean — 40% of it was not checked.
 The **Coverage** tab lists the inputs that were missing, how many checks each
 would have unlocked, and the employees who could not be fully checked. The
-employee view lists every check for that person with its outcome and the reason.
+employee view lists every check for that person with its outcome and the reason. At its top,
+a ring shows that person's checks by outcome, and a second panel what their risk score is made of
+— points from critical findings, warnings, info findings and large rupee impacts.
 
 ![Coverage](images/18-coverage.png)
 
@@ -466,6 +481,11 @@ or search by employee. The filters are kept in the page address, so a link
 from the Control Centre arrives already filtered.
 
 ![Issues](images/20-issues.png)
+
+Above the list, *Where the findings stand* shows every finding tracked for the company, across
+months, by its state now, and *Progress* the share already closed (resolved, or waived with a
+reason) beside what is still to work, overdue and without an owner. These two do not change with
+the filters.
 
 Open a finding to:
 
@@ -815,7 +835,9 @@ choices, not a frozen result: it reads current data each time.
 **Validation & findings → History.** The one place for what has already happened: the
 **Validation runs** tab lists every validation with its outcome (finished runs open their results,
 running ones their progress), and the **Salary registers** tab holds every register stored, by
-month. Processing a month is never started from here — that is the Control Centre.
+month. Once two months have been checked, *Month by month* at the top draws each month's open
+critical findings and warnings side by side; click a column to open that month's results.
+Processing a month is never started from here — that is the Control Centre.
 
 ![Register history](images/13-register-history.png)
 

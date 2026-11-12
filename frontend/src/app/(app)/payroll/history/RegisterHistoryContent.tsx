@@ -1,5 +1,6 @@
 "use client";
 
+import { RunTrend } from "@/components/validation/RunTrend";
 import { apiJson } from "@/lib/api";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { RecentRuns } from "@/components/validation/RecentRuns";
@@ -144,6 +145,8 @@ export default function RegisterHistoryContent() {
           </Button>
         }
       />
+
+      <RunTrend />
 
       <div role="tablist" aria-label="History" className="flex gap-1 border-b border-ink-200">
         {([["runs", "Validation runs"], ["registers", "Salary registers"]] as const).map(([key, label]) => (
