@@ -184,14 +184,24 @@ Configuration, open when you are in them.
   as a passed check (STAT-005), not as a problem. Coverage follows the **contribution period**
   (April–September, October–March): someone covered earlier in the period stays covered to its end
   even after crossing ₹21,000, and October and April decide coverage afresh — a deduction that carries
-  on into a new period for someone now above the ceiling is reported. Overtime paid to a covered
-  employee must be in the ESIC wage (ESI-009).
+  on into a new period for someone now above the ceiling is reported. Where an earlier month of
+  the period was never loaded, ESIC deducted above the ceiling is shown as *ESIC Coverage Not
+  Confirmed* — the employee may have been covered in the month that is missing — and it names the
+  month to load; it is not counted as an error unless the amount is wrong either way. Overtime paid
+  to a covered employee must be in the ESIC wage (ESI-009).
 * **PT and LWF** are checked in every state the company runs them in — the states in the settings
   *and* every state whose slabs are saved on the Professional tax / Labour welfare fund tabs; those
   tabs open on your company's own states. A deduction where the slab says nil (a woman's slab, a
   month the state does not collect LWF) is reported. PT on a month with arrears reconciles whether
   it was worked on the month's salary or on everything paid in it. An employee in a state the
   company does not run the scheme in is left alone unless something was deducted.
+  **Odisha** has no professional tax from April 2026, so PT deducted there after March 2026 is
+  reported. **LWF** is expected only in its due months — June and December for half-yearly states,
+  December for yearly ones.
+* **TDS without a PAN** (TDS-001) is raised only where tax is actually due: someone whose pay is
+  below the taxable limit has nothing deducted, PAN or not. For salary paid from April 2026 the
+  law is the Income-tax Act, 2025 — section 392 for salary TDS, 397(2) for the no-PAN rate, Form 138
+  for the quarterly return and Form 130 for the certificate, in place of 192, 206AA, 24Q and Form 16.
 * **Joiners and leavers**: paid days are checked against the days the person was employed in the
   month (from the employee master), so a joiner on the 11th paid 20 days with no loss of pay is
   correct, and the part month is not reported as a pay drop.

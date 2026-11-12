@@ -67,7 +67,7 @@ PACKS: tuple[Pack, ...] = (
          "PT by state slab and annual cap; LWF by state schedule.",
          _ids(exact=("STAT-008", "STAT-009", "STAT-010", "PT-002", "PT-003"))),
     Pack("tds", "Income tax (TDS)",
-         "Sec 206AA rate without PAN, and monthly TDS against the projection.",
+         "No-PAN rate where tax is due (Sec 397(2), formerly 206AA), and monthly TDS against the projection.",
          _ids(exact=("STAT-011", "TDS-001", "TDS-002"))),
     Pack("minimum_wage", "Minimum wage",
          "The CTC break-up is at or above the dated state rate for the employee's skill category.",
