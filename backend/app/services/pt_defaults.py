@@ -26,12 +26,15 @@ Special cases:
     figure even though the income bracket is annualized. To make the engine's
     `yearly` frequency math come out right, these rows store the *annualised*
     amount (e.g. ₹200/month → ₹2400/year) so deduction ÷ 12 = correct monthly.
+  * **Odisha** — abolished from 1 April 2026 (Repeal Ordinance, 2026). The
+    rows up to March 2026 stay for earlier months; a dated nil row follows.
   * States with no PT (Delhi, Haryana, Rajasthan, UP, Uttarakhand, HP, J&K,
     Ladakh, Goa, Arunachal Pradesh, Chandigarh, A&N, D&D, DNH, Lakshadweep)
     are intentionally absent.
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Literal, TypedDict
 
@@ -46,6 +49,8 @@ class DefaultSlab(TypedDict, total=False):
     frequency: Frequency
     gender: Gender
     applicable_months: list[int] | None
+    effective_from: date | None
+    source_reference: str | None
 
 
 def _row(
@@ -55,6 +60,8 @@ def _row(
     freq: Frequency = "monthly",
     gender: Gender = "ALL",
     months: list[int] | None = None,
+    effective_from: date | None = None,
+    source_reference: str | None = None,
 ) -> DefaultSlab:
     return {
         "min_salary": Decimal(str(lo)),
@@ -63,12 +70,19 @@ def _row(
         "frequency": freq,
         "gender": gender,
         "applicable_months": months,
+        "effective_from": effective_from,
+        "source_reference": source_reference,
     }
 
 
 # Open-ended top brackets are capped at this monetary value so the validator
 # never falls off the end of the catalog for very high earners.
 _TOP = 99_999_999
+
+
+ODISHA_PT_RATE_CHART = "https://odishatax.gov.in/professional_tax.php"
+ODISHA_PT_REPEALED_FROM = date(2026, 4, 1)
+ODISHA_PT_REPEAL_SOURCE = "https://finance.odisha.gov.in/en/notification/tax-profession"
 
 
 PT_DEFAULTS: dict[str, list[DefaultSlab]] = {
@@ -219,9 +233,25 @@ PT_DEFAULTS: dict[str, list[DefaultSlab]] = {
         _row(500001, _TOP, 2500, "yearly"),
     ],
     "Odisha": [
+        # To 31 March 2026. Odisha Commercial Taxes rate chart (salaried):
+        # ₹125 a month for ₹1.6–3 lakh a year; above ₹3 lakh ₹200 a month for
+        # eleven months and ₹300 in March, ₹2,500 a year.
+        # https://odishatax.gov.in/professional_tax.php
         _row(0, 160000, 0, "yearly"),
         _row(160001, 300000, 1500, "yearly"),
         _row(300001, _TOP, 2400, "yearly"),
+        # March top-up: the month-specific row wins in March (₹3,600/12 = ₹300).
+        _row(300001, _TOP, 3600, "yearly", months=[3],
+             source_reference=ODISHA_PT_RATE_CHART),
+        # From 1 April 2026 Odisha levies no professional tax: the Odisha State
+        # Tax on Professions, Trades, Callings and Employments (Repeal)
+        # Ordinance, 2026 (Ordinance 02 of 2026; Finance Department
+        # notification 1496 of 21 April 2026) repealed the 2000 Act with effect
+        # from that date. Tax due for earlier periods stays payable. A nil row,
+        # so a deduction after March 2026 is reported rather than unchecked.
+        # VERIFY that the Ordinance was replaced by an Act or is still in force.
+        _row(0, _TOP, 0, "yearly", effective_from=ODISHA_PT_REPEALED_FROM,
+             source_reference=ODISHA_PT_REPEAL_SOURCE),
     ],
     "Punjab": [
         # Punjab State Development Tax: ₹200/month for those above the IT

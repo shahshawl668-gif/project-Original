@@ -1,3 +1,17 @@
+# Local stack: Postgres, API and web app.
+#
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# The API creates and migrates its own tables on start, exactly as it does on
+# Render. Nothing is loaded into Postgres beforehand: a database shaped by a
+# separate SQL file is a different database from production's, and tests
+# against it prove nothing about production.
+#
+# Sign-in is off by default here (AUTH_DISABLED=1): the app opens on the
+# dashboard as the API's built-in local user. Build with AUTH_DISABLED=0 to
+# test sign-in and sign-up. Production is unaffected either way — with
+# ENV=production the API refuses requests without a token.
+
 services:
   db:
     image: postgres:16-alpine
@@ -5,12 +19,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-payroll}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payroll}
       POSTGRES_DB: ${POSTGRES_DB:-payroll_db}
+    # 5433 on the host, so a Postgres already installed on this machine
+    # (which holds 5432) does not stop this one starting. The API reaches it
+    # inside Docker as db:5432 whatever this says.
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ../database/seed_reference_data.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -22,10 +37,16 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.backend
     env_file:
-      - ../.env
+      - path: ../.env
+        required: false
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://payroll:payroll@db:5432/payroll_db}
-      JWT_SECRET: ${JWT_SECRET:-change-me}
+      # Always the db service. Not ${DATABASE_URL}: the .env for running the
+      # API outside Docker points at localhost, which inside this container
+      # is the container itself, and the API would never find its database.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-payroll}:${POSTGRES_PASSWORD:-payroll}@db:5432/${POSTGRES_DB:-payroll_db}
+      ENV: dev
+      ALLOW_ANONYMOUS_API: "true"
+      JWT_SECRET: ${JWT_SECRET:-local-docker-only-not-a-secret}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -39,10 +60,11 @@ services:
       dockerfile: docker/Dockerfile.frontend
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    env_file:
-      - ../.env
+        NEXT_PUBLIC_AUTH_DISABLED: ${AUTH_DISABLED:-1}
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      # Used when the page is opened by another hostname (a LAN address, say),
+      # where the browser goes through the web server's relay.
+      BACKEND_URL: http://backend:8000
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:

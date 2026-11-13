@@ -131,10 +131,12 @@ npm audit --omit=dev          # record findings; see Phase 5.3
 ### 1.5 Full stack, locally
 
 ```bash
-docker compose -f docker/docker-compose.yml up --build
-# frontend http://localhost:3000   API http://localhost:8000   Postgres :5432
+AUTH_DISABLED=0 docker compose -f docker/docker-compose.yml up --build
+# frontend http://localhost:3000   API http://localhost:8000   Postgres :5433
 ```
 
+`AUTH_DISABLED=0` matters here: the compose stack otherwise builds the web app
+without sign-in, and this walk is of sign-in as production has it.
 Sign up (development allows it), create an entity, and walk one month end to
 end (Phase 3.4). Then set `ENV=production`, confirm signup is refused, and
 create the first platform owner with `python -m app.bootstrap_owner` — the

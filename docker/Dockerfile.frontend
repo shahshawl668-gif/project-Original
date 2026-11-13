@@ -8,6 +8,9 @@ COPY frontend/ .
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# 1 = no sign-in (local only; see docker-compose.yml). Inlined at build time.
+ARG NEXT_PUBLIC_AUTH_DISABLED=0
+ENV NEXT_PUBLIC_AUTH_DISABLED=$NEXT_PUBLIC_AUTH_DISABLED
 
 RUN npm run build
 

@@ -37,6 +37,20 @@ def trail(
     })
 
 
+@router.get("/picture")
+def picture(
+    days: int = Query(default=30, ge=7, le=90),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """The trail counted for the charts: entries per day and per action, in the trail's own scope."""
+    from app.services import workforce_picture
+
+    membership = tenancy.get_membership(db, user)
+    return ok(workforce_picture.audit_picture(db, entity.id, membership.org_id if membership else None, days))
+
+
 @router.get("/actions")
 def actions():
     """The action names the trail uses, so a filter can offer real options."""

@@ -87,7 +87,7 @@ RULE_TEMPLATES: list[dict[str, Any]] = [
      "rule": {"name": "PAN on record when TDS is deducted", "severity": "CRITICAL", "editor_mode": "advanced",
               "condition_group": {"mode": "all", "negate": False, "items": [_cmp(_f("tds"), "gt", _lit("0"))]},
               "assertion": _cmp(_f("pan"), "present", _lit("1")),
-              "suggested_fix": "Collect the PAN; without it TDS is due at the Sec 206AA rate."}},
+              "suggested_fix": "Collect the PAN; without it TDS is due at the no-PAN rate (Sec 397(2); formerly Sec 206AA)."}},
     {"key": "basic_share", "label": "Basic at least a share of gross", "requires": ["basic"],
      "rule": {"name": "Basic is at least 40% of gross", "severity": "WARNING", "editor_mode": "advanced",
               "assertion": _cmp({"source": "expr", "value": "basic / gross * 100"}, "gte", _lit("40")),

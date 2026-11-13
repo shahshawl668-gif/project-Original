@@ -95,9 +95,17 @@ class IdentityThresholds(BaseModel):
     """ID-* rules — working-age limits and no-PAN TDS."""
     min_working_age_years: Decimal = Field(Decimal("14"), description="Below this age: child labour, ERROR")
     adult_age_years: Decimal = Field(Decimal("18"), description="14-18 flagged unless adolescent permit column set")
-    no_pan_tds_rate: Decimal = Field(Decimal("0.20"), description="Sec 206AA flat TDS rate when PAN is missing")
+    no_pan_tds_rate: Decimal = Field(
+        Decimal("0.20"),
+        description="Flat TDS rate when PAN is missing (Sec 397(2), Income-tax Act 2025; formerly Sec 206AA)")
+    no_pan_min_annual_income: Decimal = Field(
+        Decimal("1275000"),
+        description=("Annualised taxable pay at or below which no tax is due, so the no-PAN rate does not "
+                     "apply (CBDT salary-TDS circular). Default: the new regime's nil-tax limit for FY 2026-27. "
+                     "Used only when the month has no TDS projection."))
 
-    @field_validator("min_working_age_years", "adult_age_years", "no_pan_tds_rate", mode="before")
+    @field_validator("min_working_age_years", "adult_age_years", "no_pan_tds_rate", "no_pan_min_annual_income",
+                     mode="before")
     @classmethod
     def _parse(cls, v):
         return _dec(v)

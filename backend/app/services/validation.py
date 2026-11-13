@@ -913,6 +913,25 @@ def _esic_covered_in_period(db: Session, entity_id, start: date, before: date) -
     return out
 
 
+def _next_month(month: date) -> date:
+    return date(month.year + (month.month == 12), month.month % 12 + 1, 1)
+
+
+def _esic_months_missing(db: Session, entity_id, start: date, before: date) -> list[date]:
+    """Months of this contribution period, before ``before``, that have no stored register."""
+    held = {
+        m for (m,) in db.query(SalaryRegister.period_month)
+        .filter(SalaryRegister.entity_id == entity_id, SalaryRegister.period_month >= start,
+                SalaryRegister.period_month < before)
+    }
+    missing, month = [], start
+    while month < before:
+        if month not in held:
+            missing.append(month)
+        month = _next_month(month)
+    return missing
+
+
 def _decimal_or_none(value: Any) -> Decimal | None:
     try:
         return None if value in (None, "") else Decimal(str(value))
@@ -987,6 +1006,12 @@ def validate_employees(
     esic_covered_earlier = (
         _esic_covered_in_period(db, entity.id, esic_period_start, period_month)
         if esic_period_start and esic_period_start < period_month else {}
+    )
+    # Earlier months of the period this company never loaded: someone above the
+    # ceiling now may have been covered in one of them, and nothing here can say.
+    esic_months_missing = (
+        _esic_months_missing(db, entity.id, esic_period_start, period_month)
+        if esic_period_start and esic_period_start < period_month else []
     )
     esic_ceiling = esic_cfg.wage.wage_ceiling
 
@@ -1201,6 +1226,21 @@ def validate_employees(
         elif not esic_calc.get("esic_eligible") and esic_period_start == period_month and eid in prior_rows \
                 and Decimal(str((prior_rows[eid].deductions or {}).get("ee_esi") or 0)) > 0:
             esic_calc["_period_ended"] = esic_period_start.strftime("%B %Y")
+        elif not esic_calc.get("esic_eligible") and effective_esic_wage > 0 and esic_months_missing:
+            # Above the ceiling, not seen covered earlier — but an earlier month of the
+            # period is not held. If the employee was already employed in one of
+            # those months, coverage may have begun there: say what would be due
+            # if so, and let the engine report "not confirmed" rather than a fault.
+            joined = _parse_any_date(row.get("doj") or row.get("date_of_joining"))
+            unseen = [m for m in esic_months_missing if joined is None or joined < _next_month(m)]
+            if unseen:
+                if_covered = compute_esic(effective_esic_wage, esic_cfg, employment_type,
+                                          eligibility_wage=min(esic_rate_wage, esic_cfg.wage.wage_ceiling))
+                esic_calc["_unproven"] = {
+                    "months": ", ".join(m.strftime("%B %Y") for m in unseen),
+                    "employee": if_covered.get("esic_employee", 0),
+                    "employer": if_covered.get("esic_employer", 0),
+                }
         errors.extend(saved_formulas.apply(
             pf_cfg.employee_formula, esic_cfg.employee_formula, pf_calc, esic_calc, regular, list(comp_by_key),
             effective_pf_wage, effective_esic_wage, _decimal_or_none(stated(row, "paid_days")),

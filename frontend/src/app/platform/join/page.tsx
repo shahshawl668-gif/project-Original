@@ -19,6 +19,8 @@ function JoinForm() {
       const response = await apiFetch("/api/auth/platform-invitations/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, password }) });
       const pair = await parseEnvelopeResponse<TokenPair>(response);
       setTokens(pair.access_token, pair.refresh_token);
+      // A full load on purpose: the new session must start every context afresh.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/platform");
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to accept invitation"); setBusy(false); }
   }

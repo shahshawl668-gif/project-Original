@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Stat } from "@/components/ui/kpi-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Donut, PASSED_COLOR, Panel, Ring, SEVERITY_COLOR, StackedBars } from "@/components/viz/charts";
 import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
 import { Tabs } from "@/components/ui/tabs";
 import { plural } from "@/lib/format";
@@ -221,6 +222,8 @@ function EmployeeDrilldown() {
         <Stat label="Impact" value={totalImpact == null ? (fails.length ? "Not priced" : "—") : inr(totalImpact)} qualifier="counted once across overlapping checks" />
       </div>
 
+      <EmployeePicture employee={empData} />
+
       <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
         <section className="rounded-xl border border-ink-200 bg-white shadow-soft" aria-labelledby="findings-h">
           <header className="px-4 pt-3">
@@ -303,6 +306,65 @@ const OUTCOME_CHIP: Record<Outcome, string> = {
 };
 
 /** Every check's outcome for this employee — what ran, what could not, and why. */
+const PICTURE_ORDER = ["passed", "failed", "cannot_validate", "not_applicable", "disabled"] as const;
+const OUTCOME_NAME: Record<string, string> = {
+  passed: "Passed", failed: "Failed", cannot_validate: "Could not validate", not_applicable: "Not applicable", disabled: "Disabled",
+};
+const OUTCOME_HEX: Record<string, string> = {
+  passed: PASSED_COLOR, failed: SEVERITY_COLOR.CRITICAL, cannot_validate: SEVERITY_COLOR.WARNING, not_applicable: "#b7bdc9", disabled: "#dfe2e8",
+};
+const SCORE_PART: Record<string, { label: string; color: string }> = {
+  CRITICAL: { label: "Critical findings", color: SEVERITY_COLOR.CRITICAL },
+  WARNING: { label: "Warnings", color: SEVERITY_COLOR.WARNING },
+  INFO: { label: "Info findings", color: SEVERITY_COLOR.INFO },
+  impact_boosts: { label: "Large rupee impact", color: "#636c7e" },
+};
+
+/** This employee's checks by outcome, and what the risk score is made of. Both come straight from the run. */
+function EmployeePicture({ employee }: { employee: ResultRow }) {
+  const verdicts = Object.values(employee.coverage ?? {});
+  const tally = PICTURE_ORDER.map((o) => ({ outcome: o, n: verdicts.filter((v) => v.outcome === o).length }));
+  const parts = Object.entries(employee.score_breakdown ?? {}).filter(([, v]) => v > 0);
+  const raw = parts.reduce((a, [, v]) => a + v, 0);
+  if (verdicts.length === 0 && raw === 0) return null;
+  return (
+    <div className="grid items-start gap-4 lg:grid-cols-2">
+      {verdicts.length ? (
+        <Panel title="Every check, by outcome" sub="All checks the run knows, for this employee">
+          <Donut
+            caption="Checks for this employee by outcome"
+            total={verdicts.length}
+            size={132}
+            slices={tally.map((t) => ({ label: OUTCOME_NAME[t.outcome], value: t.n, color: OUTCOME_HEX[t.outcome] }))}
+            centre={<><span className="num text-xl font-semibold tracking-tight text-ink-900">{verdicts.length}</span><span className="text-2xs text-ink-500">checks</span></>}
+          />
+        </Panel>
+      ) : null}
+      <Panel title="What the risk score is made of" sub={`Points by source${raw > 100 ? ` · ${raw} points, capped at 100` : ""} · medium from 25, high from 60`}>
+        <div className="flex items-center gap-4">
+          <Ring value={employee.risk_score} label={`Risk score ${employee.risk_score} out of 100`}
+                color={employee.risk_level === "HIGH" ? SEVERITY_COLOR.CRITICAL : employee.risk_level === "MEDIUM" ? SEVERITY_COLOR.WARNING : PASSED_COLOR}>
+            <span className="num text-xl font-semibold tracking-tight text-ink-900">{employee.risk_score}</span>
+            <span className="text-2xs text-ink-500">of 100 · {employee.risk_level.toLowerCase()}</span>
+          </Ring>
+          <div className="min-w-0 flex-1">
+            {parts.length ? (
+              <StackedBars
+                caption="Risk score by source"
+                rows={parts.sort((a, b) => b[1] - a[1]).map(([k, v]) => ({
+                  key: k, label: SCORE_PART[k]?.label ?? k,
+                  parts: [{ label: "Points", value: v, color: SCORE_PART[k]?.color ?? "#636c7e" }],
+                  note: <>{v} <span className="font-normal text-ink-500">pts</span></>,
+                }))}
+              />
+            ) : <p className="text-xs text-ink-500">No finding added to the score.</p>}
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 function CoverageList({ coverage }: { coverage?: Record<string, Verdict> }) {
   const [show, setShow] = useState<Outcome>("cannot_validate");
   if (!coverage) {

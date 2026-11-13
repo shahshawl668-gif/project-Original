@@ -137,6 +137,10 @@ structure, each flagged for its statutory treatment:
 
 ![Salary components](images/14-components.png)
 
+Under the editor, **Which component feeds what** lays every component against every flag in one
+grid, with the number of components feeding each wage along the bottom — the quickest way to spot
+an allowance left out of the ESIC wage, or Basic missing from PF. Click a name to edit it.
+
 The page is a list on the left and one component on the right. Choose a component to edit it, or
 **Add new component**; the right side asks for the name and which statutory wages it feeds (PF, ESIC,
 PT, LWF, bonus, wages, taxable). Every component you add becomes a column in the salary register and CTC templates and a name the PF and ESIC formulas on the **Statutory engine** page can
@@ -208,6 +212,25 @@ is already kept per financial year.
 client employs in, then check each one against the state's current
 notification. Professional tax is state law and changes on its own schedule;
 Maharashtra has gender-specific slabs.
+
+What the shipped defaults say as of November 2026, and what to do for a
+company set up before then:
+
+- **Odisha levies no professional tax from 1 April 2026** (Repeal Ordinance
+  02 of 2026). The schedule keeps its rows to March 2026 — including ₹300 in
+  March — and carries a nil row from April. A company that loaded Odisha
+  earlier receives both rows by itself at the next start of the API, recorded
+  in its audit trail as *slab_rule.platform_correction*.
+- **LWF falls in its due months**: June and December for half-yearly states,
+  December for yearly ones. A deduction in any other month is reported.
+  **Haryana** is ₹35 / ₹70 a month from January 2026 (₹34 / ₹68 in 2025);
+  **Madhya Pradesh**'s employer share is ₹50 a half-year from 2026.
+  These reach an existing company only when its LWF defaults are imported
+  again — its own rows are never rewritten for it. Until then its half-yearly
+  rows are read as a monthly equivalent, as before.
+- Haryana's law is 0.2% of wages up to that cap. The schedule holds the cap,
+  so someone earning under ₹17,500 a month, who owes less than ₹35, will be
+  reported; treat that finding as expected until the percentage is modelled.
 
 ### Step 5 — Employee master
 

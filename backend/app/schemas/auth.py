@@ -44,7 +44,10 @@ class SupportSessionRequest(BaseModel):
 
 class UserOut(BaseModel):
     id: uuid.UUID
-    email: EmailStr
+    # Plain str: this describes an account that exists, it does not accept an
+    # address. Validating here turned the built-in local user's reserved
+    # ".local" address into a 500 on /api/auth/me.
+    email: str
     company_name: str | None
     role: str
     platform_role: str | None = None

@@ -48,3 +48,4 @@ backend/e2e_test_report.txt
 frontend/tsconfig.tsbuildinfo
 docs/node_modules/
 docs/pdf/
+backend/statutory_verification_worksheet.xlsx

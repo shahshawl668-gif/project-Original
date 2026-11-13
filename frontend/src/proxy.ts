@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /** Route dedicated domains to their sign-in page; the API still checks membership. */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
   const match = host.match(/^([a-z0-9-]+)\.peopleopslab\.in$/);
   if (!match || !["/", "/login"].includes(request.nextUrl.pathname)) return NextResponse.next();

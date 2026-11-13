@@ -124,6 +124,11 @@ def _missing_actual(f: dict[str, Any]) -> bool:
     return str(f.get("actual_value") or "").strip().lower() in {"(missing)", "(none)", ""}
 
 
+def _esic_unconfirmed(f: dict[str, Any]) -> bool:
+    """Deducted above the ceiling with an earlier month of the contribution period not loaded."""
+    return _missing_actual(f) or f.get("rule_name") == "ESIC Coverage Not Confirmed"
+
+
 def _pf_expected(c: Context) -> Decimal:
     return Decimal(str(c.res("pf_amount_employee") or 0))
 
@@ -255,14 +260,14 @@ REGISTRY: list[RuleCoverage] = [
         applies=lambda c: _esic_eligible(c) or c.stated("esic_employee"),
         na_reason="Not ESIC-eligible and no ESIC deducted",
         requires=(("ESIC employee column", STATED("esic_employee")),),
-        material=True, cannot_marker=_missing_actual,
+        material=True, cannot_marker=_esic_unconfirmed,
     ),
     RuleCoverage(
         "STAT-007", "ESIC Employer Contribution", "Statutory",
         applies=lambda c: _esic_eligible(c) or c.stated("esic_employer"),
         na_reason="Not ESIC-eligible and no ESIC stated",
         requires=(("ESIC employer column", STATED("esic_employer")),),
-        material=True,
+        material=True, cannot_marker=_esic_unconfirmed,
     ),
     RuleCoverage(
         "STAT-008", "Professional Tax", "Statutory",

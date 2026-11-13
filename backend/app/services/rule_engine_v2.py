@@ -640,7 +640,19 @@ def build_findings(
         elif esic_calc.get("_period_ended"):
             period_note = (f" A new contribution period began in {esic_calc['_period_ended']}: with the wage above "
                            "the ceiling, coverage ended with the last period and no ESIC is due.")
-        if diff_esic > tol_stat:
+        unproven = esic_calc.get("_unproven")
+        if unproven and (esic_emp_actual - _q(_dec(unproven["employee"]))).copy_abs() <= tol_stat:
+            # Deducted exactly what a covered employee owes, and a month in which
+            # coverage could have begun is not held: neither right nor wrong on
+            # what is here. Any other figure is wrong either way and fails below.
+            info("STAT-006", "ESIC Coverage Not Confirmed", "esic_employee",
+                 _fmt(_q(_dec(unproven["employee"]))), _fmt(esic_emp_actual),
+                 f"ESIC of {_fmt(esic_emp_actual)} was deducted on a wage above the ₹{_fmt(esic_ceiling_cfg)} "
+                 f"ceiling. That is correct only if the employee was covered earlier in this contribution "
+                 f"period, and the register for {unproven['months']} is not loaded, so it cannot be told.",
+                 f"Load the register for {unproven['months']}, or confirm the employee was within the "
+                 "ceiling when the contribution period began.")
+        elif diff_esic > tol_stat:
             fail("STAT-006", "ESIC Employee Contribution Mismatch", "esic_employee",
                  esic_emp_exp, esic_emp_actual, "CRITICAL",
                  f"ESIC employee ({_fmt(esic_emp_actual)}) ≠ {_fmt(esic_paid_wage)} × "
@@ -659,7 +671,14 @@ def build_findings(
     if esic_er_raw not in (None, ""):
         esic_er_actual = _dec(esic_er_raw)
         diff_er = (esic_er_actual - esic_er_exp).copy_abs()
-        if diff_er > tol_stat:
+        unproven = esic_calc.get("_unproven")
+        if unproven and (esic_er_actual - _q(_dec(unproven["employer"]))).copy_abs() <= tol_stat:
+            info("STAT-007", "ESIC Coverage Not Confirmed", "esic_employer",
+                 _fmt(_q(_dec(unproven["employer"]))), _fmt(esic_er_actual),
+                 f"Employer ESIC of {_fmt(esic_er_actual)} is right only if the employee was covered earlier in "
+                 f"this contribution period; the register for {unproven['months']} is not loaded.",
+                 f"Load the register for {unproven['months']}.")
+        elif diff_er > tol_stat:
             fail("STAT-007", "ESIC Employer Contribution Mismatch", "esic_employer",
                  esic_er_exp, esic_er_actual, "CRITICAL",
                  f"ESIC employer ({_fmt(esic_er_actual)}) ≠ {_fmt(esic_paid_wage)} × "
@@ -1200,21 +1219,30 @@ def build_findings(
                          "Recheck last-drawn Basic+DA and completed service years.",
                          float((grat_actual - expected_grat).copy_abs()))
 
-    # TDS: Sec 206AA (no PAN) and Sec 192 projection
+    # TDS: the no-PAN rate and the monthly projection. Salary paid from 1 April
+    # 2026 falls under the Income-tax Act, 2025 (Sec 392 for salary TDS, Sec
+    # 397(2) for no PAN); earlier months under the 1961 Act (Sec 192, Sec 206AA).
     tds_raw = stated(row, "tds", "income_tax")
     taxable_month = sum(
         (amt for k, amt in regular.items()
          if comp_by_key.get(k) and getattr(comp_by_key[k], "taxable", False)),
         start=Decimal("0"),
     )
-    if not pan_ok and tds_raw not in (None, "") and taxable_month > 0:
+    # The no-PAN rate applies only where tax is due at all: an employee whose
+    # income is below the taxable limit has no TDS deducted, PAN or not (CBDT
+    # salary-TDS circular). Use the month's projection when there is one.
+    if expected_monthly_tds is not None:
+        tax_due = expected_monthly_tds > 0
+    else:
+        tax_due = taxable_month * 12 > t.identity.no_pan_min_annual_income
+    if not pan_ok and tds_raw not in (None, "") and taxable_month > 0 and tax_due:
         required = _q(taxable_month * t.identity.no_pan_tds_rate)
         if _dec(tds_raw) < required - tol_stat:
             fail("TDS-001", "No-PAN TDS Below 20% (Sec 206AA)", "tds",
                  _fmt(required), _fmt(_dec(tds_raw)), "CRITICAL",
                  f"PAN is {'invalid' if pan_raw else 'missing'} — TDS must be at least "
                  f"{float(t.identity.no_pan_tds_rate) * 100:.0f}% of taxable pay ({_fmt(taxable_month)}).",
-                 "Deduct at the Sec 206AA rate or obtain a valid PAN.",
+                 "Deduct at the no-PAN rate (Sec 397(2); Sec 206AA before April 2026) or obtain a valid PAN.",
                  float(required - _dec(tds_raw)))
     if expected_monthly_tds is not None and tds_raw not in (None, ""):
         tds_actual = _dec(tds_raw)
@@ -1284,7 +1312,7 @@ def batch_findings(employees: list[dict[str, Any]]) -> list[ValidationFinding]:
     # Duplicate statutory identifiers across different employees (spec §2.5-2.6)
     dup_specs = [
         ("DATA-006", "Duplicate PAN", "pan", ("pan",), "CRITICAL",
-         "The same PAN on two employees corrupts TDS returns (24Q)."),
+         "The same PAN on two employees corrupts the quarterly TDS return (Form 138, formerly 24Q)."),
         ("DATA-007", "Duplicate UAN", "uan", ("uan",), "CRITICAL",
          "The same UAN on two employees corrupts the PF ECR."),
         ("DATA-008", "Duplicate Aadhaar", "aadhaar", ("aadhaar", "aadhar"), "CRITICAL",

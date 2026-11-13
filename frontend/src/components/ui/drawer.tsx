@@ -15,7 +15,9 @@ const FOCUSABLE =
  */
 function useModalFocus(open: boolean, panel: React.RefObject<HTMLElement | null>, onClose: () => void) {
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     if (!open) return;
     const opener = document.activeElement as HTMLElement | null;

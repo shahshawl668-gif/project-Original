@@ -9,6 +9,7 @@ import { ArrowRight, ClipboardCheck, Download, GitCompare, HelpCircle, ListTodo,
 
 import { DataTable, FilterSelect, Pagination, type Column, type Sort } from "@/components/data/DataTable";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { RunPicture } from "@/components/validation/RunPicture";
 import { IntegrationPanel } from "@/components/studio/IntegrationPanel";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Badge } from "@/components/ui/badge";
@@ -902,6 +903,7 @@ function PayrollResultsContent() {
       <div role="tabpanel" aria-label={tab}>
         {tab === "overview" && (
           <div className="space-y-4">
+            <RunPicture runId={run.id} onSeverity={(sev) => url.set({ tab: "findings", f_sev: sev, f_page: null })} />
             <div className="grid items-start gap-4 lg:grid-cols-[2fr_3fr]">
               <RiskBar levels={levels} />
               <TopChecks rules={summaryQ.data?.rules ?? []} onPick={(rule) => url.set({ tab: "findings", f_rule: rule, f_page: null })} />

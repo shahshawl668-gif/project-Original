@@ -24,8 +24,10 @@ Due dates are the central ones and hold for most employers:
 * **ESIC contribution** — 15th of the month after the wage month;
 * **TDS deposit (salary)** — 7th of the month after deduction, except March,
   which is 30 April;
-* **Form 24Q** — the quarterly TDS return: 31 Jul, 31 Oct, 31 Jan and 31 May for
-  Q1 to Q4 of the financial year;
+* **Form 138 (Form 24Q before April 2026)** — the quarterly TDS return: 31 Jul,
+  31 Oct, 31 Jan and 31 May for Q1 to Q4 of the financial year. The Income-tax
+  Act, 2025 renumbered the form; the dates here are the 24Q dates carried over
+  and have not been checked against the 2026 Rules;
 * **Professional tax** — state law, not central, so the date genuinely varies.
   The 20th is used as the common case and the row says it varies, rather than
   quoting a single date as though PT were uniform across India.
@@ -96,8 +98,8 @@ OBLIGATIONS: tuple[Obligation, ...] = (
                "Due date is set by state law and varies; the 20th is the common case."),
     Obligation("tds_deposit", "TDS — deposit", "Income Tax", "monthly",
                "Tax deducted on salary, deposited by challan."),
-    Obligation("form_24q", "TDS — Form 24Q", "Income Tax", "quarterly",
-               "Quarterly salary TDS return; Form 16 follows from it."),
+    Obligation("form_24q", "TDS — Form 138 (formerly 24Q)", "Income Tax", "quarterly",
+               "Quarterly salary TDS return; Form 130 (formerly Form 16) follows from it."),
 )
 
 

@@ -82,6 +82,8 @@ export default function PlatformPage() {
       const session = await apiFetch("/api/auth/support-session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ org_id: supportOrgId }) });
       const tokens = await parseEnvelopeResponse<{ access_token: string; refresh_token: string }>(session);
       setTokens(tokens.access_token, tokens.refresh_token);
+      // A full load on purpose: the new session must start every context afresh.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/dashboard");
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to open support session"); }
   }

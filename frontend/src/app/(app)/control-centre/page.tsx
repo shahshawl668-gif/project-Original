@@ -29,6 +29,7 @@ import { fetchAttendanceRegisters } from "@/lib/attendance";
 import { saveBlob } from "@/lib/download";
 import { count, dateTime, inr, pct, plural } from "@/lib/format";
 import { issuesApi } from "@/lib/issues";
+import { Columns, Donut, Legend, PASSED_COLOR, SEVERITY_COLOR } from "@/components/viz/charts";
 import { cn } from "@/lib/utils";
 import { OUTCOME_LABEL, signoffApi, validationApi, type Outcome, type PeriodStatus } from "@/lib/validation";
 import { normalisePeriod, periodLabel, useWorkingPeriod } from "@/lib/workspace";
@@ -611,31 +612,26 @@ const OUTCOME_BAR: Record<Outcome, string> = {
   disabled: "bg-ink-100",
 };
 
+const OUTCOME_HEX: Record<Outcome, string> = {
+  passed: PASSED_COLOR, failed: SEVERITY_COLOR.CRITICAL, cannot_validate: SEVERITY_COLOR.WARNING,
+  not_applicable: "#b7bdc9", disabled: "#dfe2e8",
+};
+
 /** Coverage is how much was checked — separate from what failed. */
 function Coverage({ totals, pctValue }: { totals: Record<Outcome, number> | null; pctValue: number | null }) {
   if (!totals) return <p className="text-xs text-ink-500">Coverage was not recorded for this run.</p>;
-  const sum = OUTCOME_ORDER.reduce((a, k) => a + (totals[k] ?? 0), 0) || 1;
+  const sum = OUTCOME_ORDER.reduce((a, k) => a + (totals[k] ?? 0), 0);
   return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <p className="text-xs text-ink-500">Checks that reached a verdict</p>
-        <p className="num text-[13px] font-semibold text-ink-900">{pct(pctValue)}</p>
-      </div>
-      <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-ink-100" aria-hidden>
-        {OUTCOME_ORDER.map((k) => (totals[k] ? <div key={k} className={OUTCOME_BAR[k]} style={{ width: `${(totals[k] / sum) * 100}%` }} /> : null))}
-      </div>
-      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-        {OUTCOME_ORDER.map((k) => (
-          <div key={k} className="flex items-center justify-between gap-2">
-            <dt className="flex items-center gap-1.5 text-ink-500">
-              <span className={cn("h-2 w-2 rounded-sm", OUTCOME_BAR[k])} aria-hidden />
-              {OUTCOME_LABEL[k]}
-            </dt>
-            <dd className="num text-ink-800">{count(totals[k] ?? 0)}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
+    <Donut
+      caption="Checks in this run by outcome"
+      total={sum}
+      size={132}
+      slices={OUTCOME_ORDER.map((k) => ({ label: OUTCOME_LABEL[k], value: totals[k] ?? 0, color: OUTCOME_HEX[k] }))}
+      centre={<>
+        <span className="num text-xl font-semibold tracking-tight text-ink-900">{pct(pctValue)}</span>
+        <span className="max-w-[5.5rem] text-2xs leading-tight text-ink-500">reached a verdict</span>
+      </>}
+    />
   );
 }
 
@@ -722,6 +718,15 @@ function DashboardHeader({
     }
     return set;
   }, [runs.data]);
+  // The current run of each month: its open counts are what the year strip draws.
+  const byMonth = useMemo(() => {
+    const map = new Map<string, { critical_count: number; warning_count: number }>();
+    for (const r of runs.data ?? []) {
+      const p = normalisePeriod(r.period_month);
+      if (p && r.status === "current") map.set(p, r);
+    }
+    return map;
+  }, [runs.data]);
   const current = fyStart(period);
   const years = useMemo(() => {
     const all = new Set<number>(BASE_FYS);
@@ -786,28 +791,36 @@ function DashboardHeader({
           </div>
         </div>
 
-        <div role="group" aria-label="Month" className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
-          {months.map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setPeriod(m)}
-              aria-pressed={m === period}
-              title={periodLabel(m)}
-              className={cn(
-                "flex flex-col items-center rounded-xl border px-2 py-2 text-[13px] transition-colors",
-                m === period ? "border-brand-500 bg-brand-600 text-white shadow-soft" : "border-ink-200 bg-white text-ink-800 hover:border-brand-300 hover:bg-brand-50/60",
-              )}
-            >
-              <span className="font-medium">{monthAbbr(m)}</span>
-              <span aria-hidden className={cn("mt-1 h-1.5 w-6 rounded-full", validated.has(m) ? "bg-success-500" : m === period ? "bg-white/50" : "bg-ink-200")} />
-            </button>
-          ))}
+        <div className="mt-4 overflow-x-auto">
+          <div className="min-w-[36rem]">
+            <Columns
+              caption="Open critical findings and warnings for each month of the financial year"
+              height={84}
+              zero={PASSED_COLOR}
+              zeroWord="no open critical finding or warning"
+              columns={months.map((m) => {
+                const run = byMonth.get(m);
+                return {
+                  key: m, label: monthAbbr(m), selected: m === period, onClick: () => setPeriod(m),
+                  empty: run ? undefined : "—",
+                  parts: run ? [
+                    { label: "Critical", value: run.critical_count, color: SEVERITY_COLOR.CRITICAL },
+                    { label: "Warning", value: run.warning_count, color: SEVERITY_COLOR.WARNING },
+                  ] : [],
+                };
+              })}
+            />
+          </div>
         </div>
-        <p className="mt-2 flex items-center gap-3 text-xs text-ink-500">
-          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-4 rounded-full bg-success-500" /> checked</span>
-          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-4 rounded-full bg-ink-200" /> not checked yet</span>
-        </p>
+        <Legend
+          className="mt-2"
+          items={[
+            { label: "Critical, open", color: SEVERITY_COLOR.CRITICAL },
+            { label: "Warnings, open", color: SEVERITY_COLOR.WARNING },
+            { label: "Checked, none open", color: PASSED_COLOR },
+          ]}
+        />
+        <p className="mt-1 text-2xs text-ink-500">From each month&apos;s current run, after waivers. A dash is a month not checked yet — choose a month to open it.</p>
       </section>
       {source !== "chosen" && period ? (
         <p className="text-xs text-ink-500">Showing the latest month with a run — choose another above.</p>

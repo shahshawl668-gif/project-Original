@@ -16,9 +16,16 @@ Each row carries:
                                     and divides amounts by the same factor to
                                     produce a per-month equivalent.
   * `applicable_months`          — list[int] for the months in which a full
-                                    contribution is due. A missing list keeps
-                                    monthly-equivalent behavior for states
-                                    whose collection month is unverified.
+                                    contribution is due: June and December
+                                    wages for half-yearly states, December
+                                    for yearly ones (state schedules as
+                                    tabulated in Zoho Payroll's LWF guide,
+                                    https://www.zoho.com/in/payroll/academy/taxes-and-compliance/guide-to-lwf.html;
+                                    Gujarat, Maharashtra and Karnataka checked
+                                    against further sources, the rest VERIFY
+                                    per docs/STATUTORY_RATE_AUDIT.md). A
+                                    company's own row without a list is still
+                                    read as a monthly equivalent.
 
 States with NO statutory LWF (Bihar, Jharkhand, Uttar Pradesh, Uttarakhand,
 Himachal Pradesh, Jammu & Kashmir, Ladakh, Sikkim, all North-East states
@@ -73,7 +80,7 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
     # ---------- Yearly contributions (Dec / Jan) ----------
     "Andhra Pradesh": [
         # Deducted in December; remitted by 31 Jan.
-        _row(0, _TOP, 30, 70, freq="yearly"),
+        _row(0, _TOP, 30, 70, freq="yearly", months=[12]),
     ],
     "Karnataka": [
         # Karnataka Act 05 of 2025, published 10 Jan 2025, amended section 7A(2).
@@ -86,29 +93,36 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
     ],
     "Tamil Nadu": [
         # Annual contribution remitted by 31 Jan.
-        _row(0, _TOP, 20, 40, freq="yearly"),
+        _row(0, _TOP, 20, 40, freq="yearly", months=[12]),
     ],
     "Telangana": [
-        _row(0, _TOP, 2, 5, freq="yearly"),
+        _row(0, _TOP, 2, 5, freq="yearly", months=[12]),
     ],
 
     # ---------- Half-yearly contributions (Jun & Dec) ----------
     "Chhattisgarh": [
-        _row(0, _TOP, 15, 45, freq="half-yearly"),
+        _row(0, _TOP, 15, 45, freq="half-yearly", months=[6, 12]),
     ],
     "Delhi": [
-        _row(0, _TOP, 0.75, 2.25, freq="half-yearly"),
+        _row(0, _TOP, 0.75, 2.25, freq="half-yearly", months=[6, 12]),
     ],
     "Goa": [
         # Threshold ₹6500 splits the rate.
-        _row(0, 6500, 60, 180, freq="half-yearly"),
-        _row(6501, _TOP, 120, 360, freq="half-yearly"),
+        _row(0, 6500, 60, 180, freq="half-yearly", months=[6, 12]),
+        _row(6501, _TOP, 120, 360, freq="half-yearly", months=[6, 12]),
     ],
     "Gujarat": [
-        _row(0, _TOP, 6, 12, freq="half-yearly"),
+        _row(0, _TOP, 6, 12, freq="half-yearly", months=[6, 12]),
     ],
     "Madhya Pradesh": [
-        _row(0, _TOP, 10, 30, freq="half-yearly"),
+        _row(0, _TOP, 10, 30, freq="half-yearly", months=[6, 12]),
+        # Employer share ₹30 → ₹50 a half-year from calendar year 2026;
+        # employee share unchanged. Rules amendment notified 28 Jan 2026,
+        # gazetted 30 Jan 2026 (LAB-8-0003-2025-Sec-1-XVI(LAB)).
+        # VERIFY against the gazette: taken from compliance summaries.
+        _row(0, _TOP, 10, 50, freq="half-yearly", months=[6, 12],
+             effective_from=date(2026, 1, 1),
+             source_reference="https://ascent-hr.com/notification/revision-in-labour-welfare-fund-contributions/"),
     ],
     "Maharashtra": [
         # Maharashtra Act XXV of 2024, section 6BB(2), gazetted 18 Mar 2024.
@@ -119,17 +133,28 @@ LWF_DEFAULTS: dict[str, list[DefaultLwfSlab]] = {
              source_reference="https://bombayhighcourt.gov.in/bhc/libweb/legislation/acts/Stateact/2024acts/2024.25.pdf"),
     ],
     "Odisha": [
-        _row(0, _TOP, 20, 40, freq="half-yearly"),
+        _row(0, _TOP, 20, 40, freq="half-yearly", months=[6, 12]),
     ],
     "West Bengal": [
-        _row(0, 3500, 3, 15, freq="half-yearly"),
-        _row(3501, _TOP, 6, 18, freq="half-yearly"),
+        _row(0, 3500, 3, 15, freq="half-yearly", months=[6, 12]),
+        _row(3501, _TOP, 6, 18, freq="half-yearly", months=[6, 12]),
     ],
 
     # ---------- Monthly contributions ----------
     "Haryana": [
+        # 0.2% of wages, capped; the employer pays twice the employee's share.
+        # The cap is indexed each January, and the rows below carry the cap.
         # Revised vide notification dated 1 Jan 2024 (₹31 / ₹62 per month).
         _row(0, _TOP, 31, 62, freq="monthly"),
+        # ₹34 / ₹68 from 1 Jan 2025 (Haryana Labour Welfare Board, 7 Mar 2025).
+        _row(0, _TOP, 34, 68, freq="monthly",
+             effective_from=date(2025, 1, 1),
+             source_reference="https://www.greythr.com/notifications/haryana-labour-welfare-fund-contribution-revision/"),
+        # ₹35 / ₹70 from 1 Jan 2026 (HLWB/REV/2026/3436, 8 May 2026).
+        # VERIFY against the Board's notification: taken from compliance summaries.
+        _row(0, _TOP, 35, 70, freq="monthly",
+             effective_from=date(2026, 1, 1),
+             source_reference="https://www.scconline.com/blog/post/2026/05/11/haryana-labour-welfare-fund-contribution-revised-2026/"),
     ],
     "Kerala": [
         # Kerala Shops & Commercial Establishments Workers Welfare Fund.

@@ -228,6 +228,7 @@ All four must return HTTP 200 with `{"success": true, ...}`.
 | `NEXT_PUBLIC_API_URL`        | optional | the same address                 |
 | `NEXT_PUBLIC_USE_API_RELAY`  | optional | `1` to force proxy on any host   |
 | `NEXT_PUBLIC_DIRECT_API`     | optional | `1` to disable proxy entirely    |
+| `NEXT_PUBLIC_AUTH_DISABLED`  | never in production | `1` drops sign-in, for local Docker only |
 
 ---
 
@@ -235,10 +236,24 @@ All four must return HTTP 200 with `{"success": true, ...}`.
 
 ```bash
 docker compose -f docker/docker-compose.yml up --build
-# Frontend  http://localhost:3000
+# Frontend  http://localhost:3000   — opens on the dashboard, no sign-in
 # Backend   http://localhost:8000
-# Postgres  localhost:5432 (payroll/payroll/payroll_db)
+# Postgres  localhost:5433 (payroll/payroll/payroll_db)
 ```
+
+* **No sign-in.** The web image is built with `NEXT_PUBLIC_AUTH_DISABLED=1`
+  and the API answers as its built-in local user. To test sign-in and sign-up,
+  rebuild with `AUTH_DISABLED=0 docker compose -f docker/docker-compose.yml up --build`.
+* **The API builds its own tables** on start, as on Render. Nothing is loaded
+  into Postgres first, so the local database has production's shape.
+* **The API always uses the compose database** (`db:5432`). A `DATABASE_URL`
+  in `.env` is for running the API outside Docker and is ignored here.
+* **Postgres is on 5433 on your machine**, so one already installed on 5432
+  does not block it. `POSTGRES_HOST_PORT` changes it.
+* **Changed `POSTGRES_PASSWORD`, or an older stack's database?** Postgres keeps
+  the first password it was started with in its volume. Start clean with
+  `docker compose -f docker/docker-compose.yml down -v` (this deletes the
+  local data).
 
 To run without Docker:
 

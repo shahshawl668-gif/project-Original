@@ -1,5 +1,6 @@
 "use client";
 
+import { Panel, TickGrid } from "@/components/viz/charts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search, Trash2 } from "lucide-react";
 
@@ -282,6 +283,22 @@ export default function ComponentsPage() {
           </div>
         </section>
       </div>
+
+      {rows.length > 1 ? (
+        <Panel title="Which component feeds what" sub="Every component against every statutory wage, as saved · click a name to edit it">
+          <TickGrid
+            caption="Salary components by the statutory wages they count toward"
+            rowHeader="Component"
+            columns={FLAGS.map((f) => ({ key: f.key, label: f.chip ?? f.label }))}
+            rows={rows.map((r) => ({
+              key: r.id, label: r.component_name,
+              on: Object.fromEntries(FLAGS.map((f) => [f.key, !!(r as unknown as Record<string, unknown>)[f.key]])),
+            }))}
+            selected={selected}
+            onRow={(id) => { const row = rows.find((r) => r.id === id); if (row) choose(row); }}
+          />
+        </Panel>
+      ) : null}
     </div>
   );
 }

@@ -279,6 +279,9 @@ every support session and use.
 
 ![Audit trail](images/12-audit.png)
 
+Above the list, *Activity, last 30 days* counts entries per day (India time) and *What was done*
+counts them by kind, both over the same scope as the list. The filter changes the list only.
+
 Audit rows are written in the same transaction as the thing they describe. A
 trail that can survive a rolled-back change records events that never happened.
 
@@ -565,6 +568,18 @@ restore, re-run the erasures listed on the page.
   built CSS is byte-identical, and the Team page was compared pixel for pixel).
 - **Why:** it clears every published Next.js advisory, including several
   denial-of-service issues in the App Router that 14.x never received fixes for.
+- **Rollback:** redeploy the previous web release.
+
+### Upgrading to Next.js 16 (web app)
+
+- **The web app only.** Next.js 16.4.2, replacing 15.5.27. No database change,
+  no setting, no API change.
+- **Nothing for users to do.** Sessions carry on and pages look the same.
+- **What moved in the code:** the file that routes a company's own web address
+  to its sign-in page is now `frontend/src/proxy.ts` (Next.js 16 renamed
+  `middleware.ts`); it does the same thing. Production builds use Turbopack.
+- **Node.js 20.9 or later** is needed to build; the Docker image and CI
+  already use Node 20.
 - **Rollback:** redeploy the previous web release.
 
 ---

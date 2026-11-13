@@ -43,6 +43,7 @@ from app.services import approvals, audit, export_safety
 from app.services import coverage as coverage_svc
 from app.services import explain as explain_svc
 from app.services import register_uploads, run_inputs
+from app.services import run_picture as picture_svc
 from app.services import validation_jobs as jobs
 from app.services.finding_store import current_run
 from app.services.finding_taxonomy import categorise
@@ -592,6 +593,17 @@ _FINDING_SORTS = {
     "rule_id": FindingRecord.rule_id,
     "severity": FindingRecord.severity,
 }
+
+
+@router.get("/runs/{run_id}/picture")
+def run_picture(
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    entity: Entity = Depends(get_current_entity),
+):
+    """The run counted for the charts on the results page: whole-run counts, made in the database."""
+    return ok(picture_svc.picture(db, _run(db, entity, run_id)))
 
 
 @router.get("/runs/{run_id}/findings")

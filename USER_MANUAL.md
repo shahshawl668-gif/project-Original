@@ -279,7 +279,7 @@ Rules are grouped in layers (data quality → structure → aggregates → statu
 | PT-002/003 | Article 276 annual cap (₹2,500), PT deducted in a no-PT state                                                        |
 | BON-*      | Payment of Bonus Act eligibility (₹21,000) and 8.33–20% band on min(Basic+DA, ₹7,000)                                |
 | GRAT-002/3 | Gratuity service gate (5y, waived on death/disablement) and 15/26 formula check                                      |
-| TDS-001/002| No-PAN 20% minimum (Sec 206AA); monthly TDS vs annualised projection for the declared regime                         |
+| TDS-001/002| No-PAN 20% minimum where tax is due (Sec 397(2); 206AA before April 2026); monthly TDS vs annualised projection   |
 | DATA-005…9 | Negative deductions; duplicate PAN / UAN / Aadhaar / bank account across employees                                   |
 
 Optional identity/master-data columns the register may carry: `pan`, `aadhaar`,

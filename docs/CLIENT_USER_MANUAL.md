@@ -110,8 +110,11 @@ company and takes you into its work. A company with nothing uploaded says so.
 
 **Home → Payroll Control Centre** is the *Month at a glance*. Across the top you choose the
 **company** and the **financial year** (always April to March; FY 2026-27 and FY 2027-28 are
-offered), then click one of that year's twelve **months** — a green bar means the month has been
-checked. **Check a register** begins the month. Below, the page shows which files have arrived, how validation is
+offered). The year is drawn as twelve columns: each checked month shows its **open critical
+findings** (red) and **open warnings** (amber) from its current run, a green tick-mark where none are
+open, and a dash where the month has not been checked. Click a month to open it. The validation panel
+shows the run's checks as a ring — passed, failed, could not validate, not applicable — around the
+share that reached a verdict. **Check a register** begins the month. Below, the page shows which files have arrived, how validation is
 going, what is still open, what changed since the previous run, what blocks approval and the
 evidence pack; a right-hand rail holds the latest run, the month's closure status and the output
 links. It also says the **next step** —
@@ -184,14 +187,24 @@ Configuration, open when you are in them.
   as a passed check (STAT-005), not as a problem. Coverage follows the **contribution period**
   (April–September, October–March): someone covered earlier in the period stays covered to its end
   even after crossing ₹21,000, and October and April decide coverage afresh — a deduction that carries
-  on into a new period for someone now above the ceiling is reported. Overtime paid to a covered
-  employee must be in the ESIC wage (ESI-009).
+  on into a new period for someone now above the ceiling is reported. Where an earlier month of
+  the period was never loaded, ESIC deducted above the ceiling is shown as *ESIC Coverage Not
+  Confirmed* — the employee may have been covered in the month that is missing — and it names the
+  month to load; it is not counted as an error unless the amount is wrong either way. Overtime paid
+  to a covered employee must be in the ESIC wage (ESI-009).
 * **PT and LWF** are checked in every state the company runs them in — the states in the settings
   *and* every state whose slabs are saved on the Professional tax / Labour welfare fund tabs; those
   tabs open on your company's own states. A deduction where the slab says nil (a woman's slab, a
   month the state does not collect LWF) is reported. PT on a month with arrears reconciles whether
   it was worked on the month's salary or on everything paid in it. An employee in a state the
   company does not run the scheme in is left alone unless something was deducted.
+  **Odisha** has no professional tax from April 2026, so PT deducted there after March 2026 is
+  reported. **LWF** is expected only in its due months — June and December for half-yearly states,
+  December for yearly ones.
+* **TDS without a PAN** (TDS-001) is raised only where tax is actually due: someone whose pay is
+  below the taxable limit has nothing deducted, PAN or not. For salary paid from April 2026 the
+  law is the Income-tax Act, 2025 — section 392 for salary TDS, 397(2) for the no-PAN rate, Form 138
+  for the quarterly return and Form 130 for the certificate, in place of 192, 206AA, 24Q and Form 16.
 * **Joiners and leavers**: paid days are checked against the days the person was employed in the
   month (from the employee master), so a joiner on the 11th paid 20 days with no loss of pay is
   correct, and the part month is not reported as a pay drop.
@@ -278,12 +291,22 @@ then **Store**. The master is what lets validation catch someone paid after
 leaving, someone on the register who is not an employee, and the wrong state
 for professional tax. Sending the same month again replaces that version.
 
+Once a master is stored, the page draws it as it stands today: how many people are working and
+how many have left, the split by gender, work state and department, joiners by year, and — the one
+to read first — **What is filled in**: how many employees have each field recorded. An empty field
+switches off the checks that read it, so a short bar there explains missing checks elsewhere.
+People with a value not recorded are counted as such, never dropped.
+
 ### Step 1 — Attendance
 
 **Data & imports → Attendance.** Upload the month's attendance, then
 **validate** before committing.
 
 ![Attendance](images/04-attendance.png)
+
+For the latest stored month the page adds up the days by kind (present, paid leave, weekly off,
+holidays, loss of pay), counts employees by how many days of pay they lost, and shows who worked
+overtime. A column the file did not carry is shown as *not in the file* — never as a total of zero.
 
 The file is checked against itself first: calendar days, present days, paid
 leave, weekly offs, holidays, loss of pay and paid days all have to add up. **If
@@ -365,7 +388,8 @@ marked *superseded*, and still shows exactly what it reported. The chips at the
 top of the results page switch between a month's runs, and **Compare** shows
 what changed between two of them — which findings are **new**, which were
 **resolved**, which **changed** and which are **unchanged**, with the rupee
-totals of each.
+totals of each. A pair of bars under those figures shows each run's findings
+split the same way, so a run that grew or shrank is seen at once.
 
 If anything the result depended on changes after the run — the register is
 re-uploaded, the employee master or attendance changes, or a component flag,
@@ -378,6 +402,16 @@ warnings still open after waivers, the open exposure, and the high-risk
 employees; the ones with an arrow open the matching list. Under them, the
 **outcome strip** says how much was checked (see Coverage below) — kept apart
 from the issue counts on purpose.
+
+The **Overview** tab draws the run. *Findings by severity* is a ring of every finding the run
+recorded, before waivers. *Where in payroll* splits them by area — provident fund, ESIC, PT and LWF,
+income tax, wages and structure, attendance, arrears and changes, totals, data — with the employees
+affected beside each bar. *Who failed what* is a grid of employees against those areas: a cell is
+coloured by its worst finding and carries the number of findings in it, a dot means no finding, and
+clicking a name opens that employee. It draws the forty highest-risk employees and says so when
+there are more. *Risk spread* counts employees by risk score, and *By work state* and *By department*
+show how many people in each have at least one finding. Every chart is counted over the whole run
+by the server, so it agrees with the tables under it; hover a mark for its exact figures.
 
 Large results are paged on the server, fifty at a time, with the total always
 stated. On **Findings**, filter by severity, check, component, location,
@@ -416,7 +450,9 @@ the checks that applied, how many reached a verdict. A month with no failures
 and 60% coverage has not been shown to be clean — 40% of it was not checked.
 The **Coverage** tab lists the inputs that were missing, how many checks each
 would have unlocked, and the employees who could not be fully checked. The
-employee view lists every check for that person with its outcome and the reason.
+employee view lists every check for that person with its outcome and the reason. At its top,
+a ring shows that person's checks by outcome, and a second panel what their risk score is made of
+— points from critical findings, warnings, info findings and large rupee impacts.
 
 ![Coverage](images/18-coverage.png)
 
@@ -456,6 +492,11 @@ or search by employee. The filters are kept in the page address, so a link
 from the Control Centre arrives already filtered.
 
 ![Issues](images/20-issues.png)
+
+Above the list, *Where the findings stand* shows every finding tracked for the company, across
+months, by its state now, and *Progress* the share already closed (resolved, or waived with a
+reason) beside what is still to work, overdue and without an owner. These two do not change with
+the filters.
 
 Open a finding to:
 
@@ -805,7 +846,9 @@ choices, not a frozen result: it reads current data each time.
 **Validation & findings → History.** The one place for what has already happened: the
 **Validation runs** tab lists every validation with its outcome (finished runs open their results,
 running ones their progress), and the **Salary registers** tab holds every register stored, by
-month. Processing a month is never started from here — that is the Control Centre.
+month. Once two months have been checked, *Month by month* at the top draws each month's open
+critical findings and warnings side by side; click a column to open that month's results.
+Processing a month is never started from here — that is the Control Centre.
 
 ![Register history](images/13-register-history.png)
 

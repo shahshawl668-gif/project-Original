@@ -37,7 +37,7 @@ function JobProgress({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<ValidationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const started = useRef(Date.now());
+  const [started] = useState(() => Date.now());
   const queryClient = useQueryClient();
   const entityAtStart = useRef<string | null>(null);
 
@@ -72,7 +72,7 @@ function JobProgress({ jobId }: { jobId: string }) {
       if (stop) return;
       if (next && (next.state === "queued" || next.state === "running")) {
         // Poll briskly at first, then ease off for a long job.
-        const wait = Date.now() - started.current > 60_000 ? 3000 : 1200;
+        const wait = Date.now() - started > 60_000 ? 3000 : 1200;
         timer = setTimeout(() => void tick(), wait);
       }
       if (next?.state === "succeeded" && next.run_id) {
@@ -89,7 +89,7 @@ function JobProgress({ jobId }: { jobId: string }) {
       stop = true;
       if (timer) clearTimeout(timer);
     };
-  }, [load, router, queryClient]);
+  }, [load, router, queryClient, started]);
 
   const cancel = async () => {
     if (!job) return;
