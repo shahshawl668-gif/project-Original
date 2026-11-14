@@ -1,5 +1,11 @@
 # Go-live runbook — Peopleopslab
 
+> **Not in use since 14 November 2026.** The product now runs offline on one
+> computer — see [`docs/OFFLINE.md`](OFFLINE.md). The hosted services described
+> below were retired, and `render.yaml`, `railway.json` and `backend/Procfile`
+> were removed from the repository. This document is kept as a record of the
+> hosted setup.
+
 > **Removed on 19 Oct 2026:** bank-file reconciliation, the payment-file check, journal vouchers (JV) and the
 > cost-analysis, dashboards and budget screens are no longer part of the product. Any section below that describes them
 > is out of date. Month approval, validation, imports and the Report Centre are unchanged.
