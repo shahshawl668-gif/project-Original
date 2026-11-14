@@ -1,5 +1,11 @@
 # Deployment guide — Payroll Validation SaaS
 
+> **Not in use since 14 November 2026.** The product now runs offline on one
+> computer — see [`docs/OFFLINE.md`](docs/OFFLINE.md). The hosted services described
+> below were retired, and `render.yaml`, `railway.json` and `backend/Procfile`
+> were removed from the repository. This document is kept as a record of the
+> hosted setup.
+
 This is the **operational** guide. The `README.md` covers product / dev. This
 document focuses on getting `peopleopslab.in` live end-to-end on:
 

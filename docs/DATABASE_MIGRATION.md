@@ -1,5 +1,11 @@
 # Moving the database
 
+> **Not in use since 14 November 2026.** The product now runs offline on one
+> computer — see [`docs/OFFLINE.md`](OFFLINE.md). The hosted services described
+> below were retired, and `render.yaml`, `railway.json` and `backend/Procfile`
+> were removed from the repository. This document is kept as a record of the
+> hosted setup.
+
 How to move Peopleopslab's PostgreSQL database to a different host, without
 losing anything and without a window where the application is pointed at a
 database that is not ready.
