@@ -1,4 +1,9 @@
 @tailwind base;
+
+:root {
+  /* The self-hosted face from @fontsource-variable/inter; see app/layout.tsx. */
+  --font-sans: "Inter Variable";
+}
 @tailwind components;
 @tailwind utilities;
 

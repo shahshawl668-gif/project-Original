@@ -1,19 +1,26 @@
-# Local stack: Postgres, API and web app.
+# The product, on one computer: Postgres, API and web app. This is how it runs
+# now — there is no hosted copy. See docs/OFFLINE.md; offline/start.bat (or
+# start.sh) runs the command below.
 #
-#   docker compose -f docker/docker-compose.yml up --build
+#   docker compose -f docker/docker-compose.yml up -d --build
 #
-# The API creates and migrates its own tables on start, exactly as it does on
-# Render. Nothing is loaded into Postgres beforehand: a database shaped by a
-# separate SQL file is a different database from production's, and tests
-# against it prove nothing about production.
+# Nothing here calls out at run time. The data lives in the pgdata volume on
+# this machine and survives stop, start and rebuild; offline/backup writes it
+# to a file.
 #
-# Sign-in is off by default here (AUTH_DISABLED=1): the app opens on the
-# dashboard as the API's built-in local user. Build with AUTH_DISABLED=0 to
-# test sign-in and sign-up. Production is unaffected either way — with
-# ENV=production the API refuses requests without a token.
+# The API creates and migrates its own tables on start. Nothing is loaded into
+# Postgres beforehand.
+#
+# Sign-in is off by default (AUTH_DISABLED=1): the app opens on the dashboard
+# as the API's built-in local user. Because of that, every port is published
+# on 127.0.0.1 only — this computer, not the office network. Anyone who can
+# reach the page can read the payroll in it, so before setting
+# BIND_ADDRESS=0.0.0.0 to share it, build with AUTH_DISABLED=0 so people sign in.
 
 services:
   db:
+    # Comes back by itself after a restart of the computer or of Docker.
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-payroll}
@@ -23,7 +30,7 @@ services:
     # (which holds 5432) does not stop this one starting. The API reaches it
     # inside Docker as db:5432 whatever this says.
     ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
+      - "${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -33,6 +40,8 @@ services:
       retries: 10
 
   backend:
+    # Comes back by itself after a restart of the computer or of Docker.
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: docker/Dockerfile.backend
@@ -49,12 +58,14 @@ services:
       JWT_SECRET: ${JWT_SECRET:-local-docker-only-not-a-secret}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
 
   frontend:
+    # Comes back by itself after a restart of the computer or of Docker.
+    restart: unless-stopped
     build:
       context: ..
       dockerfile: docker/Dockerfile.frontend
@@ -66,7 +77,7 @@ services:
       # where the browser goes through the web server's relay.
       BACKEND_URL: http://backend:8000
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "${BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
 

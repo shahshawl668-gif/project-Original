@@ -1,7 +1,10 @@
 import { PRODUCT_DESCRIPTION, PRODUCT_TITLE } from "@/lib/brand";
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Inter } from "next/font/google";
+// The typeface ships inside the app (latin subset, variable weight) and is
+// served from this origin. Nothing is fetched from a font service, at build
+// time or in the browser, so the product builds and runs with no internet.
+import "@fontsource-variable/inter/wght.css";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { EntityProvider } from "@/context/EntityContext";
@@ -12,12 +15,6 @@ import { Toaster } from "@/components/ui/toaster";
 // One typeface. Headings differ by weight and size; a second display face
 // cost a font download on every first visit and made numbers in headings and
 // tables disagree about their shapes.
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
   title: PRODUCT_TITLE,
   description: PRODUCT_DESCRIPTION,
@@ -32,7 +29,7 @@ const themeBootScript = `(function(){try{document.documentElement.classList.remo
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <Script id="theme-boot" strategy="beforeInteractive">
           {themeBootScript}

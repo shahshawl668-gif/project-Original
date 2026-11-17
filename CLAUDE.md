@@ -49,7 +49,8 @@ code does not do.
 | `docs/CLIENT_USER_MANUAL.md` | For the client's payroll team |
 | `docs/IMPLEMENTATION_MANUAL.md` | For whoever sets up a new client |
 | `docs/ADMIN_MANUAL.md` | For the team running the platform |
-| `docs/GO_LIVE.md` | Internal. Six phases, three gates, and the D6 statutory sign-off |
+| `docs/OFFLINE.md` | How the product runs now: on one computer, no hosted copy. Start, stop, backup, who can reach it |
+| `docs/GO_LIVE.md` | Internal. Six phases, three gates, and the D6 statutory sign-off. The hosting parts are a record: nothing is hosted |
 | `docs/BACKGROUND_JOBS.md` | Design and current state of the validation queue |
 | `docs/STUDIO.md` | PeopleOps Studio: assessment, design, current state per phase, quick starts |
 | `docs/DISBURSEMENT.md` | Disbursement validation: release checks, verdict, bank file templates, current state per step |

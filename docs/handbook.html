@@ -265,6 +265,7 @@
     <span><b>Tests</b> 1,107 passing, SQLite + PostgreSQL</span>
     <span><b>Compiled</b> 25 Sep 2026</span>
   </div>
+  <p class="standfirst"><b>Since 14 November 2026 the product runs offline, on one computer, with no hosted copy.</b> How to start, stop and back it up, and who can reach it, is in <code>docs/OFFLINE.md</code>. The Render services were retired and <code>render.yaml</code>, <code>railway.json</code> and <code>backend/Procfile</code> removed. Where this handbook speaks of Render, <code>peopleopslab.in</code>, deployed services or production settings, read it as a record of the hosted setup; the structure, routes, access model and tests below are unchanged.</p>
 </header>
 
 <div class="cols">
@@ -292,7 +293,7 @@
 
     <div class="note stop">
       <h4>There is no cron job in this product</h4>
-      <p>There is no cron entry, APScheduler or Celery beat anywhere in the repository or <code>render.yaml</code>. Timed work happens inside the worker loop that runs in the API process: on each pass it claims queued validations, imports and report jobs, starts Studio syncs and workflows whose schedule is due (<code>sync.schedule_due</code>, <code>workflows.schedule_due</code>), expires generated report files past their retention, and once a day applies each company's payroll retention period (<code>data_protection.apply_due</code>). There is no nightly recalculation: stored costings and input digests are recomputed on the first read after something they depend on changes.</p>
+      <p>There is no cron entry, APScheduler or Celery beat anywhere in the repository. Timed work happens inside the worker loop that runs in the API process: on each pass it claims queued validations, imports and report jobs, starts Studio syncs and workflows whose schedule is due (<code>sync.schedule_due</code>, <code>workflows.schedule_due</code>), expires generated report files past their retention, and once a day applies each company's payroll retention period (<code>data_protection.apply_due</code>). There is no nightly recalculation: stored costings and input digests are recomputed on the first read after something they depend on changes.</p>
       <p>The one thing that <em>looks</em> time-based is support-grant expiry, and it deliberately is not swept by a job: the expiry is derived from a stored timestamp at read time, so a lapsed grant stops working the instant it lapses whether or not anything ran. That design choice is why no cron is needed for it.</p>
     </div>
 

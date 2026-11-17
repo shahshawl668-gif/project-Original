@@ -5,6 +5,11 @@ check one. It sits beside whatever system does and answers three questions about
 the output: **is this month right**, **what is it costing us**, and **did it
 reach the bank and the ledger**.
 
+**It runs offline, on one computer.** Start it with `offline\start.bat` (Windows)
+or `offline/start.sh` (Mac, Linux) and open http://localhost:3000 — no sign-in,
+no hosted service, and the data never leaves the machine. Everything about
+running it is in [`docs/OFFLINE.md`](docs/OFFLINE.md).
+
 - **Checks attendance** against itself before it is stored, and then checks pay
   against attendance — loss of pay never deducted, overtime worked and never
   paid, an employee on the attendance register and on no payslip.
